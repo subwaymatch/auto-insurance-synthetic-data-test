@@ -1,0 +1,111 @@
+Vehicle ID,Car Make,Model,Body Type,Segment,Average Price
+1,Toyota,Camry,Sedan,Mainstream,29000
+2,Toyota,Corolla,Sedan,Economy,23500
+3,Toyota,RAV4,SUV,Mainstream,31000
+4,Toyota,Highlander,SUV,Mainstream,41000
+5,Toyota,Tacoma,Pickup,Truck,34000
+6,Toyota,Sienna,Minivan,Minivan,39500
+7,Toyota,Prius,Hatchback,Economy,29500
+8,Toyota,4Runner,SUV,Mainstream,43000
+9,Honda,Civic,Sedan,Economy,25500
+10,Honda,Accord,Sedan,Mainstream,29500
+11,Honda,CR-V,SUV,Mainstream,31500
+12,Honda,Pilot,SUV,Mainstream,41500
+13,Honda,Odyssey,Minivan,Minivan,39500
+14,Honda,HR-V,SUV,Economy,26500
+15,Ford,F-150,Pickup,Truck,45000
+16,Ford,Escape,SUV,Mainstream,30500
+17,Ford,Explorer,SUV,Mainstream,40500
+18,Ford,Fusion,Sedan,Mainstream,26000
+19,Ford,Focus,Hatchback,Economy,20500
+20,Ford,Edge,SUV,Mainstream,39500
+21,Ford,Mustang,Coupe,Sports,35000
+22,Ford,Bronco Sport,SUV,Mainstream,32000
+23,Chevrolet,Silverado 1500,Pickup,Truck,45500
+24,Chevrolet,Equinox,SUV,Mainstream,30000
+25,Chevrolet,Malibu,Sedan,Mainstream,26500
+26,Chevrolet,Cruze,Sedan,Economy,20500
+27,Chevrolet,Traverse,SUV,Mainstream,39500
+28,Chevrolet,Tahoe,SUV,Truck,60500
+29,Chevrolet,Impala,Sedan,Mainstream,30000
+30,Chevrolet,Trax,SUV,Economy,22500
+31,Chevrolet,Camaro,Coupe,Sports,33000
+32,GMC,Sierra 1500,Pickup,Truck,47500
+33,GMC,Terrain,SUV,Mainstream,31500
+34,GMC,Acadia,SUV,Mainstream,44000
+35,Ram,1500,Pickup,Truck,45000
+36,Jeep,Grand Cherokee,SUV,Mainstream,42500
+37,Jeep,Wrangler,SUV,Mainstream,37500
+38,Jeep,Cherokee,SUV,Mainstream,33500
+39,Jeep,Compass,SUV,Economy,29500
+40,Dodge,Charger,Sedan,Sports,37000
+41,Dodge,Challenger,Coupe,Sports,36000
+42,Dodge,Grand Caravan,Minivan,Minivan,29000
+43,Dodge,Durango,SUV,Mainstream,43000
+44,Chrysler,Pacifica,Minivan,Minivan,41000
+45,Chrysler,300,Sedan,Mainstream,36500
+46,Nissan,Altima,Sedan,Mainstream,27500
+47,Nissan,Rogue,SUV,Mainstream,30500
+48,Nissan,Sentra,Sedan,Economy,22500
+49,Nissan,Versa,Sedan,Economy,18500
+50,Nissan,Murano,SUV,Mainstream,40500
+51,Nissan,Pathfinder,SUV,Mainstream,38500
+52,Hyundai,Elantra,Sedan,Economy,23000
+53,Hyundai,Sonata,Sedan,Mainstream,28500
+54,Hyundai,Tucson,SUV,Mainstream,30000
+55,Hyundai,Santa Fe,SUV,Mainstream,35500
+56,Hyundai,Kona,SUV,Economy,25500
+57,Kia,Forte,Sedan,Economy,21500
+58,Kia,Optima,Sedan,Mainstream,26500
+59,Kia,Soul,Hatchback,Economy,21500
+60,Kia,Sportage,SUV,Mainstream,29000
+61,Kia,Sorento,SUV,Mainstream,33500
+62,Kia,Telluride,SUV,Mainstream,38000
+63,Subaru,Outback,SUV,Mainstream,31000
+64,Subaru,Forester,SUV,Mainstream,29500
+65,Subaru,Crosstrek,SUV,Economy,27000
+66,Subaru,Impreza,Hatchback,Economy,24500
+67,Mazda,CX-5,SUV,Mainstream,30500
+68,Mazda,Mazda3,Sedan,Economy,25500
+69,Mazda,CX-9,SUV,Mainstream,40500
+70,Volkswagen,Jetta,Sedan,Economy,23500
+71,Volkswagen,Tiguan,SUV,Mainstream,30500
+72,Volkswagen,Passat,Sedan,Mainstream,29000
+73,Volkswagen,Atlas,SUV,Mainstream,39500
+74,Buick,Encore,SUV,Economy,26500
+75,Buick,Enclave,SUV,Mainstream,46500
+76,Cadillac,Escalade,SUV,Luxury,84000
+77,Cadillac,XT5,SUV,Luxury,46000
+78,Lincoln,Navigator,SUV,Luxury,84500
+79,BMW,3 Series,Sedan,Luxury,46500
+80,BMW,5 Series,Sedan,Luxury,59500
+81,BMW,X3,SUV,Luxury,49000
+82,BMW,X5,SUV,Luxury,67500
+83,Mercedes-Benz,C-Class,Sedan,Luxury,48500
+84,Mercedes-Benz,E-Class,Sedan,Luxury,63500
+85,Mercedes-Benz,GLC,SUV,Luxury,50000
+86,Mercedes-Benz,GLE,SUV,Luxury,63500
+87,Audi,A4,Sedan,Luxury,43500
+88,Audi,Q5,SUV,Luxury,46500
+89,Lexus,RX,SUV,Luxury,50500
+90,Lexus,ES,Sedan,Luxury,43500
+91,Lexus,NX,SUV,Luxury,41500
+92,Acura,MDX,SUV,Luxury,51500
+93,Acura,RDX,SUV,Luxury,45500
+94,Acura,TLX,Sedan,Luxury,46000
+95,Infiniti,Q50,Sedan,Luxury,44000
+96,Infiniti,QX60,SUV,Luxury,51000
+97,Volvo,XC60,SUV,Luxury,48000
+98,Volvo,XC90,SUV,Luxury,58500
+99,Land Rover,Range Rover Sport,SUV,Luxury,85000
+100,Porsche,Macan,SUV,Luxury,64000
+101,Tesla,Model 3,Sedan,Electric,41000
+102,Tesla,Model Y,SUV,Electric,46500
+103,Tesla,Model S,Sedan,Electric,76500
+104,Chevrolet,Bolt EV,Hatchback,Electric,28500
+105,Nissan,Leaf,Hatchback,Electric,29500
+106,Ford,Mustang Mach-E,SUV,Electric,44500
+107,Hyundai,Ioniq 5,SUV,Electric,44000
+108,Mitsubishi,Outlander,SUV,Economy,30000
+109,Mini,Cooper,Hatchback,Economy,30500
+110,Honda,Fit,Hatchback,Economy,18000

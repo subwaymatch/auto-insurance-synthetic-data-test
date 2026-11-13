@@ -24,7 +24,8 @@ python validate.py
 ```
 
 `generate.py` writes 19 CSV tables to `output/` and an instructor answer key to
-`output/answer_key/` in about 15 seconds. `validate.py` re-reads those files and checks them
+`output/answer_key/` in about 15 seconds. The default run is committed in `output/`, so the
+data can be used without running anything. `validate.py` re-reads those files and checks them
 against the calibration targets.
 
 | Option | Default | Meaning |
@@ -37,6 +38,39 @@ against the calibration targets.
 
 The calibration targets are tuned for the default dates. Other windows between 2021 and 2026
 work, but may land outside a tolerance band.
+
+Library versions are pinned in `requirements.txt` because a newer numpy or pandas may draw
+random numbers or format floats slightly differently, which would change the generated values.
+
+## Releases
+
+`.github/workflows/release.yml` builds the dataset from source, runs the tests and
+`validate.py`, and publishes a GitHub release. To release the default configuration, push a tag:
+
+```bash
+git tag v1.0.0
+```
+
+```bash
+git push origin v1.0.0
+```
+
+To release another seed or size, open the Actions tab, choose "Release dataset", then
+"Run workflow", and enter a tag, seed and policy count. Re-running for an existing tag replaces
+that release's files.
+
+Each release carries:
+
+| File | Contents |
+|---|---|
+| `chicago-auto-insurance-data-<tag>.zip` | The tables, `run_summary.json` and this README. Give this to students. |
+| `chicago-auto-insurance-answer-key-<tag>.zip` | The answer key. Instructors only. |
+| `validation-report-<tag>.txt` | Full output of `validate.py` |
+| `SHA256SUMS.txt` | Checksums |
+
+The release fails if a test or validation check fails. For the default settings, it also
+reports whether the freshly built data matches the committed `output/` folder; a mismatch
+raises a warning, not a failure, because floating-point details can differ between machines.
 
 ## What the default run produces
 
@@ -136,10 +170,11 @@ Keys: `Policy Number` (called `Policy ID` on claims and communications, as befor
 
 ## What a case study can find (instructor notes)
 
-`output/answer_key/` holds the truth behind the data: each vehicle's expected loss by
+`output/answer_key/` (and the separate answer-key zip in each release) holds the truth behind the data: each vehicle's expected loss by
 coverage, each driver's hidden risk factor, true mileage, true ZIP hazard, the full rating
-plan before and after distortion, and the claims not yet reported. Withhold that folder from
-students.
+plan before and after distortion, and the claims not yet reported. Withhold it from students:
+give them the data zip from a release, not access to this repository, because the answer key is
+committed here.
 
 Deliberate and emergent findings in the default run:
 
@@ -220,7 +255,9 @@ autoins/rating.py        the insurer's rating plan
 autoins/simulate.py      term-by-term simulation: rating, retention, claims
 autoins/claims.py        claim lifecycle and valuation cut-off
 autoins/tables.py        output tables and answer key
+output/                  the default run (seed 20250101), committed
 reference/               ZIP reference data, vehicle catalogue, name lists
-scripts/                 one-off scripts that build reference/
+scripts/                 build reference/ from public sources; package release files
+.github/workflows/       release workflow
 tests/                   python -m unittest discover tests
 ```

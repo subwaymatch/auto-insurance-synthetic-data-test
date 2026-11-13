@@ -1,0 +1,112 @@
+name: Release dataset
+
+# Builds the dataset from source, tests and validates it, and publishes it as a GitHub release.
+#   * Push a tag such as v1.0.0 to release the default configuration.
+#   * Or run it from the Actions tab ("Run workflow") with a tag and, optionally, another seed or size.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create, e.g. v1.1.0"
+        required: true
+        type: string
+      seed:
+        description: "Random seed"
+        required: false
+        default: "20250101"
+        type: string
+      policies:
+        description: "Number of policies"
+        required: false
+        default: "30000"
+        type: string
+      prerelease:
+        description: "Mark as a pre-release"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  SEED: ${{ inputs.seed || '20250101' }}
+  POLICIES: ${{ inputs.policies || '30000' }}
+  PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check inputs
+        run: |
+          [[ "$TAG" =~ ^v[0-9A-Za-z._-]+$ ]] || { echo "::error::Tag must look like v1.2.3 (got '$TAG')"; exit 1; }
+          [[ "$SEED" =~ ^[0-9]+$ ]] || { echo "::error::Seed must be a whole number"; exit 1; }
+          [[ "$POLICIES" =~ ^[0-9]+$ ]] && (( POLICIES >= 1000 && POLICIES <= 500000 )) \
+            || { echo "::error::Policies must be between 1,000 and 500,000"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest discover tests -v
+
+      - name: Generate dataset
+        run: python generate.py --seed "$SEED" --policies "$POLICIES" --out build/output
+
+      - name: Validate dataset
+        run: python validate.py --out build/output | tee build/validation.txt
+
+      - name: Compare with committed output
+        # Informational only. Byte-identical output is expected with the pinned library versions,
+        # but floating-point details can differ between CPUs.
+        run: |
+          if [[ "$SEED" != "20250101" || "$POLICIES" != "30000" ]]; then
+            echo "Non-default settings; the committed output/ folder is not comparable."
+          elif diff -rq output build/output; then
+            echo "::notice::Regenerated data is byte-identical to the committed output/ folder."
+          else
+            echo "::warning::Regenerated data differs from the committed output/ folder. Regenerate and commit output/ if the generator changed."
+          fi
+
+      - name: Package release files
+        run: python scripts/package_release.py --data build/output --tag "$TAG" --validation build/validation.txt --dist dist
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=(dist/*.zip dist/*.txt)
+          flags=()
+          [[ "$PRERELEASE" == "true" ]] && flags+=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists; replacing its files and notes."
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" --notes-file dist/release_notes.md "${flags[@]}"
+          else
+            gh release create "$TAG" "${files[@]}" --title "Dataset $TAG" --notes-file dist/release_notes.md \
+              --target "$GITHUB_SHA" "${flags[@]}"
+          fi
+
+      - name: Summary
+        run: cat dist/release_notes.md >> "$GITHUB_STEP_SUMMARY"

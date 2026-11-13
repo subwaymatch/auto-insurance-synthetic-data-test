@@ -1,4 +1,7 @@
-numpy>=2.0
-pandas>=2.2
+# Exact versions, so the same seed reproduces the committed output/ and the release files.
+# Newer versions should also work, but their random-number or float formatting details may
+# differ, which changes the generated values.
+numpy==2.5.3
+pandas==3.0.5
 # Only needed to rebuild reference/zip_reference.csv (scripts/build_reference_data.py):
 # shapely>=2.0
