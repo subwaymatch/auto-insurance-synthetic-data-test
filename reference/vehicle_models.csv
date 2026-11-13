@@ -1,0 +1,111 @@
+model_id,make,model,body_type,segment,msrp_2024,first_year,last_year,popularity,theft_factor
+1,Toyota,Camry,Sedan,mainstream,29000,1995,2026,3.2,1.0
+2,Toyota,Corolla,Sedan,economy,23500,1995,2026,3.0,1.0
+3,Toyota,RAV4,SUV,mainstream,31000,1996,2026,3.6,0.9
+4,Toyota,Highlander,SUV,mainstream,41000,2001,2026,1.8,0.9
+5,Toyota,Tacoma,Pickup,truck,34000,1995,2026,1.2,1.0
+6,Toyota,Sienna,Minivan,minivan,39500,1998,2026,0.9,0.7
+7,Toyota,Prius,Hatchback,economy,29500,2001,2026,0.8,1.3
+8,Toyota,4Runner,SUV,mainstream,43000,1995,2026,0.6,1.0
+9,Honda,Civic,Sedan,economy,25500,1995,2026,3.0,1.3
+10,Honda,Accord,Sedan,mainstream,29500,1995,2026,2.8,1.3
+11,Honda,CR-V,SUV,mainstream,31500,1997,2026,3.4,1.1
+12,Honda,Pilot,SUV,mainstream,41500,2003,2026,1.3,0.9
+13,Honda,Odyssey,Minivan,minivan,39500,1995,2026,1.0,0.7
+14,Honda,HR-V,SUV,economy,26500,2016,2026,0.9,0.9
+15,Ford,F-150,Pickup,truck,45000,1995,2026,3.0,1.4
+16,Ford,Escape,SUV,mainstream,30500,2001,2026,2.4,0.9
+17,Ford,Explorer,SUV,mainstream,40500,1995,2026,2.0,1.0
+18,Ford,Fusion,Sedan,mainstream,26000,2006,2020,1.9,1.0
+19,Ford,Focus,Hatchback,economy,20500,2000,2018,1.5,0.9
+20,Ford,Edge,SUV,mainstream,39500,2007,2024,1.2,0.9
+21,Ford,Mustang,Coupe,sports,35000,1995,2026,0.7,1.6
+22,Ford,Bronco Sport,SUV,mainstream,32000,2021,2026,0.5,0.9
+23,Chevrolet,Silverado 1500,Pickup,truck,45500,1999,2026,2.4,1.5
+24,Chevrolet,Equinox,SUV,mainstream,30000,2005,2026,2.9,0.9
+25,Chevrolet,Malibu,Sedan,mainstream,26500,1997,2025,2.4,1.3
+26,Chevrolet,Cruze,Sedan,economy,20500,2011,2019,1.5,1.0
+27,Chevrolet,Traverse,SUV,mainstream,39500,2009,2026,1.3,0.9
+28,Chevrolet,Tahoe,SUV,truck,60500,1995,2026,0.8,1.5
+29,Chevrolet,Impala,Sedan,mainstream,30000,2000,2020,1.2,1.4
+30,Chevrolet,Trax,SUV,economy,22500,2015,2026,0.9,0.9
+31,Chevrolet,Camaro,Coupe,sports,33000,1995,2024,0.4,2.2
+32,GMC,Sierra 1500,Pickup,truck,47500,1999,2026,1.0,1.5
+33,GMC,Terrain,SUV,mainstream,31500,2010,2026,0.8,0.9
+34,GMC,Acadia,SUV,mainstream,44000,2007,2026,0.7,0.9
+35,Ram,1500,Pickup,truck,45000,1995,2026,1.6,1.5
+36,Jeep,Grand Cherokee,SUV,mainstream,42500,1995,2026,2.2,1.5
+37,Jeep,Wrangler,SUV,mainstream,37500,1995,2026,1.4,1.1
+38,Jeep,Cherokee,SUV,mainstream,33500,2014,2023,1.3,1.1
+39,Jeep,Compass,SUV,economy,29500,2007,2026,1.1,1.0
+40,Dodge,Charger,Sedan,sports,37000,2006,2026,0.9,3.5
+41,Dodge,Challenger,Coupe,sports,36000,2008,2023,0.5,3.5
+42,Dodge,Grand Caravan,Minivan,minivan,29000,1995,2020,1.1,0.8
+43,Dodge,Durango,SUV,mainstream,43000,1998,2026,0.6,1.8
+44,Chrysler,Pacifica,Minivan,minivan,41000,2017,2026,0.6,0.8
+45,Chrysler,300,Sedan,mainstream,36500,2005,2023,0.5,2.0
+46,Nissan,Altima,Sedan,mainstream,27500,1995,2026,2.6,1.2
+47,Nissan,Rogue,SUV,mainstream,30500,2008,2026,2.8,0.9
+48,Nissan,Sentra,Sedan,economy,22500,1995,2026,1.9,1.0
+49,Nissan,Versa,Sedan,economy,18500,2007,2025,1.0,1.0
+50,Nissan,Murano,SUV,mainstream,40500,2003,2026,0.7,0.9
+51,Nissan,Pathfinder,SUV,mainstream,38500,1995,2026,0.6,0.9
+52,Hyundai,Elantra,Sedan,economy,23000,1996,2026,2.2,1.0
+53,Hyundai,Sonata,Sedan,mainstream,28500,1995,2026,1.8,1.0
+54,Hyundai,Tucson,SUV,mainstream,30000,2005,2026,1.7,1.0
+55,Hyundai,Santa Fe,SUV,mainstream,35500,2001,2026,1.4,1.0
+56,Hyundai,Kona,SUV,economy,25500,2018,2026,0.7,1.0
+57,Kia,Forte,Sedan,economy,21500,2010,2025,1.5,1.0
+58,Kia,Optima,Sedan,mainstream,26500,2001,2020,1.3,1.0
+59,Kia,Soul,Hatchback,economy,21500,2010,2025,1.4,1.0
+60,Kia,Sportage,SUV,mainstream,29000,2005,2026,1.4,1.0
+61,Kia,Sorento,SUV,mainstream,33500,2003,2026,1.3,1.0
+62,Kia,Telluride,SUV,mainstream,38000,2020,2026,0.6,0.9
+63,Subaru,Outback,SUV,mainstream,31000,1995,2026,1.3,0.7
+64,Subaru,Forester,SUV,mainstream,29500,1998,2026,1.3,0.7
+65,Subaru,Crosstrek,SUV,economy,27000,2013,2026,0.9,0.7
+66,Subaru,Impreza,Hatchback,economy,24500,1995,2026,0.6,0.8
+67,Mazda,CX-5,SUV,mainstream,30500,2013,2026,1.4,0.8
+68,Mazda,Mazda3,Sedan,economy,25500,2004,2026,1.1,0.8
+69,Mazda,CX-9,SUV,mainstream,40500,2007,2023,0.5,0.8
+70,Volkswagen,Jetta,Sedan,economy,23500,1995,2026,1.4,0.8
+71,Volkswagen,Tiguan,SUV,mainstream,30500,2009,2026,1.0,0.8
+72,Volkswagen,Passat,Sedan,mainstream,29000,1995,2022,0.7,0.8
+73,Volkswagen,Atlas,SUV,mainstream,39500,2018,2026,0.5,0.8
+74,Buick,Encore,SUV,economy,26500,2013,2026,0.9,0.8
+75,Buick,Enclave,SUV,mainstream,46500,2008,2026,0.6,0.8
+76,Cadillac,Escalade,SUV,luxury,84000,1999,2026,0.3,2.2
+77,Cadillac,XT5,SUV,luxury,46000,2017,2026,0.4,1.0
+78,Lincoln,Navigator,SUV,luxury,84500,1998,2026,0.15,1.6
+79,BMW,3 Series,Sedan,luxury,46500,1995,2026,1.0,1.2
+80,BMW,5 Series,Sedan,luxury,59500,1995,2026,0.5,1.2
+81,BMW,X3,SUV,luxury,49000,2004,2026,0.8,1.1
+82,BMW,X5,SUV,luxury,67500,2000,2026,0.7,1.4
+83,Mercedes-Benz,C-Class,Sedan,luxury,48500,1995,2026,0.8,1.2
+84,Mercedes-Benz,E-Class,Sedan,luxury,63500,1995,2026,0.4,1.2
+85,Mercedes-Benz,GLC,SUV,luxury,50000,2016,2026,0.7,1.1
+86,Mercedes-Benz,GLE,SUV,luxury,63500,2016,2026,0.5,1.3
+87,Audi,A4,Sedan,luxury,43500,1996,2026,0.6,1.0
+88,Audi,Q5,SUV,luxury,46500,2009,2026,0.8,1.0
+89,Lexus,RX,SUV,luxury,50500,1999,2026,1.0,1.2
+90,Lexus,ES,Sedan,luxury,43500,1995,2026,0.6,0.9
+91,Lexus,NX,SUV,luxury,41500,2015,2026,0.5,0.9
+92,Acura,MDX,SUV,luxury,51500,2001,2026,0.7,1.0
+93,Acura,RDX,SUV,luxury,45500,2007,2026,0.6,1.0
+94,Acura,TLX,Sedan,luxury,46000,2015,2026,0.3,1.2
+95,Infiniti,Q50,Sedan,luxury,44000,2014,2024,0.4,1.8
+96,Infiniti,QX60,SUV,luxury,51000,2013,2026,0.4,1.0
+97,Volvo,XC60,SUV,luxury,48000,2010,2026,0.4,0.7
+98,Volvo,XC90,SUV,luxury,58500,2003,2026,0.3,0.7
+99,Land Rover,Range Rover Sport,SUV,luxury,85000,2006,2026,0.2,2.5
+100,Porsche,Macan,SUV,luxury,64000,2015,2026,0.15,1.2
+101,Tesla,Model 3,Sedan,ev,41000,2018,2026,1.1,0.2
+102,Tesla,Model Y,SUV,ev,46500,2020,2026,1.2,0.2
+103,Tesla,Model S,Sedan,ev,76500,2013,2026,0.15,0.2
+104,Chevrolet,Bolt EV,Hatchback,ev,28500,2017,2023,0.25,0.3
+105,Nissan,Leaf,Hatchback,ev,29500,2011,2026,0.2,0.3
+106,Ford,Mustang Mach-E,SUV,ev,44500,2021,2026,0.25,0.3
+107,Hyundai,Ioniq 5,SUV,ev,44000,2022,2026,0.2,0.3
+108,Mitsubishi,Outlander,SUV,economy,30000,2003,2026,0.5,0.9
+109,Mini,Cooper,Hatchback,economy,30500,2002,2026,0.3,0.8
+110,Honda,Fit,Hatchback,economy,18000,2007,2020,0.6,0.9

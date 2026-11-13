@@ -1,0 +1,35 @@
+{
+ "seed": 20250101,
+ "policies": 30000,
+ "start": "2022-01-01",
+ "valuation": "2026-09-30",
+ "rows": {
+  "location_dimension": 290,
+  "population_distribution": 290,
+  "agency_dimension": 26,
+  "company_dimension": 3,
+  "claim_branches": 6,
+  "catastrophe_dimension": 8,
+  "rate_change_history": 7,
+  "policy_term_fact": 130794,
+  "policy_dimension": 30000,
+  "driver_dimension": 52021,
+  "driver_incident_fact": 28501,
+  "vehicles_dimension": 110,
+  "insured_vehicle_dimension": 61710,
+  "risk_fact": 217869,
+  "claim_coverage_fact": 14356,
+  "claims_fact": 10407,
+  "claim_expense_dimension": 10407,
+  "claim_payment_fact": 25848,
+  "communication_data": 168147
+ },
+ "answer_key_rows": {
+  "risk_truth": 217869,
+  "driver_truth": 52021,
+  "vehicle_truth": 61710,
+  "zip_truth": 290,
+  "unreported_claims": 46,
+  "claim_feature_truth": 14356
+ }
+}
