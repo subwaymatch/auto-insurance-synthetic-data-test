@@ -1,0 +1,4 @@
+numpy>=2.0
+pandas>=2.2
+# Only needed to rebuild reference/zip_reference.csv (scripts/build_reference_data.py):
+# shapely>=2.0
