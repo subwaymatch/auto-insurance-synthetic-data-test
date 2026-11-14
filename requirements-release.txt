@@ -1,0 +1,5 @@
+# Extra libraries for release file formats (scripts/release_formats.py), installed by the release
+# workflow on top of requirements.txt. CSV needs none. Add a line when you add a format, e.g.
+#   pyarrow     (parquet)
+#   openpyxl    (excel)
+# SQLite needs nothing extra (the sqlite3 module is part of Python).

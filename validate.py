@@ -131,16 +131,26 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
           f"{(lp['Transaction Type'] == 'Void').sum():,} voids; {f['Reopen Date'].notna().sum():,} features reopened")
 
 
-class Report:
-    def __init__(self) -> None:
-        self.failures = 0
+MIN_POLICIES_FOR_CALIBRATION = 20_000   # smaller books have too few claims for the calibration bands
 
-    def check(self, label: str, ok: bool, detail: str = "") -> None:
-        self.failures += not ok
-        print(f"  [{'ok' if ok else 'FAIL'}] {label}{(': ' + detail) if detail else ''}")
+
+class Report:
+    """Integrity checks (check) always count. Calibration bands (band) are statistical: on a small book
+    a miss is reported as a warning rather than a failure."""
+
+    def __init__(self, calibrate: bool = True) -> None:
+        self.failures = self.warnings = 0
+        self.calibrate = calibrate
+
+    def check(self, label: str, ok: bool, detail: str = "", statistical: bool = False) -> None:
+        soft = statistical and not self.calibrate
+        self.failures += not ok and not soft
+        self.warnings += not ok and soft
+        print(f"  [{'ok' if ok else 'warn' if soft else 'FAIL'}] {label}{(': ' + detail) if detail else ''}")
 
     def band(self, label: str, value: float, band: tuple[float, float], fmt: str = "{:,.2f}") -> None:
-        self.check(label, band[0] <= value <= band[1], f"{fmt.format(value)} (target {fmt.format(band[0])} to {fmt.format(band[1])})")
+        self.check(label, band[0] <= value <= band[1], f"{fmt.format(value)} (target {fmt.format(band[0])} to {fmt.format(band[1])})",
+                   statistical=True)
 
 
 def main() -> None:
@@ -155,7 +165,9 @@ def main() -> None:
     truth = pd.read_csv(out / "answer_key" / "risk_truth.csv")
     start = np.datetime64(json.loads((out / "run_summary.json").read_text())["start"])
     pd.set_option("display.width", 200)
-    rep = Report()
+    rep = Report(calibrate=len(pol) >= MIN_POLICIES_FOR_CALIBRATION)
+    if not rep.calibrate:
+        print(f"note: {len(pol):,} policies is too few to hold calibration bands; misses are warnings, integrity checks still count")
 
     print("\nSIZE")
     cy = risk["Earned Exposure"].sum()
@@ -300,7 +312,8 @@ def main() -> None:
     z["expected loss ratio"] = (z.expected / z.premium).round(3)
     print("  " + z[["car_years", "avg premium", "loss ratio", "expected loss ratio"]].round(3).to_string().replace("\n", "\n  "))
 
-    print(f"\n{'ALL CHECKS PASSED' if rep.failures == 0 else str(rep.failures) + ' CHECK(S) FAILED'}")
+    warned = f" ({rep.warnings} calibration warning(s) on a small book)" if rep.warnings else ""
+    print(f"\n{'ALL CHECKS PASSED' if rep.failures == 0 else str(rep.failures) + ' CHECK(S) FAILED'}{warned}")
     sys.exit(1 if rep.failures else 0)
 
 

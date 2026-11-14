@@ -56,22 +56,40 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-To release another seed or size, open the Actions tab, choose "Release dataset", then
-"Run workflow", and enter a tag, seed and policy count. Re-running for an existing tag replaces
-that release's files.
+To release another seed, size or set of file formats, open the Actions tab, choose "Release
+dataset", then "Run workflow", and enter a tag, seed, policy count and formats (default `csv`).
+Re-running for an existing tag replaces that release's files.
 
-Each release carries:
+Each release carries, for each format:
 
 | File | Contents |
 |---|---|
-| `chicago-auto-insurance-data-<tag>.zip` | The tables, `run_summary.json` and this README. Give this to students. |
-| `chicago-auto-insurance-answer-key-<tag>.zip` | The answer key. Instructors only. |
+| `chicago-auto-insurance-data-<tag>-<format>.zip` | The tables, `run_summary.json` and this README. Give this to students. |
+| `chicago-auto-insurance-answer-key-<tag>-<format>.zip` | The answer key. Instructors only. |
+
+and once:
+
+| File | Contents |
+|---|---|
 | `validation-report-<tag>.txt` | Full output of `validate.py` |
 | `SHA256SUMS.txt` | Checksums |
 
-The release fails if a test or validation check fails. For the default settings, it also
-reports whether the freshly built data matches the committed `output/` folder; a mismatch
-raises a warning, not a failure, because floating-point details can differ between machines.
+To package the same files locally:
+
+```bash
+python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv
+```
+
+**Adding a format** (Parquet, SQLite, Excel and so on) takes one function in
+`scripts/release_formats.py`, registered under the format's name, plus its library in
+`requirements-release.txt`; the file explains the pattern with examples. The workflow then
+publishes it when its name is listed in the formats input.
+
+The release fails if a test or an integrity check fails. Calibration bands only count for books of
+20,000 policies or more; on smaller books they are reported as warnings, because a few hundred
+claims are too few to hold them. For the default settings, the workflow also reports whether the
+freshly built data matches the committed `output/` folder; a mismatch raises a warning, not a
+failure, because floating-point details can differ between machines.
 
 ## What the default run produces
 
