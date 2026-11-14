@@ -36,7 +36,8 @@ class GeneratorTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def read(self, name: str) -> pd.DataFrame:
-        return pd.read_csv(self.root / "a" / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False)
+        return pd.read_csv(self.root / "a" / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False,
+                           dtype={"Change Reason": str})
 
     def test_same_seed_is_byte_identical(self) -> None:
         files = sorted(p.relative_to(self.root / "a") for p in (self.root / "a").rglob("*") if p.is_file())
@@ -65,7 +66,8 @@ class GeneratorTest(unittest.TestCase):
     def test_record_level_integrity_checks_pass(self) -> None:
         """The validator's lifecycle, timing, date, premium and payment checks all hold."""
         t = {n: self.read(n) for n in ("risk_fact", "policy_term_fact", "policy_dimension", "insured_vehicle_dimension",
-                                       "claims_fact", "claim_coverage_fact", "claim_payment_fact", "driver_incident_fact")}
+                                       "driver_dimension", "claims_fact", "claim_coverage_fact", "claim_payment_fact",
+                                       "driver_incident_fact")}
         start = np.datetime64(self.a["start"])
         r_start = np.maximum(pd.to_datetime(t["risk_fact"]["Coverage Start Date"]).to_numpy(), start)
         r_end = r_start + np.round(t["risk_fact"]["Earned Exposure"].to_numpy() * 365.25).astype("timedelta64[D]")
@@ -76,13 +78,14 @@ class GeneratorTest(unittest.TestCase):
 
     def test_total_losses_end_the_vehicle(self) -> None:
         clm, feat, veh, risk = self.read("claims_fact"), self.read("claim_coverage_fact"), self.read("insured_vehicle_dimension"), self.read("risk_fact")
-        tl = feat[feat["Total Loss"] == "Y"].merge(clm[["Claim ID", "Insured Vehicle ID", "Loss Date"]], on="Claim ID")
+        tl = feat[(feat["Total Loss"] == "Y") & (feat["Owner Retained Salvage"] == "N")].merge(
+            clm[["Claim ID", "Insured Vehicle ID", "Loss Date"]], on="Claim ID")
         self.assertGreater(len(tl), 20)
         last_loss = clm.groupby("Insured Vehicle ID")["Loss Date"].max()
         last_cover = risk.groupby("Insured Vehicle ID")["Coverage End Date"].max()
         for vid, day in tl.groupby("Insured Vehicle ID")["Loss Date"].min().items():
             self.assertEqual(last_loss[vid], day, f"vehicle {vid} has a loss after its total loss")
-            self.assertLessEqual(last_cover[vid], str(np.datetime64(day) + 1))
+            self.assertLessEqual(last_cover[vid], str(np.datetime64(day) + np.timedelta64(1, "D")))
         replaced = veh[veh["Replaces Vehicle ID"].isin(tl["Insured Vehicle ID"])]
         self.assertGreater(len(replaced), 0)
         self.assertTrue(veh["Insured Vehicle ID"].is_unique)
@@ -115,6 +118,42 @@ class GeneratorTest(unittest.TestCase):
         self.assertGreater(len(own), 20)
         self.assertTrue((own["Known Date"] >= own["Incident Date"]).all())
         self.assertGreater((own["Known Date"] > own["Incident Date"]).mean(), 0.95)
+
+    def test_household_changes_are_endorsements(self) -> None:
+        risk, drv, veh = self.read("risk_fact"), self.read("driver_dimension"), self.read("insured_vehicle_dimension")
+        mid = risk[risk["Endorsement Number"] > 0]
+        self.assertGreater(len(mid), 100)
+        reasons = set("; ".join(mid["Change Reason"].dropna()).split("; "))
+        self.assertTrue({"Address Change", "Vehicle Replaced", "Driver Removed"} <= reasons, reasons)
+        self.assertTrue((mid["Rating Date"] == mid["Coverage Start Date"]).all())       # re-rated on the day of the change
+        # a vehicle's rows within a term are consecutive: each starts where the previous one ended
+        r = risk.sort_values(["Insured Vehicle ID", "Coverage Start Date"])
+        prev = r.groupby(["Insured Vehicle ID", "Policy Term ID"])["Coverage End Date"].shift()
+        self.assertTrue((prev.isna() | (prev == r["Coverage Start Date"])).all())
+        left = drv[drv["Removed Date"].notna()]
+        self.assertGreater(len(left), 10)
+        self.assertTrue(set(left["Removal Reason"]) <= {"Moved Out", "Divorce", "Deceased"})
+        self.assertTrue({"Sold", "Destroyed or Stolen"} <= set(veh["Removal Reason"].dropna()))
+        moved = risk.groupby("Policy Number")["Location ID"].nunique()
+        self.assertGreater((moved > 1).sum(), 10)
+
+    def test_owner_retained_salvage_follows_illinois_rules(self) -> None:
+        feat, clm, veh = self.read("claim_coverage_fact"), self.read("claims_fact"), self.read("insured_vehicle_dimension")
+        kept = feat[feat["Owner Retained Salvage"] == "Y"].merge(clm, on="Claim ID").merge(
+            veh[["Insured Vehicle ID", "Vehicle Model Year", "Removal Reason"]], on="Insured Vehicle ID")
+        age = pd.to_datetime(kept["Loss Date"]).dt.year - kept["Vehicle Model Year"]
+        self.assertTrue(((age >= 9) | kept["Cause of Loss"].isin(["WEATHER", "HAIL_CAT"])).all())
+        self.assertTrue((kept["Salvage Recovery"] == 0).all())
+        self.assertFalse((kept["Removal Reason"] == "Total Loss").any())
+
+    def test_premium_ledger_reconciles(self) -> None:
+        ledger, term = self.read("policy_transaction_fact"), self.read("policy_term_fact")
+        self.assertTrue({"New Business", "Renewal", "Endorsement", "Cancellation"} <= set(ledger["Transaction Type"]))
+        self.assertTrue((ledger["Processed Date"] <= self.a["valuation"]).all())
+        done = term[term["Policy Expiration Date"] < "2026-04-01"].set_index("Policy Term ID")
+        w = ledger[ledger["Transaction Type"] != "Cancellation"].groupby("Policy Term ID")["Written Premium"].sum()
+        gap = (done["Written Premium"] + done["Endorsement Premium"] - w.reindex(done.index).fillna(0)).abs()
+        self.assertLess(gap.max(), 0.05 + 0.01 * done["Vehicle Count"].max())
 
     def test_month_end_anniversaries(self) -> None:
         term = self.read("policy_term_fact")

@@ -10,7 +10,7 @@ import pandas as pd
 from . import config as C
 from . import rating, truth
 from .refdata import stream
-from .simulate import REMOVAL_REASONS
+from .simulate import DRIVER_REMOVAL_REASONS, END_ENDORSED, END_GONE, REMOVAL_REASONS
 
 POLICY_BASE = 1_000_000
 YN = np.array(["N", "Y"])
@@ -108,7 +108,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     status = np.where(last.cancel_day >= 0, "Cancelled", np.where(last.nonrenewal_reason != "", "Non-Renewed", "In Force"))
     end_day = np.where(last.cancel_day >= 0, last.cancel_day, last.e)
     reason = np.where(last.cancel_day >= 0, last.cancel_reason, last.nonrenewal_reason)
-    first_drv = drv.groupby("pol").drv.first().to_numpy()
+    ni_drv = pol.ni_drv.to_numpy()
     inception = cal.day_of(pol.first_month - pol.tenure_terms * pol.term_months, pol.dom)
     bi = [C.BI_LIMITS[i] for i in pol.bi_opt]
     score = pol.insurance_score
@@ -120,7 +120,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Policy Effective Date": D(pol.first_day), "Policy Expiration Date": D(end_day),
         "Term Length Months": pol.term_months, "Policy Status": status, "Status Reason": reason,
         "Cancel Date": np.where(status == "Cancelled", D(end_day), ""),
-        "Named Insured Driver ID": first_drv + 1, "Number of Drivers": pol.n_drv,
+        "Named Insured Driver ID": ni_drv + 1, "Number of Drivers": pol.n_drv,
         "Number of Vehicles": last.vehicles.fillna(0).astype(int).to_numpy(),
         "Homeowner": YN[pol.homeowner.astype(int)], "Multi-Policy": YN[pol.multi_policy.astype(int)],
         "Prior Insurance": YN[pol.prior_insurance.astype(int)],
@@ -141,7 +141,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Driver Role": np.array(["Named Insured", "Spouse", "Other Adult", "Child"])[drv.role],
         "First Name": drv.first_name, "Last Name": drv.last_name, "Date of Birth": D(drv.dob_day),
         "Gender": np.where(drv.male, "M", "F"), "Marital Status": drv.marital, "Date First Licensed": D(drv.licensed_day),
-        "Added Date": D(drv.added_day), "Good Student": YN[good_student.astype(int)], "Miles to work": drv.commute_miles.astype(int),
+        "Added Date": D(drv.added_day), "Removed Date": np.where(drv.removed_day >= 0, D(drv.removed_day.clip(0)), ""),
+        "Removal Reason": np.array(DRIVER_REMOVAL_REASONS)[drv.removal_reason],
+        "Good Student": YN[good_student.astype(int)], "Miles to work": drv.commute_miles.astype(int),
         "Number of Violations": n_viol, "Number of Accidents": n_acc})
 
     # Each incident carries the day the insurer learned of it: a violation when the conviction posts to the
@@ -186,17 +188,22 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Removal Reason": np.array(REMOVAL_REASONS)[veh.removal_reason],
         "Replaces Vehicle ID": pd.Series(veh.replaces + 1).where(veh.replaces >= 0).astype("Int64")})
 
+    # One row per vehicle per endorsement period: a mid-term change ends the policy's rows and re-rates it.
     rv = rows.veh.to_numpy()
     tcan = terms.set_index("term").cancel_day.reindex(rows.term).to_numpy()
     cover_end = np.where(tcan >= 0, np.minimum(rows.sched, tcan), rows.sched)
+    endorsement = rows.groupby("term").s.rank(method="dense").astype(int) - 1
     T["risk_fact"] = pd.DataFrame({
         "Record ID": rows.row + 1, "Policy Term ID": rows.term + 1, "Policy Number": polno(rows.pol),
+        "Endorsement Number": endorsement, "Change Reason": rows.reason,
         "Insured Vehicle ID": rv + 1, "Vehicle ID": vid[rv], "Vehicle Model Year": veh.model_year.to_numpy()[rv],
-        "Driver ID": rows.drv + 1, "Location ID": z.location_id.to_numpy()[pol.zi.to_numpy()[rows.pol]],
+        "Driver ID": rows.drv + 1, "Location ID": z.location_id.to_numpy()[rows.zi], "Rating Date": D(rows.rated_on),
         "Rated Driver Age": np.floor(rows.driver_age).astype(int),
         "Rated Driver Class": np.array(rating.CLASS_LEVELS)[rows.class_code],
         "Rated Violation Points": rows.violation_points, "Rated At-Fault Accidents": rows.at_fault_accidents,
-        "Rated Good Student": YN[rows.good_student.astype(int)],
+        "Rated Good Student": YN[rows.good_student.astype(int)], "Rated Married": YN[rows.married.astype(int)],
+        "Rated Homeowner": YN[rows.homeowner.astype(int)],
+        "Collision Deductible": rows.coll_ded, "Comprehensive Deductible": rows.comp_ded,
         "Tenure Years": rows.tenure_years.round(1), "Vehicle Value": rows.acv.round(-1).astype(int),
         "BI Premium": rows.prem_BI, "PD Premium": rows.prem_PD, "UM Premium": rows.prem_UM,
         "Med Pay Premium": rows.prem_MED, "Collision Premium": rows.prem_COLL, "Comprehensive Premium": rows.prem_COMP,
@@ -217,17 +224,19 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Salvage Recovery": f.salvage_rec.round(2), "Subrogation Recovery": f.subro_rec.round(2),
         "Net Incurred Loss": f.net_incurred.round(2), "Paid Expense": f.paid_expense.round(2),
         "Litigation": YN[f.litigated.astype(int)], "Total Loss": YN[f.total.astype(int)],
-        "Closed Without Payment": YN[(f.closed & (f.paid_loss == 0)).astype(int)]})
+        "Closed Without Payment": YN[(f.closed & (f.paid_loss == 0)).astype(int)],
+        "Owner Retained Salvage": YN[f.retained.astype(bool).astype(int)]})
     cg = f.groupby("claim_id").agg(paid=("paid_loss", "sum"), reserve=("case_reserve", "sum"), recovery=("recovery", "sum"),
                                    net=("net_incurred", "sum"), expense=("paid_expense", "sum"), n=("fid", "size"),
                                    open=("closed", lambda s: (~s).any()), close_day=("status_close_day", "max"),
                                    lit=("litigated", "any"), injury=("cvg", lambda s: s.isin(["BI", "UM"]).any()),
                                    total=("total", "any")).reindex(claims.claim_id)
-    city = (z.region.to_numpy() == "City of Chicago")[pol.zi.to_numpy()[claims.pol]]
+    zi_at_loss = rows.set_index("row").zi.reindex(claims.row).to_numpy()
+    city = (z.region.to_numpy() == "City of Chicago")[zi_at_loss]
     peril = claims.peril.to_numpy()
     branch = np.select([claims.cat.to_numpy() >= 0, cg.injury.to_numpy(), (peril == "THEFT_TOTAL") | cg.total.to_numpy(),
                         peril == "GLASS", city], [6, 3, 5, 4, 1], default=2)
-    claimant = np.where(claims.drv >= 0, claims.drv, first_drv[claims.pol]) + 1
+    claimant = np.where(claims.drv >= 0, claims.drv, ni_drv[claims.pol]) + 1
     cat_id = np.where(claims.cat >= 0, np.array([e[0] for e in C.CAT_EVENTS])[claims.cat.clip(0)], "")
     T["claims_fact"] = pd.DataFrame({
         "Claim ID": claims.claim_id, "Policy ID": polno(claims.pol), "Policy Term ID": claims.term + 1,
@@ -245,7 +254,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Payment ID": pays.payment_id, "Claim Feature ID": pays.feature_id, "Claim ID": pays.claim_id,
         "Payment Date": D(pays.day), "Payment Type": pays.kind, "Transaction Type": pays.txn, "Amount": pays.amount})
 
-    T["communication_data"] = _communications(cfg, cal, pol, terms, claims, cg, veh, D, polno)
+    T["policy_transaction_fact"] = _transactions(cfg, cal, terms, rows, veh, D, polno)
+    T["communication_data"] = _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno)
 
     # ---- answer key ---------------------------------------------------------------------------------
     exp_cols = [f"exp_{c}" for c in C.COVERAGES]
@@ -274,7 +284,48 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     return T, K
 
 
-def _communications(cfg, cal, pol, terms, claims, cg, veh, D, polno) -> pd.DataFrame:
+def _transactions(cfg, cal, terms, rows, veh, D, polno) -> pd.DataFrame:
+    """The premium ledger: one row per policy transaction, as a policy system books it. New business and
+    renewals write the premium for the vehicles on the policy at the start; each mid-term change is an
+    endorsement adding or returning premium pro rata to the end of the term; a cancellation returns the
+    rest. Transactions are booked on a processed (accounting) date, a few days after the change for most
+    endorsements and cancellations; those not yet processed at the valuation date are not in the extract."""
+    R = stream(cfg.seed, "transactions")
+    t = terms.set_index("term")
+    e, s0 = t.e.reindex(rows.term).to_numpy(), t.s.reindex(rows.term).to_numpy()
+    span = e - s0
+    tp = rows.total_premium.to_numpy()
+    x, a = rows.x.to_numpy(), rows.s.to_numpy()
+    kind = rows.end_kind.to_numpy()
+    starts = a > s0
+    ends = np.isin(kind, [END_ENDORSED, END_GONE])
+    removal = np.where(kind == END_GONE, np.array(REMOVAL_REASONS)[veh.removal_reason.to_numpy()[rows.veh.to_numpy()]], "")
+    removal = np.where(removal == "", "", "Vehicle Removed (" + removal + ")")
+    endorse = pd.concat([
+        pd.DataFrame({"term": rows.term[starts], "day": a[starts], "amount": (tp * (e - a) / span)[starts],
+                      "reason": rows.reason[starts].fillna("")}),
+        pd.DataFrame({"term": rows.term[ends], "day": x[ends], "amount": -(tp * (e - x) / span)[ends], "reason": removal[ends]})])
+    endorse = endorse.groupby(["term", "day"], sort=True).agg(
+        amount=("amount", "sum"), reason=("reason", lambda r: "; ".join(dict.fromkeys(x_ for x_ in r if x_)))).reset_index()
+    endorse["kind"] = "Endorsement"
+    endorse["processed"] = endorse.day + np.floor(R.exponential(5.0, len(endorse))).astype(int)
+    start = pd.DataFrame({"term": terms.term, "day": terms.s, "amount": terms.written, "reason": "",
+                          "kind": np.where(terms.new_business, "New Business", "Renewal"), "processed": terms.rate_day})
+    c = terms[terms.cancel_day >= 0]
+    cancel = pd.DataFrame({"term": c.term, "day": c.cancel_day, "amount": -c.returned, "reason": c.cancel_reason,
+                           "kind": "Cancellation", "processed": c.cancel_day + np.floor(R.exponential(3.0, len(c))).astype(int)})
+    tx = pd.concat([start, endorse, cancel], ignore_index=True)
+    tx = tx[tx.processed <= cal.valuation_day]
+    tx["order"] = tx.kind.map({"New Business": 0, "Renewal": 0, "Endorsement": 1, "Cancellation": 2})
+    tx = tx.sort_values(["processed", "term", "day", "order"], kind="stable").reset_index(drop=True)
+    pol = t.pol.reindex(tx.term).to_numpy()
+    return pd.DataFrame({
+        "Transaction ID": np.arange(1, len(tx) + 1), "Policy Number": polno(pol), "Policy Term ID": tx.term + 1,
+        "Transaction Type": tx.kind, "Transaction Effective Date": D(tx.day), "Processed Date": D(tx.processed),
+        "Change Reason": tx.reason, "Written Premium": tx.amount.round(2) + 0.0})
+
+
+def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno) -> pd.DataFrame:
     """Customer contacts tied to real events in the data (welcome kits, renewals, billing, claims)."""
     R = stream(cfg.seed, "communications")
     V = cal.valuation_day
@@ -298,10 +349,12 @@ def _communications(cfg, cal, pol, terms, claims, cg, veh, D, polno) -> pd.DataF
     add(npay.pol, npay.cancel_day - 10, "Notice of Cancellation", digital_ok=False)
     other = terms[(terms.cancel_day >= 0) & (terms.cancel_reason != "Non-Payment")]
     add(other.pol, other.cancel_day, "Cancellation Confirmation")
-    added = veh[veh.added_day.to_numpy() > pol.first_day.to_numpy()[veh.pol.to_numpy()]]      # replacement vehicles
-    add(added.pol, added.added_day, "Policy Change Confirmation")
-    totalled = veh[veh.removal_reason == REMOVAL_REASONS.index("Total Loss")]
-    add(totalled.pol, totalled.removed_day, "Policy Change Confirmation")
+    # every endorsement (a mid-term change re-rating the policy) and every car taken off after a loss
+    term_start = terms.set_index("term").s.reindex(rows.term).to_numpy()
+    changes = rows.loc[rows.s.to_numpy() > term_start, ["pol", "s"]].rename(columns={"s": "day"})
+    lost = veh[veh.removal_reason.isin([REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")])]
+    changes = pd.concat([changes, pd.DataFrame({"pol": lost.pol, "day": lost.removed_day})]).drop_duplicates()
+    add(changes.pol, changes.day, "Policy Change Confirmation")
     add(claims.pol, claims.report_day, "Claim Acknowledgement", phone=0.45)
     closed = ~cg.open.to_numpy()
     add(claims.pol[closed], cg.close_day.to_numpy()[closed], "Claim Closure Notice", phone=0.10)

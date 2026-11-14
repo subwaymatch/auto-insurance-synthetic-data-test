@@ -25,8 +25,19 @@ from .refdata import stream
 REPORT_LAG_MEAN = {"AF_MV": 2.0, "AF_SV": 2.0, "NAF": 2.5, "PARKED": 3.0, "GLASS": 4.0, "THEFT_TOTAL": 1.0,
                    "THEFT_PARTIAL": 2.0, "VANDALISM": 3.0, "ANIMAL": 1.5, "WEATHER": 6.0, "FLOOD": 3.0, "FIRE": 1.0,
                    "OTHER_COMP": 4.0, "HAIL_CAT": 9.0, "WIND_CAT": 5.0, "FLOOD_CAT": 3.0}
-OPEN_LAG_MEAN = {"BI": 12.0, "UM": 15.0, "MED": 10.0}
+# Days from first notice until a coverage is claimed: (probability opened at first notice, mean days for
+# most later ones, share opened much later, median days for those). Injury claimants often present weeks or
+# months later; a few only near the statute of limitations (2 years for injury, 5 for property damage in
+# Illinois: 735 ILCS 5/13-202 and 13-205). Fitted to a US insurer's BI report lags, 27% on the accident
+# day, 84% within 5 days, 97.5% within 90 and 99.2% within a year (CAS Loss Simulation Model Working
+# Party, Ball State University paper); the other shapes are ASSUMED.
+OPEN_LAG = {"BI": (0.80, 8.0, 0.045, 160.0), "UM": (0.78, 12.0, 0.05, 170.0), "MED": (0.90, 20.0, 0.0, 1.0),
+            "PD": (0.92, 20.0, 0.02, 90.0)}
+OPEN_LAG_SIGMA = 1.0
+OPEN_LAG_CAP = {"BI": 730, "UM": 730, "MED": 730, "PD": 1825}
 FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_500, "PD": 3_500, "COLL": 3_500, "COMP": 1_200}
+# precautionary injury claims and claims against an insured not at fault get a nominal reserve (ASSUMED)
+NOMINAL_RESERVE = {"BI": 2_500, "PD": 750}
 RESERVE_ERROR = {"BI": (-0.12, 0.55), "UM": (-0.12, 0.55), "MED": (0.0, 0.35), "PD": (0.0, 0.20),
                  "COLL": (0.0, 0.20), "COMP": (0.0, 0.20)}          # log-scale (bias, noise) of adjuster estimates
 EXPENSE = {"PD": (0.60, 220), "COLL": (0.80, 260), "COMP": (0.40, 120), "MED": (0.30, 150)}   # (share with expense, median)
@@ -66,8 +77,7 @@ class Development:
         f["paid"] = np.round(f.paid.to_numpy(), 2)
         paid = f.paid.to_numpy()
         injury = np.isin(cvg, ["BI", "UM"])
-        extra = np.floor(R.exponential(pd.Series(cvg).map(OPEN_LAG_MEAN).fillna(0).to_numpy() + 1e-9))
-        f["open_day"] = f.notice.to_numpy() + extra.astype(int)
+        f["open_day"] = f.notice.to_numpy() + _open_lag(cvg, R)
 
         # litigation and loss adjustment expense
         lit = injury & (paid > 0) & (R.random(n) < 0.07 + 0.10 * (paid > 15_000) + 0.22 * (paid > 50_000))
@@ -105,6 +115,18 @@ class Development:
     def result(self):
         cat = lambda parts: pd.concat(parts, ignore_index=True)
         return cat(self.occs), cat(self.feats), cat(self.pays)
+
+
+def _open_lag(cvg: np.ndarray, R: np.random.Generator) -> np.ndarray:
+    """Extra days from the claim's first notice until each coverage is opened."""
+    n = len(cvg)
+    spec = np.array([OPEN_LAG.get(c, (1.0, 1.0, 0.0, 1.0)) for c in cvg]).reshape(n, 4)
+    u = R.random(n)
+    mid = np.floor(R.exponential(spec[:, 1]))
+    tail = np.floor(spec[:, 3] * np.exp(OPEN_LAG_SIGMA * R.standard_normal(n)))
+    lag = np.where(u < spec[:, 0], 0, np.where(u < 1 - spec[:, 2], mid, tail))
+    cap = np.array([OPEN_LAG_CAP.get(c, 3650) for c in cvg])
+    return np.minimum(lag, cap).astype(int)
 
 
 def _chargeable(f: pd.DataFrame, pays: pd.DataFrame) -> pd.Series:
@@ -261,6 +283,8 @@ def develop(cfg: C.Config, ref, res) -> dict:
     formula = pd.Series(cvg).map(FORMULA_RESERVE).to_numpy() * trend
     z = R.standard_normal(n)
     estimate = np.where(paid > 0, paid * np.exp(mu + sg * z), formula * np.exp(0.3 * z))
+    nominal = pd.Series(cvg).map(NOMINAL_RESERVE).fillna(0).to_numpy() * trend * np.exp(0.3 * z)
+    estimate = np.where(f.nominal.to_numpy().astype(bool), nominal, estimate)
     # a reopened feature is reserved for the supplement the adjuster expects
     estimate = np.where(reopened, f.paid_loss.to_numpy() + (paid - f.paid_loss.to_numpy()) * np.exp(0.3 * z), estimate)
     reserve = np.maximum(np.round((estimate - f.paid_loss.to_numpy()) / 50) * 50, 250)

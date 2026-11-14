@@ -23,8 +23,8 @@ python generate.py
 python validate.py
 ```
 
-`generate.py` writes 19 CSV tables to `output/` and an instructor answer key to
-`output/answer_key/` in about 15 seconds. The default run is committed in `output/`, so the
+`generate.py` writes 20 CSV tables to `output/` and an instructor answer key to
+`output/answer_key/` in about 35 seconds. The default run is committed in `output/`, so the
 data can be used without running anything. `validate.py` re-reads those files and checks them
 against the calibration targets and for record-level consistency (vehicle lifecycles, what was
 known when each term was rated, policy dates, premium accounting and payments).
@@ -77,37 +77,46 @@ raises a warning, not a failure, because floating-point details can differ betwe
 
 | | |
 |---|---|
-| Policies / policy terms | 30,000 / 139,418 (13,747 of the terms were already in force on the start date) |
-| Drivers / vehicles | 52,070 / 64,342 (12,981 traded in at renewal, 1,848 written off as total losses) |
-| Earned exposure | 122,154 car-years |
-| Earned premium | $126.6 million ($1,036 per car-year, $1,720 per policy-year) |
-| Claims / coverage features | 10,409 / 14,208 |
+| Policies / policy terms | 30,000 / 138,032 (13,747 of the terms were already in force on the start date) |
+| Drivers / vehicles | 53,095 / 75,726 (2,421 drivers left a policy; 16,372 vehicles traded in, 3,638 sold, 4,156 destroyed or stolen, 834 taken by a leaving driver) |
+| Risk rows / premium transactions | 305,113 (23.5% start at a mid-term change) / 185,229 (42,394 endorsements) |
+| Earned exposure | 122,615 car-years |
+| Earned premium | $125.6 million ($1,024 per car-year, $1,726 per policy-year) |
+| Claims / coverage features | 12,870 / 20,050 (42% of closed liability features and 20% of closed physical damage features paid nothing) |
 
 Paid claim frequency and severity against the national figures they are tuned toward
 (Triple-I / ISO, 2022 to 2024):
 
 | Coverage | Claims per 100 car-years | National | Average paid claim | National |
 |---|---|---|---|---|
-| Bodily injury | 0.74 | 0.70 to 0.80 | $24,599 | $24,681 to $28,278 |
-| Property damage | 2.69 | 2.50 to 2.59 | $6,817 | $6,024 to $6,770 |
-| Collision | 5.04 | 4.16 to 4.48 | $5,037 | $5,377 to $5,521 |
-| Comprehensive | 3.95 | 3.78 to 4.08 | $2,285 | $2,175 to $2,306 |
+| Bodily injury | 0.81 | 0.70 to 0.80 | $23,748 | $24,681 to $28,278 |
+| Property damage | 2.80 | 2.50 to 2.59 | $6,640 | $6,024 to $6,770 |
+| Collision | 5.15 | 4.16 to 4.48 | $5,054 | $5,377 to $5,521 |
+| Comprehensive | 3.85 | 3.78 to 4.08 | $2,207 | $2,175 to $2,306 |
 
 Frequencies sit at or a little above national on purpose, because the book is urban.
 
-Loss ratio by accident year (net incurred as of the valuation date, over earned premium):
+Loss ratio by accident year (net incurred losses excluding LAE as of the valuation date, over earned
+premium), against industry pure loss ratios (incurred losses excluding LAE over earned premium, direct,
+calendar year):
 
-| 2022 | 2023 | 2024 | 2025 | 2026 (nine months) |
-|---|---|---|---|---|
-| 70.4% | 75.3% | 59.0% | 61.1% | 64.4% |
+| | 2022 | 2023 | 2024 | 2025 | 2026 (nine months) |
+|---|---|---|---|---|---|
+| This dataset, actual | 76.0% | 74.4% | 63.3% | 67.0% | 68.6% |
+| This dataset, expected (answer key, free of claim luck) | 78.0% | 74.2% | 64.5% | 62.1% | 63.2% |
+| US private passenger auto | 80.2% | 75.4% | 66.1% | 61.5% | 60.4% (Q1) |
+| Illinois private passenger auto | 79.6% | 72.8% | 63.4% | 60.1% | |
 
-This mirrors the industry cycle: under-priced entering 2022, then rate increases catching up. The
-answer key's expected loss ratio, which is free of claim luck, falls from 73% (2022) and 72% (2023)
-to 64% (2024) and 60% (2025 and 2026).
-For comparison, Illinois ran about 78% (liability) and 82% (physical damage) in 2022, and the
-national first-half direct loss ratio was 77% in 2023, 68% in 2024 and 61% in 2025. A book
-this size moves several points a year on large injury claims alone, so other seeds give
-different year-by-year figures within the same range.
+The book enters 2022 under-priced, as the industry did after pandemic-era rate cuts, and rate
+increases (+48% cumulative, close to the industry's +12.1% in 2022, +16.5% in 2023, +7.6% in 2024
+and +3.7% in 2025) bring it back. Overall it runs 69.2%, against about 70% for the US and 68% for
+Illinois over 2022 to 2025. The expected loss ratio is held to the industry path by `validate.py`.
+The actual figures move several points a year on large injury claims alone (2025 and 2026 drew
+high in this seed), so other seeds give different year-by-year figures within the same range.
+Add about 8 to 10 points of loss adjustment expense to compare with a loss-and-LAE ratio
+(industry LAE ran 8.0% to 10.2% of premium in 2022 to 2025); do not compare with combined ratios.
+Sources: APCIA (2022), S&P Global Market Intelligence (2023 to 2026), Illinois Department of
+Insurance market share reports, S&P Global RateWatch, AM Best, Texas DOI Insurance Expense Exhibit.
 
 ## Tables
 
@@ -117,13 +126,14 @@ Names follow the old dataset where an equivalent exists, so existing case materi
 |---|---|---|
 | `policy_dimension` | Policy | Location, agency, company, limits, insurance score, status |
 | `policy_term_fact` | Policy term (6 or 12 months) | Dates (including the rating date), cancellation, written, endorsement, return and earned premium, rate level |
-| `driver_dimension` | Driver | Demographics; violations and accidents in the 3 years before joining; good-student status when added |
+| `policy_transaction_fact` | Premium transaction | New business, renewal, endorsement or cancellation, with effective and processed (accounting) dates and the written premium booked |
+| `driver_dimension` | Driver | Demographics; violations and accidents in the 3 years before joining; good-student status when added; removed date and reason |
 | `driver_incident_fact` | Violation or at-fault accident | Motor vehicle record, prior carrier, or the company's own claim, with the date the insurer learned of it |
 | `vehicles_dimension` | Make and model | 110 models, as in the old file |
-| `insured_vehicle_dimension` | Insured vehicle | Model year, use, mileage, parking, coverages, deductibles, added and removed dates, why it left, the vehicle it replaced |
-| `risk_fact` | Policy term and vehicle | Rated characteristics, premium by coverage, cover dates, earned exposure |
+| `insured_vehicle_dimension` | Insured vehicle | Model year, use, mileage, parking, current coverages and deductibles, added and removed dates, why it left, the vehicle it replaced |
+| `risk_fact` | Policy term, vehicle and endorsement period | Endorsement number and change reason, garaging location, rating date, rated characteristics, deductibles, premium by coverage, cover dates, earned exposure |
 | `claims_fact` | Claim | Loss, report and close dates, cause, paid, reserve, recoveries |
-| `claim_coverage_fact` | Coverage (and injured claimant) on a claim | Paid, case reserve, salvage, subrogation, expense, reopen date |
+| `claim_coverage_fact` | Coverage (and injured claimant) on a claim | Paid, case reserve, salvage, subrogation, expense, reopen date, owner-retained salvage |
 | `claim_payment_fact` | Payment or recovery | Payment type and transaction type; supports paid development triangles |
 | `claim_expense_dimension` | Claim | Kept for compatibility with the old layout |
 | `location_dimension` | ZIP code | County, region, rating territories |
@@ -131,11 +141,14 @@ Names follow the old dataset where an equivalent exists, so existing case materi
 | `agency_dimension`, `company_dimension`, `claim_branches` | | Fictional names |
 | `catastrophe_dimension` | Catastrophe | Fictional hail, wind and flood events |
 | `rate_change_history` | Rate change | Filed overall changes |
-| `communication_data` | Customer contact | Tied to renewals, billing, cancellations and claims |
+| `communication_data` | Customer contact | Tied to renewals, policy changes, billing, cancellations and claims |
 
 Keys: `Policy Number` (called `Policy ID` on claims and communications, as before),
 `Policy Term ID`, `Driver ID`, `Insured Vehicle ID`, `Vehicle ID` (make/model), `Location ID`,
-`Record ID` (risk row), `Claim ID`, `Claim Feature ID`.
+`Record ID` (risk row), `Claim ID`, `Claim Feature ID`, `Transaction ID`. Policy-level attributes in
+`policy_dimension` (location, homeowner, named insured, drivers) and coverages in
+`insured_vehicle_dimension` describe the policy as it stands at its latest status; `risk_fact` keeps
+the values each period was rated with.
 
 ### Mapping from the old dataset
 
@@ -164,8 +177,10 @@ Keys: `Policy Number` (called `Policy ID` on claims and communications, as befor
    It is fitted to the true expected loss cost, then deliberately distorted (next section).
 5. **Policy life.** Each term is rated at the rate level in force, on a rating date before it
    starts, using only what the insurer knows by then. Customers renew or leave (more often
-   after a price increase), cancel mid-term, trade in vehicles and add teenage drivers at
-   renewal, and replace vehicles written off in a total loss.
+   after a price increase) or cancel mid-term. During a term households move, buy, sell and
+   trade cars, add newly licensed teenagers and new spouses, and lose drivers who move out,
+   divorce or die; each change is an endorsement that re-rates the policy from that day. At
+   renewal loans are paid off, older cars drop collision and some customers raise deductibles.
 6. **Claims.** Losses are simulated by cause, then split into coverages with limits and
    deductibles applied. Each claim is developed as it happens: report and close dates,
    payments, expenses, salvage, subrogation, occasional reopenings, and a case reserve if
@@ -191,14 +206,28 @@ Keys: `Policy Number` (called `Policy ID` on claims and communications, as befor
   claims-history report, and the company's own at-fault claim on the day its payments reach the
   $1,000 surcharge threshold. A claim that is reported or paid after a renewal's rating date
   first counts at the next renewal.
-- **Total losses.** A vehicle written off ends its cover the day after the loss
-  (`Removal Reason` = Total Loss). About five in six households buy a replacement, which joins
-  the policy with a new `Insured Vehicle ID` (`Replaces Vehicle ID` points back) on the day it
-  is bought, or at renewal if the term has ended. A one-car policy with no replacement is
-  cancelled. Claims on the old vehicle keep developing after it leaves.
-- **Premium.** Vehicles added or removed mid-term are endorsements charged or returned pro rata.
-  For every finished term, written + endorsement + return premium = earned before the extract
-  + earned premium.
+- **Household changes.** Mid-term changes happen on their own dates and each is an
+  endorsement: the policy's risk rows end that day and new rows, re-rated with what is known
+  that day, start (`risk_fact.Endorsement Number`, `Change Reason`, `Rating Date`). Rates come
+  from public data: moves within the metro (5.5% of owners and 20% of renters move each year,
+  73% within the metro; ACS 2024), divorce (12.9 per 1,000 married women) and marriage in Illinois
+  (ACS 2024), mortality by age (CDC 2024), children leaving home (58% of 18-24s and 16% of 25-34s
+  live with parents; CPS 2025), teen licensing ages (FHWA 2024), and vehicle ownership spells of
+  five to six and a half years. A driver who leaves usually takes their own car.
+- **Total losses.** A car destroyed or stolen ends its cover the day after the loss, whether the
+  company pays a total loss (`Removal Reason` = Total Loss) or not (Destroyed or Stolen: a car
+  without collision cover, a loss the other driver's insurer paid, or a claim not pursued). About
+  four in five households buy a replacement, which joins with a new `Insured Vehicle ID`
+  (`Replaces Vehicle ID` points back) when it is bought, about five weeks later on average. A
+  one-car policy with no replacement is cancelled. Claims on the old vehicle keep developing.
+  A few owners keep a car the company paid as a total loss (`Owner Retained Salvage`); as Illinois
+  law requires, only for hail damage or a car nine or more model years old. The salvage value
+  comes off the settlement and the car loses physical damage cover at the next renewal.
+- **Premium.** Changes mid-term are endorsements charged or returned pro rata to the end of the
+  term. `policy_transaction_fact` books each transaction on a processed date a few days after it
+  takes effect; transactions not processed by the valuation date are not in the extract. For every
+  finished term, written + endorsement + return premium = earned before the extract + earned
+  premium, and the ledger adds up to the same.
 - **Good student.** The discount applies while a driver with B grades is still in full-time
   school and under 25, judged on each term's effective date; `risk_fact.Rated Good Student`
   keeps the status each term was rated with.
@@ -208,6 +237,15 @@ Keys: `Policy Number` (called `Policy ID` on claims and communications, as befor
   split between lienholder and owner, with fees paid later. A few payments are voided and
   reissued, and about 3% of paid features reopen for a supplement. Payments always add up to the
   feature's paid loss to the cent.
+- **Claims that pay nothing.** As in real claim files, many features close without payment:
+  liability claims against an insured who was not at fault, injury claims opened as a precaution
+  and never pursued, and damage reported then withdrawn. They carry a nominal reserve while open.
+  About 42% of closed liability and medical features and 20% of closed collision and comprehensive
+  features pay nothing (industry 2025: about 45% and just under 25%).
+- **Reporting lags.** Injury claims are often presented weeks or months after the accident, and a
+  few near Illinois' two-year statute of limitations. Lags follow a US insurer's experience: 84% of
+  bodily injury claims reported within 5 days, 97.5% within 90 and 99.2% within a year (CAS Loss
+  Simulation Model Working Party); collision claims are reported faster.
 
 ## What a case study can find (instructor notes)
 
@@ -221,25 +259,26 @@ Deliberate and emergent findings in the default run:
 
 | Finding | What the data shows |
 |---|---|
-| Young drivers are under-priced | Expected loss ratio 72% to 87% for classes under 25, against about 65% for ages 25 to 64 |
-| Mileage is under-used | Expected loss ratio rises from 60% under 5,000 miles to 80% at 16,000+ |
-| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 vehicle-years: 6.1 and 5.6 for affected models in 2022 and 2023, against 1.0 to 1.6 for others |
-| Automatic emergency braking is unpriced | Expected loss ratio 62.5% with it, 67.5% without |
-| Rates lagged costs, then caught up | Loss ratio falls from the 70s (2022, 2023) to about 60% (2024, 2025) |
+| Young drivers are under-priced | Expected loss ratio 75% to 93% for classes under 25, against about 66% for ages 25 to 64 |
+| Mileage is under-used | Expected loss ratio rises from 62% under 5,000 miles to 83% at 16,000+ |
+| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 vehicle-years: 4.9 and 9.3 for affected models in 2022 and 2023, against about 1.0 for others |
+| Automatic emergency braking is unpriced | Expected loss ratio 64.5% with it, 70.3% without |
+| Rates lagged costs, then caught up | Expected loss ratio falls from 78% (2022) and 74% (2023) to 64% and 62% (2024, 2025), as the industry's did |
 | Insurance score is priced correctly | Premium more than doubles from best to worst tier; expected loss ratio is flat |
 | The newest year is not fully known | Late-reported claims are missing, open claims carry imperfect reserves, and closed claims can reopen |
 | Price increases cost retention | Renewal probability falls with the size of the increase |
 | Records reach the insurer late | A violation or chargeable claim shortly before a renewal's rating date is surcharged a term later |
+| Exposure moves | Moves, trade-ins and new drivers change a policy's territory, vehicles and rated drivers mid-term; a vehicle's history spans several risk rows and sometimes several ZIP codes |
 
 Reported mileage is understated relative to true mileage, on-street parking raises theft and
 hit-while-parked claims, and each ZIP has a hazard component the territories do not capture.
 
 ### Geography and race
 
-Premiums are higher in ZIP codes with more non-white residents (ZIP-level correlation 0.70),
+Premiums are higher in ZIP codes with more non-white residents (ZIP-level correlation 0.71),
 because the real crash and theft data behind the hazard indices is higher there. This follows
 real-world premium patterns and was left in deliberately. The expected loss ratio barely varies
-with a ZIP's racial make-up (correlation -0.09): the model plants no over- or under-charging by
+with a ZIP's racial make-up (correlation -0.07): the model plants no over- or under-charging by
 area. ZIP-level correlations say nothing about individuals, causes or actuarial fairness. No person-level race field exists, and names are drawn at random with no link to ZIP.
 
 ## Assumptions and limits
@@ -256,19 +295,50 @@ All assumptions live in `autoins/config.py`, each marked ANCHORED (published fig
 - **The rate schedule is stylised**: about +44% cumulative between April 2022 and March 2025.
 - **Catastrophes are fictional.** Dates and footprints are plausible for northern Illinois but
   do not correspond to actual storms.
-- **Household changes happen at renewal**, apart from replacing a vehicle written off in a total
-  loss. There are no other mid-term endorsements, no drivers leaving a policy and no address
-  changes, and many household and coverage attributes stay fixed.
-- **Total losses the company does not pay are not modelled.** A car without collision cover that
-  is wrecked, or one the owner keeps as salvage, stays on the policy as if undamaged; every total
-  loss the company pays leaves the policy.
-- **Reporting lags are short.** The median claim is reported a day after the loss and few take
-  more than 90 days (injury features open a little later). Check the tail against suitable
-  experience before using the data to teach IBNR.
+- **Household dynamics are partly sourced.** Mover, divorce, marriage, mortality, licensing and
+  vehicle-ownership rates come from public data (see "Dates and timing"); how often households add
+  or sell cars, how often a leaving driver takes a car, and the shapes by age are judgement calls.
+  Income, insurance score, limits, payment plan and multi-policy status stay fixed for a policy's
+  life; homeowner status changes only with a move.
+- **Report lags rest on one published study** (one insurer, 1996 to 2005). Lags beyond a year are
+  probably understated there, so treat the IBNR tail as indicative.
 - **Timing assumptions** (rating lead times, driving-record posting lags, replacement delays,
-  payment patterns) are judgement calls, marked ASSUMED in `autoins/config.py` and
-  `autoins/claims.py`.
-- **Not modelled:** fraud, telematics, rental and towing coverages.
+  payment patterns, endorsement processing lags) are judgement calls, marked ASSUMED in
+  `autoins/config.py` and `autoins/claims.py`.
+- **Not modelled:** fraud, telematics, rental and towing coverages, underinsured motorist and
+  uninsured motorist property damage, quotes that did not bind, reinsurance.
+
+## How it compares with an insurer's own data
+
+The structure follows how insurers hold their data. `risk_fact` is the policy-level exposure
+database actuaries build for ratemaking: one record per vehicle per period, split at mid-term
+changes, carrying the characteristics in force (as in the CAS ratemaking text, Werner and Modlin).
+`claim_coverage_fact` is one row per coverage and claimant, the grain of a claim system's
+exposures and of NAIC market conduct claim counts. Claims link to the rating record they arose
+under, as statistical plans require; payments, voids and recoveries form a transaction ledger; and
+premium is booked as policy transactions with effective and accounting dates. Public alternatives
+are far thinner: French motor data (`freMTPL2`) has one row per policy and undated claims, and the
+CAS Loss Reserve Database holds company-level triangles only.
+
+Real data would also have, and this dataset does not:
+
+| Gap | Real-world source |
+|---|---|
+| Case reserve history (reserve changes over time, for incurred triangles) | Claim system reserve transactions; statistical plan outstanding-loss records |
+| Expense split into defence and cost containment versus adjusting and other, with expense reserves | Claim system cost types; Illinois cost-containment data call |
+| Coverage-level policy records with limits that change at renewal | Statistical plan premium records; policy system coverages |
+| VIN and vehicle rating symbols | Statistical plans, ACORD vehicle records, ISO symbols (licensed) |
+| Underinsured motorist, uninsured motorist property damage, rental and towing coverages | Illinois coverage menu |
+| Claim detail: attorney representation and suit dates, fault percentage, injury type, police report, fraud referral | ACORD claim records, claim systems |
+| Quotes that did not bind, applied discounts, billing events, excluded drivers and SR-22 filings | Policy and billing systems |
+| Edit errors, late and out-of-sequence bookings | Every production system |
+
+Real data never contains the answer key (true expected losses, latent risk, true mileage,
+unreported claims), and analytic extracts usually drop names. Insurer data is rarely public
+because of privacy law (Gramm-Leach-Bliley, the Illinois Insurance Information and Privacy
+Protection article, the Driver's Privacy Protection Act, and the Fair Credit Reporting Act for
+claims-history reports), competitive confidentiality, and licensing of statistical plan layouts and
+vehicle symbols.
 - **Vehicle prices are approximate** list prices, used only to scale repair and total-loss costs.
 
 ## Sources
@@ -281,8 +351,17 @@ All assumptions live in `autoins/config.py`, each marked ANCHORED (published fig
 | City crash hazard, seasonality | City of Chicago Data Portal, Traffic Crashes (drivers by home ZIP, 2021-2025) |
 | City theft hazard, seasonality, yearly trend | City of Chicago Data Portal, Crimes (motor vehicle theft, 2021-2026) |
 | Frequency and severity targets | Triple-I / ISO, private passenger auto losses 2015-2024 |
-| Loss ratio context | AM Best, S&P Global, Illinois Department of Insurance market share reports |
+| Loss ratio and rate change calibration | APCIA; S&P Global Market Intelligence and RateWatch; AM Best; Illinois Department of Insurance market share and cost containment reports; Texas DOI Insurance Expense Exhibit (LAE) |
 | Minimum limits | Illinois Department of Insurance (25/50/20, uninsured motorist 25/50) |
+| Physical damage take-up | NAIC Auto Insurance Database, average premium supplement 2023 (Illinois collision and comprehensive per liability car-year) |
+| Claim report lags | CAS Loss Simulation Model Working Party (Ball State University paper), bodily injury and collision report lags |
+| Claims closed without payment | WSJ analysis of insurer filings with the NAIC, 2025 |
+| Statutes of limitations, owner-retained salvage | 735 ILCS 5/13-202 and 13-205; 625 ILCS 5/3-117.1 |
+| Moves, living with parents, marriage and divorce | US Census Bureau ACS 2024 1-year (B07013, B07201, B12001, B12503) and CPS ASEC 2025 (table AD-1) |
+| Mortality | CDC NCHS Data Brief 548 (2024 death rates by age) |
+| Teen licensing | FHWA Highway Statistics 2024, table DL-20 |
+| Vehicle ownership and loans | S&P Global Mobility / IHS Markit ownership spells; Experian State of the Automotive Finance Market (loan terms) |
+| Total-loss handling | CCC Crash Course (valuation times, total-loss share); Hi Marley 2023 |
 
 The small files under `reference/` are derived from these and are committed, so generating data
 needs no network access. To rebuild them (needs `shapely` and network access):

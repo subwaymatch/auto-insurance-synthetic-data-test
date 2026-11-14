@@ -67,8 +67,8 @@ def territories(ref) -> tuple[np.ndarray, np.ndarray]:
 
 def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarray, accidents: np.ndarray,
           tenure_years: np.ndarray) -> dict:
-    """Rating variable levels for vehicles V at effective day s. points/accidents are per driver;
-    tenure_years is per vehicle row."""
+    """Rating variable levels for vehicles V rated as of day s. points, accidents (the primary driver's
+    record) and tenure_years are per vehicle row."""
     v, p = st.v, st.p
     drv = st.pop.drv
     pol = v["pol"][V]
@@ -83,7 +83,7 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
     s_pol = np.zeros(len(p["zi"]), dtype=int)
     s_pol[pol] = s
     dp = drv.pol.to_numpy()
-    young = ~drv.assigned.to_numpy() & ((s_pol[dp] - drv.dob_day.to_numpy()) / 365.25 < 25)
+    young = drv.active.to_numpy() & ~drv.assigned.to_numpy() & ((s_pol[dp] - drv.dob_day.to_numpy()) / 365.25 < 25)
     young_unassigned = np.bincount(dp, young, len(s_pol)) > 0
     # ... on whichever insured vehicle now has the highest rank (the least valuable car when first written)
     last_rank = np.full(len(s_pol), -1)
@@ -94,8 +94,8 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
         "inexperienced": ((s - drv.licensed_day.to_numpy()[d]) < 3 * 365.25).astype(int),
         "good_student": truth.good_student(drv.good_grades.to_numpy()[d], drv.school_end_day.to_numpy()[d],
                                            drv.dob_day.to_numpy()[d], s).astype(int),
-        "violation_points": np.minimum(points[d], 4),
-        "at_fault_accidents": np.minimum(accidents[d], 2),
+        "violation_points": np.minimum(points, 4),
+        "at_fault_accidents": np.minimum(accidents, 2),
         "score_tier": np.where(np.isnan(score), 0, 1 + np.searchsorted(SCORE_EDGES, np.nan_to_num(score), side="right")),
         "company_tier": p["tier"][pol],
         "segment": st.v["seg_code"][V],
@@ -174,7 +174,8 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
     V = np.arange(len(st.v["pol"]))
     s = st.p["first_day"][st.v["pol"]]
     tenure = (st.p["tenure_terms"] * st.p["term_months"] / 12)[st.v["pol"]]
-    cd = codes(st, cal, V, s, points0, accidents0, tenure)
+    d = st.v["primary_drv"][V]
+    cd = codes(st, cal, V, s, points0[d], accidents0[d], tenure)
     ctx = truth.context(st, cal, V, s, s + 365, cost_day=0)
     ctx["expo"] = {k: np.full(len(V), cal.exposure(truth.PERIL_GROUP[k], 0, 365)) for k in ctx["rate"]}
     ctx["expo"]["THEFT_TOTAL"] = np.where(ctx["kh"], cal.exposure("theft_kh", 0, 365), ctx["expo"]["THEFT_TOTAL"])

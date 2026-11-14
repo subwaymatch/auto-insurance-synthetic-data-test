@@ -176,12 +176,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     # good grades are a trait; the discount itself depends on the date (truth.good_student)
     drv["good_grades"] = (drv.role == 3) & (r.random(nd) < C.GOOD_STUDENT_GRADES_P)
     drv["school_end_day"] = drv.dob_day + (school_end_age(r, nd) * 365.25).astype(int)
-    employed = r.random(nd) < np.interp(age, [16, 18, 22, 60, 66, 75], [0.15, 0.45, 0.78, 0.74, 0.30, 0.05])
-    wfh = zr.pct_work_from_home.to_numpy()[p_]
-    drives = employed & (r.random(nd) < (zr.pct_commute_drive.to_numpy()[p_] / (1 - wfh)).clip(0.05, 0.98)) & (r.random(nd) > wfh)
-    miles = zr.mean_commute_minutes.to_numpy()[p_] * np.where(in_city[p_], 0.30, 0.48) * np.exp(r.normal(-0.1, 0.55, nd))
-    drv["commute_miles"] = np.where(drives, np.clip(np.round(miles), 1, 65), 0)
-    drv["employed"] = employed
+    drv["employed"], drv["commute_miles"] = draw_commute(r, age, zr.iloc[p_], in_city[p_])
     drv["first_name"] = np.where(male, r.choice(ref.first_m, nd), r.choice(ref.first_f, nd))
     surname = r.choice(ref.last, n)
     own_name = (drv.role == 2) | ((drv.role == 1) & (r.random(nd) < 0.20))
@@ -210,23 +205,19 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     model_year = veh.model_year.to_numpy()
     age0 = (cal.year_frac(pol.first_day.to_numpy()[vp]) - model_year).clip(0)
     veh["ownership"] = draw_ownership(r, age0)
-    commute = drv.commute_miles.to_numpy()[pd_] * ~veh.extra_vehicle.to_numpy()
-    dage = drv.age.to_numpy()[pd_]
-    true_miles = (5200 + commute * 2 * 230) * np.exp(r.normal(-0.06, 0.35, nv)) * np.where(in_city[vp], 0.85, 1.0) \
-        * np.interp(dage, [16, 25, 60, 70, 85], [0.8, 1.0, 1.0, 0.8, 0.5]) * np.where(veh.extra_vehicle, 0.45, 1.0)
-    veh["true_miles"] = np.clip(true_miles, 800, 38_000)
-    veh["reported_miles"] = np.clip(np.round(veh.true_miles * np.exp(r.normal(-0.10, 0.22, nv)) / 500) * 500, 1000, 30_000)
-    business = drv.employed.to_numpy()[pd_] & ~veh.extra_vehicle.to_numpy() & (r.random(nv) < 0.05)
-    veh["use"] = np.where(business, "Business", np.where(commute > 0, "Commute", "Pleasure"))
-    dens1 = zr.population_density_sqmi.to_numpy()[vp]
-    p_street = np.clip(0.06 + 0.55 * dens1 / 15000, 0.04, 0.75) * np.where(homeowner[vp], 0.55, 1.0)
-    p_garage = np.where(homeowner[vp], 0.60, 0.22) * (1 - p_street)
-    u = r.random(nv)
-    veh["parking"] = np.where(u < p_street, 0, np.where(u < p_street + p_garage, 2, 1))
+    veh["true_miles"], veh["reported_miles"], veh["use"] = draw_mileage(
+        r, drv.commute_miles.to_numpy()[pd_], drv.age.to_numpy()[pd_], drv.employed.to_numpy()[pd_],
+        veh.extra_vehicle.to_numpy(), in_city[vp])
+    veh["parking"] = draw_parking(r, zr.population_density_sqmi.to_numpy()[vp], homeowner[vp])
 
-    usage, assigned = usage_table(veh.veh.to_numpy(), vp, veh.primary_drv.to_numpy(), veh.extra_vehicle.to_numpy(), drv.pol.to_numpy())
-    drv["assigned"] = assigned
     drv["added_day"] = pol.first_day.to_numpy()[drv.pol.to_numpy()]
+    drv["removed_day"] = -1
+    drv["removal_reason"] = 0          # see simulate.DRIVER_REMOVAL_REASONS
+    drv["active"] = True
+    usage, assigned = usage_table(veh.veh.to_numpy(), vp, veh.primary_drv.to_numpy(), veh.extra_vehicle.to_numpy(),
+                                  drv.drv.to_numpy(), drv.pol.to_numpy())
+    drv["assigned"] = assigned
+    pol["ni_drv"] = first_drv
 
     # ---- insurance score, driver records, underwriting tier -------------------------
     r = stream(cfg.seed, "underwriting")
@@ -265,15 +256,14 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     p_full = full_coverage_probability(veh_age, inc_rel[vp], zscore[vp], tier[vp])
     financed = veh.ownership.to_numpy() != "Owned"
     veh["has_coll"] = financed | (r.random(nv) < p_full)
-    veh["has_comp"] = veh.has_coll | (r.random(nv) < 0.15)
-    tilt = np.clip(0.25 * np.log(inc_rel[vp]) + 0.15 * zscore[vp], -0.6, 0.6)[:, None] * np.array([-1.5, -0.5, 0.6, 1.4])[None, :]
-    veh["coll_ded_opt"] = row_choice(np.array(C.COLL_DED_P)[None, :] * np.exp(tilt), r)
-    veh["comp_ded_opt"] = np.minimum(row_choice(np.array(C.COMP_DED_P)[None, :] * np.exp(tilt), r), veh.coll_ded_opt + 1)
+    veh["has_comp"] = veh.has_coll | (r.random(nv) < C.P_COMP_ONLY)
+    veh["coll_ded_opt"], veh["comp_ded_opt"] = draw_deductibles(r, inc_rel[vp], zscore[vp])
     veh["full_glass"] = veh.has_comp & (r.random(nv) < C.FULL_GLASS_P)
     veh["added_day"] = pol.first_day.to_numpy()[vp]
     veh["removed_day"] = -1
     veh["removal_reason"] = 0          # see simulate.REMOVAL_REASONS
     veh["replaces"] = -1               # the vehicle this one replaced
+    veh["salvage_title"] = False       # owner kept it after a total loss
     veh["active"] = True
 
     return Population(pol=pol, drv=drv, veh=veh, usage=usage, incidents=incidents, zip_truth=zt, agencies=agencies)
@@ -300,6 +290,43 @@ def policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u)
         first_month = first_month + bad * shift
         dom = np.where(bad, 1 + np.floor(dom_u * cal.days_in_month(first_month)).astype(int), dom)
     return first_month, tenure_terms, dom
+
+
+def draw_commute(r: np.random.Generator, age, zrows: pd.DataFrame, in_city):
+    """Employment and one-way commute miles by car, from each driver's age and home ZIP profile."""
+    nd = len(age)
+    employed = r.random(nd) < np.interp(age, [16, 18, 22, 60, 66, 75], [0.15, 0.45, 0.78, 0.74, 0.30, 0.05])
+    wfh = zrows.pct_work_from_home.to_numpy()
+    drives = employed & (r.random(nd) < (zrows.pct_commute_drive.to_numpy() / (1 - wfh)).clip(0.05, 0.98)) & (r.random(nd) > wfh)
+    miles = zrows.mean_commute_minutes.to_numpy() * np.where(in_city, 0.30, 0.48) * np.exp(r.normal(-0.1, 0.55, nd))
+    return employed, np.where(drives, np.clip(np.round(miles), 1, 65), 0)
+
+
+def draw_mileage(r: np.random.Generator, commute, driver_age, employed, extra, in_city):
+    """True and reported annual mileage and use for vehicles with the given primary drivers."""
+    nv = len(commute)
+    commute = commute * ~extra
+    true_miles = (5200 + commute * 2 * 230) * np.exp(r.normal(-0.06, 0.35, nv)) * np.where(in_city, 0.85, 1.0) \
+        * np.interp(driver_age, [16, 25, 60, 70, 85], [0.8, 1.0, 1.0, 0.8, 0.5]) * np.where(extra, 0.45, 1.0)
+    true_miles = np.clip(true_miles, 800, 38_000)
+    reported = np.clip(np.round(true_miles * np.exp(r.normal(-0.10, 0.22, nv)) / 500) * 500, 1000, 30_000)
+    business = employed & ~extra & (r.random(nv) < 0.05)
+    return true_miles, reported, np.where(business, "Business", np.where(commute > 0, "Commute", "Pleasure"))
+
+
+def draw_parking(r: np.random.Generator, density, homeowner) -> np.ndarray:
+    """0 street, 1 driveway or lot, 2 garage (see config.PARKING)."""
+    p_street = np.clip(0.06 + 0.55 * density / 15000, 0.04, 0.75) * np.where(homeowner, 0.55, 1.0)
+    p_garage = np.where(homeowner, 0.60, 0.22) * (1 - p_street)
+    u = r.random(len(density))
+    return np.where(u < p_street, 0, np.where(u < p_street + p_garage, 2, 1))
+
+
+def draw_deductibles(r: np.random.Generator, inc_rel, score_z):
+    """Collision and comprehensive deductible options; wealthier, better-scored households choose higher ones."""
+    tilt = np.clip(0.25 * np.log(inc_rel) + 0.15 * score_z, -0.6, 0.6)[:, None] * np.array([-1.5, -0.5, 0.6, 1.4])[None, :]
+    coll = row_choice(np.array(C.COLL_DED_P)[None, :] * np.exp(tilt), r)
+    return coll, np.minimum(row_choice(np.array(C.COMP_DED_P)[None, :] * np.exp(tilt), r), coll + 1)
 
 
 def school_end_age(r: np.random.Generator, m: int) -> np.ndarray:
@@ -350,16 +377,17 @@ def draw_ownership(r: np.random.Generator, vehicle_age) -> np.ndarray:
 
 
 def full_coverage_probability(vehicle_age, inc_rel, score_z, tier) -> np.ndarray:
-    return 1 / (1 + np.exp(-(3.6 - 0.36 * vehicle_age + 0.5 * np.log(inc_rel) + 0.3 * score_z - 0.6 * (tier == 2))))
+    return 1 / (1 + np.exp(-(4.1 - 0.36 * vehicle_age + 0.5 * np.log(inc_rel) + 0.3 * score_z - 0.6 * (tier == 2))))
 
 
-def usage_table(veh_id, veh_pol, veh_primary, veh_extra, drv_pol) -> tuple[pd.DataFrame, np.ndarray]:
-    """Who drives which vehicle and how much. The primary driver does 80% of the driving; the rest is
-    shared by the other household drivers, with drivers who have no car of their own counted three times."""
+def usage_table(veh_id, veh_pol, veh_primary, veh_extra, drv_id, drv_pol) -> tuple[pd.DataFrame, np.ndarray]:
+    """Who drives which vehicle and how much, among the given (current) vehicles and drivers. The primary
+    driver does 80% of the driving; the rest is shared by the other household drivers, with drivers who
+    have no car of their own counted three times. Returns (usage, assigned flag for every driver id)."""
     v = pd.DataFrame(dict(veh=veh_id, pol=veh_pol, primary_drv=veh_primary))
-    d = pd.DataFrame(dict(pol=drv_pol, drv=np.arange(len(drv_pol))))
+    d = pd.DataFrame(dict(pol=drv_pol, drv=drv_id))
     usage = v.merge(d, on="pol").sort_values(["veh", "drv"], kind="stable").reset_index(drop=True)
-    assigned = np.zeros(len(drv_pol), dtype=bool)
+    assigned = np.zeros(int(max(np.max(drv_id, initial=-1), np.max(veh_primary, initial=-1))) + 1, dtype=bool)
     assigned[veh_primary[~veh_extra]] = True
     is_primary = usage.drv.to_numpy() == usage.primary_drv.to_numpy()
     raw = np.where(is_primary, 0.0, np.where(assigned[usage.drv.to_numpy()], 1.0, 3.0))
@@ -385,6 +413,18 @@ def violations(drv: pd.DataFrame, t0: np.ndarray, t1: np.ndarray, r: np.random.G
     return pd.concat(out, ignore_index=True)
 
 
+def prior_accidents(r: np.random.Generator, drv: pd.DataFrame, t0, t1, joined, crash_hazard, cal) -> pd.DataFrame:
+    """At-fault accidents between days t0 and t1 for drivers joining on day `joined` (before this company's
+    own claims are simulated), with the day each reaches a claims-history report."""
+    hazard = truth.driver_multiplier(drv, joined - 550, cal) * crash_hazard
+    years = (t1 - t0).clip(0) / 365.25
+    lam = (C.BASE_RATE["AF_MV"] + C.BASE_RATE["AF_SV"]) * C.PRIOR_ACCIDENT_FACTOR * hazard * years * np.where(drv.assigned, 1.0, 0.35)
+    d = np.repeat(np.arange(len(drv)), r.poisson(lam))
+    day = (t0[d] + r.random(len(d)) * (t1[d] - t0[d])).astype(int)
+    known = day + draw_lag(r, len(d), **C.PRIOR_CARRIER_REPORT_LAG)
+    return pd.DataFrame(dict(drv=drv.drv.to_numpy()[d], day=day, kind="accident", description="At-fault accident", known_day=known))
+
+
 def _driver_records(cfg, ref, pol, drv, zt, r) -> pd.DataFrame:
     """Violation timelines for the whole period, and at-fault accidents in the three years before
     the first term in the data. For new business those were with a prior carrier; for the book
@@ -397,14 +437,7 @@ def _driver_records(cfg, ref, pol, drv, zt, r) -> pd.DataFrame:
     out = [violations(drv, t0, np.full(nd, cal.valuation_day), r)]
     # accidents before the simulated claims begin (the company's own claims are added during the simulation)
     t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, 0), first_day)
-    hazard = truth.driver_multiplier(drv, first_day - 550, cal) * zt.true_crash_hazard.to_numpy()[pol.zi.to_numpy()[p_]]
-    prior_years = (t1 - t0).clip(0) / 365.25
-    lam = (C.BASE_RATE["AF_MV"] + C.BASE_RATE["AF_SV"]) * C.PRIOR_ACCIDENT_FACTOR * hazard * prior_years * np.where(drv.assigned, 1.0, 0.35)
-    k = r.poisson(lam)
-    d = np.repeat(np.arange(nd), k)
-    day = (t0[d] + r.random(len(d)) * (t1[d] - t0[d])).astype(int)
-    known = day + draw_lag(r, len(d), **C.PRIOR_CARRIER_REPORT_LAG)
-    out.append(pd.DataFrame(dict(drv=d, day=day, kind="accident", description="At-fault accident", known_day=known)))
+    out.append(prior_accidents(r, drv, t0, t1, first_day, zt.true_crash_hazard.to_numpy()[pol.zi.to_numpy()[p_]], cal))
     inc = pd.concat(out, ignore_index=True)
     inc["pol"] = p_[inc.drv.to_numpy()]
     return inc.sort_values(["drv", "day"], kind="stable").reset_index(drop=True)
