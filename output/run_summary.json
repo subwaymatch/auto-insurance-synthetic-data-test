@@ -11,25 +11,26 @@
   "claim_branches": 6,
   "catastrophe_dimension": 8,
   "rate_change_history": 7,
-  "policy_term_fact": 130794,
+  "policy_term_fact": 138032,
   "policy_dimension": 30000,
-  "driver_dimension": 52021,
-  "driver_incident_fact": 28501,
+  "driver_dimension": 53095,
+  "driver_incident_fact": 29555,
   "vehicles_dimension": 110,
-  "insured_vehicle_dimension": 61710,
-  "risk_fact": 217869,
-  "claim_coverage_fact": 14356,
-  "claims_fact": 10407,
-  "claim_expense_dimension": 10407,
-  "claim_payment_fact": 25848,
-  "communication_data": 168147
+  "insured_vehicle_dimension": 75726,
+  "risk_fact": 305113,
+  "claim_coverage_fact": 20050,
+  "claims_fact": 12870,
+  "claim_expense_dimension": 12870,
+  "claim_payment_fact": 33495,
+  "policy_transaction_fact": 185229,
+  "communication_data": 209520
  },
  "answer_key_rows": {
-  "risk_truth": 217869,
-  "driver_truth": 52021,
-  "vehicle_truth": 61710,
+  "risk_truth": 305113,
+  "driver_truth": 53095,
+  "vehicle_truth": 75726,
   "zip_truth": 290,
-  "unreported_claims": 46,
-  "claim_feature_truth": 14356
+  "unreported_claims": 77,
+  "claim_feature_truth": 20050
  }
 }
