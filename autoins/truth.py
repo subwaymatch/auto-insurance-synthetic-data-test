@@ -30,6 +30,14 @@ MEAN_SUBRO = float(np.mean(C.SUBROGATION_SHARE))
 
 
 # ---------------------------------------------------------------------------- drivers and vehicles
+def good_student(good_grades, school_end_day, dob_day, day) -> np.ndarray:
+    """Good-student status on `day`: B grades, still in full-time school, and under the age limit.
+    The same rule drives the insurer's discount and the true-risk effect, so neither outlives school."""
+    day = np.asarray(day)
+    return np.asarray(good_grades, dtype=bool) & (day < np.asarray(school_end_day)) \
+        & ((day - np.asarray(dob_day)) / 365.25 < C.GOOD_STUDENT_MAX_AGE)
+
+
 def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
     """At-fault accident propensity of each driver on a given day, relative to a reference driver."""
     age = (np.asarray(day) - drv.dob_day.to_numpy()) / 365.25
@@ -38,7 +46,8 @@ def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
     f = f * (1 + C.YOUNG_MALE_EXTRA * np.clip((27 - age) / 9, 0, 1) * drv.male.to_numpy())
     f = f * np.where(drv.marital.to_numpy() == "M", C.MARRIED_FACTOR, 1.0)
     f = f * np.interp(licensed, C.INEXPERIENCE_KNOTS, C.INEXPERIENCE_FACTOR)
-    f = f * np.where(drv.good_student.to_numpy(), C.GOOD_STUDENT_FACTOR, 1.0)
+    gs = good_student(drv.good_grades.to_numpy(), drv.school_end_day.to_numpy(), drv.dob_day.to_numpy(), day)
+    f = f * np.where(gs, C.GOOD_STUDENT_FACTOR, 1.0)
     return f * drv.latent.to_numpy()
 
 
@@ -70,19 +79,23 @@ def collision(z, peril_factor, repair_factor, trend, acv, deductible):
 
 
 def comp_gross(peril: str, z, u, repair_factor, adas, trend, acv):
+    """Returns (gross loss, total-loss flag). As for collision, damage at or above the total-loss
+    threshold makes the vehicle a total loss, settled at its actual cash value."""
     if peril == "THEFT_TOTAL":      # 40% recovered with damage, 60% never recovered
-        share = np.where(u < 0.40, 0.08 + u / 0.40 * 0.42, 0.90 + (u - 0.40) / 0.60 * 0.10)
-        return acv * share
-    if peril in ("FLOOD", "FLOOD_CAT"):
-        return acv * np.where(u < 0.50, 0.10 + u / 0.50 * 0.40, 0.80 + (u - 0.50) / 0.50 * 0.20)
-    if peril == "FIRE":
-        return acv * (0.20 + 0.80 * u)
-    median, sigma = C.COMP_SEV[peril]
-    if peril == "GLASS":
-        median = median * np.where(adas, C.GLASS_ADAS_FACTOR, 1.0)
-    elif peril == "ANIMAL":
-        median = median * repair_factor ** 0.6
-    return np.minimum(median * trend * np.exp(sigma * z), acv)
+        damage = acv * np.where(u < 0.40, 0.08 + u / 0.40 * 0.42, 1.0)
+    elif peril in ("FLOOD", "FLOOD_CAT"):
+        damage = acv * np.where(u < 0.50, 0.10 + u / 0.50 * 0.40, 0.80 + (u - 0.50) / 0.50 * 0.20)
+    elif peril == "FIRE":
+        damage = acv * (0.20 + 0.80 * u)
+    else:
+        median, sigma = C.COMP_SEV[peril]
+        if peril == "GLASS":
+            median = median * np.where(adas, C.GLASS_ADAS_FACTOR, 1.0)
+        elif peril == "ANIMAL":
+            median = median * repair_factor ** 0.6
+        damage = median * trend * np.exp(sigma * z)
+    total = (damage >= C.TOTAL_LOSS_THRESHOLD * acv) & (peril != "GLASS")
+    return np.where(total, acv, np.minimum(damage, acv)), total
 
 
 # ---------------------------------------------------------------------------- per-vehicle context
@@ -124,11 +137,15 @@ class Static:
         v["zi"] = self.p["zi"][v["pol"]]
         return v
 
-    def replace_vehicles(self, old: np.ndarray, new: pd.DataFrame, day: np.ndarray) -> None:
-        """Retire vehicles `old` on `day` and add their replacements, which inherit the drivers."""
-        first_new = len(self.v["pol"])
+    def retire(self, old: np.ndarray, day: np.ndarray, reason: int) -> None:
+        """Take vehicles `old` off their policies from `day` (the first day they are not insured)."""
         self.v["active"][old] = False
         self.v["removed_day"][old] = day
+        self.v["removal_reason"][old] = reason
+
+    def add_replacements(self, old: np.ndarray, new: pd.DataFrame) -> None:
+        """Add vehicles `new` (one per entry of `old`), which inherit the drivers of the vehicles they replace."""
+        first_new = len(self.v["pol"])
         add = self._columns(new[[c for c in self.v if c in new.columns]])
         self.v = {k: np.concatenate([a, add[k]]) for k, a in self.v.items()}
         new_id = np.full(first_new, -1)
@@ -137,6 +154,17 @@ class Static:
         self.u_veh = np.concatenate([self.u_veh, new_id[self.u_veh[m]]])
         self.u_drv = np.concatenate([self.u_drv, self.u_drv[m]])
         self.u_w = np.concatenate([self.u_w, self.u_w[m]])
+
+    def set_usage(self, usage: pd.DataFrame) -> None:
+        self.u_veh, self.u_drv, self.u_w = usage.veh.to_numpy(), usage.drv.to_numpy(), usage.weight.to_numpy()
+
+
+def set_window(c: dict, cal: Calendar, s: np.ndarray, x: np.ndarray) -> None:
+    """Change the exposure window of a context (used when a total loss ends a vehicle's cover early).
+    Severity and vehicle value stay as simulated; only the exposure behind the expected loss changes."""
+    c["s"], c["x"] = s, x
+    c["expo"] = {k: cal.exposure(PERIL_GROUP[k], s, x) for k in c["rate"]}
+    c["expo"]["THEFT_TOTAL"] = np.where(c["kh"], cal.exposure("theft_kh", s, x), c["expo"]["THEFT_TOTAL"])
 
 
 def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarray, cost_day=None) -> dict:
@@ -192,8 +220,7 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     }
     kh = v["kia_hyundai"][V]
     c["kh"] = kh
-    c["expo"] = {k: cal.exposure(PERIL_GROUP[k], s, x) for k in c["rate"]}
-    c["expo"]["THEFT_TOTAL"] = np.where(kh, cal.exposure("theft_kh", s, x), c["expo"]["THEFT_TOTAL"])
+    set_window(c, cal, s, x)
 
     # coverage terms and cost levels
     bi = np.array(C.BI_LIMITS)
@@ -250,7 +277,7 @@ def expected(c: dict, cal: Calendar) -> dict:
 
     comp = np.zeros(c["n"])
     for k in COMP_PERILS:
-        gross = comp_gross(k, ZG, UG, rep, col(c["adas"]).astype(bool), t["COMP"], acv)
+        gross, _ = comp_gross(k, ZG, UG, rep, col(c["adas"]).astype(bool), t["COMP"], acv)
         d = col(c["glass_ded"] if k == "GLASS" else c["comp_ded"])
         comp += n[k] * np.maximum(gross - d, 0).mean(1) * (1 - C.CWP["COMP"])
     E["COMP"] = c["has_comp"] * comp
@@ -365,14 +392,14 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         vi, day = vi[m], day[m]
         if len(vi) == 0:
             return
-        gross = comp_gross(peril, rng.standard_normal(len(vi)), rng.random(len(vi)), c["repair"][vi], c["adas"][vi],
-                           _trend(cal, "COMP", day), c["acv"][vi])
+        gross, total = comp_gross(peril, rng.standard_normal(len(vi)), rng.random(len(vi)), c["repair"][vi], c["adas"][vi],
+                                  _trend(cal, "COMP", day), c["acv"][vi])
         paid = np.maximum(gross - (c["glass_ded"] if peril == "GLASS" else c["comp_ded"])[vi], 0.0)
         below = paid <= 0
         keep = ~below | (rng.random(len(vi)) < C.P_FILE_BELOW_DEDUCTIBLE)
         cwp = below | (rng.random(len(vi)) < C.CWP["COMP"])
         ids = new_occurrences(peril, vi[keep], day[keep], np.full(keep.sum(), -1), cat=cat)
-        add("COMP", ids, gross[keep], paid[keep], cwp[keep], total=(gross >= 0.95 * c["acv"][vi])[keep] & ~cwp[keep])
+        add("COMP", ids, gross[keep], paid[keep], cwp[keep], total=total[keep] & ~cwp[keep])
 
     for peril in COMP_PERILS:
         if peril == "THEFT_TOTAL":

@@ -26,7 +26,8 @@ class Config:
     out_dir: Path = REPO / "output"
     start: str = "2022-01-01"         # first day simulated
     valuation: str = "2026-09-30"     # "as of" date of the extract; nothing later is known
-    initial_book_share: float = 0.46  # share of policies already in force on the start date
+    initial_book_share: float = 0.46  # share of policies already in force on the start date (their term in
+                                      # force on that date is included, with only the part after it earned)
 
 
 # --------------------------------------------------------------------------
@@ -47,6 +48,24 @@ REPLACE_AGE_KNOTS = [0, 3, 6, 10, 15, 20]
 REPLACE_HAZARD = [0.03, 0.08, 0.10, 0.12, 0.15, 0.20]
 LEASE_END_HAZARD = 0.70              # leased vehicles three or more years old
 REPLACEMENT_AGE = dict(shape=1.5, scale=2.3)   # age of the vehicle bought as a replacement
+# After a total loss the wrecked or stolen vehicle leaves the policy on the day after the loss. Most
+# households buy a replacement, which joins the policy (as a new insured vehicle) when it is bought.
+P_REPLACE_AFTER_TOTAL_LOSS = {"single": 0.93, "multi": 0.80}   # by vehicles on the policy (ASSUMED)
+TOTAL_LOSS_REPLACEMENT_DELAY = dict(min_days=3, shape=2.0, scale=10.0)   # days after the loss (mean ~23; ASSUMED)
+
+# Good-student discount: the insurer's eligibility rule, evaluated on each term's effective date (ASSUMED).
+# A driver qualifies while under GOOD_STUDENT_MAX_AGE, still in full-time school and keeping B grades.
+GOOD_STUDENT_MAX_AGE = 25
+GOOD_STUDENT_GRADES_P = 0.40         # children on the policy who keep a B average
+P_COLLEGE = 0.60                     # of those, the share who go on to college
+SCHOOL_END_AGE = {"high_school": (18.2, 18.8), "college": (21.5, 23.5)}   # age range when full-time school ends
+
+# When information reaches the insurer (ASSUMED). Every rating, underwriting and renewal decision uses
+# only what is known on its decision date.
+RENEWAL_OFFER_LEAD_DAYS = (30, 45)   # renewal offers are rated and mailed this many days before the effective date
+NEW_BUSINESS_QUOTE_LEAD_DAYS = (0, 14)
+MVR_POSTING_LAG = dict(min_days=14, shape=2.0, scale=25.0)   # violation date to conviction on the driving record (mean ~64)
+PRIOR_CARRIER_REPORT_LAG = dict(min_days=7, mean=30.0)        # accident date to appearing on the claims-history report
 
 # Named-insured propensity by age band (relative odds of being a policyholder)
 HOUSEHOLDER_WEIGHT = {"16_17": 0.0, "18_20": 0.12, "21_24": 0.45, "25_29": 0.85, "30_34": 1.0, "35_39": 1.0,
@@ -182,7 +201,8 @@ P_SUBROGATION = {"NAF": 0.85, "PARKED": 0.10}
 SUBROGATION_SHARE = (0.75, 1.00)
 P_FILE_BELOW_DEDUCTIBLE = 0.30      # claims opened then closed without payment
 CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04}
-CHARGEABLE_THRESHOLD = 1_000        # paid amount that makes an at-fault claim surchargeable
+CHARGEABLE_THRESHOLD = 1_000        # paid amount that makes an at-fault claim surchargeable; the claim becomes
+                                    # chargeable on the day cumulative PD, BI and collision payments reach it
 
 # --------------------------------------------------------------------------
 # Driver record (ASSUMED rates; tuned so ~84% of drivers have no violation in 3 years)

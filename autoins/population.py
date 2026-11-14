@@ -77,12 +77,12 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     n_init = int(round(n * cfg.initial_book_share))
     is_init = np.arange(n) < n_init
     n_months = (cal.date(cal.valuation_day).astype("M8[M]") - cal.start.astype("M8[M]")).astype(int) + 1
-    first_month = np.where(is_init, r.integers(0, 12, n) % term_months, r.integers(0, n_months, n))
-    dom = r.integers(1, 29, n)
-    first_day = cal.day_of(first_month, dom)
-    keep_new = first_day <= cal.valuation_day
-    first_month = np.where(keep_new, first_month, first_month - 1)
-    first_day = cal.day_of(first_month, dom)
+    # The month of each policy's first term in the data. The book already in force on the start date
+    # enters with the term that spans that date (it began up to one term earlier, and only the part
+    # after the start is earned); new business enters with its first term.
+    renew_month = r.integers(0, 12, n) % term_months
+    first_month = np.where(is_init, renew_month - term_months, r.integers(0, n_months, n))
+    dom_u = r.random(n)            # anniversary day, as a position within the month the policy was written
 
     bands = list(C.AGE_BAND_BOUNDS)
     band_mid = np.array([np.mean(C.AGE_BAND_BOUNDS[b]) for b in bands])
@@ -122,9 +122,12 @@ def build(cfg: C.Config, ref: Reference) -> Population:
             wgt = a["size"].to_numpy()[None] * np.exp(-dist / 7.0) + 1e-6
         agency_id[m] = a.agency_id.to_numpy()[row_choice(wgt, r)]
 
+    # terms completed before the first term in the data
     tenure_terms = np.where(is_init, np.floor(r.exponential(4.5, n) * 12 / term_months), 0).astype(int)
     tenure_terms = np.minimum(tenure_terms, ((ni_age - 18).clip(0) * 12 / term_months).astype(int))
     multi_policy = r.random(n) < np.where(homeowner, 0.55, 0.20) * np.array([1.0, 1.25, 0.7])[channel]
+    first_month, tenure_terms, dom = policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u)
+    first_day = cal.day_of(first_month, dom)
 
     pol = pd.DataFrame(dict(
         pol=np.arange(n), zi=zi, term_months=term_months, first_month=first_month, dom=dom, first_day=first_day,
@@ -170,7 +173,9 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     household = np.exp(r.normal(-C.HOUSEHOLD_SIGMA ** 2 / 2, C.HOUSEHOLD_SIGMA, n))
     drv["latent"] = r.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, nd) * household[p_]
     pol["household_factor"] = household
-    drv["good_student"] = (drv.role == 3) & (age < 25) & (r.random(nd) < 0.40)
+    # good grades are a trait; the discount itself depends on the date (truth.good_student)
+    drv["good_grades"] = (drv.role == 3) & (r.random(nd) < C.GOOD_STUDENT_GRADES_P)
+    drv["school_end_day"] = drv.dob_day + (school_end_age(r, nd) * 365.25).astype(int)
     employed = r.random(nd) < np.interp(age, [16, 18, 22, 60, 66, 75], [0.15, 0.45, 0.78, 0.74, 0.30, 0.05])
     wfh = zr.pct_work_from_home.to_numpy()[p_]
     drives = employed & (r.random(nd) < (zr.pct_commute_drive.to_numpy()[p_] / (1 - wfh)).clip(0.05, 0.98)) & (r.random(nd) > wfh)
@@ -235,7 +240,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
 
     incidents = _driver_records(cfg, ref, pol, drv, zt, r)
     fd = pol.first_day.to_numpy()[incidents.pol.to_numpy()]
-    recent = (incidents.day <= fd) & (incidents.day > fd - C.LOOKBACK_DAYS)
+    recent = (incidents.day <= fd) & (incidents.day > fd - C.LOOKBACK_DAYS) & (incidents.known_day <= fd)
     pts = np.bincount(incidents.pol[recent], np.where(incidents.kind[recent] == "minor", 1, np.where(incidents.kind[recent] == "major", 4, 3)), n)
     p_lapse = 1 / (1 + np.exp(-(-2.6 - 0.9 * zscore - 0.04 * (ni_age - 40).clip(-22, 0))))
     prior_ins = is_init | (r.random(n) > p_lapse)
@@ -267,9 +272,48 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     veh["full_glass"] = veh.has_comp & (r.random(nv) < C.FULL_GLASS_P)
     veh["added_day"] = pol.first_day.to_numpy()[vp]
     veh["removed_day"] = -1
+    veh["removal_reason"] = 0          # see simulate.REMOVAL_REASONS
+    veh["replaces"] = -1               # the vehicle this one replaced
     veh["active"] = True
 
     return Population(pol=pol, drv=drv, veh=veh, usage=usage, incidents=incidents, zip_truth=zt, agencies=agencies)
+
+
+def policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u):
+    """Fix each policy's anniversary day and first term. Returns (first_month, tenure_terms, dom).
+
+    The anniversary day is a day of the month the policy was originally written, drawn over that
+    month's real length, so policies written on the 29th to 31st exist and renew on the last day of
+    shorter months (see Calendar.day_of)."""
+    tm = term_months
+    dom = 1 + np.floor(dom_u * cal.days_in_month(first_month - tenure_terms * tm)).astype(int)
+    # the in-force book's first term must still be in force on the start date; if it would end on or
+    # before it, the policy enters with the next term instead (one more term of tenure, same inception)
+    late = is_init & (cal.day_of(first_month + tm, dom) <= 0)
+    first_month = first_month + late * tm
+    tenure_terms = tenure_terms + late
+    # new business must start inside the window: move a policy that would start after the valuation
+    # date (or before the start) one month in, and redraw its day within that month
+    for shift in (-1, 1):
+        day = cal.day_of(first_month, dom)
+        bad = ~is_init & ((day > cal.valuation_day) if shift < 0 else (day < 0))
+        first_month = first_month + bad * shift
+        dom = np.where(bad, 1 + np.floor(dom_u * cal.days_in_month(first_month)).astype(int), dom)
+    return first_month, tenure_terms, dom
+
+
+def school_end_age(r: np.random.Generator, m: int) -> np.ndarray:
+    """Age at which a good student leaves full-time school (end of high school or of college)."""
+    college = r.random(m) < C.P_COLLEGE
+    lo = np.where(college, C.SCHOOL_END_AGE["college"][0], C.SCHOOL_END_AGE["high_school"][0])
+    hi = np.where(college, C.SCHOOL_END_AGE["college"][1], C.SCHOOL_END_AGE["high_school"][1])
+    return lo + r.random(m) * (hi - lo)
+
+
+def draw_lag(r: np.random.Generator, m: int, min_days: float, shape: float = 1.0, scale: float = None, mean: float = None) -> np.ndarray:
+    """Whole-day reporting lags: min_days plus a gamma (or, given `mean`, exponential) delay."""
+    extra = r.exponential(mean, m) if mean is not None else r.gamma(shape, scale, m)
+    return (min_days + np.floor(extra)).astype(int)
 
 
 def draw_vehicles(ref: Reference, r: np.random.Generator, pol_idx, year_frac, inc_rel, density, age_scale, age_shape) -> pd.DataFrame:
@@ -335,27 +379,32 @@ def violations(drv: pd.DataFrame, t0: np.ndarray, t1: np.ndarray, r: np.random.G
         k = r.poisson(rate * behaviour ** (1.4 if kind == "major" else 1.0) * years)
         d = np.repeat(np.arange(len(drv)), k)
         day = (t0[d] + r.random(len(d)) * (t1[d] - t0[d])).astype(int)
-        out.append(pd.DataFrame(dict(drv=ids[d], day=day, kind=kind, description=r.choice(names, len(d), p=probs))))
+        known = day + draw_lag(r, len(d), **C.MVR_POSTING_LAG)     # on the driving record once the conviction posts
+        out.append(pd.DataFrame(dict(drv=ids[d], day=day, kind=kind, description=r.choice(names, len(d), p=probs),
+                                     known_day=known)))
     return pd.concat(out, ignore_index=True)
 
 
 def _driver_records(cfg, ref, pol, drv, zt, r) -> pd.DataFrame:
-    """Violation timelines for the whole period, and at-fault accidents with a prior carrier
-    in the three years before the policy was first written with this company."""
+    """Violation timelines for the whole period, and at-fault accidents in the three years before
+    the first term in the data. For new business those were with a prior carrier; for the book
+    already in force some happened while insured here, before the extract starts (tables.py labels them)."""
     cal = ref.cal
     nd = len(drv)
     p_ = drv.pol.to_numpy()
     first_day = pol.first_day.to_numpy()[p_]
     t0 = np.maximum(first_day - C.LOOKBACK_DAYS, drv.licensed_day.to_numpy())
     out = [violations(drv, t0, np.full(nd, cal.valuation_day), r)]
-    # prior-carrier at-fault accidents (the company's own claims are added during the simulation)
+    # accidents before the simulated claims begin (the company's own claims are added during the simulation)
+    t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, 0), first_day)
     hazard = truth.driver_multiplier(drv, first_day - 550, cal) * zt.true_crash_hazard.to_numpy()[pol.zi.to_numpy()[p_]]
-    prior_years = (first_day - t0).clip(0) / 365.25
+    prior_years = (t1 - t0).clip(0) / 365.25
     lam = (C.BASE_RATE["AF_MV"] + C.BASE_RATE["AF_SV"]) * C.PRIOR_ACCIDENT_FACTOR * hazard * prior_years * np.where(drv.assigned, 1.0, 0.35)
     k = r.poisson(lam)
     d = np.repeat(np.arange(nd), k)
-    day = (t0[d] + r.random(len(d)) * (first_day[d] - t0[d])).astype(int)
-    out.append(pd.DataFrame(dict(drv=d, day=day, kind="accident", description="At-fault accident (prior carrier)")))
+    day = (t0[d] + r.random(len(d)) * (t1[d] - t0[d])).astype(int)
+    known = day + draw_lag(r, len(d), **C.PRIOR_CARRIER_REPORT_LAG)
+    out.append(pd.DataFrame(dict(drv=d, day=day, kind="accident", description="At-fault accident", known_day=known)))
     inc = pd.concat(out, ignore_index=True)
     inc["pol"] = p_[inc.drv.to_numpy()]
     return inc.sort_values(["drv", "day"], kind="stable").reset_index(drop=True)

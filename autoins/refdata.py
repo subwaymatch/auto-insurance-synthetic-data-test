@@ -40,9 +40,24 @@ class Calendar:
         return self.start + np.asarray(day).astype("timedelta64[D]")
 
     def day_of(self, months, dom) -> np.ndarray:
-        """Day number of (start month + months, day-of-month dom)."""
+        """Day number of (start month + months, day-of-month dom). Day numbers before the start are negative.
+
+        dom is the policy's anniversary day. In a month too short for it the date falls on the month's
+        last day, and the next anniversary returns to dom: a policy written on 31 August with six-month
+        terms renews on 28 (or 29) February and again on 31 August, so anniversaries never drift."""
         m = self.start.astype("M8[M]") + np.asarray(months).astype("timedelta64[M]")
-        return ((m.astype("M8[D]") + (np.asarray(dom) - 1).astype("timedelta64[D]")) - self.start).astype(int)
+        first = m.astype("M8[D]")
+        d = np.minimum(np.asarray(dom), self.days_in_month(months))
+        return ((first + (d - 1).astype("timedelta64[D]")) - self.start).astype(int)
+
+    def days_in_month(self, months) -> np.ndarray:
+        """Number of days in the month (start month + months)."""
+        m = self.start.astype("M8[M]") + np.asarray(months).astype("timedelta64[M]")
+        return ((m + np.timedelta64(1, "M")).astype("M8[D]") - m.astype("M8[D]")).astype(int)
+
+    def rate_level_at(self, day) -> np.ndarray:
+        """Filed rate level for policies effective on `day` (days before the start use the opening level)."""
+        return self.rate_level[np.clip(np.asarray(day), 0, len(self.rate_level) - 1)]
 
     def year_frac(self, day) -> np.ndarray:
         return self.start.astype("M8[Y]").astype(int) + 1970 + np.asarray(day) / 365.25

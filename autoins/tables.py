@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import rating
+from . import rating, truth
 from .refdata import stream
+from .simulate import REMOVAL_REASONS
 
 POLICY_BASE = 1_000_000
 YN = np.array(["N", "Y"])
@@ -78,22 +79,30 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["rate_change_history"] = pd.DataFrame(out, columns=["Effective Date", "Overall Rate Change %", "Cumulative Rate Level"])
 
     # ---- policies and terms ---------------------------------------------------------------
+    # Premium accounting. Each risk row's premium is a full-term rate; a vehicle added or removed
+    # mid-term is an endorsement charged or returned pro rata, and a cancellation returns the rest.
+    # For every term: written + endorsement + return = earned before the extract + earned in it
+    # (+ unearned, while the term is still running at the valuation date).
     prem_cols = [f"prem_{c}" for c in C.COVERAGES]
     rows = rows.assign(total_premium=rows[prem_cols].sum(axis=1))
-    rows["earned_premium"] = (rows.total_premium * rows.earned_share).round(2)
-    tg = rows.groupby("term").agg(written=("total_premium", "sum"), earned=("earned_premium", "sum"), vehicles=("veh", "size"))
+    tp = rows.total_premium
+    rows["earned_premium"] = (tp * rows.earned_share).round(2)
+    rows = rows.assign(written=tp * rows.at_start, net_written=tp * rows.written_share, returned=tp * rows.return_share,
+                       before=tp * rows.before_share)
+    tg = rows.groupby("term").agg(written=("written", "sum"), net_written=("net_written", "sum"), returned=("returned", "sum"),
+                                  earned=("earned_premium", "sum"), before=("before", "sum"), vehicles=("at_start", "sum"))
     terms = terms.join(tg, on="term")
+    terms[list(tg.columns)] = terms[list(tg.columns)].fillna(0)
     cancelled = terms.cancel_day >= 0
-    tdays = terms.e - terms.s
-    returned = np.where(cancelled, -(terms.written * (terms.e - terms.cancel_day) / tdays), 0.0).round(2)
     T["policy_term_fact"] = pd.DataFrame({
         "Policy Term ID": terms.term + 1, "Policy Number": polno(terms.pol), "Term Number": terms.term_no,
         "Business Type": np.where(terms.new_business, "New", "Renewal"),
-        "Policy Effective Date": D(terms.s), "Policy Expiration Date": D(terms.e),
+        "Policy Effective Date": D(terms.s), "Policy Expiration Date": D(terms.e), "Rating Date": D(terms.rate_day),
         "Cancel Date": np.where(cancelled, D(terms.cancel_day.clip(0)), ""), "Cancel Reason": terms.cancel_reason,
-        "Non-Renewal Reason": terms.nonrenewal_reason, "Vehicle Count": terms.vehicles,
-        "Written Premium": terms.written.round(2), "Return Premium": returned, "Earned Premium": terms.earned.round(2),
-        "Rate Level Index": (terms.rate_level / cal.rate_level[0]).round(4)})
+        "Non-Renewal Reason": terms.nonrenewal_reason, "Vehicle Count": terms.vehicles.astype(int),
+        "Written Premium": terms.written.round(2), "Endorsement Premium": (terms.net_written - terms.written).round(2),
+        "Return Premium": (-terms.returned).round(2) + 0.0, "Earned Before Extract": terms.before.round(2),
+        "Earned Premium": terms.earned.round(2), "Rate Level Index": (terms.rate_level / cal.rate_level[0]).round(4)})
 
     last = terms.sort_values(["pol", "s"], kind="stable").groupby("pol").tail(1).set_index("pol").reindex(pol["pol"])
     status = np.where(last.cancel_day >= 0, "Cancelled", np.where(last.nonrenewal_reason != "", "Non-Renewed", "In Force"))
@@ -111,7 +120,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Policy Effective Date": D(pol.first_day), "Policy Expiration Date": D(end_day),
         "Term Length Months": pol.term_months, "Policy Status": status, "Status Reason": reason,
         "Cancel Date": np.where(status == "Cancelled", D(end_day), ""),
-        "Named Insured Driver ID": first_drv + 1, "Number of Drivers": pol.n_drv, "Number of Vehicles": pol.n_veh,
+        "Named Insured Driver ID": first_drv + 1, "Number of Drivers": pol.n_drv,
+        "Number of Vehicles": last.vehicles.fillna(0).astype(int).to_numpy(),
         "Homeowner": YN[pol.homeowner.astype(int)], "Multi-Policy": YN[pol.multi_policy.astype(int)],
         "Prior Insurance": YN[pol.prior_insurance.astype(int)],
         "Insurance Score": score.astype("Int64"), "Payment Plan": np.array(C.PAY_PLANS)[pol.pay_plan],
@@ -121,7 +131,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     # ---- drivers ------------------------------------------------------------------------------
     inc = pop.incidents
     fd = drv.added_day.to_numpy()
-    recent = (inc.day.to_numpy() <= fd[inc.drv]) & (inc.day.to_numpy() > fd[inc.drv] - C.LOOKBACK_DAYS)
+    recent = (inc.day.to_numpy() <= fd[inc.drv]) & (inc.day.to_numpy() > fd[inc.drv] - C.LOOKBACK_DAYS) \
+        & (inc.known_day.to_numpy() <= fd[inc.drv])
+    good_student = truth.good_student(drv.good_grades, drv.school_end_day, drv.dob_day, drv.added_day)
     n_viol = np.bincount(inc.drv[recent & (inc.kind != "accident")], minlength=len(drv))
     n_acc = np.bincount(inc.drv[recent & (inc.kind == "accident")], minlength=len(drv))
     T["driver_dimension"] = pd.DataFrame({
@@ -129,23 +141,30 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Driver Role": np.array(["Named Insured", "Spouse", "Other Adult", "Child"])[drv.role],
         "First Name": drv.first_name, "Last Name": drv.last_name, "Date of Birth": D(drv.dob_day),
         "Gender": np.where(drv.male, "M", "F"), "Marital Status": drv.marital, "Date First Licensed": D(drv.licensed_day),
-                "Added Date": D(drv.added_day), "Good Student": YN[drv.good_student.astype(int)], "Miles to work": drv.commute_miles.astype(int),
+        "Added Date": D(drv.added_day), "Good Student": YN[good_student.astype(int)], "Miles to work": drv.commute_miles.astype(int),
         "Number of Violations": n_viol, "Number of Accidents": n_acc})
 
+    # Each incident carries the day the insurer learned of it: a violation when the conviction posts to the
+    # driving record, an earlier accident when it appears on a claims-history report, and the company's own
+    # claim when its payments make it chargeable. Rating uses an incident only from that day on.
     own = claims[claims.chargeable & (claims.drv >= 0)]
+    acc = (inc.kind == "accident").to_numpy()
+    with_us = acc & (inc.day.to_numpy() >= inception[inc.pol.to_numpy()])     # in-force book, before the extract
     records = pd.concat([
-        pd.DataFrame({"drv": inc.drv, "day": inc.day,
+        pd.DataFrame({"drv": inc.drv, "day": inc.day, "known": inc.known_day,
                       "Incident Type": inc.kind.map({"minor": "Minor Violation", "major": "Major Violation", "accident": "At-Fault Accident"}),
-                      "Description": inc.description, "Source": np.where(inc.kind == "accident", "Prior Carrier Report", "Motor Vehicle Record"),
+                      "Description": np.where(with_us, "At-fault accident (company claim before the extract)",
+                                              np.where(acc, "At-fault accident (prior carrier)", inc.description)),
+                      "Source": np.where(with_us, "Company Claim (Before Extract)", np.where(acc, "Prior Carrier Report", "Motor Vehicle Record")),
                       "Claim ID": pd.array([pd.NA] * len(inc), dtype="Int64")}),
-        pd.DataFrame({"drv": own.drv, "day": own.day, "Incident Type": "At-Fault Accident",
+        pd.DataFrame({"drv": own.drv, "day": own.day, "known": own.chargeable_day, "Incident Type": "At-Fault Accident",
                       "Description": "At-fault accident (company claim)", "Source": "Company Claim",
                       "Claim ID": own.claim_id.astype("Int64")})], ignore_index=True)
-    records = records[records.day <= V].sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
+    records = records[(records.day <= V) & (records.known <= V)].sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
     T["driver_incident_fact"] = pd.DataFrame({
         "Incident ID": np.arange(1, len(records) + 1), "Driver ID": records.drv + 1, "Incident Date": D(records.day),
-        "Incident Type": records["Incident Type"], "Description": records.Description, "Source": records.Source,
-        "Claim ID": records["Claim ID"]})
+        "Known Date": D(records.known), "Incident Type": records["Incident Type"], "Description": records.Description,
+        "Source": records.Source, "Claim ID": records["Claim ID"]})
 
     # ---- vehicles -----------------------------------------------------------------------------
     T["vehicles_dimension"] = pd.DataFrame({
@@ -163,9 +182,13 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Collision Deductible": np.where(veh.has_coll, np.array(C.COLL_DEDUCTIBLES)[veh.coll_ded_opt], 0),
         "Comprehensive Coverage": YN[veh.has_comp.astype(int)],
         "Comprehensive Deductible": np.where(veh.has_comp, np.array(C.COMP_DEDUCTIBLES)[veh.comp_ded_opt], 0),
-        "Full Glass Coverage": YN[veh.full_glass.astype(int)]})
+        "Full Glass Coverage": YN[veh.full_glass.astype(int)],
+        "Removal Reason": np.array(REMOVAL_REASONS)[veh.removal_reason],
+        "Replaces Vehicle ID": pd.Series(veh.replaces + 1).where(veh.replaces >= 0).astype("Int64")})
 
     rv = rows.veh.to_numpy()
+    tcan = terms.set_index("term").cancel_day.reindex(rows.term).to_numpy()
+    cover_end = np.where(tcan >= 0, np.minimum(rows.sched, tcan), rows.sched)
     T["risk_fact"] = pd.DataFrame({
         "Record ID": rows.row + 1, "Policy Term ID": rows.term + 1, "Policy Number": polno(rows.pol),
         "Insured Vehicle ID": rv + 1, "Vehicle ID": vid[rv], "Vehicle Model Year": veh.model_year.to_numpy()[rv],
@@ -173,11 +196,12 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Rated Driver Age": np.floor(rows.driver_age).astype(int),
         "Rated Driver Class": np.array(rating.CLASS_LEVELS)[rows.class_code],
         "Rated Violation Points": rows.violation_points, "Rated At-Fault Accidents": rows.at_fault_accidents,
+        "Rated Good Student": YN[rows.good_student.astype(int)],
         "Tenure Years": rows.tenure_years.round(1), "Vehicle Value": rows.acv.round(-1).astype(int),
         "BI Premium": rows.prem_BI, "PD Premium": rows.prem_PD, "UM Premium": rows.prem_UM,
         "Med Pay Premium": rows.prem_MED, "Collision Premium": rows.prem_COLL, "Comprehensive Premium": rows.prem_COMP,
-        "Total Premium": rows.total_premium.round(2), "Earned Exposure": rows.earned_exposure.round(4),
-        "Earned Premium": rows.earned_premium})
+        "Total Premium": rows.total_premium.round(2), "Coverage Start Date": D(rows.s), "Coverage End Date": D(cover_end),
+        "Earned Exposure": rows.earned_exposure.round(4), "Earned Premium": rows.earned_premium})
 
     # ---- claims ---------------------------------------------------------------------------------
     f = feats
@@ -186,16 +210,17 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["claim_coverage_fact"] = pd.DataFrame({
         "Claim Feature ID": f.feature_id, "Claim ID": f.claim_id, "Coverage Code": f.cvg,
         "Coverage": f.cvg.map(C.COVERAGE_NAMES), "Claimant Number": f.claimant,
-        "Feature Status": np.where(f.closed, "Closed", "Open"), "Open Date": D(f.open_day),
-        "Close Date": np.where(f.closed, D(f.close_day.clip(upper=V)), ""),
+        "Feature Status": np.where(f.closed, "Closed", np.where(f.reopened, "Reopened", "Open")), "Open Date": D(f.open_day),
+        "Close Date": np.where(f.closed, D(f.status_close_day.clip(upper=V)), ""),
+        "Reopen Date": np.where(f.reopened, D(f.reopen_day.clip(0)), ""),
         "Paid Loss": f.paid_loss.round(2), "Case Reserve": f.case_reserve.round(2), "Incurred Loss": f.incurred.round(2),
         "Salvage Recovery": f.salvage_rec.round(2), "Subrogation Recovery": f.subro_rec.round(2),
         "Net Incurred Loss": f.net_incurred.round(2), "Paid Expense": f.paid_expense.round(2),
-        "Litigation": YN[f.litigated.astype(int)], "Total Loss": YN[(f.total & (f.paid_loss > 0)).astype(int)],
+        "Litigation": YN[f.litigated.astype(int)], "Total Loss": YN[f.total.astype(int)],
         "Closed Without Payment": YN[(f.closed & (f.paid_loss == 0)).astype(int)]})
     cg = f.groupby("claim_id").agg(paid=("paid_loss", "sum"), reserve=("case_reserve", "sum"), recovery=("recovery", "sum"),
                                    net=("net_incurred", "sum"), expense=("paid_expense", "sum"), n=("fid", "size"),
-                                   open=("closed", lambda s: (~s).any()), close_day=("close_day", "max"),
+                                   open=("closed", lambda s: (~s).any()), close_day=("status_close_day", "max"),
                                    lit=("litigated", "any"), injury=("cvg", lambda s: s.isin(["BI", "UM"]).any()),
                                    total=("total", "any")).reindex(claims.claim_id)
     city = (z.region.to_numpy() == "City of Chicago")[pol.zi.to_numpy()[claims.pol]]
@@ -218,9 +243,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["claim_expense_dimension"] = T["claims_fact"][["Claim ID", "Expense Amount", "Claim Handling Branch"]].copy()
     T["claim_payment_fact"] = pd.DataFrame({
         "Payment ID": pays.payment_id, "Claim Feature ID": pays.feature_id, "Claim ID": pays.claim_id,
-        "Payment Date": D(pays.day), "Payment Type": pays.kind, "Amount": pays.amount})
+        "Payment Date": D(pays.day), "Payment Type": pays.kind, "Transaction Type": pays.txn, "Amount": pays.amount})
 
-    T["communication_data"] = _communications(cfg, cal, pol, terms, claims, cg, D, polno)
+    T["communication_data"] = _communications(cfg, cal, pol, terms, claims, cg, veh, D, polno)
 
     # ---- answer key ---------------------------------------------------------------------------------
     exp_cols = [f"exp_{c}" for c in C.COVERAGES]
@@ -244,11 +269,12 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     K["claim_feature_truth"] = pd.DataFrame({
         "Claim Feature ID": fu.feature_id, "Ultimate Paid Loss": fu.paid.round(2),
         "Ultimate Recovery": (fu.salvage + fu.subro).round(2), "Ultimate Expense": fu.expense.round(2),
-        "Eventual Close Date": D(fu.close_day)})
+        "Eventual Reopen Date": np.where(fu.reopen_day >= 0, D(fu.reopen_day.clip(0)), ""),
+        "Eventual Close Date": D(fu.final_close_day)})
     return T, K
 
 
-def _communications(cfg, cal, pol, terms, claims, cg, D, polno) -> pd.DataFrame:
+def _communications(cfg, cal, pol, terms, claims, cg, veh, D, polno) -> pd.DataFrame:
     """Customer contacts tied to real events in the data (welcome kits, renewals, billing, claims)."""
     R = stream(cfg.seed, "communications")
     V = cal.valuation_day
@@ -264,7 +290,7 @@ def _communications(cfg, cal, pol, terms, claims, cg, D, polno) -> pd.DataFrame:
     nb = terms[terms.new_business]
     add(nb.pol, nb.s, "New Business Welcome")
     rn = terms[~terms.new_business]
-    add(rn.pol, rn.s - R.integers(30, 46, len(rn)), "Renewal Offer")
+    add(rn.pol, rn.rate_day, "Renewal Offer")
     bill = terms[(pol.pay_plan.to_numpy()[terms.pol] == 2) & (R.random(len(terms)) < 0.45)]
     add(bill.pol, bill.s + R.integers(25, 150, len(bill)), "Payment Reminder", phone=0.10)
     npay = terms[terms.cancel_reason == "Non-Payment"]
@@ -272,6 +298,10 @@ def _communications(cfg, cal, pol, terms, claims, cg, D, polno) -> pd.DataFrame:
     add(npay.pol, npay.cancel_day - 10, "Notice of Cancellation", digital_ok=False)
     other = terms[(terms.cancel_day >= 0) & (terms.cancel_reason != "Non-Payment")]
     add(other.pol, other.cancel_day, "Cancellation Confirmation")
+    added = veh[veh.added_day.to_numpy() > pol.first_day.to_numpy()[veh.pol.to_numpy()]]      # replacement vehicles
+    add(added.pol, added.added_day, "Policy Change Confirmation")
+    totalled = veh[veh.removal_reason == REMOVAL_REASONS.index("Total Loss")]
+    add(totalled.pol, totalled.removed_day, "Policy Change Confirmation")
     add(claims.pol, claims.report_day, "Claim Acknowledgement", phone=0.45)
     closed = ~cg.open.to_numpy()
     add(claims.pol[closed], cg.close_day.to_numpy()[closed], "Claim Closure Notice", phone=0.10)

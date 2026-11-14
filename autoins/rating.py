@@ -85,11 +85,15 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
     dp = drv.pol.to_numpy()
     young = ~drv.assigned.to_numpy() & ((s_pol[dp] - drv.dob_day.to_numpy()) / 365.25 < 25)
     young_unassigned = np.bincount(dp, young, len(s_pol)) > 0
+    # ... on whichever insured vehicle now has the highest rank (the least valuable car when first written)
+    last_rank = np.full(len(s_pol), -1)
+    np.maximum.at(last_rank, v["pol"][v["active"]], v["rank"][v["active"]])
     return {
         "class": cls,
         "married": (drv.marital.to_numpy()[d] == "M").astype(int),
         "inexperienced": ((s - drv.licensed_day.to_numpy()[d]) < 3 * 365.25).astype(int),
-        "good_student": drv.good_student.to_numpy()[d].astype(int),
+        "good_student": truth.good_student(drv.good_grades.to_numpy()[d], drv.school_end_day.to_numpy()[d],
+                                           drv.dob_day.to_numpy()[d], s).astype(int),
         "violation_points": np.minimum(points[d], 4),
         "at_fault_accidents": np.minimum(accidents[d], 2),
         "score_tier": np.where(np.isnan(score), 0, 1 + np.searchsorted(SCORE_EDGES, np.nan_to_num(score), side="right")),
@@ -105,7 +109,7 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
         "prior_insurance": p["prior_insurance"][pol].astype(int),
         "paid_in_full": (p["pay_plan"][pol] == 0).astype(int),
         "tenure": np.searchsorted([1, 3, 6], tenure_years, side="right"),
-        "occasional_youthful": (young_unassigned[pol] & (v["rank"][V] == p["n_veh"][pol] - 1)).astype(int),
+        "occasional_youthful": (young_unassigned[pol] & (v["rank"][V] == last_rank[pol])).astype(int),
         "zi": v["zi"][V],
     }
 
