@@ -29,6 +29,22 @@ MEAN_SALVAGE = float(np.mean(C.SALVAGE_RANGE))
 MEAN_SUBRO = float(np.mean(C.SUBROGATION_SHARE))
 
 
+def _rental_means() -> np.ndarray:
+    """Expected rental reimbursement per rental, by option and by repair (0) or replacement after a total loss (1)."""
+    z = normal_grid(K)
+    cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * z)
+    out = np.zeros((len(C.RENTAL_OPTIONS), 2))
+    for j, kind in enumerate(("repair", "total")):
+        days = np.ceil(C.RENTAL_DAYS[kind]["median"] * np.exp(C.RENTAL_DAYS[kind]["sigma"] * z))
+        for o, (daily, most) in enumerate(C.RENTAL_OPTIONS):
+            out[o, j] = np.minimum(days[:, None] * np.minimum(cost[None, :], daily), most).mean()
+    return out
+
+
+RENTAL_MEAN = _rental_means()
+TOW_MEAN = float(np.minimum(C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * ZG), C.TOWING_LIMIT).mean())
+
+
 # ---------------------------------------------------------------------------- drivers and vehicles
 def good_student(good_grades, school_end_day, dob_day, day) -> np.ndarray:
     """Good-student status on `day`: B grades, still in full-time school, and under the age limit.
@@ -238,6 +254,7 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     c["coll_ded"] = np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]]
     c["comp_ded"] = np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]]
     c["glass_ded"] = np.where(v["full_glass"][V], 0, c["comp_ded"])
+    c["has_rent"], c["rent_opt"], c["has_tow"] = v["has_rent"][V], v["rent_opt"][V], v["has_tow"][V]
     c["acv"] = actual_cash_value(v["msrp"][V], v["model_year"][V], mid, cal) * cal.used_car[cost] / cal.used_car[mid]
     age = (cal.year_frac(mid) - v["model_year"][V] + 0.5).clip(0)
     c["repair"] = (v["msrp"][V] / 32_000) ** 0.5 * np.where(adas, 1.12, 1.0) * np.where(v["segment"][V] == "ev", 1.15, 1.0) \
@@ -266,11 +283,15 @@ def expected(c: dict, cal: Calendar) -> dict:
     e_bi = injury_paid(ZG, col(c["bi_pp"]), col(c["bi_factor"]), t["BI"], C.BI_SEV).mean(1)
     E["BI"] = (n["AF_MV"] * c["p_bi"] + n["AF_SV"] * C.P_BI_GIVEN_AF_SV) * MEAN_CLAIMANTS * (1 - C.CWP["BI"]) * e_bi
     e_um = injury_paid(ZG, col(c["um_pp"]), 1.0, t["BI"], C.UM_SEV).mean(1)
-    E["UM"] = n["NAF"] * c["p_un"] * C.P_UM_INJURY * MEAN_CLAIMANTS * (1 - C.CWP["UM"]) * e_um
+    g = C.UM_SEV["median"] * t["BI"] * np.exp(C.UM_SEV["sigma"] * ZG)      # underinsured: the excess over the other limit
+    e_uim = sum(w * np.maximum(np.minimum(g, col(c["um_pp"])) - np.minimum(g, lim), 0).mean(1)
+                for lim, w in C.OTHER_DRIVER_BI_LIMIT.items())
+    E["UM"] = n["NAF"] * C.P_UM_INJURY * MEAN_CLAIMANTS * (1 - C.CWP["UM"]) * (c["p_un"] * e_um + (1 - c["p_un"]) * e_uim)
     e_med = med_paid(ZG, col(np.maximum(c["med_lim"], 1)), t["BI"]).mean(1)
     E["MED"] = (c["med_lim"] > 0) * sum(n[k] * q for k, q in C.P_MED.items()) * (1 - C.CWP["MED"]) * e_med
 
     coll = np.zeros(c["n"])
+    rentals = np.zeros((c["n"], 2))                # expected paid repairs and total losses that lead to a rental
     acv, ded, rep = col(c["acv"]), col(c["coll_ded"]), col(c["repair"])
     for k in DRIVING_PERILS:
         _, paid, total = collision(ZG, C.COLL_PERIL_SEV[k], rep, t["COLL"], acv, ded)
@@ -278,8 +299,12 @@ def expected(c: dict, cal: Calendar) -> dict:
         if k == "NAF":
             insured_other = C.P_FILE_COLL["NAF"] * (1 - C.P_SUBROGATION["NAF"] * MEAN_SUBRO)
             coll += n[k] * net * (c["p_un"] * C.P_FILE_COLL["NAF_UNINSURED"] + (1 - c["p_un"]) * insured_other)
+            filed = c["p_un"] * C.P_FILE_COLL["NAF_UNINSURED"] + (1 - c["p_un"]) * C.P_FILE_COLL["NAF"]
         else:
             coll += n[k] * net * C.P_FILE_COLL[k] * (1 - C.P_SUBROGATION.get(k, 0.0) * MEAN_SUBRO)
+            filed = C.P_FILE_COLL[k]
+        paid_n = n[k] * filed * (1 - C.CWP["COLL"])
+        rentals += paid_n[:, None] * np.stack([((paid > 0) & ~total).mean(1), ((paid > 0) & total).mean(1)], axis=1)
     E["COLL"] = c["has_coll"] * coll
 
     comp = np.zeros(c["n"])
@@ -288,7 +313,13 @@ def expected(c: dict, cal: Calendar) -> dict:
         paid = np.maximum(gross - col(c["glass_ded"] if k == "GLASS" else c["comp_ded"]), 0)
         salvage = np.minimum(salvageable(k, total, UG) * acv * MEAN_SALVAGE, paid)
         comp += n[k] * (paid - salvage).mean(1) * (1 - C.CWP["COMP"])
+        if k != "GLASS":
+            rentals += (n[k] * (1 - C.CWP["COMP"]))[:, None] * np.stack(
+                [((paid > 0) & ~total).mean(1), ((paid > 0) & total).mean(1)], axis=1)
     E["COMP"] = c["has_comp"] * comp
+    per_rental = RENTAL_MEAN[c["rent_opt"]]
+    E["RENT"] = c["has_rent"] * C.RENTAL_USE_P * (1 - C.CWP["RENT"]) * (rentals * per_rental).sum(1)
+    E["TOW"] = c["has_tow"] * (1 - C.CWP["TOW"]) * TOW_MEAN * sum(n[k] * q for k, q in C.TOW_P.items())
     return E
 
 
@@ -366,6 +397,9 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         subro = (rng.random(len(vi)) < subro_p) * rng.uniform(*C.SUBROGATION_SHARE, len(vi)) * (paid - salvage)
         add("COLL", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
             subro=subro[keep], retained=retained[keep])
+        paid_now = keep & (paid > 0)
+        rental(ids[paid_now], vi[paid_now], total[paid_now])
+        tow(ids, vi, peril)
         w = total & ~(keep & paid_total)
         wreck(vi[w], day[w], ids[w])
 
@@ -375,6 +409,39 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         if len(ids):
             gross = C.MED_SEV["median"] * _trend(cal, "BI", day) * np.exp(C.MED_SEV["sigma"] * rng.standard_normal(len(vi)))
             add("MED", ids, gross, np.minimum(gross, c["med_lim"][vi]), rng.random(len(vi)) < C.CWP["MED"])
+
+    def rental(ids, vi, total):
+        """Rental reimbursement while a covered car is repaired, or replaced after a total loss."""
+        m = c["has_rent"][vi] & (rng.random(len(vi)) < C.RENTAL_USE_P)
+        ids, vi, total = ids[m], vi[m], total[m]
+        if len(ids) == 0:
+            return
+        med = np.where(total, C.RENTAL_DAYS["total"]["median"], C.RENTAL_DAYS["repair"]["median"])
+        sig = np.where(total, C.RENTAL_DAYS["total"]["sigma"], C.RENTAL_DAYS["repair"]["sigma"])
+        days = np.ceil(med * np.exp(sig * rng.standard_normal(len(ids))))
+        cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * rng.standard_normal(len(ids)))
+        daily, most = np.array(C.RENTAL_OPTIONS)[c["rent_opt"][vi]].T
+        add("RENT", ids, days * cost, np.minimum(days * np.minimum(cost, daily), most), rng.random(len(ids)) < C.CWP["RENT"])
+
+    def tow(ids, vi, peril):
+        m = c["has_tow"][vi] & (rng.random(len(vi)) < C.TOW_P.get(peril, 0.0))
+        cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(m.sum()))
+        add("TOW", ids[m], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(m.sum()) < C.CWP["TOW"])
+
+    def uim_features(ids, vi, day):
+        """Underinsured motorist: the insured's injury damages above the at-fault driver's limit."""
+        if len(ids) == 0:
+            return
+        k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
+        o = np.repeat(np.arange(len(ids)), k)
+        claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
+        gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * rng.standard_normal(len(o)))
+        lims, w = zip(*C.OTHER_DRIVER_BI_LIMIT.items())
+        other = np.array(lims)[rng.choice(len(lims), len(ids), p=w)][o]
+        excess = np.maximum(np.minimum(gross, c["um_pp"][vi][o]) - np.minimum(gross, other), 0.0)
+        cwp = rng.random(len(o)) < C.CWP["UM"]
+        keep = excess > 0
+        add("UM", ids[o][keep], gross[keep], excess[keep], cwp[keep], claimant=claimant[keep])
 
     def unpaid(cov, ids, p):
         """Claims opened and closed without payment: liability denied, or an injury claim never pursued."""
@@ -414,8 +481,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     vi, day = draw("NAF")
     unins = rng.random(len(vi)) < c["p_un"][vi]
     ids = new_occurrences("NAF", vi, day, _pick_driver(c, "key_any", vi, rng), uninsured=unins)
-    m = unins & (rng.random(len(vi)) < C.P_UM_INJURY)
+    hurt = rng.random(len(vi)) < C.P_UM_INJURY
+    m = unins & hurt
     injury_features("UM", ids[m], vi[m], day[m], C.UM_SEV, c["um_pp"][vi[m]], c["um_pa"][vi[m]], np.ones(m.sum()))
+    uim_features(ids[~unins & hurt], vi[~unins & hurt], day[~unins & hurt])
     collision_features("NAF", ids[unins], vi[unins], day[unins], C.P_FILE_COLL["NAF_UNINSURED"], 0.0)
     collision_features("NAF", ids[~unins], vi[~unins], day[~unins], C.P_FILE_COLL["NAF"], C.P_SUBROGATION["NAF"])
     med_features(ids, vi, day, C.P_MED["NAF"])
@@ -438,14 +507,20 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         below = paid <= 0
         keep = covered & (~below | (rng.random(len(vi)) < C.P_FILE_BELOW_DEDUCTIBLE))
         cwp = below | (rng.random(len(vi)) < C.CWP["COMP"])
+        towed = c["has_tow"][vi] & (rng.random(len(vi)) < C.TOW_P.get(peril, 0.0)) & (cat < 0)
         paid_total = total & ~cwp
         salvage_value = salvageable(peril, total, u) * c["acv"][vi] * rng.uniform(*C.SALVAGE_RANGE, len(vi))
         paid, salvage, retained = settle_total(np.where(cwp, 0.0, paid), paid_total, salvage_value, vi, day,
                                                hail=peril in ("WEATHER", "HAIL_CAT"))
         ids = np.full(len(vi), -1)
-        ids[keep] = new_occurrences(peril, vi[keep], day[keep], np.full(keep.sum(), -1), cat=cat)
+        need = keep | towed
+        ids[need] = new_occurrences(peril, vi[need], day[need], np.full(need.sum(), -1), cat=cat)
         add("COMP", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
             retained=retained[keep])
+        paid_now = keep & ~cwp & (paid > 0) & (peril != "GLASS")
+        rental(ids[paid_now], vi[paid_now], total[paid_now])
+        cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(towed.sum()))
+        add("TOW", ids[towed], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(towed.sum()) < C.CWP["TOW"])
         w = total & ~(keep & paid_total)
         wreck(vi[w], day[w], ids[w])
 

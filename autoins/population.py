@@ -51,7 +51,9 @@ def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build(cfg: C.Config, ref: Reference) -> Population:
+def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Population:
+    """The insured population. `tag` draws different households (for quotes that never bound) while keeping
+    the same ZIP hazards and agencies; `channel_p` overrides the distribution channel mix."""
     z, cal = ref.zips, ref.cal
     n = cfg.n_policies
     Z = len(z)
@@ -69,7 +71,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     penetration = np.exp(r.normal(0, C.ZIP_PENETRATION_SIGMA, Z))
 
     # ---- policies ---------------------------------------------------------------
-    r = stream(cfg.seed, "policy")
+    r = stream(cfg.seed, "policy" + tag)
     w = (z.households_with_vehicle * penetration).to_numpy()
     zi = r.choice(Z, n, p=w / w.sum())
     zr = z.iloc[zi].reset_index(drop=True)
@@ -106,7 +108,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
         * np.where(married, 1.25, 0.8) * np.exp(r.normal(0, 0.5, n))
     inc_rel = income / 85_000
 
-    channel = r.choice(3, n, p=C.CHANNEL_P)
+    channel = r.choice(3, n, p=C.CHANNEL_P if channel_p is None else channel_p)
     channel = np.where((ni_age < 35) & (r.random(n) < 0.25), 2, channel)
     agencies = _agencies(ref, stream(cfg.seed, "agency"))
     agency_id = np.zeros(n, dtype=int)
@@ -136,7 +138,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     in_city = (zr.region == "City of Chicago").to_numpy()
 
     # ---- drivers ----------------------------------------------------------------
-    r = stream(cfg.seed, "driver")
+    r = stream(cfg.seed, "driver" + tag)
     spouse = married & (r.random(n) < 0.93)
     other_adult = ~married & (n_veh >= 2) & (r.random(n) < 0.45) | ~married & (n_veh == 1) & (r.random(n) < 0.06)
     kid_rate = np.where((ni_age >= 36) & (ni_age <= 62), np.array(C.KID_RATE_BY_VEHICLES)[n_veh - 1], 0.0)
@@ -185,7 +187,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     pol["n_drv"] = n_drv
 
     # ---- vehicles -----------------------------------------------------------------
-    r = stream(cfg.seed, "vehicle")
+    r = stream(cfg.seed, "vehicle" + tag)
     vp = np.repeat(np.arange(n), n_veh)
     nv = len(vp)
     veh = draw_vehicles(ref, r, vp, cal.year_frac(pol.first_day.to_numpy()[vp]), inc_rel[vp],
@@ -220,7 +222,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     pol["ni_drv"] = first_drv
 
     # ---- insurance score, driver records, underwriting tier -------------------------
-    r = stream(cfg.seed, "underwriting")
+    r = stream(cfg.seed, "underwriting" + tag)
     ni_latent = drv.latent.to_numpy()[first_drv]
     zscore = (0.50 * np.log(inc_rel) / 0.6 + 0.30 * np.clip((ni_age - 45) / 20, -1.2, 1.5) + 0.30 * homeowner
               - 0.55 * (np.log(ni_latent) + 0.25) / 0.72 + 0.55 * r.normal(0, 1, n))
@@ -245,7 +247,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     pol["pay_plan"] = np.where(u < p_pif, 0, np.where(u < p_pif + p_eft, 1, 2))
 
     # ---- coverages ------------------------------------------------------------------
-    r = stream(cfg.seed, "coverage")
+    r = stream(cfg.seed, "coverage" + tag)
     lat_cov = 0.9 * zscore + 0.5 * homeowner + 0.4 * np.log(inc_rel) + r.normal(0, 1, n) - 1.6 * (tier == 2)
     cuts = np.quantile(lat_cov[tier != 2], np.cumsum(C.BI_LIMIT_P)[:-1])
     pol["bi_opt"] = np.searchsorted(cuts, lat_cov)
@@ -259,6 +261,7 @@ def build(cfg: C.Config, ref: Reference) -> Population:
     veh["has_comp"] = veh.has_coll | (r.random(nv) < C.P_COMP_ONLY)
     veh["coll_ded_opt"], veh["comp_ded_opt"] = draw_deductibles(r, inc_rel[vp], zscore[vp])
     veh["full_glass"] = veh.has_comp & (r.random(nv) < C.FULL_GLASS_P)
+    veh["has_rent"], veh["rent_opt"], veh["has_tow"] = draw_addons(r, veh.has_coll.to_numpy(), veh.has_comp.to_numpy())
     veh["added_day"] = pol.first_day.to_numpy()[vp]
     veh["removed_day"] = -1
     veh["removal_reason"] = 0          # see simulate.REMOVAL_REASONS
@@ -320,6 +323,13 @@ def draw_parking(r: np.random.Generator, density, homeowner) -> np.ndarray:
     p_garage = np.where(homeowner, 0.60, 0.22) * (1 - p_street)
     u = r.random(len(density))
     return np.where(u < p_street, 0, np.where(u < p_street + p_garage, 2, 1))
+
+
+def draw_addons(r: np.random.Generator, has_coll, has_comp):
+    """Rental reimbursement (needs collision) with its option, and towing and labor (needs comprehensive)."""
+    n = len(has_coll)
+    return (np.asarray(has_coll) & (r.random(n) < C.P_RENTAL), r.choice(len(C.RENTAL_OPTIONS), n, p=C.RENTAL_OPTION_P),
+            np.asarray(has_comp) & (r.random(n) < C.P_TOWING))
 
 
 def draw_deductibles(r: np.random.Generator, inc_rel, score_z):

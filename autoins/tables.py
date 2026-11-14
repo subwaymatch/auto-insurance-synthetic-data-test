@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,10 @@ from .refdata import stream
 from .simulate import DRIVER_REMOVAL_REASONS, END_ENDORSED, END_GONE, REMOVAL_REASONS
 
 POLICY_BASE = 1_000_000
+VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789"           # characters allowed in a VIN (no I, O or Q)
+VIN_YEAR = "ABCDEFGHJKLMNPRSTVWXY123456789"                 # model-year codes (position 10), 1980 = A, cycling every 30
+SR22_VIOLATIONS = ["DUI", "Driving while suspended", "Leaving the scene"]   # convictions that require an SR-22 filing
+SR22_YEARS = 3
 YN = np.array(["N", "Y"])
 
 
@@ -26,6 +31,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     pol, drv, veh = pop.pol, pop.drv, pop.veh
     terms, rows = res.terms, res.rows
     claims, feats, pays = dev["claims"], dev["features"], dev["payments"]
+    opt_date = lambda day: np.where(np.asarray(day) >= 0, D(np.clip(np.asarray(day), 0, None)), "")
     V = cal.valuation_day
     D = lambda day: pd.Series(cal.date(np.asarray(day))).dt.strftime("%Y-%m-%d").to_numpy()
     polno = lambda p: POLICY_BASE + np.asarray(p) + 1
@@ -144,7 +150,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Added Date": D(drv.added_day), "Removed Date": np.where(drv.removed_day >= 0, D(drv.removed_day.clip(0)), ""),
         "Removal Reason": np.array(DRIVER_REMOVAL_REASONS)[drv.removal_reason],
         "Good Student": YN[good_student.astype(int)], "Miles to work": drv.commute_miles.astype(int),
-        "Number of Violations": n_viol, "Number of Accidents": n_acc})
+        "Number of Violations": n_viol, "Number of Accidents": n_acc, **_sr22(cfg, inc, drv, V, D)})
 
     # Each incident carries the day the insurer learned of it: a violation when the conviction posts to the
     # driving record, an earlier accident when it appears on a claims-history report, and the company's own
@@ -165,7 +171,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     records = records[(records.day <= V) & (records.known <= V)].sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
     T["driver_incident_fact"] = pd.DataFrame({
         "Incident ID": np.arange(1, len(records) + 1), "Driver ID": records.drv + 1, "Incident Date": D(records.day),
-        "Known Date": D(records.known), "Incident Type": records["Incident Type"], "Description": records.Description,
+        "Known Date": D(records.known), "Conviction Date": _conviction_dates(cfg, records, D),
+        "Incident Type": records["Incident Type"], "Description": records.Description,
         "Source": records.Source, "Claim ID": records["Claim ID"]})
 
     # ---- vehicles -----------------------------------------------------------------------------
@@ -185,6 +192,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Comprehensive Coverage": YN[veh.has_comp.astype(int)],
         "Comprehensive Deductible": np.where(veh.has_comp, np.array(C.COMP_DEDUCTIBLES)[veh.comp_ded_opt], 0),
         "Full Glass Coverage": YN[veh.full_glass.astype(int)],
+        "Rental Reimbursement": np.where(veh.has_rent, [f"{d}/{m}" for d, m in np.array(C.RENTAL_OPTIONS)[veh.rent_opt]], ""),
+        "Towing and Labor": YN[veh.has_tow.astype(int)], **_vehicle_codes(mdl, veh),
         "Removal Reason": np.array(REMOVAL_REASONS)[veh.removal_reason],
         "Replaces Vehicle ID": pd.Series(veh.replaces + 1).where(veh.replaces >= 0).astype("Int64")})
 
@@ -202,11 +211,17 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Rated Driver Class": np.array(rating.CLASS_LEVELS)[rows.class_code],
         "Rated Violation Points": rows.violation_points, "Rated At-Fault Accidents": rows.at_fault_accidents,
         "Rated Good Student": YN[rows.good_student.astype(int)], "Rated Married": YN[rows.married.astype(int)],
-        "Rated Homeowner": YN[rows.homeowner.astype(int)],
+        "Rated Homeowner": YN[rows.homeowner.astype(int)], "Inexperienced Operator": YN[rows.inexperienced.astype(int)],
+        "Occasional Youthful Operator": YN[rows.occasional_youthful.astype(int)],
+        "Multi-Car Discount": YN[rows.multi_car.astype(int)], "Multi-Policy Discount": YN[rows.multi_policy.astype(int)],
+        "Paid-in-Full Discount": YN[rows.paid_in_full.astype(int)],
+        "BI Limit": [_limit(C.BI_LIMITS[i]) for i in rows.bi_opt], "PD Limit": np.array(C.PD_LIMITS)[rows.bi_opt],
+        "UM Limit": [_limit(C.BI_LIMITS[i]) for i in rows.um_opt], "Med Pay Limit": np.array(C.MED_LIMITS)[rows.med_opt],
         "Collision Deductible": rows.coll_ded, "Comprehensive Deductible": rows.comp_ded,
         "Tenure Years": rows.tenure_years.round(1), "Vehicle Value": rows.acv.round(-1).astype(int),
         "BI Premium": rows.prem_BI, "PD Premium": rows.prem_PD, "UM Premium": rows.prem_UM,
         "Med Pay Premium": rows.prem_MED, "Collision Premium": rows.prem_COLL, "Comprehensive Premium": rows.prem_COMP,
+        "Rental Premium": rows.prem_RENT, "Towing Premium": rows.prem_TOW,
         "Total Premium": rows.total_premium.round(2), "Coverage Start Date": D(rows.s), "Coverage End Date": D(cover_end),
         "Earned Exposure": rows.earned_exposure.round(4), "Earned Premium": rows.earned_premium})
 
@@ -223,11 +238,17 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Paid Loss": f.paid_loss.round(2), "Case Reserve": f.case_reserve.round(2), "Incurred Loss": f.incurred.round(2),
         "Salvage Recovery": f.salvage_rec.round(2), "Subrogation Recovery": f.subro_rec.round(2),
         "Net Incurred Loss": f.net_incurred.round(2), "Paid Expense": f.paid_expense.round(2),
-        "Litigation": YN[f.litigated.astype(int)], "Total Loss": YN[f.total.astype(int)],
+        "Paid DCC Expense": f.paid_dcc.round(2), "Paid A&O Expense": f.paid_ao.round(2),
+        "Expense Reserve": f.expense_reserve.round(2),
+        "Injury Type": f.injury_type, "Attorney Represented": YN[f.attorney.astype(int)],
+        "Attorney Date": np.where(f.attorney, opt_date(f.attorney_day), ""),
+        "Litigation": YN[f.litigated.astype(int)], "Suit Date": np.where(f.litigated, opt_date(f.suit_day), ""),
+        "Total Loss": YN[f.total.astype(int)],
         "Closed Without Payment": YN[(f.closed & (f.paid_loss == 0)).astype(int)],
         "Owner Retained Salvage": YN[f.retained.astype(bool).astype(int)]})
     cg = f.groupby("claim_id").agg(paid=("paid_loss", "sum"), reserve=("case_reserve", "sum"), recovery=("recovery", "sum"),
                                    net=("net_incurred", "sum"), expense=("paid_expense", "sum"), n=("fid", "size"),
+                                   exp_reserve=("expense_reserve", "sum"),
                                    open=("closed", lambda s: (~s).any()), close_day=("status_close_day", "max"),
                                    lit=("litigated", "any"), injury=("cvg", lambda s: s.isin(["BI", "UM"]).any()),
                                    total=("total", "any")).reindex(claims.claim_id)
@@ -248,11 +269,21 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Catastrophe ID": cat_id, "Coverage Count": cg.n.to_numpy(), "Paid Loss": cg.paid.round(2).to_numpy(),
         "Case Reserve": cg.reserve.round(2).to_numpy(), "Recoveries": cg.recovery.round(2).to_numpy(),
         "Claim Amount": cg.net.round(2).to_numpy(), "Expense Amount": cg.expense.round(2).to_numpy(),
-        "Litigation": YN[cg.lit.to_numpy().astype(int)], "Claim Handling Branch": branch})
+        "Expense Reserve": cg.exp_reserve.round(2).to_numpy(),
+        "Litigation": YN[cg.lit.to_numpy().astype(int)], "Claim Handling Branch": branch,
+        "Police Report": YN[claims.police_report.astype(int)],
+        "Insured Fault %": pd.array(np.where(claims.fault_pct >= 0, claims.fault_pct, 0), dtype="Int64"),
+        "SIU Referral": YN[(claims.siu_day >= 0).astype(int)], "SIU Referral Date": opt_date(claims.siu_day)})
+    T["claims_fact"].loc[claims.fault_pct.to_numpy() < 0, "Insured Fault %"] = pd.NA
     T["claim_expense_dimension"] = T["claims_fact"][["Claim ID", "Expense Amount", "Claim Handling Branch"]].copy()
     T["claim_payment_fact"] = pd.DataFrame({
         "Payment ID": pays.payment_id, "Claim Feature ID": pays.feature_id, "Claim ID": pays.claim_id,
         "Payment Date": D(pays.day), "Payment Type": pays.kind, "Transaction Type": pays.txn, "Amount": pays.amount})
+    rs = dev["reserves"]
+    T["claim_reserve_fact"] = pd.DataFrame({
+        "Reserve Transaction ID": rs.reserve_id, "Claim Feature ID": rs.feature_id, "Claim ID": rs.claim_id,
+        "Transaction Date": D(rs.day), "Reserve Type": rs.rtype, "Transaction Type": rs.txn,
+        "Change Amount": rs.delta.round(2), "Outstanding Reserve": rs.outstanding.round(2)})
 
     T["policy_transaction_fact"] = _transactions(cfg, cal, terms, rows, veh, D, polno)
     T["communication_data"] = _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno)
@@ -282,6 +313,53 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Eventual Reopen Date": np.where(fu.reopen_day >= 0, D(fu.reopen_day.clip(0)), ""),
         "Eventual Close Date": D(fu.final_close_day)})
     return T, K
+
+
+def _vehicle_codes(mdl: pd.DataFrame, veh: pd.DataFrame) -> dict:
+    """Synthetic VIN prefixes and vehicle rating symbols.
+
+    The VIN prefix has the shape statistical plans use (positions 1-10, with the check digit in position 9
+    masked) but is fictional: position 1 is "0", which no manufacturing region uses, and positions 2-8 are
+    derived from the make and model, so it can be joined on but identifies no real vehicle. The symbols are
+    this dataset's own scales, not ISO's (which are licensed): a physical damage symbol from 1 to 30 that rises
+    with the vehicle's original price (and for sports, luxury and electric models), and a liability symbol
+    from 1 to 5 from the model's segment and body type, which drive true liability costs."""
+    mi = veh.model_idx.to_numpy()
+    make, model_id = mdl.make.to_numpy()[mi], mdl.model_id.to_numpy()[mi]
+    code = lambda x, k: "".join(VIN_CHARS[(x // len(VIN_CHARS) ** j) % len(VIN_CHARS)] for j in range(k))
+    wmi = {m: "0" + code(zlib.crc32(m.encode()), 2) for m in np.unique(make)}
+    vds = {m: code(zlib.crc32(f"model-{m}".encode()), 5) for m in np.unique(model_id)}
+    year = veh.model_year.to_numpy()
+    prefix = [wmi[a] + vds[b] + "*" + VIN_YEAR[(y - 1980) % len(VIN_YEAR)] for a, b, y in zip(make, model_id, year)]
+    seg, body = veh.segment.to_numpy(), veh.body_type.to_numpy()
+    pd_symbol = np.floor(np.log(np.maximum(veh.msrp.to_numpy(), 9_000) / 9_000) / np.log(1.09)) + 1 \
+        + np.select([seg == "sports", np.isin(seg, ["luxury", "ev"])], [2, 1], default=0)
+    liab = np.array([C.SEGMENT_FREQ[x] for x in seg]) * (np.array([C.SEGMENT_PD_SEV.get(x, 1.0) for x in seg])
+                                                         * np.where(body == "SUV", C.SUV_PD_SEV, 1.0)
+                                                         + np.array([C.SEGMENT_BI_SEV.get(x, 1.0) for x in seg])) / 2
+    return {"VIN Prefix": prefix, "Physical Damage Symbol": np.clip(pd_symbol, 1, 30).astype(int),
+            "Liability Symbol": 1 + np.searchsorted([0.95, 1.03, 1.10, 1.20], liab)}
+
+
+def _sr22(cfg, inc: pd.DataFrame, drv: pd.DataFrame, V: int, D) -> dict:
+    """SR-22 filings: after a conviction for driving under the influence, driving while suspended or leaving
+    the scene, the insurer files proof of insurance with the state for three years (the latest filing shown)."""
+    q = inc[inc.description.isin(SR22_VIOLATIONS) & (inc.known_day <= V)]
+    latest = q.groupby("drv").known_day.max().reindex(drv.drv).to_numpy()
+    R = stream(cfg.seed, "sr22")
+    filed = np.maximum(np.nan_to_num(latest, nan=-10 ** 6), drv.added_day.to_numpy()) + R.integers(0, 8, len(drv))
+    end = np.nan_to_num(latest, nan=-10 ** 6) + int(SR22_YEARS * 365.25)
+    on = ~np.isnan(latest) & (end > filed) & (filed <= V) & ((drv.removed_day.to_numpy() < 0) | (drv.removed_day.to_numpy() > filed))
+    return {"SR-22 Filed Date": np.where(on, D(np.clip(filed, 0, None)), ""), "SR-22 End Date": np.where(on, D(np.clip(end, 0, None)), "")}
+
+
+def _conviction_dates(cfg, records: pd.DataFrame, D) -> np.ndarray:
+    """Court conviction date for violations: a few days to two weeks before it posts to the driving record."""
+    R = stream(cfg.seed, "convictions")
+    mvr = records.Source.to_numpy() == "Motor Vehicle Record"
+    day, known = records.day.to_numpy(), records.known.to_numpy()
+    conv = np.maximum(known - R.integers(3, 15, len(records)), day + 1)
+    return np.where(mvr, D(np.clip(conv, 0, None)), "")
 
 
 def _transactions(cfg, cal, terms, rows, veh, D, polno) -> pd.DataFrame:

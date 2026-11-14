@@ -56,6 +56,7 @@ class Result:
     occ: pd.DataFrame        # loss events, with report and chargeable dates
     feat: pd.DataFrame       # coverage-level claim features, developed to ultimate
     pays: pd.DataFrame       # every payment and recovery, including those after the valuation date
+    reserves: pd.DataFrame   # every case reserve change, including those after the valuation date
     plan: rating.Plan
     static: truth.Static
 
@@ -145,7 +146,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
     plan = rating.fit(cfg, ref, st, points0, acc0)
 
     sim = Sim(ref=ref, pop=pop, st=st, plan=plan, R=stream(cfg.seed, "simulate"),
-              dev=claims.Development(cal, stream(cfg.seed, "claims")), recs=recs)
+              dev=claims.Development(cal, stream(cfg.seed, "claims"), stream(cfg.seed, "claim detail")), recs=recs)
     R = sim.R
     tm = p["term_months"]
     ty = tm / 12
@@ -248,10 +249,11 @@ def run(cfg: C.Config, ref, pop) -> Result:
     if nonrenew_term:
         terms.loc[np.concatenate(nonrenew_term), "nonrenewal_reason"] = np.concatenate(nonrenew_reason)
     pop.veh = pd.DataFrame({c: st.v[c] for c in pop.veh.columns})     # now includes every vehicle ever insured
-    for c in ("n_drv", "n_veh", "ni_drv", "zi", "homeowner"):              # the policy as it stands at the end
+    for c in ("n_drv", "n_veh", "ni_drv", "zi", "homeowner", "bi_opt", "um_opt"):   # the policy as it stands at the end
         pop.pol[c] = st.p[c]
-    occ, feat, pays = sim.dev.result()
-    return Result(terms=terms, rows=pd.concat(rows, ignore_index=True), occ=occ, feat=feat, pays=pays, plan=plan, static=st)
+    occ, feat, pays, reserves = sim.dev.result()
+    return Result(terms=terms, rows=pd.concat(rows, ignore_index=True), occ=occ, feat=feat, pays=pays, reserves=reserves,
+                  plan=plan, static=st)
 
 
 # ----------------------------------------------------------------------------------------- one term
@@ -342,7 +344,9 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         zi=v["zi"][V], rated_on=asof, reason=why, driver_age=(a - drv.dob_day.to_numpy()[dr]) / 365.25,
         violation_points=points, at_fault_accidents=acc, tenure_years=T.tenure[vp],
         class_code=cd["class"], score_tier=cd["score_tier"], good_student=cd["good_student"],
-        homeowner=cd["homeowner"], married=cd["married"], acv=ctx["acv"],
+        homeowner=cd["homeowner"], married=cd["married"], acv=ctx["acv"], multi_car=cd["multi_car"],
+        multi_policy=cd["multi_policy"], paid_in_full=cd["paid_in_full"], inexperienced=cd["inexperienced"],
+        occasional_youthful=cd["occasional_youthful"], bi_opt=p["bi_opt"][vp], um_opt=p["um_opt"][vp], med_opt=p["med_opt"][vp],
         coll_ded=np.where(v["has_coll"][V], np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]], 0),
         comp_ded=np.where(v["has_comp"][V], np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]], 0),
         **{f"prem_{c}": prem[c] for c in C.COVERAGES}, **{f"exp_{c}": exp_loss[c] for c in C.COVERAGES})))
@@ -723,6 +727,7 @@ def _add_vehicles(sim: Sim, pol, day, primary) -> None:
     new["has_coll"] = (new.ownership.to_numpy() != "Owned") | (R.random(len(pol)) < p_full)
     new["has_comp"] = new.has_coll | (R.random(len(pol)) < C.P_COMP_ONLY)
     new["full_glass"] = new.has_comp & (R.random(len(pol)) < C.FULL_GLASS_P)
+    new["has_rent"], new["rent_opt"], new["has_tow"] = population.draw_addons(R, new.has_coll.to_numpy(), new.has_comp.to_numpy())
     new["coll_ded_opt"], new["comp_ded_opt"] = population.draw_deductibles(R, p["inc_rel"][pol], p["score_z"][pol])
     last_rank = np.full(len(p["zi"]), -1)
     np.maximum.at(last_rank, v["pol"][v["active"]], v["rank"][v["active"]])
@@ -758,20 +763,33 @@ def _renewal_changes(sim: Sim, renewing: np.ndarray, s_all: np.ndarray, ty: np.n
     idx = np.flatnonzero(v["active"] & renewing[v["pol"]])
     pol = v["pol"][idx]
     salvage = idx[v["salvage_title"][idx]]
-    v["has_coll"][salvage] = v["has_comp"][salvage] = v["full_glass"][salvage] = False
+    for c in ("has_coll", "has_comp", "full_glass", "has_rent", "has_tow"):
+        v[c][salvage] = False
     paid_off = idx[(v["ownership"][idx] == "Financed") & (R.random(len(idx)) < 1 - np.exp(-ty[pol] / C.LOAN_YEARS))]
     v["ownership"][paid_off] = "Owned"
     age = cal.year_frac(s_all[pol]) - v["model_year"][idx]
     h = np.interp(age, C.DROP_PD_AGE_KNOTS, C.DROP_PD_RATE)
     drop = idx[(v["ownership"][idx] == "Owned") & v["has_coll"][idx] & (R.random(len(idx)) < 1 - np.exp(-h * ty[pol]))]
     keep_comp = R.random(len(drop)) < C.KEEP_COMP_WHEN_DROPPING_COLL_P
-    v["has_coll"][drop], v["has_comp"][drop] = False, keep_comp
+    v["has_coll"][drop], v["has_comp"][drop], v["has_rent"][drop] = False, keep_comp, False
     v["full_glass"][drop] &= keep_comp
+    v["has_tow"][drop] &= keep_comp
     rd = C.RAISE_DEDUCTIBLE
     p_up = np.clip(rd["base"] + rd["per_increase"] * np.maximum(change[pol] - 0.10, 0), 0, rd["cap"])
     up = idx[v["has_coll"][idx] & (v["coll_ded_opt"][idx] < len(C.COLL_DEDUCTIBLES) - 1) & (R.random(len(idx)) < p_up)]
     v["coll_ded_opt"][up] += 1
     v["comp_ded_opt"][up] = np.minimum(v["comp_ded_opt"][up] + 1, len(C.COMP_DEDUCTIBLES) - 1)
+    # liability limits: some customers buy higher limits; after a large increase a few buy lower ones
+    p = st.p
+    pols = np.flatnonzero(renewing)
+    lc = C.LIMIT_CHANGE
+    u = R.random(len(pols))
+    up = (u < lc["up"] * ty[pols]) & (p["bi_opt"][pols] < len(C.BI_LIMITS) - 1)
+    down = (u > 1 - (lc["down"] + lc["down_per_increase"] * np.maximum(change[pols] - 0.10, 0)) * ty[pols]) & (p["bi_opt"][pols] > 0)
+    step = up.astype(int) - down.astype(int)
+    follows = p["um_opt"][pols] == p["bi_opt"][pols]          # uninsured motorist limits usually match liability
+    p["bi_opt"][pols] += step
+    p["um_opt"][pols] = np.where(follows, p["bi_opt"][pols], np.minimum(p["um_opt"][pols], p["bi_opt"][pols]))
 
 
 def _draw_replacements(sim: Sim, old: np.ndarray, day: np.ndarray) -> pd.DataFrame:
@@ -800,6 +818,7 @@ def _draw_replacements(sim: Sim, old: np.ndarray, day: np.ndarray) -> pd.DataFra
     new["has_coll"] = (new.ownership.to_numpy() != "Owned") | (R.random(len(old)) < p_full)
     new["has_comp"] = new.has_coll | (R.random(len(old)) < C.P_COMP_ONLY)
     new["full_glass"] = new.has_comp & (R.random(len(old)) < C.FULL_GLASS_P)
+    new["has_rent"], new["rent_opt"], new["has_tow"] = population.draw_addons(R, new.has_coll.to_numpy(), new.has_comp.to_numpy())
     new["veh"] = len(v["pol"]) + np.arange(len(old))
     new["added_day"], new["removed_day"], new["active"] = day, -1, True
     new["removal_reason"], new["replaces"], new["salvage_title"] = 0, old, False

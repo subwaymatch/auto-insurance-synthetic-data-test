@@ -74,6 +74,8 @@ class GeneratorTest(unittest.TestCase):
         rep, out = validate.Report(), io.StringIO()
         with contextlib.redirect_stdout(out):
             validate.integrity_lifecycle(rep, *t.values(), r_start, r_end)
+            validate.integrity_claims_and_quotes(rep, t["policy_term_fact"], t["insured_vehicle_dimension"], t["claims_fact"],
+                                                 t["claim_coverage_fact"], self.read("claim_reserve_fact"), self.read("quote_fact"))
         self.assertEqual(rep.failures, 0, out.getvalue())
 
     def test_total_losses_end_the_vehicle(self) -> None:
@@ -154,6 +156,34 @@ class GeneratorTest(unittest.TestCase):
         w = ledger[ledger["Transaction Type"] != "Cancellation"].groupby("Policy Term ID")["Written Premium"].sum()
         gap = (done["Written Premium"] + done["Endorsement Premium"] - w.reindex(done.index).fillna(0)).abs()
         self.assertLess(gap.max(), 0.05 + 0.01 * done["Vehicle Count"].max())
+
+    def test_reserve_history_rebuilds_past_incurred(self) -> None:
+        feat, res, pay = self.read("claim_coverage_fact"), self.read("claim_reserve_fact"), self.read("claim_payment_fact")
+        self.assertTrue({"Initial Reserve", "Reserve Review", "Payment", "Close"} <= set(res["Transaction Type"]))
+        # an earlier evaluation: open features then carried a reserve that later closed to zero
+        on = "2024-06-30"
+        os_ = res[(res["Reserve Type"] == "Loss") & (res["Transaction Date"] <= on)].groupby("Claim Feature ID")["Outstanding Reserve"].last()
+        self.assertGreater(os_.sum(), 0)
+        later_closed = feat.set_index("Claim Feature ID").reindex(os_[os_ > 0].index)["Feature Status"] == "Closed"
+        self.assertGreater(later_closed.mean(), 0.5)
+        expense = pay[pay["Payment Type"] == "Expense"]
+        self.assertTrue(set(expense["Transaction Type"]) == {"DCC Expense", "A&O Expense"})
+
+    def test_quote_funnel(self) -> None:
+        q = self.read("quote_fact")
+        self.assertTrue(0.10 < (q["Bound"] == "Y").mean() < 0.35)
+        ia = q[q["Competitor Annual Premium"].notna()]
+        cheap = ia["Quoted Annual Premium"] < ia["Competitor Annual Premium"]
+        self.assertGreater((ia.loc[cheap, "Bound"] == "Y").mean(), (ia.loc[~cheap, "Bound"] == "Y").mean())
+        self.assertTrue(q.loc[q["Bound"] == "N", "Policy Number"].isna().all())
+
+    def test_optional_coverages(self) -> None:
+        feat, clm, risk = self.read("claim_coverage_fact"), self.read("claims_fact"), self.read("risk_fact")
+        f = feat.merge(clm[["Claim ID", "Record ID"]], on="Claim ID").merge(risk, on="Record ID")
+        for code, col, cap in (("RENT", "Rental Premium", 1_500), ("TOW", "Towing Premium", 100)):
+            g = f[f["Coverage Code"] == code]
+            self.assertGreater(len(g), 5, code)
+            self.assertTrue((g[col] > 0).all() and (g["Paid Loss"] <= cap + 0.01).all(), code)
 
     def test_month_end_anniversaries(self) -> None:
         term = self.read("policy_term_fact")

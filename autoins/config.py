@@ -101,6 +101,7 @@ DROP_PD_AGE_KNOTS = [0, 6, 10, 15, 20]
 DROP_PD_RATE = [0.005, 0.02, 0.06, 0.10, 0.12]
 KEEP_COMP_WHEN_DROPPING_COLL_P = 0.35                # (ASSUMED)
 RAISE_DEDUCTIBLE = dict(base=0.02, per_increase=0.40, cap=0.25)   # after a renewal increase above 10%
+LIMIT_CHANGE = dict(up=0.03, down=0.01, down_per_increase=0.15)  # liability limit changes at renewal, per year (ASSUMED)
 
 # Good-student discount: the insurer's eligibility rule, evaluated on each term's effective date (ASSUMED).
 # A driver qualifies while under GOOD_STUDENT_MAX_AGE, still in full-time school and keeping B grades.
@@ -148,6 +149,25 @@ MED_LIMIT_FACTOR = [0.0, 1.00, 1.45, 2.20, 2.80]
 COLL_DED_FACTOR = [1.14, 1.00, 0.83, 0.66]
 COMP_DED_FACTOR = [1.32, 1.14, 1.00, 0.80]
 FULL_GLASS_FACTOR = 1.12
+
+# Optional physical damage add-ons (ASSUMED take-up and terms, typical of filed plans). Rental reimbursement
+# pays a daily amount up to a per-claim maximum while a covered car is repaired or replaced; towing and labor
+# pays for towing after a crash. Both need comprehensive (rental needs collision too).
+RENTAL_OPTIONS = [(30, 900), (40, 1_200), (50, 1_500)]       # (daily limit, maximum per claim)
+RENTAL_OPTION_P = [0.45, 0.40, 0.15]
+RENTAL_FACTOR = [1.00, 1.25, 1.45]
+P_RENTAL = 0.50                      # of vehicles with collision
+P_TOWING = 0.55                      # of vehicles with comprehensive
+TOWING_LIMIT = 100
+RENTAL_USE_P = 0.65                  # covered repairs or replacements where the insured rents a car
+RENTAL_DAILY_COST = dict(median=48.0, sigma=0.20)
+RENTAL_DAYS = {"repair": dict(median=11.0, sigma=0.55), "total": dict(median=21.0, sigma=0.40)}
+TOW_P = {"AF_MV": 0.40, "AF_SV": 0.60, "NAF": 0.35, "PARKED": 0.05, "ANIMAL": 0.30}   # crashes needing a tow
+TOW_COST = dict(median=135.0, sigma=0.40)
+# Underinsured motorist (part of the UM coverage, as in Illinois): when an insured hurt by an insured driver
+# has damages above that driver's bodily injury limit, the policy pays the excess up to its own UM limit,
+# less what the other driver's insurer paid. Other drivers' per-person limits (ASSUMED; Illinois minimum $25,000):
+OTHER_DRIVER_BI_LIMIT = {25_000: 0.30, 50_000: 0.22, 100_000: 0.30, 250_000: 0.13, 500_000: 0.05}
 
 # --------------------------------------------------------------------------
 # True risk model: frequency (per vehicle-year, for a reference risk)
@@ -249,7 +269,7 @@ P_FILE_COLL = {"AF_MV": 0.90, "AF_SV": 0.90, "NAF": 0.42, "NAF_UNINSURED": 0.90,
 P_SUBROGATION = {"NAF": 0.85, "PARKED": 0.10}
 SUBROGATION_SHARE = (0.75, 1.00)
 P_FILE_BELOW_DEDUCTIBLE = 0.75      # claims opened then closed without payment
-CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04}
+CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04, "RENT": 0.02, "TOW": 0.02}
 # Claims opened and closed without payment, beyond those above (ASSUMED rates). Together they bring the share
 # of closed claims without payment near the 2025 industry figures: about 45% for liability and medical
 # claims and just under 25% for collision and comprehensive (WSJ analysis of insurer filings with the NAIC).
@@ -310,6 +330,15 @@ NONPAY_RATE = {"Paid in Full": 0.0, "Monthly EFT": 0.022, "Monthly Bill": 0.065}
 UW_CANCEL_NEW_BUSINESS_P = 0.008
 
 # --------------------------------------------------------------------------
+# Quotes (ASSUMED). Conversion at the market price by channel, how strongly it falls as our price rises
+# above the best competing quote, and how widely our price varies around that quote.
+# --------------------------------------------------------------------------
+QUOTE_CONVERSION = {"Independent Agent": 0.22, "Exclusive Agent": 0.38, "Direct": 0.12}
+QUOTE_PRICE_ELASTICITY = 5.0         # logit points per unit of log(our price / best competing price)
+COMPETITOR_PRICE_SIGMA = 0.18
+COMPARATIVE_RATER_CHANNELS = ["Independent Agent"]   # competing quotes are seen only through agents' comparative raters
+
+# --------------------------------------------------------------------------
 # Catastrophes: FICTIONAL events with realistic seasonality for northern Illinois.
 # (id, date, description, peril, centre lat, centre lon, radius miles, peak hit probability)
 # --------------------------------------------------------------------------
@@ -350,7 +379,8 @@ PERIL_DESCRIPTION = {
 }
 COVERAGE_NAMES = {"BI": "Bodily Injury Liability", "PD": "Property Damage Liability",
                   "UM": "Uninsured/Underinsured Motorist BI", "MED": "Medical Payments",
-                  "COLL": "Collision", "COMP": "Comprehensive"}
+                  "COLL": "Collision", "COMP": "Comprehensive", "RENT": "Rental Reimbursement",
+                  "TOW": "Towing and Labor"}
 COVERAGES = list(COVERAGE_NAMES)
 
 

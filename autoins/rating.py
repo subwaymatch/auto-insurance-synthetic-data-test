@@ -125,6 +125,8 @@ def limit_factors(st: truth.Static, V: np.ndarray) -> dict:
         "COLL": v["has_coll"][V] * np.array(C.COLL_DED_FACTOR)[v["coll_ded_opt"][V]],
         "COMP": v["has_comp"][V] * np.array(C.COMP_DED_FACTOR)[v["comp_ded_opt"][V]]
                 * np.where(v["full_glass"][V], C.FULL_GLASS_FACTOR, 1.0),
+        "RENT": v["has_rent"][V] * np.array(C.RENTAL_FACTOR)[v["rent_opt"][V]],
+        "TOW": v["has_tow"][V] * 1.0,
     }
 
 

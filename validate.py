@@ -36,6 +36,37 @@ OVERALL_LOSS_RATIO_BAND = (0.62, 0.76)
 INDUSTRY_LOSS_RATIO_BAND = {2022: (0.74, 0.85), 2023: (0.68, 0.80), 2024: (0.59, 0.70), 2025: (0.55, 0.67)}
 
 
+def integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes) -> None:
+    """Reserve history, claim detail, vehicle identifiers and the quote funnel."""
+    r = reserves.sort_values(["Claim Feature ID", "Reserve Type", "Transaction Date", "Reserve Transaction ID"], kind="stable")
+    running = r.groupby(["Claim Feature ID", "Reserve Type"])["Change Amount"].cumsum()
+    last = r.groupby(["Claim Feature ID", "Reserve Type"])["Outstanding Reserve"].last().unstack()
+    at_val = lambda kind: (last[kind] if kind in last else pd.Series(dtype=float)).reindex(feat["Claim Feature ID"]).fillna(0).to_numpy()
+    rep.check("reserve history balances, and ends at each feature's case and expense reserve",
+              np.allclose(running, r["Outstanding Reserve"], atol=0.01)
+              and np.allclose(at_val("Loss"), feat["Case Reserve"], atol=0.01)
+              and np.allclose(at_val("Expense"), feat["Expense Reserve"], atol=0.01),
+              f"{len(reserves):,} reserve transactions")
+    dt = lambda x: pd.to_datetime(x)
+    f = feat.merge(clm[["Claim ID", "Loss Date", "At Fault", "Insured Fault %", "Report Date", "SIU Referral Date"]], on="Claim ID")
+    suits = f[f["Litigation"] == "Y"]
+    rep.check("suits follow the attorney and fall within Illinois' two-year limit for injury claims",
+              (dt(suits["Suit Date"]) >= dt(suits["Attorney Date"])).all()
+              and ((dt(suits["Suit Date"]) - dt(suits["Loss Date"])).dt.days <= 730).all(),
+              f"{(feat['Attorney Represented'] == 'Y').sum():,} represented claimants, {len(suits):,} suits")
+    fault = clm.dropna(subset=["Insured Fault %"])
+    rep.check("an insured at fault is over 50% at fault, and one not at fault is under 51%",
+              ((fault["At Fault"] == "Y") == (fault["Insured Fault %"] > 50)).all())
+    siu = clm[clm["SIU Referral"] == "Y"]
+    rep.check("fraud referrals come after the claim is reported", (siu["SIU Referral Date"] >= siu["Report Date"]).all())
+    rep.check("VIN prefixes are consistent for each model and model year",
+              (veh.groupby(["Vehicle ID", "Vehicle Model Year"])["VIN Prefix"].nunique() == 1).all())
+    b = quotes[quotes["Bound"] == "Y"].merge(term[term["Business Type"] == "New"], on="Policy Number")
+    rep.check("every bound quote is a new-business policy starting on the quoted date",
+              (b["Proposed Effective Date"] == b["Policy Effective Date"]).all() and (quotes["Quote Date"] <= quotes["Proposed Effective Date"]).all(),
+              f"{len(quotes):,} quotes, {(quotes['Bound'] == 'Y').mean():.1%} bound")
+
+
 def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end) -> None:
     """Checks on vehicle lifecycles, information timing, policy dates, premium and payments."""
     dt = lambda x: pd.to_datetime(x)
@@ -162,6 +193,7 @@ def main() -> None:
     drv, veh, loc = read("driver_dimension"), read("insured_vehicle_dimension"), read("location_dimension")
     clm, feat, pay = read("claims_fact"), read("claim_coverage_fact"), read("claim_payment_fact")
     inc, ledger = read("driver_incident_fact"), read("policy_transaction_fact")
+    reserves, quotes = read("claim_reserve_fact"), read("quote_fact")
     truth = pd.read_csv(out / "answer_key" / "risk_truth.csv")
     start = np.datetime64(json.loads((out / "run_summary.json").read_text())["start"])
     pd.set_option("display.width", 200)
@@ -202,12 +234,18 @@ def main() -> None:
     rep.check("claim totals equal the sum of their features",
               np.allclose(feat.groupby("Claim ID")["Net Incurred Loss"].sum().reindex(clm["Claim ID"]).to_numpy(), clm["Claim Amount"].to_numpy(), atol=0.05))
     cov_ok = feat.merge(clm[["Claim ID", "Record ID"]], on="Claim ID").merge(risk, on="Record ID")
-    rep.check("collision/comprehensive claims only on risk rows carrying that coverage",
-              (cov_ok.loc[cov_ok["Coverage Code"] == "COLL", "Collision Premium"] > 0).all()
-              and (cov_ok.loc[cov_ok["Coverage Code"] == "COMP", "Comprehensive Premium"] > 0).all())
+    rep.check("physical damage, rental and towing claims only on risk rows carrying that coverage",
+              all((cov_ok.loc[cov_ok["Coverage Code"] == k, col] > 0).all() for k, col in
+                  (("COLL", "Collision Premium"), ("COMP", "Comprehensive Premium"), ("RENT", "Rental Premium"),
+                   ("TOW", "Towing Premium"))))
+    lim = cov_ok.assign(pp=cov_ok["BI Limit"].str.split("/").str[0].astype(float) * 1000)
+    rep.check("liability payments stay within the risk row's limits",
+              (lim.loc[lim["Coverage Code"] == "BI", "Paid Loss"] <= lim.loc[lim["Coverage Code"] == "BI", "pp"] + 0.01).all()
+              and (lim.loc[lim["Coverage Code"] == "PD", "Paid Loss"] <= lim.loc[lim["Coverage Code"] == "PD", "PD Limit"] + 0.01).all())
     age = (pd.to_datetime(drv["Added Date"]) - pd.to_datetime(drv["Date of Birth"])).dt.days.to_numpy() / 365.25
     rep.check("all drivers are 16 or older when first insured", age.min() >= 16, f"youngest {age.min():.1f}, oldest {age.max():.1f}")
     integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end)
+    integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes)
     old = term[pd.to_datetime(term["Policy Expiration Date"]) < pd.to_datetime(clm["Report Date"]).max() - pd.Timedelta(days=90)]
     written = ledger[ledger["Transaction Type"] != "Cancellation"].groupby("Policy Term ID")["Written Premium"].sum()
     returned = ledger[ledger["Transaction Type"] == "Cancellation"].groupby("Policy Term ID")["Written Premium"].sum()
@@ -220,13 +258,15 @@ def main() -> None:
     print("\nFREQUENCY AND SEVERITY (paid claims, by coverage)")
     f = feat.merge(clm[["Claim ID", "Record ID", "Loss Date", "Catastrophe ID", "Cause of Loss"]], on="Claim ID")
     has = {"BI": risk["BI Premium"] > 0, "PD": risk["PD Premium"] > 0, "UM": risk["UM Premium"] > 0,
-           "MED": risk["Med Pay Premium"] > 0, "COLL": risk["Collision Premium"] > 0, "COMP": risk["Comprehensive Premium"] > 0}
+           "MED": risk["Med Pay Premium"] > 0, "COLL": risk["Collision Premium"] > 0, "COMP": risk["Comprehensive Premium"] > 0,
+           "RENT": risk["Rental Premium"] > 0, "TOW": risk["Towing Premium"] > 0}
     prem_col = {"BI": "BI Premium", "PD": "PD Premium", "UM": "UM Premium", "MED": "Med Pay Premium",
+                "RENT": "Rental Premium", "TOW": "Towing Premium",
                 "COLL": "Collision Premium", "COMP": "Comprehensive Premium"}
     share = risk["Earned Premium"] / risk["Total Premium"]
     exp_total = 0.0
     print(f"  {'coverage':9s}{'car-years':>11s}{'claims/100':>12s}{'avg paid':>10s}{'loss ratio':>12s}{'actual/expected':>17s}")
-    for k in ["BI", "PD", "UM", "MED", "COLL", "COMP"]:
+    for k in ["BI", "PD", "UM", "MED", "COLL", "COMP", "RENT", "TOW"]:
         g = f[f["Coverage Code"] == k]
         gp = g[g["Paid Loss"] > 0]
         years = risk.loc[has[k], "Earned Exposure"].sum()
