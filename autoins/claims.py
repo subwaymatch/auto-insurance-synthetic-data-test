@@ -72,6 +72,10 @@ RESERVE_ROUNDING = 50
 # within days of the accident and 80% within weeks (IRC survey, 2026). Suits are filed within the
 # two-year statute of limitations (735 ILCS 5/13-202). Illinois bars recovery by a party more than 50%
 # at fault (735 ILCS 5/2-1116), so an insured paying a liability claim is 51% to 100% at fault.
+ATTORNEY_LAG_DAYS = ((0.5, 1, 8), (0.3, 8, 31), (0.2, 31, 181))   # (share, from, before) days after the accident
+SUIT_LAG_DAYS = (60, 421)            # from the later of retaining an attorney and presenting the claim to filing suit
+SUIT_LIMIT_DAYS = 729                # suits are filed inside the two-year statute
+SUIT_TO_CLOSE = dict(min_days=30, mean_extra=90.0)   # a filed suit runs at least this long before the feature closes
 POLICE_REPORT_P = {"AF_MV": 0.60, "AF_SV": 0.55, "NAF": 0.60, "PARKED": 0.35, "THEFT_TOTAL": 0.97,
                    "THEFT_PARTIAL": 0.85, "VANDALISM": 0.60, "FIRE": 0.70, "ANIMAL": 0.15, "GLASS": 0.02,
                    "WEATHER": 0.05, "FLOOD": 0.10, "OTHER_COMP": 0.20, "HAIL_CAT": 0.01, "WIND_CAT": 0.03, "FLOOD_CAT": 0.05}
@@ -81,7 +85,8 @@ INJURY_TYPES = ["Soft Tissue", "Laceration", "Fracture", "Head or Spinal Injury"
 
 class Development:
     """Develops claims to ultimate as the simulation produces them. Timing and payments come from one
-    random stream; reserve estimates and claim detail from another, so they never move the payments."""
+    random stream; reserve estimates and claim detail from another, so they never move the amounts paid.
+    The one link back is a litigated feature's close, which waits for its suit (litigation_timeline)."""
 
     def __init__(self, cal, rng: np.random.Generator, rng_detail: np.random.Generator) -> None:
         self.cal, self.R, self.R2 = cal, rng, rng_detail
@@ -133,10 +138,12 @@ class Development:
         dur = np.maximum(dur, 1).astype(int)
         f["close_day"] = f.open_day.to_numpy() + dur
 
-        f = _injury_detail(f, self.cal, self.R2)
+        f = _injury_detail(f, self.cal, self.R2)          # may move a litigated feature's close later
         pays, f = _schedule(f, R)
         occ["report_day"] = occ.occ.map(f.groupby("occ").open_day.min()).to_numpy()
-        occ["chargeable_day"] = occ.occ.map(_chargeable(f, pays)).fillna(-1).astype(int).to_numpy()
+        # a claim goes on the driver's record the day after the payment that makes it chargeable is booked
+        posted = _chargeable(f, pays) + C.CHARGEABLE_POSTING_DAYS
+        occ["chargeable_day"] = occ.occ.map(posted).fillna(-1).astype(int).to_numpy()
         occ = _claim_detail(occ, f, self.R2)
         self.reserves.append(_reserve_history(f, pays, self.cal, self.R2))
         self.occs.append(occ)
@@ -149,8 +156,21 @@ class Development:
         return cat(self.occs), cat(self.feats), cat(self.pays), cat(self.reserves)
 
 
+def litigation_timeline(day, open_day, close_day, attorney_lag, suit_lag, run):
+    """Order a litigated feature's events. The attorney is retained `attorney_lag` days after the accident;
+    suit is filed `suit_lag` days after the later of that and the claim being presented, but inside the
+    statute of limitations; and the feature closes no sooner than `run` days after the suit. A feature whose
+    drawn close would come too soon stays open longer: the suit is never moved ahead of the attorney or the
+    claim to make it fit. Returns (attorney day, suit day, close day)."""
+    attorney = day + attorney_lag
+    ready = np.maximum(attorney, open_day)
+    suit = np.maximum(np.minimum(ready + suit_lag, day + SUIT_LIMIT_DAYS), ready)
+    return attorney, suit, np.maximum(close_day, suit + run)
+
+
 def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame:
-    """Injury type, attorney representation and suit date for injury and medical features."""
+    """Injury type, attorney representation and suit date for injury and medical features. Litigated
+    features get an ordered timeline, which can move their close later."""
     n = len(f)
     cvg, gross, day = f.cvg.to_numpy(), f.gross.to_numpy(), f.day.to_numpy()
     od, cd, lit = f.open_day.to_numpy(), f.close_day.to_numpy(), f.litigated.to_numpy()
@@ -165,12 +185,17 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     p_att = np.where(cvg == "MED", 0.05, np.where(gross > 0, 0.30 + 0.25 * (z > 0) + 0.15 * (z > 1), 0.08))
     attorney = injury & (lit | (R.random(n) < p_att))
     u = R.random(n)
-    lag = np.where(u < 0.5, R.integers(1, 8, n), np.where(u < 0.8, R.integers(8, 31, n), R.integers(31, 181, n)))
+    (p1, a1, b1), (p2, a2, b2), (_, a3, b3) = ATTORNEY_LAG_DAYS
+    lag = np.where(u < p1, R.integers(a1, b1, n), np.where(u < p1 + p2, R.integers(a2, b2, n), R.integers(a3, b3, n)))
+    run = SUIT_TO_CLOSE["min_days"] + np.floor(R.exponential(SUIT_TO_CLOSE["mean_extra"], n)).astype(int)
+    att_lit, suit, cd_lit = litigation_timeline(day, od, cd, lag, R.integers(*SUIT_LAG_DAYS, n), run)
+    cd = np.where(lit, cd_lit, cd)
+    # without a suit the attorney is simply retained before the feature closes
+    att = np.where(lit, att_lit, np.minimum(day + lag, np.maximum(cd - 1, day)))
+    f["close_day"] = cd
     f["attorney"] = attorney
-    f["attorney_day"] = np.where(attorney, np.minimum(day + lag, np.maximum(cd - 1, day)), -1)
-    suit = np.maximum(f.attorney_day.to_numpy(), od) + R.integers(60, 421, n)
-    suit = np.minimum(suit, np.minimum(cd - 30, day + 729))
-    f["suit_day"] = np.where(lit, np.maximum(suit, od), -1)
+    f["attorney_day"] = np.where(attorney, att, -1)
+    f["suit_day"] = np.where(lit, suit, -1)
     return f
 
 

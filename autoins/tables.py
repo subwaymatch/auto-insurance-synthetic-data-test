@@ -105,7 +105,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Business Type": np.where(terms.new_business, "New", "Renewal"),
         "Policy Effective Date": D(terms.s), "Policy Expiration Date": D(terms.e), "Rating Date": D(terms.rate_day),
         "Cancel Date": np.where(cancelled, D(terms.cancel_day.clip(0)), ""), "Cancel Reason": terms.cancel_reason,
-        "Non-Renewal Reason": terms.nonrenewal_reason, "Vehicle Count": terms.vehicles.astype(int),
+        "Non-Renewal Reason": terms.nonrenewal_reason, "Vehicles at Term Start": terms.vehicles.astype(int),
         "Written Premium": terms.written.round(2), "Endorsement Premium": (terms.net_written - terms.written).round(2),
         "Return Premium": (-terms.returned).round(2) + 0.0, "Earned Before Extract": terms.before.round(2),
         "Earned Premium": terms.earned.round(2), "Rate Level Index": (terms.rate_level / cal.rate_level[0]).round(4)})
@@ -117,6 +117,16 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     ni_drv = pol.ni_drv.to_numpy()
     inception = cal.day_of(pol.first_month - pol.tenure_terms * pol.term_months, pol.dom)
     bi = [C.BI_LIMITS[i] for i in pol.bi_opt]
+    # Vehicles and drivers on the policy at its latest status: on the valuation date if it is in force,
+    # otherwise on its last day of cover. Counted from each vehicle's and driver's own dates, so a car
+    # added or removed during the latest term is counted as it stands, not as the term began.
+    as_at = np.minimum(np.where(status == "In Force", V, end_day - 1), V)
+    removed_v = np.where(veh.removed_day.to_numpy() > V, -1, veh.removed_day.to_numpy())    # nothing after the valuation date is known
+    removed_d = np.where(drv.removed_day.to_numpy() > V, -1, drv.removed_day.to_numpy())
+
+    def on_policy(member_pol, added, removed):
+        day = as_at[member_pol]
+        return np.bincount(member_pol[(added <= day) & ((removed < 0) | (removed > day))], minlength=len(pol))
     score = pol.insurance_score
     T["policy_dimension"] = pd.DataFrame({
         "Policy Number": polno(pol["pol"]), "Location ID": z.location_id.to_numpy()[pol.zi],
@@ -126,8 +136,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Policy Effective Date": D(pol.first_day), "Policy Expiration Date": D(end_day),
         "Term Length Months": pol.term_months, "Policy Status": status, "Status Reason": reason,
         "Cancel Date": np.where(status == "Cancelled", D(end_day), ""),
-        "Named Insured Driver ID": ni_drv + 1, "Number of Drivers": pol.n_drv,
-        "Number of Vehicles": last.vehicles.fillna(0).astype(int).to_numpy(),
+        "Named Insured Driver ID": ni_drv + 1,
+        "Number of Drivers": on_policy(drv.pol.to_numpy(), drv.added_day.to_numpy(), removed_d),
+        "Number of Vehicles": on_policy(veh.pol.to_numpy(), veh.added_day.to_numpy(), removed_v),
         "Homeowner": YN[pol.homeowner.astype(int)], "Multi-Policy": YN[pol.multi_policy.astype(int)],
         "Prior Insurance": YN[pol.prior_insurance.astype(int)],
         "Insurance Score": score.astype("Int64"), "Payment Plan": np.array(C.PAY_PLANS)[pol.pay_plan],
@@ -147,8 +158,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Driver Role": np.array(["Named Insured", "Spouse", "Other Adult", "Child"])[drv.role],
         "First Name": drv.first_name, "Last Name": drv.last_name, "Date of Birth": D(drv.dob_day),
         "Gender": np.where(drv.male, "M", "F"), "Marital Status": drv.marital, "Date First Licensed": D(drv.licensed_day),
-        "Added Date": D(drv.added_day), "Removed Date": np.where(drv.removed_day >= 0, D(drv.removed_day.clip(0)), ""),
-        "Removal Reason": np.array(DRIVER_REMOVAL_REASONS)[drv.removal_reason],
+        "Added Date": D(drv.added_day), "Removed Date": np.where(removed_d >= 0, D(removed_d.clip(0)), ""),
+        "Removal Reason": np.where(removed_d >= 0, np.array(DRIVER_REMOVAL_REASONS)[drv.removal_reason], ""),
         "Good Student": YN[good_student.astype(int)], "Miles to work": drv.commute_miles.astype(int),
         "Number of Violations": n_viol, "Number of Accidents": n_acc, **_sr22(cfg, inc, drv, V, D)})
 
@@ -180,10 +191,18 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Vehicle ID": mdl.model_id, "Car Make": mdl.make, "Model": mdl.model, "Body Type": mdl.body_type,
         "Segment": mdl.segment.str.title().replace({"Ev": "Electric"}), "Average Price": mdl.msrp_2024})
     vid = mdl.model_id.to_numpy()[veh.model_idx]
+    # A removal is recorded as a total loss only once the company has the total-loss claim. Until then the
+    # extract shows what the insurer knows: the customer took a destroyed or stolen car off the policy.
+    reason_v = np.where(removed_v >= 0, veh.removal_reason.to_numpy(), 0)
+    claimed = np.zeros(len(veh), dtype=bool)
+    tl = feats[feats.total.to_numpy().astype(bool) & ~feats.retained.to_numpy().astype(bool)]
+    claimed[claims.set_index("claim_id").veh.reindex(tl.claim_id).to_numpy()] = True
+    reason_v = np.where((reason_v == REMOVAL_REASONS.index("Total Loss")) & ~claimed,
+                        REMOVAL_REASONS.index("Destroyed or Stolen"), reason_v)
     T["insured_vehicle_dimension"] = pd.DataFrame({
         "Insured Vehicle ID": veh.veh + 1, "Policy Number": polno(veh.pol), "Vehicle ID": vid,
         "Vehicle Model Year": veh.model_year, "Primary Driver ID": veh.primary_drv + 1, "Ownership": veh.ownership,
-        "Added Date": D(veh.added_day), "Removed Date": np.where(veh.removed_day >= 0, D(veh.removed_day.clip(0)), ""),
+        "Added Date": D(veh.added_day), "Removed Date": np.where(removed_v >= 0, D(removed_v.clip(0)), ""),
         "Primary Vehicle Use": veh.use, "Annual Mileage": veh.reported_miles.astype(int),
         "Parking": np.array(C.PARKING)[veh.parking], "Anti-Theft Device": YN[veh.anti_theft.astype(int)],
         "Automatic Emergency Braking": YN[veh.adas.astype(int)], "Original MSRP": veh.msrp.round(-2).astype(int),
@@ -194,14 +213,16 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Full Glass Coverage": YN[veh.full_glass.astype(int)],
         "Rental Reimbursement": np.where(veh.has_rent, [f"{d}/{m}" for d, m in np.array(C.RENTAL_OPTIONS)[veh.rent_opt]], ""),
         "Towing and Labor": YN[veh.has_tow.astype(int)], **_vehicle_codes(mdl, veh),
-        "Removal Reason": np.array(REMOVAL_REASONS)[veh.removal_reason],
+        "Removal Reason": np.array(REMOVAL_REASONS)[reason_v],
         "Replaces Vehicle ID": pd.Series(veh.replaces + 1).where(veh.replaces >= 0).astype("Int64")})
 
     # One row per vehicle per endorsement period: a mid-term change ends the policy's rows and re-rates it.
     rv = rows.veh.to_numpy()
     tcan = terms.set_index("term").cancel_day.reindex(rows.term).to_numpy()
     cover_end = np.where(tcan >= 0, np.minimum(rows.sched, tcan), rows.sched)
-    endorsement = rows.groupby("term").s.rank(method="dense").astype(int) - 1
+    # endorsement 0 is the term as written; a term that starts with no car (a replacement still to come) has none
+    late = rows.groupby("term").s.transform("min").to_numpy() > terms.set_index("term").s.reindex(rows.term).to_numpy()
+    endorsement = rows.groupby("term").s.rank(method="dense").astype(int) - 1 + late
     T["risk_fact"] = pd.DataFrame({
         "Record ID": rows.row + 1, "Policy Term ID": rows.term + 1, "Policy Number": polno(rows.pol),
         "Endorsement Number": endorsement, "Change Reason": rows.reason,
@@ -218,6 +239,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "BI Limit": [_limit(C.BI_LIMITS[i]) for i in rows.bi_opt], "PD Limit": np.array(C.PD_LIMITS)[rows.bi_opt],
         "UM Limit": [_limit(C.BI_LIMITS[i]) for i in rows.um_opt], "Med Pay Limit": np.array(C.MED_LIMITS)[rows.med_opt],
         "Collision Deductible": rows.coll_ded, "Comprehensive Deductible": rows.comp_ded,
+        "Full Glass Coverage": YN[rows.full_glass.to_numpy().astype(int)],
+        "Rental Reimbursement": np.where(rows.rent_opt >= 0, np.array([f"{d}/{m}" for d, m in C.RENTAL_OPTIONS])[rows.rent_opt.clip(0)], ""),
+        "Towing and Labor": YN[rows.has_tow.to_numpy().astype(int)],
         "Tenure Years": rows.tenure_years.round(1), "Vehicle Value": rows.acv.round(-1).astype(int),
         "BI Premium": rows.prem_BI, "PD Premium": rows.prem_PD, "UM Premium": rows.prem_UM,
         "Med Pay Premium": rows.prem_MED, "Collision Premium": rows.prem_COLL, "Comprehensive Premium": rows.prem_COMP,
@@ -231,13 +255,15 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     f["net_incurred"] = f.incurred - f.recovery
     T["claim_coverage_fact"] = pd.DataFrame({
         "Claim Feature ID": f.feature_id, "Claim ID": f.claim_id, "Coverage Code": f.cvg,
-        "Coverage": f.cvg.map(C.COVERAGE_NAMES), "Claimant Number": f.claimant,
+        "Coverage": f.cvg.map(C.COVERAGE_NAMES), "UM/UIM Type": f.um_type, "Claimant Number": f.claimant,
         "Feature Status": np.where(f.closed, "Closed", np.where(f.reopened, "Reopened", "Open")), "Open Date": D(f.open_day),
         "Close Date": np.where(f.closed, D(f.status_close_day.clip(upper=V)), ""),
         "Reopen Date": np.where(f.reopened, D(f.reopen_day.clip(0)), ""),
         "Paid Loss": f.paid_loss.round(2), "Case Reserve": f.case_reserve.round(2), "Incurred Loss": f.incurred.round(2),
         "Salvage Recovery": f.salvage_rec.round(2), "Subrogation Recovery": f.subro_rec.round(2),
-        "Net Incurred Loss": f.net_incurred.round(2), "Paid Expense": f.paid_expense.round(2),
+        "Net Incurred Loss": f.net_incurred.round(2),
+        "Other Insurer Payment": pd.Series(f.offset.to_numpy()).where(f.um_type.to_numpy() == "Underinsured").round(2).to_numpy(),
+        "Paid Expense": f.paid_expense.round(2),
         "Paid DCC Expense": f.paid_dcc.round(2), "Paid A&O Expense": f.paid_ao.round(2),
         "Expense Reserve": f.expense_reserve.round(2),
         "Injury Type": f.injury_type, "Attorney Represented": YN[f.attorney.astype(int)],
@@ -285,8 +311,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "Transaction Date": D(rs.day), "Reserve Type": rs.rtype, "Transaction Type": rs.txn,
         "Change Amount": rs.delta.round(2), "Outstanding Reserve": rs.outstanding.round(2)})
 
-    T["policy_transaction_fact"] = _transactions(cfg, cal, terms, rows, veh, D, polno)
-    T["communication_data"] = _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno)
+    known_veh = veh.assign(removal_reason=reason_v)
+    T["policy_transaction_fact"] = _transactions(cfg, cal, terms, rows, known_veh, D, polno)
+    T["communication_data"] = _communications(cfg, cal, pol, terms, rows, claims, cg, known_veh, D, polno)
 
     # ---- answer key ---------------------------------------------------------------------------------
     exp_cols = [f"exp_{c}" for c in C.COVERAGES]

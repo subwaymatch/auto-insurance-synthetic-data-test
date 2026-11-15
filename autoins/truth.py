@@ -1,8 +1,10 @@
 """The true risk model: how often each vehicle has a loss, and what it costs.
 
 The same severity functions are used twice: with random draws to simulate claims, and
-on a fixed grid of quantiles to compute the exact expected loss of every vehicle. The
+on a fixed grid of quantiles to compute the expected loss of every vehicle. The
 expected loss is what the rating plan is fitted to, and it is written to the answer key.
+Per-accident limits on injury coverages, which depend on several claimants at once, enter
+the expected loss through a table built by simulation (AGG_SHARE).
 """
 from __future__ import annotations
 
@@ -112,6 +114,82 @@ def comp_gross(peril: str, z, u, repair_factor, adas, trend, acv):
         damage = median * trend * np.exp(sigma * z)
     total = (damage >= C.TOTAL_LOSS_THRESHOLD * acv) & (peril != "GLASS")
     return np.where(total, acv, np.minimum(damage, acv)), total
+
+
+def cap_per_accident(paid, accident, n_accidents: int, room) -> np.ndarray:
+    """Share each accident's per-accident limit among its claimants. `paid` holds what each claimant would
+    get under the per-person limit, `accident` the accident each belongs to, and `room` each accident's
+    limit. Where an accident's payments exceed its room they are cut pro rata. The arithmetic is in whole
+    cents, with the cents left over by rounding down going to the first claimants, so an accident's
+    payments add up to the limit exactly and never to a cent more. Returns dollars."""
+    cents = np.round(np.asarray(paid, dtype=float) * 100).astype(np.int64)
+    cap = np.round(np.maximum(np.asarray(room, dtype=float), 0.0) * 100).astype(np.int64)
+    tot = np.bincount(accident, cents, n_accidents).astype(np.int64)
+    over = (tot > cap)[accident]
+    cut = np.where(over, cents * cap[accident] // np.maximum(tot[accident], 1), cents)
+    spare = np.where(tot > cap, cap - np.bincount(accident, cut, n_accidents).astype(np.int64), 0)
+    paying = cents > 0                                 # the spare cents go to claimants who are being paid
+    before = np.cumsum(paying) - paying
+    first = np.full(n_accidents, len(cents), dtype=np.int64)
+    np.minimum.at(first, accident, np.arange(len(cents)))
+    rank = before - before[np.minimum(first, len(cents) - 1)][accident]     # position among the accident's paid claimants
+    return (cut + (over & paying & (rank < spare[accident]))) / 100
+
+
+def other_driver_limits(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.ndarray]:
+    """Bodily injury limits (per person, per accident) of n at-fault drivers who are insured."""
+    lims, w = zip(*C.OTHER_DRIVER_BI_LIMIT.items())
+    pp = np.array(lims)[rng.choice(len(lims), n, p=w)]
+    return pp, np.array([dict(C.BI_LIMITS)[x] for x in pp])
+
+
+def underinsured(gross, um_pp, other_pp):
+    """Underinsured motorist benefit per claimant before the per-accident limit: damages up to the policy's
+    own per-person limit, less what the at-fault driver's insurer pays. Returns (benefit, other insurer's payment)."""
+    other = np.minimum(gross, other_pp)
+    return np.maximum(np.minimum(gross, um_pp) - other, 0.0), other
+
+
+AGG_SCALES = np.geomspace(0.5, 1.6, 12)        # severity level (segment factor x trend) the table is built on
+
+
+def _aggregate_shares(n: int = 40_000) -> dict:
+    """Share of per-person-limited injury payments that the per-accident limit leaves, by coverage, limit
+    option and severity level. `expected` multiplies its per-claimant figures by these so that the answer
+    key allows for accidents with several claimants. Built once by simulation from a fixed set of draws
+    (they are part of the model, not of a run), common to every cell so the shares vary smoothly."""
+    r = np.random.default_rng(143)
+    live = np.arange(4)[None, :] < (1 + r.choice(4, n, p=C.BI_CLAIMANTS_P))[:, None]
+    z, u = r.standard_normal((n, 4)), r.random((n, 4))
+    other_pp, _ = other_driver_limits(r, n)
+    out = {}
+    for cov, sev in (("BI", C.BI_SEV), ("UM", C.UM_SEV), ("UIM", C.UM_SEV)):
+        base = sev["median"] * np.exp(sev["sigma"] * z) * live
+        pays = u >= C.CWP["BI" if cov == "BI" else "UM"]
+        tab = np.ones((len(C.BI_LIMITS), len(AGG_SCALES)))
+        for i, (pp, pa) in enumerate(C.BI_LIMITS):
+            for j, scale in enumerate(AGG_SCALES):
+                if cov == "UIM":
+                    paid, other = underinsured(base * scale, pp, other_pp[:, None])
+                    room = np.maximum(pa - other.sum(1), 0.0)
+                else:
+                    paid, room = np.minimum(base * scale, pp), pa
+                tot = (paid * pays).sum(1)
+                tab[i, j] = np.minimum(tot, room).sum() / tot.sum() if tot.sum() > 0 else 1.0
+        out[cov] = tab
+    return out
+
+
+AGG_SHARE = _aggregate_shares()
+
+
+def aggregate_share(cov: str, limit_opt: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    """Look up AGG_SHARE for each vehicle's limit option and severity level."""
+    out = np.ones(len(limit_opt))
+    for i in range(len(C.BI_LIMITS)):
+        m = limit_opt == i
+        out[m] = np.interp(np.log(scale[m]), np.log(AGG_SCALES), AGG_SHARE[cov][i])
+    return out
 
 
 # ---------------------------------------------------------------------------- per-vehicle context
@@ -246,6 +324,7 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
 
     # coverage terms and cost levels
     bi = np.array(C.BI_LIMITS)
+    c["bi_opt"], c["um_opt"] = p["bi_opt"][pol], p["um_opt"][pol]
     c["bi_pp"], c["bi_pa"] = bi[p["bi_opt"][pol], 0], bi[p["bi_opt"][pol], 1]
     c["um_pp"], c["um_pa"] = bi[p["um_opt"][pol], 0], bi[p["um_opt"][pol], 1]
     c["pd_lim"] = np.array(C.PD_LIMITS)[p["bi_opt"][pol]]
@@ -280,12 +359,14 @@ def expected(c: dict, cal: Calendar) -> dict:
     E = {}
     e_pd = pd_paid(ZG, col(c["pd_lim"]), col(c["pd_factor"]), t["PD"]).mean(1)
     E["PD"] = (n["AF_MV"] * C.P_PD_GIVEN_AF_MV + n["AF_SV"] * C.P_PD_GIVEN_AF_SV) * (1 - C.CWP["PD"]) * e_pd
-    e_bi = injury_paid(ZG, col(c["bi_pp"]), col(c["bi_factor"]), t["BI"], C.BI_SEV).mean(1)
+    tb = t["BI"][:, 0]
+    e_bi = injury_paid(ZG, col(c["bi_pp"]), col(c["bi_factor"]), t["BI"], C.BI_SEV).mean(1) \
+        * aggregate_share("BI", c["bi_opt"], c["bi_factor"] * tb)
     E["BI"] = (n["AF_MV"] * c["p_bi"] + n["AF_SV"] * C.P_BI_GIVEN_AF_SV) * MEAN_CLAIMANTS * (1 - C.CWP["BI"]) * e_bi
-    e_um = injury_paid(ZG, col(c["um_pp"]), 1.0, t["BI"], C.UM_SEV).mean(1)
+    e_um = injury_paid(ZG, col(c["um_pp"]), 1.0, t["BI"], C.UM_SEV).mean(1) * aggregate_share("UM", c["um_opt"], tb)
     g = C.UM_SEV["median"] * t["BI"] * np.exp(C.UM_SEV["sigma"] * ZG)      # underinsured: the excess over the other limit
-    e_uim = sum(w * np.maximum(np.minimum(g, col(c["um_pp"])) - np.minimum(g, lim), 0).mean(1)
-                for lim, w in C.OTHER_DRIVER_BI_LIMIT.items())
+    e_uim = sum(w * underinsured(g, col(c["um_pp"]), lim)[0].mean(1) for lim, w in C.OTHER_DRIVER_BI_LIMIT.items()) \
+        * aggregate_share("UIM", c["um_opt"], tb)
     E["UM"] = n["NAF"] * C.P_UM_INJURY * MEAN_CLAIMANTS * (1 - C.CWP["UM"]) * (c["p_un"] * e_um + (1 - c["p_un"]) * e_uim)
     e_med = med_paid(ZG, col(np.maximum(c["med_lim"], 1)), t["BI"]).mean(1)
     E["MED"] = (c["med_lim"] > 0) * sum(n[k] * q for k, q in C.P_MED.items()) * (1 - C.CWP["MED"]) * e_med
@@ -364,10 +445,11 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                                       other_uninsured=False if uninsured is None else uninsured)))
         return ids
 
-    def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False):
+    def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False,
+            um_type="", offset=0.0):
         feats.append(pd.DataFrame(dict(occ=ids, cvg=cov, claimant=claimant, gross=gross, paid=np.where(cwp, 0.0, paid),
                                        cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
-                                       nominal=nominal)))
+                                       nominal=nominal, um_type=um_type, offset=offset)))
 
     def injury_features(cov, ids, vi, day, sev, pp, pa, factor):
         if len(ids) == 0:
@@ -377,10 +459,8 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
         gross = sev["median"] * factor[o] * _trend(cal, "BI", day[o]) * np.exp(sev["sigma"] * rng.standard_normal(len(o)))
         cwp = rng.random(len(o)) < C.CWP[cov]
-        paid = np.where(cwp, 0.0, np.minimum(gross, pp[o]))
-        tot = np.bincount(o, paid, len(ids))
-        paid = paid * np.minimum(1.0, pa / np.maximum(tot, 1e-9))[o]     # per-accident limit
-        add(cov, ids[o], gross, paid, cwp, claimant=claimant)
+        paid = cap_per_accident(np.where(cwp, 0.0, np.minimum(gross, pp[o])), o, len(ids), pa)   # per-accident limit
+        add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "")
 
     def collision_features(peril, ids, vi, day, file_p, subro_p):
         # the damage to the insured car happens whether or not anyone claims it from us
@@ -429,19 +509,23 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         add("TOW", ids[m], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(m.sum()) < C.CWP["TOW"])
 
     def uim_features(ids, vi, day):
-        """Underinsured motorist: the insured's injury damages above the at-fault driver's limit."""
+        """Underinsured motorist: the insured's injury damages above what the at-fault driver's insurer pays,
+        within the policy's own per-person limit and, for the accident, its per-accident limit less
+        everything that insurer paid (215 ILCS 5/143a-2(4): the limits less amounts actually recovered)."""
         if len(ids) == 0:
             return
         k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
         gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * rng.standard_normal(len(o)))
-        lims, w = zip(*C.OTHER_DRIVER_BI_LIMIT.items())
-        other = np.array(lims)[rng.choice(len(lims), len(ids), p=w)][o]
-        excess = np.maximum(np.minimum(gross, c["um_pp"][vi][o]) - np.minimum(gross, other), 0.0)
+        other_pp, _ = other_driver_limits(rng, len(ids))
+        excess, other = underinsured(gross, c["um_pp"][vi][o], other_pp[o])
         cwp = rng.random(len(o)) < C.CWP["UM"]
-        keep = excess > 0
-        add("UM", ids[o][keep], gross[keep], excess[keep], cwp[keep], claimant=claimant[keep])
+        room = c["um_pa"][vi] - np.bincount(o, other, len(ids))
+        paid = cap_per_accident(np.where(cwp, 0.0, excess), o, len(ids), room)
+        keep = (excess > 0) & (cwp | (paid > 0))
+        add("UM", ids[o][keep], gross[keep], paid[keep], cwp[keep], claimant=claimant[keep], um_type="Underinsured",
+            offset=np.round(other[keep], 2))
 
     def unpaid(cov, ids, p):
         """Claims opened and closed without payment: liability denied, or an injury claim never pursued."""

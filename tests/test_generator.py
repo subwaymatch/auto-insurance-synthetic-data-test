@@ -15,7 +15,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins.claims import chargeable_days  # noqa: E402
+from autoins import truth  # noqa: E402
+from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
 
@@ -73,10 +74,40 @@ class GeneratorTest(unittest.TestCase):
         r_end = r_start + np.round(t["risk_fact"]["Earned Exposure"].to_numpy() * 365.25).astype("timedelta64[D]")
         rep, out = validate.Report(), io.StringIO()
         with contextlib.redirect_stdout(out):
-            validate.integrity_lifecycle(rep, *t.values(), r_start, r_end)
+            validate.integrity_lifecycle(rep, *t.values(), r_start, r_end, self.a["valuation"])
             validate.integrity_claims_and_quotes(rep, t["policy_term_fact"], t["insured_vehicle_dimension"], t["claims_fact"],
                                                  t["claim_coverage_fact"], self.read("claim_reserve_fact"), self.read("quote_fact"))
+            validate.integrity_limits(rep, t["claim_coverage_fact"].merge(
+                t["claims_fact"][["Claim ID", "Record ID", "Cause of Loss"]], on="Claim ID").merge(t["risk_fact"], on="Record ID"))
         self.assertEqual(rep.failures, 0, out.getvalue())
+
+    def test_policy_counts_are_as_at_the_latest_status(self) -> None:
+        """Number of Vehicles is the cars on the policy now (or on its last day of cover), not at the term start."""
+        pol, veh, term = self.read("policy_dimension"), self.read("insured_vehicle_dimension"), self.read("policy_term_fact")
+        live = pol[pol["Policy Status"] == "In Force"].set_index("Policy Number")
+        on_now = veh[veh["Removed Date"].isna()].groupby("Policy Number").size().reindex(live.index).fillna(0)
+        self.assertTrue((live["Number of Vehicles"] == on_now).all())
+        self.assertFalse((veh["Removed Date"].dropna() > self.a["valuation"]).any())
+        # the latest term's opening count is kept under its own name, and differs when a car came or went mid-term
+        opening = term.sort_values("Policy Effective Date").groupby("Policy Number")["Vehicles at Term Start"].last().reindex(live.index)
+        self.assertGreater((opening != live["Number of Vehicles"]).sum(), 10)
+
+    def test_same_day_events_have_a_defined_order(self) -> None:
+        """A company claim reaches the driving record the day after the payment that makes it chargeable, so
+        a loss or payment on a rating date is never part of that rating."""
+        inc, clm = self.read("driver_incident_fact"), self.read("claims_fact")
+        own = inc[inc.Source == "Company Claim"].merge(clm[["Claim ID", "Loss Date"]], on="Claim ID")
+        self.assertTrue((own["Known Date"] > own["Loss Date"]).all())
+        pay = self.read("claim_payment_fact")
+        first = pay[pay["Payment Type"] == "Loss"].groupby("Claim ID")["Payment Date"].min()
+        self.assertTrue((own["Known Date"] > own["Claim ID"].map(first)).all())
+
+    def test_uninsured_and_underinsured_motorist_are_told_apart(self) -> None:
+        feat = self.read("claim_coverage_fact")
+        um = feat[feat["Coverage Code"] == "UM"]
+        self.assertTrue(set(um["UM/UIM Type"]) <= {"Uninsured", "Underinsured"})
+        self.assertTrue(feat.loc[feat["Coverage Code"] != "UM", "UM/UIM Type"].isna().all())
+        self.assertTrue((feat["Other Insurer Payment"].notna() == (feat["UM/UIM Type"] == "Underinsured")).all())
 
     def test_total_losses_end_the_vehicle(self) -> None:
         clm, feat, veh, risk = self.read("claims_fact"), self.read("claim_coverage_fact"), self.read("insured_vehicle_dimension"), self.read("risk_fact")
@@ -155,7 +186,7 @@ class GeneratorTest(unittest.TestCase):
         done = term[term["Policy Expiration Date"] < "2026-04-01"].set_index("Policy Term ID")
         w = ledger[ledger["Transaction Type"] != "Cancellation"].groupby("Policy Term ID")["Written Premium"].sum()
         gap = (done["Written Premium"] + done["Endorsement Premium"] - w.reindex(done.index).fillna(0)).abs()
-        self.assertLess(gap.max(), 0.05 + 0.01 * done["Vehicle Count"].max())
+        self.assertLess(gap.max(), 0.05 + 0.01 * done["Vehicles at Term Start"].max())
 
     def test_reserve_history_rebuilds_past_incurred(self) -> None:
         feat, res, pay = self.read("claim_coverage_fact"), self.read("claim_reserve_fact"), self.read("claim_payment_fact")
@@ -221,6 +252,57 @@ class CalendarTest(unittest.TestCase):
             days = [int(pd.Timestamp(self.date(m, dom)).day) for m in range(-6, 60, 6)]
             self.assertTrue(all(d == dom or d == pd.Timestamp(self.date(m, 1)).days_in_month
                                 for d, m in zip(days, range(-6, 60, 6))), (dom, days))
+
+
+class LitigationTimelineTest(unittest.TestCase):
+    def test_a_short_claim_runs_longer_instead_of_suing_before_the_attorney(self) -> None:
+        """Seed 7 produced a bodily injury feature opened on its loss date and drawn to close 171 days later,
+        with an attorney retained on day 156. Fitting the suit 30 days before that close put it on day 141,
+        before the attorney. The close now moves instead."""
+        day, opened, close = np.array([0]), np.array([0]), np.array([171])
+        attorney, suit, close = litigation_timeline(day, opened, close, np.array([156]), np.array([60]), np.array([30]))
+        self.assertEqual((attorney[0], suit[0], close[0]), (156, 216, 246))
+
+    def test_order_holds_for_any_draw(self) -> None:
+        r = np.random.default_rng(7)
+        n = 200_000
+        day = r.integers(0, 1500, n)
+        opened = day + np.where(r.random(n) < 0.8, 0, r.integers(0, 701, n))        # claims presented up to 700 days on
+        close = opened + r.integers(1, 900, n)                                       # including far too short to litigate
+        attorney, suit, closed = litigation_timeline(day, opened, close, r.integers(1, 181, n), r.integers(60, 421, n),
+                                                     30 + r.integers(0, 400, n))
+        self.assertTrue((attorney >= day).all() and (suit >= attorney).all() and (suit >= opened).all())
+        self.assertTrue((suit <= day + SUIT_LIMIT_DAYS).all())
+        self.assertTrue((closed >= suit + 30).all() and (closed >= close).all())
+
+
+class LimitTest(unittest.TestCase):
+    def test_per_accident_limit_is_shared_to_the_cent(self) -> None:
+        paid = np.array([30_000.00, 30_000.00, 0.0, 10_000.01, 5.0, 5.0, 100.0, 40.0])
+        accident = np.array([0, 0, 0, 0, 1, 1, 2, 3])
+        out = truth.cap_per_accident(paid, accident, 4, np.array([50_000.0, 20.0, 0.0, 100.0]))
+        cents = np.round(out * 100).astype(int)
+        self.assertEqual(np.bincount(accident, cents).tolist(), [5_000_000, 1_000, 0, 4_000])   # exactly the limit, or less
+        self.assertEqual(cents[2], 0)                               # a claimant paid nothing stays at nothing
+        self.assertTrue((out <= paid).all())
+        self.assertEqual(out[4:6].tolist(), [5.0, 5.0])             # under the limit: untouched
+
+    def test_random_accidents_never_exceed_their_limit(self) -> None:
+        r = np.random.default_rng(3)
+        k = r.integers(1, 5, 20_000)
+        accident = np.repeat(np.arange(len(k)), k)
+        paid = np.round(np.minimum(20_000 * np.exp(1.4 * r.standard_normal(len(accident))), 25_000), 2) * (r.random(len(accident)) > 0.14)
+        out = truth.cap_per_accident(paid, accident, len(k), np.full(len(k), 50_000.0))
+        total = np.bincount(accident, np.round(out * 100).astype(int))
+        before = np.bincount(accident, np.round(paid * 100).astype(int))
+        self.assertTrue((total <= 5_000_000).all())
+        self.assertTrue((total[before > 5_000_000] == 5_000_000).all())
+        self.assertTrue((total[before <= 5_000_000] == before[before <= 5_000_000]).all())
+
+    def test_underinsured_benefit_is_reduced_by_the_other_insurer(self) -> None:
+        benefit, other = truth.underinsured(np.array([80_000.0, 20_000.0, 300_000.0]), 100_000, np.array([25_000, 25_000, 250_000]))
+        self.assertEqual(benefit.tolist(), [55_000.0, 0.0, 0.0])
+        self.assertEqual(other.tolist(), [25_000.0, 20_000.0, 250_000.0])
 
 
 class ChargeabilityTest(unittest.TestCase):

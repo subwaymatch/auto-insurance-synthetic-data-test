@@ -37,8 +37,9 @@ python validate.py
 `generate.py` writes 22 CSV tables to `output/` and an instructor answer key to
 `output/answer_key/` in about 45 seconds. `output/` is ignored by git: the published copy of the
 data is the releases above. `validate.py` re-reads those files and checks them
-against the calibration targets and for record-level consistency (vehicle lifecycles, what was
-known when each term was rated, policy dates, premium accounting and payments).
+for record-level consistency (vehicle lifecycles, what was known when each term was rated, policy
+dates, premium accounting, payments, and every coverage's limits and deductibles) and against the
+calibration targets, including a comparison with national figures on those figures' own definitions.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -111,25 +112,68 @@ machine with the pinned library versions, so a release can always be rebuilt exa
 
 | | |
 |---|---|
-| Policies / policy terms | 30,000 / 137,729 (13,747 of the terms were already in force on the start date) |
-| Drivers / vehicles | 53,114 / 75,749 (2,435 drivers left a policy; 16,458 vehicles traded in, 3,756 sold, 3,967 destroyed or stolen, 876 taken by a leaving driver) |
-| Risk rows / premium transactions | 305,419 (23.6% start at a mid-term change) / 184,921 (42,351 endorsements) |
-| Earned exposure | 122,667 car-years |
-| Earned premium | $128.8 million ($1,050 per car-year, $1,773 per policy-year) |
-| Claims / coverage features / reserve transactions | 12,776 / 23,579 / 77,392 (42% of closed liability features and 19% of closed physical damage features paid nothing) |
+| Policies / policy terms | 30,000 / 137,467 (13,747 of the terms were already in force on the start date) |
+| Drivers / vehicles | 53,108 / 76,043 (2,423 drivers left a policy; 16,398 vehicles traded in, 3,553 sold, 4,503 destroyed or stolen, 854 taken by a leaving driver) |
+| Risk rows / premium transactions | 305,578 (23.8% start at a mid-term change) / 185,204 (42,967 endorsements) |
+| Earned exposure | 122,684 car-years |
+| Earned premium | $136.5 million ($1,113 per car-year, $1,882 per policy-year) |
+| Claims / coverage features / reserve transactions | 14,042 / 24,847 / 81,313 (42% of closed liability and medical features and 17% of closed physical damage features paid nothing) |
 | Quotes | 85,273, of which 18.9% bound |
 
-Paid claim frequency and severity against the national figures they are tuned toward
-(Triple-I / ISO, 2022 to 2024):
+### Frequency and severity against national figures, like for like
 
-| Coverage | Claims per 100 car-years | National | Average paid claim | National |
-|---|---|---|---|---|
-| Bodily injury | 0.81 | 0.70 to 0.80 | $24,509 | $24,681 to $28,278 |
-| Property damage | 2.69 | 2.50 to 2.59 | $6,736 | $6,024 to $6,770 |
-| Collision | 5.18 | 4.16 to 4.48 | $4,965 | $5,377 to $5,521 |
-| Comprehensive | 3.80 | 3.78 to 4.08 | $2,252 | $2,175 to $2,306 |
+The national figures are Triple-I's table of ISO data, "Private Passenger Auto Insurance Losses,
+2015-2024". Its footnotes define them: paid claims per 100 earned car years, for all limits combined;
+bodily injury and property damage severity **include loss adjustment expenses**; collision and
+comprehensive are for coverage with a **$500 deductible**; and comprehensive **excludes wind and water
+losses** (and includes glass). The comparison below puts this dataset on the same definitions: claims
+are counted in the calendar year of their first loss payment, severity is that year's payments over
+those claims, liability payments include the expense booked to the claim, collision and comprehensive
+use only risk rows with a $500 deductible, and comprehensive leaves out hail, wind, flood and
+catastrophe claims.
 
-Frequencies sit at or a little above national on purpose, because the book is urban.
+| Coverage | Year | Claims per 100 car-years | National | Average paid | National |
+|---|---|---|---|---|---|
+| Bodily injury (with LAE) | 2022 | 0.36 | 0.70 | $18,793 | $24,681 |
+| | 2023 | 0.87 | 0.78 | $23,110 | $26,178 |
+| | 2024 | 0.88 | 0.80 | $28,825 | $28,278 |
+| Property damage (with LAE) | 2022 | 2.48 | 2.54 | $6,308 | $6,024 |
+| | 2023 | 2.91 | 2.59 | $6,254 | $6,554 |
+| | 2024 | 2.77 | 2.50 | $6,511 | $6,770 |
+| Collision ($500 deductible) | 2022 | 5.30 | 4.48 | $4,976 | $5,377 |
+| | 2023 | 5.56 | 4.48 | $5,637 | $5,521 |
+| | 2024 | 5.81 | 4.16 | $5,450 | $5,489 |
+| Comprehensive ($500 deductible, no wind or water) | 2022 | 4.02 | 3.78 | $2,168 | $2,175 |
+| | 2023 | 4.34 | 4.08 | $2,157 | $2,305 |
+| | 2024 | 4.34 | 3.95 | $1,842 | $2,306 |
+
+Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.10
+times national for bodily injury, 1.07 for property damage, 1.27 for collision and 1.08 for
+comprehensive, and severity 0.95, 0.98, 0.98 and 0.90 times national. `validate.py` prints this table
+for any run and holds frequency to 0.85 to 1.45 times national and severity to 0.85 to 1.15 times.
+
+What still differs, and how to read it:
+
+- **Geography.** The national table covers the whole country (less a few states). This book is one
+  metropolitan area, so it is tuned to run above national on frequency, most of all for collision.
+  National figures set a reasonable scale. They are not a Chicago benchmark or a single carrier's
+  experience, and nothing here has been checked against either.
+- **Bodily injury in 2022.** The extract has no claims from accidents before its start date, so the
+  first calendar year's payments are too few (injury claims take a year or more to settle). That
+  year is shown but not held to a band.
+- **Sampling.** A year has about 200 paid bodily injury claims and 450 comprehensive claims in the
+  $500 slice, so single-year severities move 10% or more by chance (comprehensive in 2024 is low in
+  this seed for that reason).
+- **Glass.** Glass claims under full glass cover carry no deductible here and are counted.
+- **Counting rules.** The source does not publish how it counts a claim (per claimant or per accident,
+  or when a claim counts as paid).
+
+Whole-extract figures on the dataset's own basis (every deductible and cause, loss only), which
+`validate.py` also holds to bands so that the book stays stable from seed to seed: bodily injury 0.76
+paid claims per 100 car-years at $24,383; property damage 2.65 at $6,487; collision 5.10 at $5,322;
+comprehensive 5.08 at $2,460. These are not comparable with the national table.
+
+### Loss ratios
 
 Loss ratio by accident year (net incurred losses excluding LAE as of the valuation date, over earned
 premium), against industry pure loss ratios (incurred losses excluding LAE over earned premium, direct,
@@ -137,20 +181,30 @@ calendar year):
 
 | | 2022 | 2023 | 2024 | 2025 | 2026 (nine months) |
 |---|---|---|---|---|---|
-| This dataset, actual | 74.8% | 74.5% | 71.1% | 61.4% | 56.6% |
-| This dataset, expected (answer key, free of claim luck) | 78.0% | 74.2% | 64.7% | 62.3% | 63.5% |
+| This dataset, actual | 78.8% | 73.9% | 64.0% | 60.4% | 56.5% |
+| This dataset, expected (answer key, free of claim luck) | 77.8% | 73.8% | 64.2% | 62.0% | 63.3% |
 | US private passenger auto | 80.2% | 75.4% | 66.1% | 61.5% | 60.4% (Q1) |
 | Illinois private passenger auto | 79.6% | 72.8% | 63.4% | 60.1% | |
 
 The book enters 2022 under-priced, as the industry did after pandemic-era rate cuts, and rate
 increases (+48% cumulative, close to the industry's +12.1% in 2022, +16.5% in 2023, +7.6% in 2024
-and +3.7% in 2025) bring it back. Overall it runs 67.0%, against about 70% for the US and 68% for
+and +3.7% in 2025) bring it back. Overall it runs 65.6%, against about 70% for the US and 68% for
 Illinois over 2022 to 2025. The expected loss ratio is held to the industry path by `validate.py`.
-The actual figures move several points a year on large injury claims alone (2024 drew high in this
-seed), so other seeds give different year-by-year figures within the same range. The 2026 figure is
-low because it is immature: young injury claims are reserved low and late-reported claims are missing.
-Add about 8 to 10 points of loss adjustment expense to compare with a loss-and-LAE ratio
-(industry LAE ran 8.0% to 10.2% of premium in 2022 to 2025); do not compare with combined ratios.
+The actual figures move several points a year on large injury claims alone, so other seeds give
+different year-by-year figures within the same range (2022 ran 77% to 85% across four seeds). The
+2026 figure is low because it is immature: young injury claims are reserved low and late-reported
+claims are missing.
+
+These are pure loss ratios. Three different ratios are easy to confuse:
+
+- **Pure loss ratio** (above): losses only.
+- **Loss and LAE ratio**: add loss adjustment expense. The expense booked to individual claims in
+  this dataset is 4% to 6% of premium for mature accident years (`claims_fact.Expense Amount`, shown
+  beside each year by `validate.py`). Industry LAE, which also includes claim department overhead not
+  booked to any claim, ran 8.0% to 10.2% of premium in 2022 to 2025.
+- **Combined ratio**: also adds commissions, other underwriting expenses and dividends. Nothing in
+  this dataset supports one; do not compare these figures with combined ratios.
+
 Sources: APCIA (2022), S&P Global Market Intelligence (2023 to 2026), Illinois Department of
 Insurance market share reports, S&P Global RateWatch, AM Best, Texas DOI Insurance Expense Exhibit.
 
@@ -160,17 +214,17 @@ Names follow the old dataset where an equivalent exists, so existing case materi
 
 | File | One row per | Notes |
 |---|---|---|
-| `policy_dimension` | Policy | Location, agency, company, limits, insurance score, status |
-| `policy_term_fact` | Policy term (6 or 12 months) | Dates (including the rating date), cancellation, written, endorsement, return and earned premium, rate level |
+| `policy_dimension` | Policy | Location, agency, company, limits, insurance score, status, and the drivers and vehicles on it at its latest status |
+| `policy_term_fact` | Policy term (6 or 12 months) | Dates (including the rating date), cancellation, vehicles at the term start, written, endorsement, return and earned premium, rate level |
 | `policy_transaction_fact` | Premium transaction | New business, renewal, endorsement or cancellation, with effective and processed (accounting) dates and the written premium booked |
 | `quote_fact` | Quote | Every new-business quote, bound or not: prospect profile, quoted premium, the competing premium on independent-agent quotes, and the policy it became |
 | `driver_dimension` | Driver | Demographics; violations and accidents in the 3 years before joining; good-student status when added; removed date and reason; SR-22 filing |
 | `driver_incident_fact` | Violation or at-fault accident | Motor vehicle record, prior carrier, or the company's own claim, with the conviction date and the date the insurer learned of it |
 | `vehicles_dimension` | Make and model | 110 models, as in the old file |
 | `insured_vehicle_dimension` | Insured vehicle | VIN prefix and vehicle symbols, model year, use, mileage, parking, current coverages (including rental and towing) and deductibles, added and removed dates, why it left, the vehicle it replaced |
-| `risk_fact` | Policy term, vehicle and endorsement period | Endorsement number and change reason, garaging location, rating date, rated characteristics and discounts, limits and deductibles, premium by coverage, cover dates, earned exposure |
+| `risk_fact` | Policy term, vehicle and endorsement period | Endorsement number and change reason, garaging location, rating date, rated characteristics and discounts, the coverage terms in force (limits, deductibles, full glass, rental option, towing), premium by coverage, cover dates, earned exposure |
 | `claims_fact` | Claim | Loss, report and close dates, cause, police report, the insured's share of fault, fraud referral, paid, reserves, recoveries |
-| `claim_coverage_fact` | Coverage (and injured claimant) on a claim | Paid, case and expense reserves, salvage, subrogation, expense by type (DCC and A&O), injury type, attorney and suit dates, reopen date, owner-retained salvage |
+| `claim_coverage_fact` | Coverage (and injured claimant) on a claim | Paid, case and expense reserves, salvage, subrogation, expense by type (DCC and A&O), uninsured or underinsured motorist type and the other insurer's payment, injury type, attorney and suit dates, reopen date, owner-retained salvage |
 | `claim_payment_fact` | Payment or recovery | Payment type and transaction type; supports paid development triangles |
 | `claim_reserve_fact` | Reserve change | Every change to a feature's loss or expense reserve, with the balance after it; with the payments, supports incurred development triangles |
 | `claim_expense_dimension` | Claim | Kept for compatibility with the old layout |
@@ -183,10 +237,19 @@ Names follow the old dataset where an equivalent exists, so existing case materi
 
 Keys: `Policy Number` (called `Policy ID` on claims and communications, as before),
 `Policy Term ID`, `Driver ID`, `Insured Vehicle ID`, `Vehicle ID` (make/model), `Location ID`,
-`Record ID` (risk row), `Claim ID`, `Claim Feature ID`, `Transaction ID`. Policy-level attributes in
-`policy_dimension` (location, homeowner, named insured, drivers) and coverages in
-`insured_vehicle_dimension` describe the policy as it stands at its latest status; `risk_fact` keeps
-the values each period was rated with.
+`Record ID` (risk row), `Claim ID`, `Claim Feature ID`, `Transaction ID`.
+
+**Current versus historical values.** The dimensions describe each policy, driver and vehicle as it
+stands at its latest status: on the valuation date if the policy is in force, otherwise on its last day
+of cover. That covers `policy_dimension` (location, homeowner, named insured, limits, `Number of
+Drivers`, `Number of Vehicles`) and the coverages on `insured_vehicle_dimension`. `risk_fact` is the
+effective-dated record: each row keeps the location, rated characteristics, limits, deductibles, full
+glass, rental option and towing that were in force for its dates. Use it, through `Record ID`, for
+anything historical. Joining a claim straight to `policy_dimension` gives today's address and
+limits, not those on the loss date: in the default run 33,220 risk rows (11%) have a different
+location from their policy's current one. `policy_term_fact.Vehicles at Term Start` is the count
+when the term began (its endorsement 0 rows); `policy_dimension.Number of Vehicles` is the count now.
+For a policy in force the two differ whenever a car was added or removed during the latest term.
 
 ### Mapping from the old dataset
 
@@ -241,9 +304,14 @@ the values each period was rated with.
   non-renewals and the customer's renewal decision use only incidents known by then.
   `driver_incident_fact.Known Date` is when each became known: a violation when the conviction
   posts to the driving record (about two months), an earlier accident when it reaches a
-  claims-history report, and the company's own at-fault claim on the day its payments reach the
-  $1,000 surcharge threshold. A claim that is reported or paid after a renewal's rating date
-  first counts at the next renewal.
+  claims-history report, and the company's own at-fault claim the day after the payment that takes
+  it to the $1,000 surcharge threshold. A claim that is reported or paid after a renewal's rating
+  date first counts at the next renewal.
+- **Order of events on one day.** The data holds dates, not times, so the order within a day is fixed
+  by one rule, used by the simulation and by `validate.py` alike: a rating dated D uses every record
+  whose `Known Date` is D or earlier, and a loss or a payment on D can never have a `Known Date` of
+  D, because a company claim posts the day after its payment. A policy change rated on the day of
+  an accident is therefore rated without that accident, whichever happened first that day.
 - **Household changes.** Mid-term changes happen on their own dates and each is an
   endorsement: the policy's risk rows end that day and new rows, re-rated with what is known
   that day, start (`risk_fact.Endorsement Number`, `Change Reason`, `Rating Date`). Rates come
@@ -257,7 +325,10 @@ the values each period was rated with.
   without collision cover, a loss the other driver's insurer paid, or a claim not pursued). About
   four in five households buy a replacement, which joins with a new `Insured Vehicle ID`
   (`Replaces Vehicle ID` points back) when it is bought, about five weeks later on average. A
-  one-car policy with no replacement is cancelled. Claims on the old vehicle keep developing.
+  one-car policy with no replacement is cancelled; one waiting for a replacement stays in force with
+  no vehicle until it arrives. Claims on the old vehicle keep developing. The extract shows a
+  removal as a total loss only once the company has that claim; until then the car is shown as
+  destroyed or stolen, and a car lost on the valuation date itself is still on the policy.
   A few owners keep a car the company paid as a total loss (`Owner Retained Salvage`); as Illinois
   law requires, only for hail damage or a car nine or more model years old. The salvage value
   comes off the settlement and the car loses physical damage cover at the next renewal.
@@ -273,12 +344,12 @@ the values each period was rated with.
   paid on the first estimate and topped up later; property damage may pay loss of use first;
   injury claims sometimes get an advance; medical payments follow the bills. Total losses may be
   split between lienholder and owner, with fees paid later. A few payments are voided and
-  reissued, and about 3% of paid features reopen for a supplement. Payments always add up to the
+  reissued, and about 2% of paid features reopen for a supplement. Payments always add up to the
   feature's paid loss to the cent.
 - **Claims that pay nothing.** As in real claim files, many features close without payment:
   liability claims against an insured who was not at fault, injury claims opened as a precaution
   and never pursued, and damage reported then withdrawn. They carry a nominal reserve while open.
-  About 42% of closed liability and medical features and 20% of closed collision and comprehensive
+  About 42% of closed liability and medical features and 17% of closed collision and comprehensive
   features pay nothing (industry 2025: about 45% and just under 25%).
 - **Reserves.** Each feature opens with a formula reserve and is re-estimated on a review cycle (every
   90 days for injury, 30 for physical damage). Early injury estimates average about 86% of ultimate and
@@ -287,15 +358,25 @@ the values each period was rated with.
   precautionary injury claims carry a nominal reserve. Litigated features also carry an expense
   reserve. `claim_reserve_fact` records every change, so incurred can be rebuilt as of any date.
 - **Claim detail.** About half of paid bodily injury claimants are represented by an attorney (57%
-  industry-wide in 2022, Insurance Research Council), mostly within days or weeks of the accident;
-  suits are filed within Illinois' two-year limit. At-fault insureds are 51% to 100% at fault, as
-  Illinois' modified comparative fault rule requires for a liability payment. Injury type follows
+  industry-wide in 2022, Insurance Research Council), mostly within days or weeks of the accident.
+  A litigated feature follows an ordered timeline: the attorney is retained, suit is filed after
+  both that and the claim being presented and within Illinois' two-year limit, and the feature
+  closes at least 30 days after the suit (a feature drawn to close sooner stays open longer).
+  At-fault insureds are 51% to 100% at fault, as Illinois' modified comparative fault rule requires
+  for a liability payment. `Insured Fault %` describes the accident only: settlements are not
+  reduced for the other party's share of fault (see "Assumptions and limits"). Injury type follows
   severity. Police reports, fraud referrals and SR-22 filings (three years after a DUI, driving while
   suspended or leaving the scene) are included.
-- **Coverages.** Uninsured motorist cover includes underinsured motorist, as in Illinois: when the
-  at-fault driver's limit is too low, the policy pays the excess up to its own limit. Rental
-  reimbursement (daily limit and per-claim maximum) pays while a car is repaired or replaced, and
-  towing and labor pays for tows after crashes. Liability limits can change at renewal.
+- **Coverages and limits.** Every payment respects the terms on the risk row it arose under, which
+  `validate.py` checks coverage by coverage. Bodily injury and uninsured motorist payments are held
+  to the per-person limit and, across an accident's claimants, to the per-accident limit, shared pro
+  rata in whole cents so they total the limit exactly. Uninsured motorist cover includes underinsured
+  motorist, as in Illinois (`UM/UIM Type` tells the two apart): when the at-fault driver's limit is
+  too low, the policy pays each claimant's damages up to its per-person limit less what that
+  driver's insurer paid (`Other Insurer Payment`), and for the accident no more than its
+  per-accident limit less everything that insurer paid. Rental reimbursement (daily limit and
+  per-claim maximum) pays while a car is repaired or replaced, and towing and labor pays for tows
+  after crashes. Liability limits can change at renewal.
 - **Quotes.** New business is a funnel: every policy began as a bound quote, and unbound quotes come
   from prospects rated with the same plan. Conversion depends on the channel (about 12% direct, 24%
   through independent agents, 41% through exclusive agents) and falls as the quote rises above the
@@ -317,13 +398,13 @@ Deliberate and emergent findings in the default run:
 
 | Finding | What the data shows |
 |---|---|
-| Young drivers are under-priced | Expected loss ratio 74% to 90% for classes under 25, against about 67% for ages 25 to 64 |
-| Mileage is under-used | Expected loss ratio rises from 62% under 5,000 miles to 83% at 16,000+ |
-| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 vehicle-years for affected models peak at 8.7 in 2023, against about 1.0 for others |
-| Automatic emergency braking is unpriced | Expected loss ratio 64.8% with it, 70.3% without |
-| Rates lagged costs, then caught up | Expected loss ratio falls from 78% (2022) and 74% (2023) to 65% and 62% (2024, 2025), as the industry's did |
-| Case reserves develop | Bodily injury incurred grows by about 10% from 12 to 24 months as early, low reserves are corrected; collision barely moves |
-| New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 36% of the time, those above 13% |
+| Young drivers are under-priced | Expected loss ratio 75% to 89% for classes under 25, against about 66% for ages 25 to 64 |
+| Mileage is under-used | Expected loss ratio rises from 62% under 5,000 miles to 82% at 16,000+ |
+| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 vehicle-years for affected models peak at 9.7 in 2023, against about 1.0 for others |
+| Automatic emergency braking is unpriced | Expected loss ratio 64.8% with it, 69.7% without |
+| Rates lagged costs, then caught up | Expected loss ratio falls from 78% (2022) and 74% (2023) to 64% and 62% (2024, 2025), as the industry's did |
+| Case reserves develop | Bodily injury incurred grows by 5% to 16% from 12 to 24 months as early, low reserves are corrected; collision moves 1% to 3% |
+| New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 36% of the time, those above 12% |
 | Insurance score is priced correctly | Premium more than doubles from best to worst tier; expected loss ratio is flat |
 | The newest year is not fully known | Late-reported claims are missing, open claims carry imperfect reserves, and closed claims can reopen |
 | Price increases cost retention | Renewal probability falls with the size of the increase |
@@ -335,11 +416,12 @@ hit-while-parked claims, and each ZIP has a hazard component the territories do 
 
 ### Geography and race
 
-Premiums are higher in ZIP codes with more non-white residents (ZIP-level correlation 0.71),
+Premiums are higher in ZIP codes with more non-white residents (ZIP-level correlation 0.73),
 because the real crash and theft data behind the hazard indices is higher there. This follows
 real-world premium patterns and was left in deliberately. The expected loss ratio barely varies
-with a ZIP's racial make-up (correlation -0.05): the model plants no over- or under-charging by
-area. ZIP-level correlations say nothing about individuals, causes or actuarial fairness. No person-level race field exists, and names are drawn at random with no link to ZIP.
+with a ZIP's racial make-up (correlation -0.07): the model plants no over- or under-charging by
+area. ZIP-level correlations say nothing about individuals, causes or actuarial fairness, and a
+relationship planted in synthetic data is not evidence about how real insurers price. No person-level race field exists, and names are drawn at random with no link to ZIP.
 
 ## Assumptions and limits
 
@@ -350,9 +432,26 @@ All assumptions live in `autoins/config.py`, each marked ANCHORED (published fig
   Suburban ZIPs get the city's income gradient at an assumed lower level.
 - **City hazard is damped.** Raw police-record rates vary about sevenfold across city ZIPs; an
   exponent narrows that to a range typical of rating territories.
-- **Benchmarks are national**, not Illinois-specific, and cost trends for 2025 and 2026 are
-  assumed.
-- **The rate schedule is stylised**: about +44% cumulative between April 2022 and March 2025.
+- **Benchmarks are national**, not Illinois-specific or carrier-specific, and cost trends for 2025
+  and 2026 are assumed. Frequency and severity are compared on the national table's own definitions
+  (see "Frequency and severity against national figures"), which shows the overall scale is
+  reasonable. It does not validate anything finer: results by subgroup, how variables depend on
+  each other, large-loss tails or local geography are assumed or tuned, not checked against data.
+- **The rating plan is fitted to the truth.** Relativities are fitted directly to the simulator's
+  true expected losses on the opening book, then distorted on purpose. A real carrier estimates its
+  costs from noisy past losses, with filing and implementation lags, so the plan here is cleaner
+  and more adequate than a real one. It is a teaching design, not evidence about a real carrier.
+- **Fault is descriptive.** `Insured Fault %` is drawn for each accident after its losses and does
+  not change what is paid. Liability settlements are not reduced for a claimant's own share of fault,
+  and there is no allocation of fault among several parties. Treat it as a scenario attribute, not
+  as a comparative-negligence model.
+- **No claims from before the start date.** Loss events begin on the start date, even for policies
+  already in force. There is no opening inventory of open claims and no payments or reserve changes
+  on earlier accident years. Development triangles for accident years 2022 onward are complete;
+  whole-company calendar-year payments and reserves are not (the first calendar year pays too
+  little). Moving the start date does not create that history.
+- **The rate schedule is stylised**: +48% cumulative between April 2022 and March 2025, then a 2%
+  cut in June 2026.
 - **Catastrophes are fictional.** Dates and footprints are plausible for northern Illinois but
   do not correspond to actual storms.
 - **Household dynamics are partly sourced.** Mover, divorce, marriage, mortality, licensing and
@@ -369,9 +468,14 @@ All assumptions live in `autoins/config.py`, each marked ANCHORED (published fig
 - **Identifiers and symbols are fictional.** VIN prefixes have the statistical-plan shape but begin
   with `0`, which no manufacturing region uses, and the vehicle symbols are this dataset's own scales,
   not ISO's licensed ones.
+- **Claimants are not people.** A liability or injury feature has a claimant number within its claim,
+  and `claims_fact.Claimant Id` is the insured driver involved. There is no table of third-party
+  claimants who can be followed from one claim to another.
 - **Not modelled:** fraud itself (only referrals), telematics, uninsured motorist property damage,
   billing and installment events, reinstatements, excluded drivers, separate mailing and garaging
-  addresses, reinsurance, and the edit errors and out-of-sequence bookings of production data.
+  addresses, reinsurance, and the edit errors and out-of-sequence bookings of production data. The
+  dataset is an analytical extract for teaching: it is not a model of a policy administration,
+  billing or claims system.
 
 ## How it compares with an insurer's own data
 
@@ -397,6 +501,8 @@ Real data would still have, and this dataset does not:
 
 | Gap | Real-world source |
 |---|---|
+| Claims open on the start date and their later payments (an opening claim inventory) | Claim systems |
+| Third-party claimants as people who can be followed across claims | Claim systems |
 | Billing and installment events, reinstatements after a lapse | Billing systems |
 | Excluded drivers; separate mailing and garaging addresses | Policy systems; statistical plans report the garaging ZIP |
 | Uninsured motorist property damage; custom equipment and loan/lease gap coverages | Illinois coverage menu |
@@ -420,7 +526,8 @@ vehicle symbols.
 | ZIP place names | GeoNames postal code data, CC BY 4.0 |
 | City crash hazard, seasonality | City of Chicago Data Portal, Traffic Crashes (drivers by home ZIP, 2021-2025) |
 | City theft hazard, seasonality, yearly trend | City of Chicago Data Portal, Crimes (motor vehicle theft, 2021-2026) |
-| Frequency and severity targets | Triple-I / ISO, private passenger auto losses 2015-2024 |
+| Frequency and severity benchmark | Triple-I, "Facts + Statistics: Auto insurance", table "Private Passenger Auto Insurance Losses, 2015-2024" (source: ISO, a Verisk business), with its footnotes on expenses, deductible and excluded losses |
+| Underinsured motorist limits | 215 ILCS 5/143a-2(4) (limits less amounts recovered from the at-fault driver's insurer) |
 | Loss ratio and rate change calibration | APCIA; S&P Global Market Intelligence and RateWatch; AM Best; Illinois Department of Insurance market share and cost containment reports; Texas DOI Insurance Expense Exhibit (LAE) |
 | Minimum limits | Illinois Department of Insurance (25/50/20, uninsured motorist 25/50) |
 | Physical damage take-up | NAIC Auto Insurance Database, average premium supplement 2023 (Illinois collision and comprehensive per liability car-year) |

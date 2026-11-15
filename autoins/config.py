@@ -188,21 +188,23 @@ BUSINESS_USE_FACTOR = 1.10
 ADAS_FREQ_FACTOR = {"AF_MV": 0.86, "AF_SV": 0.95}   # automatic emergency braking (ASSUMED, direction per IIHS)
 ZIP_RANDOM_EFFECT_SIGMA = {"crash": 0.12, "theft": 0.20}   # true ZIP hazard the insurer cannot see
 
-# Base annual occurrence rates by peril (TUNED to the frequency targets in validate.py)
+# Base annual occurrence rates by peril (TUNED to the frequency targets in validate.py). The national
+# benchmark for comprehensive excludes wind and water losses and is for a $500 deductible, so glass, theft,
+# vandalism, animal and other losses are tuned against it on that basis, and weather comes on top.
 BASE_RATE = {
     "AF_MV": 0.0377,        # insured at fault, another vehicle involved
     "AF_SV": 0.0123,        # insured at fault, single vehicle
     "NAF": 0.0348,          # insured not at fault
     "PARKED": 0.0152,       # hit while parked / unoccupied
-    "GLASS": 0.0300,
+    "GLASS": 0.0360,
     "THEFT_TOTAL": 0.0011,
-    "THEFT_PARTIAL": 0.0030,
-    "VANDALISM": 0.0024,
-    "ANIMAL": 0.0034,
+    "THEFT_PARTIAL": 0.0050,
+    "VANDALISM": 0.0040,
+    "ANIMAL": 0.0044,
     "WEATHER": 0.0052,      # non-catastrophe hail, wind, falling limbs
     "FLOOD": 0.0004,
     "FIRE": 0.0004,
-    "OTHER_COMP": 0.0028,
+    "OTHER_COMP": 0.0044,
 }
 SEGMENT_FREQ = {"economy": 1.05, "mainstream": 1.00, "luxury": 1.00, "truck": 0.97, "sports": 1.25,
                 "ev": 1.05, "minivan": 0.88}
@@ -231,23 +233,24 @@ GLASS_SEASONALITY = [1.20, 1.15, 1.10, 1.00, 0.95, 0.90, 0.90, 0.90, 0.90, 0.95,
 SEVERITY_TREND = {
     "BI":   {2021: 0.66, 2022: 0.75, 2023: 0.87, 2024: 1.00, 2025: 1.10, 2026: 1.18},
     "PD":   {2021: 0.76, 2022: 0.86, 2023: 0.955, 2024: 1.00, 2025: 1.04, 2026: 1.08},
-    "COLL": {2021: 0.82, 2022: 0.93, 2023: 0.985, 2024: 1.00, 2025: 1.03, 2026: 1.06},
+    "COLL": {2021: 0.85, 2022: 0.96, 2023: 0.99, 2024: 1.00, 2025: 1.03, 2026: 1.06},
     "COMP": {2021: 0.82, 2022: 0.90, 2023: 0.97, 2024: 1.00, 2025: 1.03, 2026: 1.06},
 }
 USED_CAR_VALUE_INDEX = {2021: 1.10, 2022: 1.20, 2023: 1.15, 2024: 1.10, 2025: 1.10, 2026: 1.11}   # ASSUMED shape
 
-# Severity medians/sigmas at the 2024 level (lognormal; TUNED to the severity targets)
+# Severity medians/sigmas at the 2024 level (lognormal; TUNED to the severity targets, compared with the
+# national figures on their own definitions: see BENCHMARK in validate.py)
 PD_SEV = dict(median=4_450, sigma=0.95)
 BI_SEV = dict(median=20_000, sigma=1.40)
 UM_SEV = dict(median=9_500, sigma=1.35)
 MED_SEV = dict(median=1_900, sigma=0.95)
-COLL_SEV = dict(median=4_700, sigma=0.95)          # ground-up repair cost for a reference vehicle
+COLL_SEV = dict(median=5_000, sigma=0.95)          # ground-up repair cost for a reference vehicle
 COLL_PERIL_SEV = {"AF_MV": 1.00, "AF_SV": 1.30, "NAF": 0.95, "PARKED": 0.55}
 TOTAL_LOSS_THRESHOLD = 0.72                         # repair cost / actual cash value
 SALVAGE_RANGE = (0.12, 0.32)                        # share of actual cash value recovered on a total loss
 COMP_SEV = {                                        # lognormal (median, sigma) unless noted
-    "GLASS": (520, 0.60), "THEFT_PARTIAL": (1_700, 0.90), "VANDALISM": (1_400, 0.90),
-    "ANIMAL": (4_500, 0.70), "WEATHER": (2_700, 0.90), "OTHER_COMP": (1_200, 0.90),
+    "GLASS": (700, 0.60), "THEFT_PARTIAL": (2_600, 0.90), "VANDALISM": (2_100, 0.90),
+    "ANIMAL": (5_500, 0.70), "WEATHER": (2_700, 0.90), "OTHER_COMP": (1_800, 0.90),
     "HAIL_CAT": (3_900, 0.75), "WIND_CAT": (2_300, 0.85),
 }
 GLASS_ADAS_FACTOR = 1.7                             # windshield camera recalibration
@@ -278,8 +281,12 @@ P_INJURY_NOT_PURSUED = {"AF_MV": 0.55, "AF_SV": 0.08}   # an injury claim is ope
 P_FIRST_PARTY_WITHDRAWN = 0.60                       # damage reported, then not pursued (or paid by the other insurer)
 P_COMP_ONLY = 0.29     # vehicles without collision that carry comprehensive (Illinois: 82.6% collision and 87.5%
                        # comprehensive per liability car-year, NAIC Auto Insurance Database 2023)
-CHARGEABLE_THRESHOLD = 1_000        # paid amount that makes an at-fault claim surchargeable; the claim becomes
-                                    # chargeable on the day cumulative PD, BI and collision payments reach it
+CHARGEABLE_THRESHOLD = 1_000        # paid amount that makes an at-fault claim surchargeable: cumulative PD, BI
+                                    # and collision payments reaching it
+CHARGEABLE_POSTING_DAYS = 1         # the claim goes on the driver's record this many days after that payment is
+                                    # booked. With dates only, this fixes the order of events on one day: a
+                                    # rating dated D uses records with a known date of D or earlier, and nothing
+                                    # that happens on D itself (a loss or a payment) can carry a known date of D
 
 # --------------------------------------------------------------------------
 # Driver record (ASSUMED rates; tuned so ~84% of drivers have no violation in 3 years)
@@ -306,7 +313,7 @@ TARGET_LOSS_RATIO = 0.775           # at day-one cost levels, before catastrophe
                                     # as the industry was entering 2022 after pandemic-era rate cuts (TUNED so
                                     # accident-year loss ratios follow the industry: about 80% in 2022, 73-75%
                                     # in 2023, 63-66% in 2024 and about 61% in 2025; see validate.py)
-COMP_CAT_LOAD = 1.22                # catastrophe provision in comprehensive rates
+COMP_CAT_LOAD = 1.16                # catastrophe provision in comprehensive rates
 N_TERRITORIES = 12
 PLANTED_DISTORTIONS = {
     "class": {"16-17 M": 0.80, "16-17 F": 0.80, "18-20 M": 0.82, "18-20 F": 0.82,
