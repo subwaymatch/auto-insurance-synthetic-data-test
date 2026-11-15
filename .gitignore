@@ -4,3 +4,4 @@ reference/_cache/
 __pycache__/
 *.pyc
 *.zip
+output/

@@ -29,7 +29,31 @@ MEAN_SALVAGE = float(np.mean(C.SALVAGE_RANGE))
 MEAN_SUBRO = float(np.mean(C.SUBROGATION_SHARE))
 
 
+def _rental_means() -> np.ndarray:
+    """Expected rental reimbursement per rental, by option and by repair (0) or replacement after a total loss (1)."""
+    z = normal_grid(K)
+    cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * z)
+    out = np.zeros((len(C.RENTAL_OPTIONS), 2))
+    for j, kind in enumerate(("repair", "total")):
+        days = np.ceil(C.RENTAL_DAYS[kind]["median"] * np.exp(C.RENTAL_DAYS[kind]["sigma"] * z))
+        for o, (daily, most) in enumerate(C.RENTAL_OPTIONS):
+            out[o, j] = np.minimum(days[:, None] * np.minimum(cost[None, :], daily), most).mean()
+    return out
+
+
+RENTAL_MEAN = _rental_means()
+TOW_MEAN = float(np.minimum(C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * ZG), C.TOWING_LIMIT).mean())
+
+
 # ---------------------------------------------------------------------------- drivers and vehicles
+def good_student(good_grades, school_end_day, dob_day, day) -> np.ndarray:
+    """Good-student status on `day`: B grades, still in full-time school, and under the age limit.
+    The same rule drives the insurer's discount and the true-risk effect, so neither outlives school."""
+    day = np.asarray(day)
+    return np.asarray(good_grades, dtype=bool) & (day < np.asarray(school_end_day)) \
+        & ((day - np.asarray(dob_day)) / 365.25 < C.GOOD_STUDENT_MAX_AGE)
+
+
 def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
     """At-fault accident propensity of each driver on a given day, relative to a reference driver."""
     age = (np.asarray(day) - drv.dob_day.to_numpy()) / 365.25
@@ -38,7 +62,8 @@ def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
     f = f * (1 + C.YOUNG_MALE_EXTRA * np.clip((27 - age) / 9, 0, 1) * drv.male.to_numpy())
     f = f * np.where(drv.marital.to_numpy() == "M", C.MARRIED_FACTOR, 1.0)
     f = f * np.interp(licensed, C.INEXPERIENCE_KNOTS, C.INEXPERIENCE_FACTOR)
-    f = f * np.where(drv.good_student.to_numpy(), C.GOOD_STUDENT_FACTOR, 1.0)
+    gs = good_student(drv.good_grades.to_numpy(), drv.school_end_day.to_numpy(), drv.dob_day.to_numpy(), day)
+    f = f * np.where(gs, C.GOOD_STUDENT_FACTOR, 1.0)
     return f * drv.latent.to_numpy()
 
 
@@ -70,19 +95,23 @@ def collision(z, peril_factor, repair_factor, trend, acv, deductible):
 
 
 def comp_gross(peril: str, z, u, repair_factor, adas, trend, acv):
+    """Returns (gross loss, total-loss flag). As for collision, damage at or above the total-loss
+    threshold makes the vehicle a total loss, settled at its actual cash value."""
     if peril == "THEFT_TOTAL":      # 40% recovered with damage, 60% never recovered
-        share = np.where(u < 0.40, 0.08 + u / 0.40 * 0.42, 0.90 + (u - 0.40) / 0.60 * 0.10)
-        return acv * share
-    if peril in ("FLOOD", "FLOOD_CAT"):
-        return acv * np.where(u < 0.50, 0.10 + u / 0.50 * 0.40, 0.80 + (u - 0.50) / 0.50 * 0.20)
-    if peril == "FIRE":
-        return acv * (0.20 + 0.80 * u)
-    median, sigma = C.COMP_SEV[peril]
-    if peril == "GLASS":
-        median = median * np.where(adas, C.GLASS_ADAS_FACTOR, 1.0)
-    elif peril == "ANIMAL":
-        median = median * repair_factor ** 0.6
-    return np.minimum(median * trend * np.exp(sigma * z), acv)
+        damage = acv * np.where(u < 0.40, 0.08 + u / 0.40 * 0.42, 1.0)
+    elif peril in ("FLOOD", "FLOOD_CAT"):
+        damage = acv * np.where(u < 0.50, 0.10 + u / 0.50 * 0.40, 0.80 + (u - 0.50) / 0.50 * 0.20)
+    elif peril == "FIRE":
+        damage = acv * (0.20 + 0.80 * u)
+    else:
+        median, sigma = C.COMP_SEV[peril]
+        if peril == "GLASS":
+            median = median * np.where(adas, C.GLASS_ADAS_FACTOR, 1.0)
+        elif peril == "ANIMAL":
+            median = median * repair_factor ** 0.6
+        damage = median * trend * np.exp(sigma * z)
+    total = (damage >= C.TOTAL_LOSS_THRESHOLD * acv) & (peril != "GLASS")
+    return np.where(total, acv, np.minimum(damage, acv)), total
 
 
 # ---------------------------------------------------------------------------- per-vehicle context
@@ -119,24 +148,45 @@ class Static:
         v["pd_factor"] = np.array([C.SEGMENT_PD_SEV.get(s, 1.0) for s in seg]) * np.where(v["body_type"] == "SUV", C.SUV_PD_SEV, 1.0)
         v["bi_factor"] = np.array([C.SEGMENT_BI_SEV.get(s, 1.0) for s in seg])
         v["mile_rel"] = v["true_miles"] / 10_000
-        v["seg_code"] = np.array([SEGMENTS.index(x) for x in seg])
+        v["seg_code"] = np.array([SEGMENTS.index(x) for x in seg], dtype=int)
         v["use_factor"] = np.where(v["use"] == "Business", C.BUSINESS_USE_FACTOR, 1.0)
         v["zi"] = self.p["zi"][v["pol"]]
         return v
 
-    def replace_vehicles(self, old: np.ndarray, new: pd.DataFrame, day: np.ndarray) -> None:
-        """Retire vehicles `old` on `day` and add their replacements, which inherit the drivers."""
-        first_new = len(self.v["pol"])
+    def retire(self, old: np.ndarray, day: np.ndarray, reason: int) -> None:
+        """Take vehicles `old` off their policies from `day` (the first day they are not insured)."""
         self.v["active"][old] = False
         self.v["removed_day"][old] = day
+        self.v["removal_reason"][old] = reason
+
+    def add_vehicles(self, new: pd.DataFrame) -> None:
+        """Append vehicles (new must carry every stored vehicle column). Call set_usage before simulating them."""
+        if len(new) == 0:
+            return
         add = self._columns(new[[c for c in self.v if c in new.columns]])
         self.v = {k: np.concatenate([a, add[k]]) for k, a in self.v.items()}
+
+    def add_replacements(self, old: np.ndarray, new: pd.DataFrame) -> None:
+        """Add vehicles `new` (one per entry of `old`), which inherit the drivers of the vehicles they replace."""
+        first_new = len(self.v["pol"])
+        self.add_vehicles(new)
         new_id = np.full(first_new, -1)
         new_id[old] = first_new + np.arange(len(old))
         m = new_id[self.u_veh] >= 0
         self.u_veh = np.concatenate([self.u_veh, new_id[self.u_veh[m]]])
         self.u_drv = np.concatenate([self.u_drv, self.u_drv[m]])
         self.u_w = np.concatenate([self.u_w, self.u_w[m]])
+
+    def set_usage(self, usage: pd.DataFrame) -> None:
+        self.u_veh, self.u_drv, self.u_w = usage.veh.to_numpy(), usage.drv.to_numpy(), usage.weight.to_numpy()
+
+
+def set_window(c: dict, cal: Calendar, s: np.ndarray, x: np.ndarray) -> None:
+    """Change the exposure window of a context (used when a total loss ends a vehicle's cover early).
+    Severity and vehicle value stay as simulated; only the exposure behind the expected loss changes."""
+    c["s"], c["x"] = s, x
+    c["expo"] = {k: cal.exposure(PERIL_GROUP[k], s, x) for k in c["rate"]}
+    c["expo"]["THEFT_TOTAL"] = np.where(c["kh"], cal.exposure("theft_kh", s, x), c["expo"]["THEFT_TOTAL"])
 
 
 def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarray, cost_day=None) -> dict:
@@ -192,8 +242,7 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     }
     kh = v["kia_hyundai"][V]
     c["kh"] = kh
-    c["expo"] = {k: cal.exposure(PERIL_GROUP[k], s, x) for k in c["rate"]}
-    c["expo"]["THEFT_TOTAL"] = np.where(kh, cal.exposure("theft_kh", s, x), c["expo"]["THEFT_TOTAL"])
+    set_window(c, cal, s, x)
 
     # coverage terms and cost levels
     bi = np.array(C.BI_LIMITS)
@@ -205,11 +254,13 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     c["coll_ded"] = np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]]
     c["comp_ded"] = np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]]
     c["glass_ded"] = np.where(v["full_glass"][V], 0, c["comp_ded"])
+    c["has_rent"], c["rent_opt"], c["has_tow"] = v["has_rent"][V], v["rent_opt"][V], v["has_tow"][V]
     c["acv"] = actual_cash_value(v["msrp"][V], v["model_year"][V], mid, cal) * cal.used_car[cost] / cal.used_car[mid]
     age = (cal.year_frac(mid) - v["model_year"][V] + 0.5).clip(0)
     c["repair"] = (v["msrp"][V] / 32_000) ** 0.5 * np.where(adas, 1.12, 1.0) * np.where(v["segment"][V] == "ev", 1.15, 1.0) \
         * np.clip(1.05 - 0.012 * age, 0.80, 1.05)
     c["adas"], c["pd_factor"], c["bi_factor"], c["park"] = adas, v["pd_factor"][V], v["bi_factor"][V], park
+    c["model_year"] = v["model_year"][V]
     c["p_bi"] = np.clip(C.P_BI_GIVEN_AF_MV * crash ** C.BI_TERRITORY_EXPONENT, 0, 0.6)
     c["p_un"] = zt["p_other_driver_uninsured"][zi]
     c["cost"] = cost
@@ -232,11 +283,15 @@ def expected(c: dict, cal: Calendar) -> dict:
     e_bi = injury_paid(ZG, col(c["bi_pp"]), col(c["bi_factor"]), t["BI"], C.BI_SEV).mean(1)
     E["BI"] = (n["AF_MV"] * c["p_bi"] + n["AF_SV"] * C.P_BI_GIVEN_AF_SV) * MEAN_CLAIMANTS * (1 - C.CWP["BI"]) * e_bi
     e_um = injury_paid(ZG, col(c["um_pp"]), 1.0, t["BI"], C.UM_SEV).mean(1)
-    E["UM"] = n["NAF"] * c["p_un"] * C.P_UM_INJURY * MEAN_CLAIMANTS * (1 - C.CWP["UM"]) * e_um
+    g = C.UM_SEV["median"] * t["BI"] * np.exp(C.UM_SEV["sigma"] * ZG)      # underinsured: the excess over the other limit
+    e_uim = sum(w * np.maximum(np.minimum(g, col(c["um_pp"])) - np.minimum(g, lim), 0).mean(1)
+                for lim, w in C.OTHER_DRIVER_BI_LIMIT.items())
+    E["UM"] = n["NAF"] * C.P_UM_INJURY * MEAN_CLAIMANTS * (1 - C.CWP["UM"]) * (c["p_un"] * e_um + (1 - c["p_un"]) * e_uim)
     e_med = med_paid(ZG, col(np.maximum(c["med_lim"], 1)), t["BI"]).mean(1)
     E["MED"] = (c["med_lim"] > 0) * sum(n[k] * q for k, q in C.P_MED.items()) * (1 - C.CWP["MED"]) * e_med
 
     coll = np.zeros(c["n"])
+    rentals = np.zeros((c["n"], 2))                # expected paid repairs and total losses that lead to a rental
     acv, ded, rep = col(c["acv"]), col(c["coll_ded"]), col(c["repair"])
     for k in DRIVING_PERILS:
         _, paid, total = collision(ZG, C.COLL_PERIL_SEV[k], rep, t["COLL"], acv, ded)
@@ -244,17 +299,33 @@ def expected(c: dict, cal: Calendar) -> dict:
         if k == "NAF":
             insured_other = C.P_FILE_COLL["NAF"] * (1 - C.P_SUBROGATION["NAF"] * MEAN_SUBRO)
             coll += n[k] * net * (c["p_un"] * C.P_FILE_COLL["NAF_UNINSURED"] + (1 - c["p_un"]) * insured_other)
+            filed = c["p_un"] * C.P_FILE_COLL["NAF_UNINSURED"] + (1 - c["p_un"]) * C.P_FILE_COLL["NAF"]
         else:
             coll += n[k] * net * C.P_FILE_COLL[k] * (1 - C.P_SUBROGATION.get(k, 0.0) * MEAN_SUBRO)
+            filed = C.P_FILE_COLL[k]
+        paid_n = n[k] * filed * (1 - C.CWP["COLL"])
+        rentals += paid_n[:, None] * np.stack([((paid > 0) & ~total).mean(1), ((paid > 0) & total).mean(1)], axis=1)
     E["COLL"] = c["has_coll"] * coll
 
     comp = np.zeros(c["n"])
     for k in COMP_PERILS:
-        gross = comp_gross(k, ZG, UG, rep, col(c["adas"]).astype(bool), t["COMP"], acv)
-        d = col(c["glass_ded"] if k == "GLASS" else c["comp_ded"])
-        comp += n[k] * np.maximum(gross - d, 0).mean(1) * (1 - C.CWP["COMP"])
+        gross, total = comp_gross(k, ZG, UG, rep, col(c["adas"]).astype(bool), t["COMP"], acv)
+        paid = np.maximum(gross - col(c["glass_ded"] if k == "GLASS" else c["comp_ded"]), 0)
+        salvage = np.minimum(salvageable(k, total, UG) * acv * MEAN_SALVAGE, paid)
+        comp += n[k] * (paid - salvage).mean(1) * (1 - C.CWP["COMP"])
+        if k != "GLASS":
+            rentals += (n[k] * (1 - C.CWP["COMP"]))[:, None] * np.stack(
+                [((paid > 0) & ~total).mean(1), ((paid > 0) & total).mean(1)], axis=1)
     E["COMP"] = c["has_comp"] * comp
+    per_rental = RENTAL_MEAN[c["rent_opt"]]
+    E["RENT"] = c["has_rent"] * C.RENTAL_USE_P * (1 - C.CWP["RENT"]) * (rentals * per_rental).sum(1)
+    E["TOW"] = c["has_tow"] * (1 - C.CWP["TOW"]) * TOW_MEAN * sum(n[k] * q for k, q in C.TOW_P.items())
     return E
+
+
+def salvageable(peril: str, total, u):
+    """Total losses that leave a wreck to sell (every one except a theft that is never recovered)."""
+    return total & ~((peril == "THEFT_TOTAL") & (u >= 0.40))
 
 
 # ---------------------------------------------------------------------------- claim simulation
@@ -264,10 +335,25 @@ def _pick_driver(c, key, vi, rng):
 
 
 def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_offset: int):
-    """Simulate losses for the vehicles in context c. Returns (occurrences, features) as DataFrames.
-    An occurrence is one loss event; a feature is one coverage (and claimant) paying on it."""
-    occs, feats = [], []
+    """Simulate losses for the vehicles in context c. Returns (occurrences, features, wrecks, next occurrence id).
+    An occurrence is one loss event; a feature is one coverage (and claimant) paying on it. A wreck is a
+    vehicle destroyed or stolen without a company-paid total loss (no physical damage cover, the other
+    driver's insurer paid, or the claim was not paid); it leaves the policy all the same."""
+    occs, feats, wrecks = [], [], []
     n_occ = occ_offset
+
+    def wreck(vi, day, ids):
+        wrecks.append(pd.DataFrame(dict(vrow=vi, day=day, occ=ids)))
+
+    def settle_total(paid, total, salvage_value, vi, day, hail=False):
+        """Paid total losses: usually the insurer takes the wreck and sells it; a few owners keep it, and
+        the salvage value comes off the settlement instead. Illinois allows that only for hail damage or a
+        car 9 or more model years old. Returns (paid, salvage recovery, owner retained)."""
+        eligible = hail | (cal.year[np.clip(day, 0, cal.horizon - 1)] - c["model_year"][vi] >= C.OWNER_RETAINED_MIN_AGE)
+        retained = total & eligible & (salvage_value > 0) & (paid - salvage_value > 0) \
+            & (rng.random(len(paid)) < C.P_OWNER_RETAINED_SALVAGE)
+        salvage = np.where(retained, 0.0, np.minimum(total * salvage_value, paid))
+        return np.where(retained, paid - salvage_value, paid), salvage, retained
 
     def new_occurrences(peril, vi, day, driver, at_fault=False, cat=-1, uninsured=None):
         nonlocal n_occ
@@ -278,9 +364,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                                       other_uninsured=False if uninsured is None else uninsured)))
         return ids
 
-    def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0):
+    def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False):
         feats.append(pd.DataFrame(dict(occ=ids, cvg=cov, claimant=claimant, gross=gross, paid=np.where(cwp, 0.0, paid),
-                                       cwp=cwp, total=total, salvage=salvage, subro=subro)))
+                                       cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
+                                       nominal=nominal)))
 
     def injury_features(cov, ids, vi, day, sev, pp, pa, factor):
         if len(ids) == 0:
@@ -296,20 +383,25 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         add(cov, ids[o], gross, paid, cwp, claimant=claimant)
 
     def collision_features(peril, ids, vi, day, file_p, subro_p):
-        m = c["has_coll"][vi] & (rng.random(len(vi)) < file_p)
-        ids, vi, day = ids[m], vi[m], day[m]
-        if len(ids) == 0:
-            return
+        # the damage to the insured car happens whether or not anyone claims it from us
         gross, paid, total = collision(rng.standard_normal(len(vi)), C.COLL_PERIL_SEV[peril], c["repair"][vi],
                                        _trend(cal, "COLL", day), c["acv"][vi], c["coll_ded"][vi])
+        filed = c["has_coll"][vi] & (rng.random(len(vi)) < file_p)
         below = paid <= 0
-        keep = ~below | (rng.random(len(vi)) < C.P_FILE_BELOW_DEDUCTIBLE)
-        cwp = below | (rng.random(len(vi)) < C.CWP["COLL"])
+        withdrawn = c["has_coll"][vi] & ~filed & (rng.random(len(vi)) < C.P_FIRST_PARTY_WITHDRAWN)
+        keep = filed & (~below | (rng.random(len(vi)) < C.P_FILE_BELOW_DEDUCTIBLE)) | withdrawn
+        cwp = below | withdrawn | (rng.random(len(vi)) < C.CWP["COLL"])
         paid = np.where(cwp, 0.0, paid)
-        total = total & (paid > 0)
-        salvage = np.minimum(total * c["acv"][vi] * rng.uniform(*C.SALVAGE_RANGE, len(vi)), paid)
+        paid_total = total & (paid > 0) & filed
+        paid, salvage, retained = settle_total(paid, paid_total, total * c["acv"][vi] * rng.uniform(*C.SALVAGE_RANGE, len(vi)), vi, day)
         subro = (rng.random(len(vi)) < subro_p) * rng.uniform(*C.SUBROGATION_SHARE, len(vi)) * (paid - salvage)
-        add("COLL", ids[keep], gross[keep], paid[keep], cwp[keep], total=total[keep], salvage=salvage[keep], subro=subro[keep])
+        add("COLL", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
+            subro=subro[keep], retained=retained[keep])
+        paid_now = keep & (paid > 0)
+        rental(ids[paid_now], vi[paid_now], total[paid_now])
+        tow(ids, vi, peril)
+        w = total & ~(keep & paid_total)
+        wreck(vi[w], day[w], ids[w])
 
     def med_features(ids, vi, day, p):
         m = (c["med_lim"][vi] > 0) & (rng.random(len(vi)) < p)
@@ -317,6 +409,44 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         if len(ids):
             gross = C.MED_SEV["median"] * _trend(cal, "BI", day) * np.exp(C.MED_SEV["sigma"] * rng.standard_normal(len(vi)))
             add("MED", ids, gross, np.minimum(gross, c["med_lim"][vi]), rng.random(len(vi)) < C.CWP["MED"])
+
+    def rental(ids, vi, total):
+        """Rental reimbursement while a covered car is repaired, or replaced after a total loss."""
+        m = c["has_rent"][vi] & (rng.random(len(vi)) < C.RENTAL_USE_P)
+        ids, vi, total = ids[m], vi[m], total[m]
+        if len(ids) == 0:
+            return
+        med = np.where(total, C.RENTAL_DAYS["total"]["median"], C.RENTAL_DAYS["repair"]["median"])
+        sig = np.where(total, C.RENTAL_DAYS["total"]["sigma"], C.RENTAL_DAYS["repair"]["sigma"])
+        days = np.ceil(med * np.exp(sig * rng.standard_normal(len(ids))))
+        cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * rng.standard_normal(len(ids)))
+        daily, most = np.array(C.RENTAL_OPTIONS)[c["rent_opt"][vi]].T
+        add("RENT", ids, days * cost, np.minimum(days * np.minimum(cost, daily), most), rng.random(len(ids)) < C.CWP["RENT"])
+
+    def tow(ids, vi, peril):
+        m = c["has_tow"][vi] & (rng.random(len(vi)) < C.TOW_P.get(peril, 0.0))
+        cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(m.sum()))
+        add("TOW", ids[m], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(m.sum()) < C.CWP["TOW"])
+
+    def uim_features(ids, vi, day):
+        """Underinsured motorist: the insured's injury damages above the at-fault driver's limit."""
+        if len(ids) == 0:
+            return
+        k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
+        o = np.repeat(np.arange(len(ids)), k)
+        claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
+        gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * rng.standard_normal(len(o)))
+        lims, w = zip(*C.OTHER_DRIVER_BI_LIMIT.items())
+        other = np.array(lims)[rng.choice(len(lims), len(ids), p=w)][o]
+        excess = np.maximum(np.minimum(gross, c["um_pp"][vi][o]) - np.minimum(gross, other), 0.0)
+        cwp = rng.random(len(o)) < C.CWP["UM"]
+        keep = excess > 0
+        add("UM", ids[o][keep], gross[keep], excess[keep], cwp[keep], claimant=claimant[keep])
+
+    def unpaid(cov, ids, p):
+        """Claims opened and closed without payment: liability denied, or an injury claim never pursued."""
+        ids = ids[rng.random(len(ids)) < p]
+        add(cov, ids, np.zeros(len(ids)), np.zeros(len(ids)), np.ones(len(ids), dtype=bool), nominal=True)
 
     def draw(peril, group=None, mask=None):
         lam = c["rate"][peril] * (cal.exposure(group, c["s"], c["x"]) if group else c["expo"][peril])
@@ -333,6 +463,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"])
     m = rng.random(len(vi)) < c["p_bi"][vi]
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]])
+    unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_MV"])
     collision_features("AF_MV", ids, vi, day, C.P_FILE_COLL["AF_MV"], 0.0)
     med_features(ids, vi, day, C.P_MED["AF_MV"])
 
@@ -343,17 +474,22 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"])
     m = rng.random(len(vi)) < C.P_BI_GIVEN_AF_SV
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]])
+    unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_SV"])
     collision_features("AF_SV", ids, vi, day, C.P_FILE_COLL["AF_SV"], 0.0)
     med_features(ids, vi, day, C.P_MED["AF_SV"])
 
     vi, day = draw("NAF")
     unins = rng.random(len(vi)) < c["p_un"][vi]
     ids = new_occurrences("NAF", vi, day, _pick_driver(c, "key_any", vi, rng), uninsured=unins)
-    m = unins & (rng.random(len(vi)) < C.P_UM_INJURY)
+    hurt = rng.random(len(vi)) < C.P_UM_INJURY
+    m = unins & hurt
     injury_features("UM", ids[m], vi[m], day[m], C.UM_SEV, c["um_pp"][vi[m]], c["um_pa"][vi[m]], np.ones(m.sum()))
+    uim_features(ids[~unins & hurt], vi[~unins & hurt], day[~unins & hurt])
     collision_features("NAF", ids[unins], vi[unins], day[unins], C.P_FILE_COLL["NAF_UNINSURED"], 0.0)
     collision_features("NAF", ids[~unins], vi[~unins], day[~unins], C.P_FILE_COLL["NAF"], C.P_SUBROGATION["NAF"])
     med_features(ids, vi, day, C.P_MED["NAF"])
+    unpaid("PD", ids, C.P_LIABILITY_DENIED["PD"])
+    unpaid("BI", ids, C.P_LIABILITY_DENIED["BI"])
 
     vi, day = draw("PARKED")
     ids = new_occurrences("PARKED", vi, day, np.full(len(vi), -1))
@@ -361,18 +497,32 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
 
     # --- comprehensive perils ---
     def comp_features(peril, vi, day, cat=-1):
-        m = c["has_comp"][vi]
-        vi, day = vi[m], day[m]
         if len(vi) == 0:
             return
-        gross = comp_gross(peril, rng.standard_normal(len(vi)), rng.random(len(vi)), c["repair"][vi], c["adas"][vi],
-                           _trend(cal, "COMP", day), c["acv"][vi])
+        u = rng.random(len(vi))
+        gross, total = comp_gross(peril, rng.standard_normal(len(vi)), u, c["repair"][vi], c["adas"][vi],
+                                  _trend(cal, "COMP", day), c["acv"][vi])
+        covered = c["has_comp"][vi]
         paid = np.maximum(gross - (c["glass_ded"] if peril == "GLASS" else c["comp_ded"])[vi], 0.0)
         below = paid <= 0
-        keep = ~below | (rng.random(len(vi)) < C.P_FILE_BELOW_DEDUCTIBLE)
+        keep = covered & (~below | (rng.random(len(vi)) < C.P_FILE_BELOW_DEDUCTIBLE))
         cwp = below | (rng.random(len(vi)) < C.CWP["COMP"])
-        ids = new_occurrences(peril, vi[keep], day[keep], np.full(keep.sum(), -1), cat=cat)
-        add("COMP", ids, gross[keep], paid[keep], cwp[keep], total=(gross >= 0.95 * c["acv"][vi])[keep] & ~cwp[keep])
+        towed = c["has_tow"][vi] & (rng.random(len(vi)) < C.TOW_P.get(peril, 0.0)) & (cat < 0)
+        paid_total = total & ~cwp
+        salvage_value = salvageable(peril, total, u) * c["acv"][vi] * rng.uniform(*C.SALVAGE_RANGE, len(vi))
+        paid, salvage, retained = settle_total(np.where(cwp, 0.0, paid), paid_total, salvage_value, vi, day,
+                                               hail=peril in ("WEATHER", "HAIL_CAT"))
+        ids = np.full(len(vi), -1)
+        need = keep | towed
+        ids[need] = new_occurrences(peril, vi[need], day[need], np.full(need.sum(), -1), cat=cat)
+        add("COMP", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
+            retained=retained[keep])
+        paid_now = keep & ~cwp & (paid > 0) & (peril != "GLASS")
+        rental(ids[paid_now], vi[paid_now], total[paid_now])
+        cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(towed.sum()))
+        add("TOW", ids[towed], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(towed.sum()) < C.CWP["TOW"])
+        w = total & ~(keep & paid_total)
+        wreck(vi[w], day[w], ids[w])
 
     for peril in COMP_PERILS:
         if peril == "THEFT_TOTAL":
@@ -392,4 +542,6 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     occ = pd.concat(occs, ignore_index=True) if occs else pd.DataFrame()
     feat = pd.concat(feats, ignore_index=True) if feats else pd.DataFrame()
     occ = occ[occ.occ.isin(feat.occ)].reset_index(drop=True)      # a loss with no payable coverage is not a claim
-    return occ, feat, n_occ
+    wrecks = pd.concat(wrecks, ignore_index=True)
+    wrecks.loc[~wrecks.occ.isin(occ.occ), "occ"] = -1
+    return occ, feat, wrecks, n_occ

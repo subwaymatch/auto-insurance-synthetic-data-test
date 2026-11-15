@@ -1,9 +1,18 @@
 """Claim lifecycle: reporting, expenses, closure, payments, recoveries and reserves.
 
-The simulation knows the ultimate cost of every claim. This module decides when each
-dollar moves, then cuts everything off at the valuation date: later payments are not yet
-made, open claims carry an (imperfect) case reserve, and claims not yet reported are left
-out of the extract entirely and written to the answer key instead.
+The simulation knows the ultimate cost of every claim. `Development` decides when each dollar
+moves, as the claims happen, so the simulation can tell when the insurer learns of a claim and
+when it becomes chargeable. `develop` then cuts everything off at the valuation date: later
+payments are not yet made, open claims carry an (imperfect) case reserve, and claims not yet
+reported are left out of the extract entirely and written to the answer key instead.
+
+Payment patterns (ASSUMED, by coverage). Glass and most injury claims settle in one payment.
+Physical damage is often paid on the first estimate and topped up by supplements; property
+damage liability may pay loss of use before the repair; injury claims sometimes get an advance;
+medical payments follow the bills. Total losses may be split between the lienholder and the
+owner, with title and fee costs paid later. A few payments are voided and reissued, and a few
+closed features reopen for a supplemental payment. Every feature's payments add up to its
+ultimate paid loss to the cent.
 """
 from __future__ import annotations
 
@@ -11,96 +20,417 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from .refdata import stream
 
 REPORT_LAG_MEAN = {"AF_MV": 2.0, "AF_SV": 2.0, "NAF": 2.5, "PARKED": 3.0, "GLASS": 4.0, "THEFT_TOTAL": 1.0,
                    "THEFT_PARTIAL": 2.0, "VANDALISM": 3.0, "ANIMAL": 1.5, "WEATHER": 6.0, "FLOOD": 3.0, "FIRE": 1.0,
                    "OTHER_COMP": 4.0, "HAIL_CAT": 9.0, "WIND_CAT": 5.0, "FLOOD_CAT": 3.0}
-OPEN_LAG_MEAN = {"BI": 12.0, "UM": 15.0, "MED": 10.0}
-FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_500, "PD": 3_500, "COLL": 3_500, "COMP": 1_200}
-RESERVE_ERROR = {"BI": (-0.12, 0.55), "UM": (-0.12, 0.55), "MED": (0.0, 0.35), "PD": (0.0, 0.20),
-                 "COLL": (0.0, 0.20), "COMP": (0.0, 0.20)}          # log-scale (bias, noise) of adjuster estimates
+# Days from first notice until a coverage is claimed: (probability opened at first notice, mean days for
+# most later ones, share opened much later, median days for those). Injury claimants often present weeks or
+# months later; a few only near the statute of limitations (2 years for injury, 5 for property damage in
+# Illinois: 735 ILCS 5/13-202 and 13-205). Fitted to a US insurer's BI report lags, 27% on the accident
+# day, 84% within 5 days, 97.5% within 90 and 99.2% within a year (CAS Loss Simulation Model Working
+# Party, Ball State University paper); the other shapes are ASSUMED.
+OPEN_LAG = {"BI": (0.80, 8.0, 0.045, 160.0), "UM": (0.78, 12.0, 0.05, 170.0), "MED": (0.90, 20.0, 0.0, 1.0),
+            "PD": (0.92, 20.0, 0.02, 90.0)}
+OPEN_LAG_SIGMA = 1.0
+OPEN_LAG_CAP = {"BI": 700, "UM": 700, "MED": 700, "PD": 1800}      # days after the accident, inside the statute
+FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_500, "PD": 3_500, "COLL": 3_500, "COMP": 1_200, "RENT": 600, "TOW": 140}
+# precautionary injury claims and claims against an insured not at fault get a nominal reserve (ASSUMED)
+NOMINAL_RESERVE = {"BI": 2_500, "PD": 750}
+# log-scale (bias, noise) of an adjuster's early estimate of ultimate. Injury estimates start at about 86% of
+# ultimate on average (exp(bias + noise^2 / 2)), so injury case incurred develops upward as claims mature
+RESERVE_ERROR = {"BI": (-0.30, 0.55), "UM": (-0.30, 0.55), "MED": (-0.10, 0.35), "PD": (0.0, 0.20),
+                 "COLL": (0.0, 0.20), "COMP": (0.0, 0.20), "RENT": (0.0, 0.20), "TOW": (0.0, 0.20)}
 EXPENSE = {"PD": (0.60, 220), "COLL": (0.80, 260), "COMP": (0.40, 120), "MED": (0.30, 150)}   # (share with expense, median)
+
+# Interim payments before the final one: (probability of a first, probability of a second)
+INTERIM_P = {"PD": (0.30, 0.10), "COLL": (0.28, 0.07), "COMP": (0.15, 0.04), "BI": (0.12, 0.0), "UM": (0.12, 0.0)}
+MED_BILLS_MEAN = 1.6                  # extra medical-payments bills beyond the first (Poisson, at most 6)
+TOTAL_LOSS_SPLIT_P = 0.45             # settlement paid partly to a lienholder
+TOTAL_LOSS_FEES_P = 0.20              # title, tax and fees paid after the settlement
+REOPEN_P = {"PD": 0.03, "COLL": 0.04, "COMP": 0.02, "BI": 0.04, "UM": 0.04, "MED": 0.05}
+VOID_P = 0.012                        # an interim payment is voided and reissued
+TXN = ["Partial Payment", "Final Payment", "Supplemental Payment", "Void", "Reissue", "DCC Expense", "A&O Expense", "Recovery"]
+
+# Expense categories, as in statutory reporting: defence and cost containment (DCC: litigation, medical
+# examinations and records, medical bill review) and adjusting and other (A&O: appraisals and
+# independent adjusters). Litigated features carry an expense (DCC) reserve from the suit date.
+DCC_COVERAGES = {"BI", "UM", "MED"}
+
+# Reserve history (ASSUMED). An adjuster sets a formula reserve when a feature opens, then re-estimates the
+# ultimate on a review cycle. The estimate's error (RESERVE_ERROR: log bias and noise, injury reserves
+# starting low) is strongly correlated from one review to the next and shrinks as the claim matures,
+# which produces case development in the incurred triangles. Payments erode the reserve; closing takes
+# it to zero; a reopening sets it again for the expected supplement.
+RESERVE_REVIEW_DAYS = {"BI": 90, "UM": 90, "MED": 60, "PD": 30, "COLL": 30, "COMP": 30, "RENT": 30, "TOW": 30}
+RESERVE_PERSISTENCE = 0.75           # correlation of successive estimate errors
+MIN_RESERVE = 250                    # an open feature always carries at least this
+RESERVE_ROUNDING = 50
+
+# Claim detail (ASSUMED shapes). Bodily injury attorney involvement was 57% in 2022 and the litigation rate
+# 10% to 18% (Insurance Research Council, 2026); about half of represented claimants hire an attorney
+# within days of the accident and 80% within weeks (IRC survey, 2026). Suits are filed within the
+# two-year statute of limitations (735 ILCS 5/13-202). Illinois bars recovery by a party more than 50%
+# at fault (735 ILCS 5/2-1116), so an insured paying a liability claim is 51% to 100% at fault.
+POLICE_REPORT_P = {"AF_MV": 0.60, "AF_SV": 0.55, "NAF": 0.60, "PARKED": 0.35, "THEFT_TOTAL": 0.97,
+                   "THEFT_PARTIAL": 0.85, "VANDALISM": 0.60, "FIRE": 0.70, "ANIMAL": 0.15, "GLASS": 0.02,
+                   "WEATHER": 0.05, "FLOOD": 0.10, "OTHER_COMP": 0.20, "HAIL_CAT": 0.01, "WIND_CAT": 0.03, "FLOOD_CAT": 0.05}
+SIU_REFERRAL_P = 0.012               # base rate of referral to the special investigations unit
+INJURY_TYPES = ["Soft Tissue", "Laceration", "Fracture", "Head or Spinal Injury", "Fatality"]
+
+
+class Development:
+    """Develops claims to ultimate as the simulation produces them. Timing and payments come from one
+    random stream; reserve estimates and claim detail from another, so they never move the payments."""
+
+    def __init__(self, cal, rng: np.random.Generator, rng_detail: np.random.Generator) -> None:
+        self.cal, self.R, self.R2 = cal, rng, rng_detail
+        self.occs, self.feats, self.pays, self.reserves = [], [], [], []
+        self.n_feat = 0
+
+    def add(self, occ: pd.DataFrame, feat: pd.DataFrame) -> pd.DataFrame:
+        """Develop a batch of new claims. Returns occ with report_day (first notice the company has of any
+        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or -1)."""
+        R = self.R
+        occ = occ.copy()
+        lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
+        lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
+        notice = occ.day.to_numpy() + lag.astype(int)
+
+        f = feat.merge(occ[["occ", "day", "peril", "cat", "at_fault"]].assign(notice=notice), on="occ", how="left")
+        n = len(f)
+        f["fid"] = self.n_feat + np.arange(n)
+        self.n_feat += n
+        cvg = f.cvg.to_numpy()
+        f["paid"] = np.round(f.paid.to_numpy(), 2)
+        paid = f.paid.to_numpy()
+        injury = np.isin(cvg, ["BI", "UM"])
+        cap = f.day.to_numpy() + np.array([OPEN_LAG_CAP.get(c, 3650) for c in cvg])
+        f["open_day"] = np.minimum(f.notice.to_numpy() + _open_lag(cvg, R), np.maximum(cap, f.notice.to_numpy()))
+
+        # litigation and loss adjustment expense
+        lit = injury & (paid > 0) & (R.random(n) < 0.07 + 0.10 * (paid > 15_000) + 0.22 * (paid > 50_000))
+        expense = np.zeros(n)
+        z, u = R.standard_normal(n), R.random(n)
+        expense = np.where(lit, (3_500 + 0.16 * paid) * np.exp(0.5 * z - 0.125), expense)
+        expense = np.where(injury & ~lit & (u < 0.70), 500 * np.exp(0.8 * z), expense)
+        for k, (share, median) in EXPENSE.items():
+            expense = np.where((cvg == k) & (u < share), median * np.exp(0.5 * z), expense)
+        f["litigated"], f["expense"] = lit, np.round(expense, 2)
+
+        # time to close
+        g = R.gamma(2.0, 0.5, n)                       # mean 1
+        ln = R.standard_normal(n)
+        peril = f.peril.to_numpy()
+        total = f.total.to_numpy()
+        mean = np.select([cvg == "RENT", cvg == "TOW", cvg == "PD", (cvg == "COLL") & total, cvg == "COLL", peril == "GLASS",
+                          peril == "THEFT_TOTAL", f.cat.to_numpy() >= 0, cvg == "COMP", cvg == "MED"],
+                         [35, 8, 32, 34, 24, 6, 18, 28, 16, 80], default=0.0)
+        dur = mean * g + 30 * ((peril == "THEFT_TOTAL") & (cvg != "TOW"))
+        inj_dur = 200 * np.exp(0.8 * ln) * np.clip(paid / 15_000, 0.2, 8) ** 0.15 + lit * 420 * np.exp(0.5 * R.standard_normal(n))
+        dur = np.where(injury, np.where(paid > 0, inj_dur, 110 * np.exp(0.7 * ln)), dur)
+        dur = np.where(~injury & f.cwp.to_numpy(), 14 * g, dur)
+        dur = np.maximum(dur, 1).astype(int)
+        f["close_day"] = f.open_day.to_numpy() + dur
+
+        f = _injury_detail(f, self.cal, self.R2)
+        pays, f = _schedule(f, R)
+        occ["report_day"] = occ.occ.map(f.groupby("occ").open_day.min()).to_numpy()
+        occ["chargeable_day"] = occ.occ.map(_chargeable(f, pays)).fillna(-1).astype(int).to_numpy()
+        occ = _claim_detail(occ, f, self.R2)
+        self.reserves.append(_reserve_history(f, pays, self.cal, self.R2))
+        self.occs.append(occ)
+        self.feats.append(f.drop(columns=["notice", "at_fault"]))
+        self.pays.append(pays)
+        return occ
+
+    def result(self):
+        cat = lambda parts: pd.concat(parts, ignore_index=True)
+        return cat(self.occs), cat(self.feats), cat(self.pays), cat(self.reserves)
+
+
+def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame:
+    """Injury type, attorney representation and suit date for injury and medical features."""
+    n = len(f)
+    cvg, gross, day = f.cvg.to_numpy(), f.gross.to_numpy(), f.day.to_numpy()
+    od, cd, lit = f.open_day.to_numpy(), f.close_day.to_numpy(), f.litigated.to_numpy()
+    injury = np.isin(cvg, ["BI", "UM", "MED"])
+    median = np.select([cvg == "BI", cvg == "UM"], [C.BI_SEV["median"], C.UM_SEV["median"]], default=C.MED_SEV["median"])
+    sigma = np.select([cvg == "BI", cvg == "UM"], [C.BI_SEV["sigma"], C.UM_SEV["sigma"]], default=C.MED_SEV["sigma"])
+    z = np.log(np.maximum(gross, 1) / (median * cal.sev_trend["BI"][np.clip(day, 0, cal.horizon)])) / sigma
+    z = np.where(gross > 0, z, -9)                     # claims never paid: alleged soft-tissue injuries
+    kind = np.searchsorted([0.25, 1.9, 2.75], z) + (z >= 1.9)       # 0 soft, 2 fracture, 3 head/spinal, 4 fatality
+    kind = np.where((z >= 0.25) & (z < 1.9), np.where(R.random(n) < 0.4, 1, 2), kind)
+    f["injury_type"] = np.where(injury, np.array(INJURY_TYPES)[np.clip(kind, 0, 4)], "")
+    p_att = np.where(cvg == "MED", 0.05, np.where(gross > 0, 0.30 + 0.25 * (z > 0) + 0.15 * (z > 1), 0.08))
+    attorney = injury & (lit | (R.random(n) < p_att))
+    u = R.random(n)
+    lag = np.where(u < 0.5, R.integers(1, 8, n), np.where(u < 0.8, R.integers(8, 31, n), R.integers(31, 181, n)))
+    f["attorney"] = attorney
+    f["attorney_day"] = np.where(attorney, np.minimum(day + lag, np.maximum(cd - 1, day)), -1)
+    suit = np.maximum(f.attorney_day.to_numpy(), od) + R.integers(60, 421, n)
+    suit = np.minimum(suit, np.minimum(cd - 30, day + 729))
+    f["suit_day"] = np.where(lit, np.maximum(suit, od), -1)
+    return f
+
+
+def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator) -> pd.DataFrame:
+    """Police report, the insured's share of fault, and referral to the special investigations unit."""
+    n = len(occ)
+    peril = occ.peril.to_numpy()
+    injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM"]) & (f.paid.to_numpy() > 0)]).to_numpy()
+    occ["police_report"] = R.random(n) < np.clip(occ.peril.map(POLICE_REPORT_P).fillna(0.1).to_numpy() + 0.30 * injured, 0, 0.98)
+    fault = np.select([peril == "AF_MV", peril == "AF_SV", peril == "NAF"],
+                      [np.where(R.random(n) < 0.7, 100, R.integers(51, 100, n)), np.full(n, 100),
+                       np.where(R.random(n) < 0.8, 0, R.integers(5, 50, n))], default=-1)
+    occ["fault_pct"] = fault
+    big_attorney = occ.occ.isin(f.occ[f.attorney.to_numpy() & (f.paid.to_numpy() > 50_000)]).to_numpy()
+    p_siu = SIU_REFERRAL_P + 0.07 * (peril == "THEFT_TOTAL") + 0.06 * (occ.report_day.to_numpy() - occ.day.to_numpy() > 30) \
+        + 0.04 * big_attorney
+    occ["siu_day"] = np.where(R.random(n) < p_siu, occ.report_day.to_numpy() + R.integers(5, 46, n), -1)
+    return occ
+
+
+def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame:
+    """Every change to each feature's loss reserve (and, for litigated features, expense reserve), with the
+    reserve outstanding after it. Returns columns fid, day, rtype, txn, delta, outstanding."""
+    n = len(f)
+    cvg, U = f.cvg.to_numpy(), f.paid.to_numpy()
+    od, cd = f.open_day.to_numpy(), f.close_day.to_numpy()
+    trend = cal.sev_trend["BI"][np.clip(f.day.to_numpy(), 0, cal.horizon)]
+    formula = pd.Series(cvg).map(FORMULA_RESERVE).to_numpy() * trend
+    nominal_amt = pd.Series(cvg).map(NOMINAL_RESERVE).fillna(0).to_numpy() * trend
+    nominal = f.nominal.to_numpy().astype(bool)
+    mu = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][0]).to_numpy()
+    sg = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][1]).to_numpy()
+    fid = f.fid.to_numpy()
+
+    # reviews: at opening, then on the coverage's review cycle until the first close
+    life = np.maximum(cd - od, 1)
+    interval = pd.Series(cvg).map(RESERVE_REVIEW_DAYS).to_numpy()
+    m = np.clip(1 + (life - 1) // interval, 1, 24).astype(int)
+    i = np.repeat(np.arange(n), m)
+    k = np.arange(len(i)) - np.repeat(np.cumsum(m) - m, m)
+    day = np.where(k == 0, od[i], np.minimum(od[i] + np.floor(k * interval[i] * R.uniform(0.8, 1.2, len(i))).astype(int),
+                                              cd[i] - 1))
+    eta = R.standard_normal(len(i))
+    z = eta.copy()
+    rho = RESERVE_PERSISTENCE
+    for kk in range(1, int(m.max())):                  # errors persist from one review to the next
+        sel = np.flatnonzero(k == kk)
+        z[sel] = rho * z[sel - 1] + np.sqrt(1 - rho ** 2) * eta[sel]
+    phi = (day - od[i]) / life[i]
+    est = np.where(U[i] > 0, U[i] * np.exp((mu[i] + sg[i] * z) * (1 - phi) ** 0.7), formula[i] * np.exp(0.3 * z))
+    est = np.where((k == 0) & (U[i] > 0), formula[i] * np.exp(0.3 * z), est)      # formula reserve at first notice
+    est = np.where(nominal[i], nominal_amt[i] * np.exp(0.3 * z), est)
+    parts = [pd.DataFrame(dict(fid=fid[i], day=day, order=0, est=est, pay=0.0,
+                               txn=np.where(k == 0, "Initial Reserve", "Reserve Review")))]
+    ro = np.flatnonzero(f.reopen_day.to_numpy() >= 0)
+    supp = f.supp.to_numpy()[ro]
+    parts.append(pd.DataFrame(dict(fid=fid[ro], day=f.reopen_day.to_numpy()[ro], order=0,
+                                   est=U[ro] - supp + supp * np.exp(0.3 * R.standard_normal(len(ro))), pay=0.0, txn="Reopen")))
+    closes = np.r_[cd, f.final_close_day.to_numpy()[ro]]
+    parts.append(pd.DataFrame(dict(fid=np.r_[fid, fid[ro]], day=closes, order=2, est=np.nan, pay=0.0, txn="Close")))
+    loss = pays[pays.kind == "Loss"]
+    parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=1, est=np.nan, pay=loss.amount, txn="Payment")))
+    out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE)]
+
+    # expense reserve on litigated features: set when the suit is filed, eroded by legal bills, closed with the feature
+    li = np.flatnonzero(f.suit_day.to_numpy() >= 0)
+    if len(li):
+        ep = pays[(pays.kind == "Expense") & pays.fid.isin(fid[li])]
+        e_est = f.expense.to_numpy()[li] * np.exp(0.3 * R.standard_normal(len(li)))
+        ev = pd.concat([pd.DataFrame(dict(fid=fid[li], day=f.suit_day.to_numpy()[li], order=0, est=e_est, pay=0.0, txn="Initial Reserve")),
+                        pd.DataFrame(dict(fid=ep.fid, day=ep.day, order=1, est=np.nan, pay=ep.amount, txn="Payment")),
+                        pd.DataFrame(dict(fid=fid[li], day=f.final_close_day.to_numpy()[li], order=2, est=np.nan, pay=0.0, txn="Close"))],
+                       ignore_index=True)
+        out.append(_outstanding(ev, "Expense", 0))
+    return pd.concat(out, ignore_index=True)
+
+
+def _outstanding(ev: pd.DataFrame, rtype: str, floor: float) -> pd.DataFrame:
+    """Turn dated reserve events (estimates, payments, closes) into reserve changes and balances."""
+    ev = ev.sort_values(["fid", "day", "order"], kind="stable").reset_index(drop=True)
+    g = ev.groupby("fid")
+    paid = g.pay.cumsum().to_numpy()
+    est = g.est.ffill().to_numpy()
+    is_open = pd.Series(np.where(ev.order == 0, 1.0, np.where(ev.order == 2, 0.0, np.nan))).groupby(ev.fid.to_numpy()).ffill().fillna(0)
+    started = ~np.isnan(est)
+    bal = np.where((is_open.to_numpy() > 0) & started,
+                   np.maximum(np.round((np.nan_to_num(est) - paid) / RESERVE_ROUNDING) * RESERVE_ROUNDING, floor), 0.0)
+    prev = pd.Series(bal).groupby(ev.fid.to_numpy()).shift().fillna(0).to_numpy()
+    ev = ev.assign(rtype=rtype, delta=bal - prev, outstanding=bal)
+    return ev.loc[ev.delta != 0, ["fid", "day", "rtype", "txn", "delta", "outstanding"]]
+
+
+def _open_lag(cvg: np.ndarray, R: np.random.Generator) -> np.ndarray:
+    """Extra days from the claim's first notice until each coverage is opened."""
+    n = len(cvg)
+    spec = np.array([OPEN_LAG.get(c, (1.0, 1.0, 0.0, 1.0)) for c in cvg]).reshape(n, 4)
+    u = R.random(n)
+    mid = np.floor(R.exponential(spec[:, 1]))
+    tail = np.floor(spec[:, 3] * np.exp(OPEN_LAG_SIGMA * R.standard_normal(n)))
+    return np.where(u < spec[:, 0], 0, np.where(u < 1 - spec[:, 2], mid, tail)).astype(int)
+
+
+def _chargeable(f: pd.DataFrame, pays: pd.DataFrame) -> pd.Series:
+    """Day each at-fault occurrence's cumulative PD, BI and collision loss payments reach the threshold."""
+    m = f.at_fault.to_numpy().astype(bool) & np.isin(f.cvg.to_numpy(), ["PD", "BI", "COLL"])
+    return chargeable_days(pays[pays.kind == "Loss"], f.loc[m, ["fid", "occ"]])
+
+
+def chargeable_days(loss_pays: pd.DataFrame, fid_occ: pd.DataFrame, threshold: float = C.CHARGEABLE_THRESHOLD) -> pd.Series:
+    """For each occurrence, the first day its loss payments (on the features in fid_occ) add up to the
+    threshold. Only payments up to that day matter, so a later settlement cannot change it."""
+    p = loss_pays.merge(fid_occ, on="fid").sort_values(["occ", "day", "seq"], kind="stable")
+    cum = p.groupby("occ").amount.cumsum()
+    return p[cum.to_numpy() >= threshold - 0.005].groupby("occ").day.min()
+
+
+def _legs(f_idx, day, cents, txn) -> pd.DataFrame:
+    return pd.DataFrame(dict(i=f_idx, day=np.asarray(day).astype(int), cents=np.asarray(cents).astype(np.int64), txn=txn))
+
+
+def _schedule(f: pd.DataFrame, R: np.random.Generator):
+    """Every loss payment, expense payment and recovery of each feature, through to its final close.
+    Adds reopen_day and final_close_day to f. Returns (payments, f)."""
+    n = len(f)
+    cvg, peril = f.cvg.to_numpy(), f.peril.to_numpy()
+    total = f.total.to_numpy().astype(bool)
+    od, cd = f.open_day.to_numpy(), f.close_day.to_numpy()
+    dur = cd - od
+    P = np.round(f.paid.to_numpy() * 100).astype(np.int64)          # ultimate paid, in cents
+    has = P > 0
+    injury = np.isin(cvg, ["BI", "UM"])
+
+    # ---- reopening: a closed feature reopens for a supplement carved out of the ultimate
+    reopen = has & (R.random(n) < pd.Series(cvg).map(REOPEN_P).to_numpy())
+    reopen_day = cd + 20 + np.floor(R.exponential(75, n)).astype(int)
+    supp_day = reopen_day + 3 + np.floor(R.exponential(20, n)).astype(int)
+    final_close = supp_day + np.where(R.random(n) < 0.5, 0, 1 + np.floor(R.exponential(7, n))).astype(int)
+    supp = np.where(reopen, np.maximum(np.round(P * R.uniform(0.05, 0.25, n)), 100), 0).astype(np.int64)
+    reopen &= supp < P
+    supp = np.where(reopen, supp, 0)
+    main = P - supp                                                  # paid before the first close
+
+    # ---- the main settlement: day and shape
+    lag_long = np.where(injury, 12, 6)
+    final_day = cd - np.where(R.random(n) < np.where(injury, 0.5, 0.55), 0,
+                              np.minimum(1 + np.floor(R.exponential(lag_long)), dur)).astype(int)
+    u1, u2 = R.random(n), R.random(n)
+    p1 = pd.Series(cvg).map(lambda c: INTERIM_P.get(c, (0.0, 0.0))[0]).to_numpy()
+    p2 = pd.Series(cvg).map(lambda c: INTERIM_P.get(c, (0.0, 0.0))[1]).to_numpy()
+    k = (u1 < p1).astype(int) + ((u1 < p1) & (u2 < p2))
+    k = np.where(cvg == "MED", np.minimum(R.poisson(MED_BILLS_MEAN, n), 6), k)
+    k = np.where(total | (peril == "GLASS"), 0, k)
+    k = np.where(has, np.minimum(k, np.maximum(main // 5_000 - 1, 0)), 0)      # at least ~$50 a payment
+    split = has & total & (R.random(n) < TOTAL_LOSS_SPLIT_P) & (main >= 20_000)
+    fees = has & total & (R.random(n) < TOTAL_LOSS_FEES_P) & (final_day - od >= 10) & (main >= 50_000)
+
+    # interim payments: physical damage is paid early on the estimate, injury advances mid-way, bills throughout
+    i = np.repeat(np.arange(n), k)
+    pos = np.arange(len(i)) - np.repeat(np.cumsum(k) - k, k)
+    c_i = cvg[i]
+    t = np.select([np.isin(c_i, ["COLL", "COMP"]), c_i == "PD", np.isin(c_i, ["BI", "UM"])],
+                  [R.random(len(i)) ** 2 * 0.9, R.uniform(0.05, 0.9, len(i)), R.uniform(0.15, 0.6, len(i))],
+                  default=R.random(len(i)))
+    order = np.lexsort((t, i))
+    t = t[order]                                                     # times ascend within each feature
+    settle_day = np.where(fees, final_day - R.integers(7, 31, n).clip(max=np.maximum(final_day - od, 1)), final_day)
+    span = np.maximum(settle_day - od, 0)
+    inspect = np.where(np.isin(c_i, ["PD", "COLL", "COMP"]), np.minimum(3, span[i]), 0)   # paid after an appraisal
+    interim_day = od[i] + inspect + np.floor(t * (span[i] - inspect)).astype(int)
+    w_int = np.select([np.isin(c_i, ["COLL", "COMP"]) & (pos == 0), np.isin(c_i, ["COLL", "COMP"]), c_i == "PD",
+                       np.isin(c_i, ["BI", "UM"])], [4.0, 1.0, 0.5, 0.6], default=1.5)
+    w_fin = np.select([np.isin(cvg, ["COLL", "COMP"]), cvg == "PD", injury], [1.0, 3.0, 3.0], default=1.5)
+    g_int = R.gamma(w_int)
+    g_fin = R.gamma(w_fin)
+    g_fee = np.where(fees, R.uniform(0.02, 0.06, n), 0.0)
+    tot_g = np.bincount(i, g_int, n) + g_fin                          # shares are Dirichlet; the final payment takes the rounding
+    int_cents = np.floor(main[i] * g_int / tot_g[i] * (1 - g_fee[i])).astype(np.int64)
+    fee_cents = np.where(fees, np.floor(main * g_fee), 0).astype(np.int64)
+    fin_cents = main - np.bincount(i, int_cents, n).astype(np.int64) - fee_cents
+    # a lienholder payoff and the owner's balance go out on the settlement day
+    lien = np.where(split, np.floor(fin_cents * R.uniform(0.4, 0.9, n)), 0).astype(np.int64)
+
+    legs = [
+        _legs(i, interim_day, int_cents, "Partial Payment"),
+        _legs(np.flatnonzero(split), settle_day[split], lien[split], "Partial Payment"),
+        _legs(np.flatnonzero(has), settle_day[has], (fin_cents - lien)[has],
+              np.where(fees[has], "Partial Payment", "Final Payment")),
+        _legs(np.flatnonzero(fees), final_day[fees], fee_cents[fees], "Final Payment"),
+        _legs(np.flatnonzero(reopen), supp_day[reopen], supp[reopen], "Supplemental Payment"),
+    ]
+    # voided and reissued interim payments (net zero)
+    vd = R.random(len(i)) < VOID_P
+    void_day = np.minimum(interim_day + 2 + np.floor(R.exponential(5, len(i))).astype(int), settle_day[i])
+    legs += [_legs(i[vd], void_day[vd], -int_cents[vd], "Void"), _legs(i[vd], void_day[vd], int_cents[vd], "Reissue")]
+    loss = pd.concat(legs, ignore_index=True)
+    loss = loss[loss.cents != 0]
+    loss["kind"] = "Loss"
+
+    # expenses: appraisal fees early on physical damage, others at close, litigation costs as the suit runs
+    exp_c = np.round(f.expense.to_numpy() * 100).astype(np.int64)
+    lit = f.suit_day.to_numpy() >= 0
+    early = np.isin(cvg, ["PD", "COLL", "COMP"])
+    e_day = np.where(early, od + np.floor(R.uniform(0.05, 0.6, n) * dur).astype(int), cd)
+    e_legs = [_legs(np.flatnonzero((exp_c > 0) & ~lit), e_day[(exp_c > 0) & ~lit], exp_c[(exp_c > 0) & ~lit], "")]
+    li = np.flatnonzero(lit & (exp_c > 0))
+    done = np.zeros(len(li), dtype=np.int64)
+    suit = f.suit_day.to_numpy()[li]
+    for j, (share, when) in enumerate(((0.25, 0.15), (0.35, 0.55), (0.40, 1.0))):      # legal bills as the suit runs
+        amt = np.round(exp_c[li] * share).astype(np.int64) if j < 2 else exp_c[li] - done
+        done += amt
+        e_legs.append(_legs(li, suit + ((cd[li] - suit) * when).astype(int), amt, ""))
+    expense = pd.concat(e_legs, ignore_index=True)
+    expense["txn"] = np.where(np.isin(cvg[expense.i.to_numpy()], list(DCC_COVERAGES)), "DCC Expense", "A&O Expense")
+    expense["kind"] = "Expense"
+
+    salv = np.round(f.salvage.to_numpy() * 100).astype(np.int64)
+    subro = np.round(f.subro.to_numpy() * 100).astype(np.int64)
+    rec = pd.concat([
+        _legs(np.flatnonzero(salv > 0), (cd + R.integers(20, 70, n))[salv > 0], -salv[salv > 0], "Recovery").assign(kind="Salvage Recovery"),
+        _legs(np.flatnonzero(subro > 0), (cd + np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int))[subro > 0],
+              -subro[subro > 0], "Recovery").assign(kind="Subrogation Recovery")], ignore_index=True)
+
+    pays = pd.concat([loss, expense, rec], ignore_index=True)
+    pays["fid"] = f.fid.to_numpy()[pays.i.to_numpy()]
+    pays["amount"] = pays.cents / 100
+    pays = pays.sort_values(["fid", "day", "kind", "cents"], kind="stable").reset_index(drop=True)
+    pays["seq"] = np.arange(len(pays))
+    f = f.assign(paid=P / 100, reopen_day=np.where(reopen, reopen_day, -1), final_close_day=np.where(reopen, final_close, cd),
+                 supp=supp / 100)
+    return pays[["fid", "day", "kind", "txn", "amount", "seq"]], f
 
 
 def develop(cfg: C.Config, ref, res) -> dict:
+    """Cut the developed claims off at the valuation date."""
     cal = ref.cal
-    R = stream(cfg.seed, "claims")
     V = cal.valuation_day
-    occ = res.occ.copy()
-    lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
-    lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
-    occ["report_day"] = occ.day + lag.astype(int)
-
-    f = res.feat.merge(occ[["occ", "day", "report_day", "peril", "cat"]], on="occ", how="left")
+    occ, f, pay_all = res.occ.copy(), res.feat.copy().reset_index(drop=True), res.pays
     n = len(f)
-    cvg = f.cvg.to_numpy()
-    paid = f.paid.to_numpy()
-    injury = np.isin(cvg, ["BI", "UM"])
-    extra = np.floor(R.exponential(pd.Series(cvg).map(OPEN_LAG_MEAN).fillna(0).to_numpy() + 1e-9))
-    f["open_day"] = f.report_day + extra.astype(int)
+    pos = pd.Series(np.arange(n), index=f.fid.to_numpy())
 
-    # litigation and loss adjustment expense
-    lit = injury & (paid > 0) & (R.random(n) < 0.07 + 0.10 * (paid > 15_000) + 0.22 * (paid > 50_000))
-    expense = np.zeros(n)
-    z, u = R.standard_normal(n), R.random(n)
-    expense = np.where(lit, (3_500 + 0.16 * paid) * np.exp(0.5 * z - 0.125), expense)
-    expense = np.where(injury & ~lit & (u < 0.70), 500 * np.exp(0.8 * z), expense)
-    for k, (share, median) in EXPENSE.items():
-        expense = np.where((cvg == k) & (u < share), median * np.exp(0.5 * z), expense)
-    f["litigated"], f["expense"] = lit, np.round(expense, 2)
-
-    # time to close
-    g = R.gamma(2.0, 0.5, n)                       # mean 1
-    ln = R.standard_normal(n)
-    peril = f.peril.to_numpy()
-    mean = np.select([cvg == "PD", (cvg == "COLL") & f.total.to_numpy(), cvg == "COLL", peril == "GLASS",
-                      peril == "THEFT_TOTAL", f.cat.to_numpy() >= 0, cvg == "COMP", cvg == "MED"],
-                     [32, 34, 24, 6, 18, 28, 16, 80], default=0.0)
-    dur = mean * g + 30 * (peril == "THEFT_TOTAL")
-    inj_dur = 200 * np.exp(0.8 * ln) * np.clip(paid / 15_000, 0.2, 8) ** 0.15 + lit * 420 * np.exp(0.5 * R.standard_normal(n))
-    dur = np.where(injury, np.where(paid > 0, inj_dur, 110 * np.exp(0.7 * ln)), dur)
-    dur = np.where(~injury & f.cwp.to_numpy(), 14 * g, dur)
-    dur = np.maximum(dur, 1).astype(int)
-    f["close_day"] = f.open_day + dur
-    f["fid"] = np.arange(n)
-
-    # payment schedule (ultimate), cut off at the valuation date below
-    pays = []
-
-    def pay(mask, day, kind, amount):
-        idx = np.flatnonzero(mask)
-        pays.append(pd.DataFrame(dict(fid=idx, day=np.asarray(day)[idx].astype(int), kind=kind,
-                                      amount=np.round(np.asarray(amount)[idx], 2))))
-
-    two = (paid > 0) & (R.random(n) < 0.15)
-    first = R.uniform(0.55, 0.85, n)
-    od, cd = f.open_day.to_numpy(), f.close_day.to_numpy()
-    pay((paid > 0) & ~two, cd, "Loss", paid)
-    pay(two, od + dur // 2, "Loss", paid * first)
-    pay(two, cd, "Loss", paid - np.round(paid * first, 2))
-    pay((expense > 0) & ~lit, cd, "Expense", expense)
-    for share, when in ((0.25, 0.30), (0.35, 0.65), (0.40, 1.0)):
-        pay(lit, od + (dur * when).astype(int), "Expense", expense * share)
-    pay(f.salvage.to_numpy() > 0, cd + R.integers(20, 70, n), "Salvage Recovery", -f.salvage.to_numpy())
-    pay(f.subro.to_numpy() > 0, cd + np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int), "Subrogation Recovery",
-        -f.subro.to_numpy())
-    pay_all = pd.concat(pays, ignore_index=True)
-
-    # ---- valuation cut-off ----
     known = pay_all[pay_all.day <= V]
-    tot = lambda kind: np.bincount(known.fid[known.kind == kind], known.amount[known.kind == kind], n)
-    f["paid_loss"], f["paid_expense"] = tot("Loss"), tot("Expense")
-    f["salvage_rec"], f["subro_rec"] = np.abs(tot("Salvage Recovery")), np.abs(tot("Subrogation Recovery"))
+    idx = pos.reindex(known.fid).to_numpy()
+    tot = lambda m: np.round(np.bincount(idx[m], known.amount.to_numpy()[m], n), 2)
+    kind, txn = known.kind.to_numpy(), known.txn.to_numpy()
+    f["paid_loss"], f["paid_expense"] = tot(kind == "Loss"), tot(kind == "Expense")
+    f["paid_dcc"], f["paid_ao"] = tot(txn == "DCC Expense"), tot(txn == "A&O Expense")
+    f["salvage_rec"], f["subro_rec"] = np.abs(tot(kind == "Salvage Recovery")), np.abs(tot(kind == "Subrogation Recovery"))
     f["reported"] = f.open_day <= V
-    f["closed"] = f.close_day <= V
-    mu = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][0]).to_numpy()
-    sg = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][1]).to_numpy()
-    trend = cal.sev_trend["BI"][np.clip(f.day.to_numpy(), 0, cal.horizon)]
-    formula = pd.Series(cvg).map(FORMULA_RESERVE).to_numpy() * trend
-    estimate = np.where(paid > 0, paid * np.exp(mu + sg * R.standard_normal(n)), formula * np.exp(0.3 * R.standard_normal(n)))
-    reserve = np.maximum(np.round((estimate - f.paid_loss.to_numpy()) / 50) * 50, 250)
-    f["case_reserve"] = np.where(f.reported & ~f.closed, reserve, 0.0)
+    reopened = (f.reopen_day >= 0) & (f.reopen_day <= V)
+    f["reopened"] = reopened
+    f["closed"] = np.where(reopened, f.final_close_day <= V, f.close_day <= V)
+    f["status_close_day"] = np.where(reopened, f.final_close_day, f.close_day)
+    # case and expense reserves: the balance after the last reserve change on or before the valuation date
+    hist = res.reserves[res.reserves.day <= V]
+    last = hist.sort_values(["fid", "rtype", "day"], kind="stable").groupby(["fid", "rtype"]).outstanding.last()
+    f["case_reserve"] = last.xs("Loss", level="rtype").reindex(f.fid).fillna(0).to_numpy() if len(last) else 0.0
+    f["expense_reserve"] = (last.xs("Expense", level="rtype").reindex(f.fid).fillna(0).to_numpy()
+                            if "Expense" in last.index.get_level_values("rtype") else 0.0)
+    f["litigated"] = (f.suit_day >= 0) & (f.suit_day <= V)          # a suit not yet filed is not known
+    f["attorney"] = f.attorney & (f.attorney_day <= V)
 
     rep = f[f.reported].copy()
     occ["report_day"] = occ.occ.map(rep.groupby("occ").open_day.min())       # first notice the company has
@@ -108,6 +438,8 @@ def develop(cfg: C.Config, ref, res) -> dict:
     claims["report_day"] = claims.report_day.astype(int)
     claims = claims.sort_values(["report_day", "occ"], kind="stable").reset_index(drop=True)
     claims["claim_id"] = np.arange(1, len(claims) + 1)
+    claims["chargeable"] = (claims.chargeable_day >= 0) & (claims.chargeable_day <= V)
+    claims["siu_day"] = np.where(claims.siu_day <= V, claims.siu_day, -1)
     rep["claim_id"] = rep.occ.map(claims.set_index("occ").claim_id)
     order = {k: i for i, k in enumerate(C.COVERAGES)}
     rep["cvg_order"] = rep.cvg.map(order)
@@ -116,8 +448,12 @@ def develop(cfg: C.Config, ref, res) -> dict:
 
     payments = known.merge(rep[["fid", "feature_id", "claim_id"]], on="fid")
     payments["kind_order"] = payments.kind.map({"Loss": 0, "Expense": 1, "Salvage Recovery": 2, "Subrogation Recovery": 3})
-    payments = payments.sort_values(["day", "feature_id", "kind_order", "amount"], kind="stable").reset_index(drop=True)
+    payments = payments.sort_values(["day", "feature_id", "kind_order", "seq"], kind="stable").reset_index(drop=True)
     payments["payment_id"] = np.arange(1, len(payments) + 1)
+    reserves = hist.merge(rep[["fid", "feature_id", "claim_id"]], on="fid")
+    reserves["rtype_order"] = (reserves.rtype == "Expense").astype(int)
+    reserves = reserves.sort_values(["day", "feature_id", "rtype_order"], kind="stable").reset_index(drop=True)
+    reserves["reserve_id"] = np.arange(1, len(reserves) + 1)
 
     unreported = f[~f.reported].merge(occ[["occ", "pol", "veh", "row"]], on="occ")
-    return dict(claims=claims, features=rep, payments=payments, unreported=unreported)
+    return dict(claims=claims, features=rep, payments=payments, reserves=reserves, unreported=unreported)
