@@ -29,7 +29,7 @@ from release_formats import FORMATS, Bundle  # noqa: E402
 REPO = Path(__file__).resolve().parent.parent
 
 
-def notes(tag: str, summary: dict, report: str, assets: dict[str, int]) -> str:
+def notes(tag: str, summary: dict, report: str, assets: dict[str, int], source: str = "") -> str:
     lr = re.findall(r"^\s+(\d{4}): .*?loss ratio\s+([\d.]+%)", report, flags=re.M)
     freq = re.findall(r"^\s+(BI|PD|COLL|COMP)\s+[\d,]+\s+([\d.]+)\s+([\d,]+)\s", report, flags=re.M)
     size = re.search(r"([\d,]+) earned car-years, \$([\d,]+) earned premium, ([\d,]+) claims", report)
@@ -38,6 +38,8 @@ def notes(tag: str, summary: dict, report: str, assets: dict[str, int]) -> str:
            "| Setting | Value |", "|---|---|",
            f"| Seed | `{summary['seed']}` |", f"| Policies | {summary['policies']:,} |",
            f"| Period | {summary['start']} to {summary['valuation']} |"]
+    if source:
+        out.append(f"| Built from commit | `{source[:12]}` |")
     if size:
         out += [f"| Earned car-years | {size.group(1)} |", f"| Earned premium | ${size.group(2)} |",
                 f"| Claims | {size.group(3)} |"]
@@ -70,6 +72,7 @@ def main() -> None:
     ap.add_argument("--validation", type=Path, required=True, help="saved output of validate.py")
     ap.add_argument("--dist", type=Path, default=Path("dist"))
     ap.add_argument("--formats", default="csv", help=f"comma-separated, from: {', '.join(FORMATS)}")
+    ap.add_argument("--source", default="", help="commit the data was built from, shown in the release notes")
     a = ap.parse_args()
     formats = [f.strip() for f in a.formats.split(",") if f.strip()]
     unknown = [f for f in formats if f not in FORMATS]
@@ -96,7 +99,7 @@ def main() -> None:
     sums.write_text("".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in made))
     assets = {p.name: p.stat().st_size for p in made + [sums]}
     summary = json.loads((a.data / "run_summary.json").read_text())
-    (a.dist / "release_notes.md").write_text(notes(a.tag, summary, a.validation.read_text(), assets))
+    (a.dist / "release_notes.md").write_text(notes(a.tag, summary, a.validation.read_text(), assets, a.source))
     for name, n in assets.items():
         print(f"{name:55s}{n:>12,}")
 

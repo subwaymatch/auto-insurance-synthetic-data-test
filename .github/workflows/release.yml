@@ -1,14 +1,28 @@
 name: Release dataset
 
 # Builds the dataset from source, tests and validates it, and publishes it as a GitHub release.
-#   * Push a tag such as v1.0.0 to release the default configuration as CSV.
+# The generated data is not committed to the repository; releases are where it lives.
+#
+#   * Every push to main that changes the generator rebuilds the rolling "latest" pre-release, so
+#     .../releases/download/latest/chicago-auto-insurance-data-latest-csv.zip is always current.
+#   * Push a tag such as v1.0.0 to publish a versioned release of the default configuration.
 #   * Or run it from the Actions tab ("Run workflow") with a tag and, optionally, another seed, size or
 #     set of file formats. Formats are defined in scripts/release_formats.py; add one there (and its
 #     library to requirements-release.txt) to publish it.
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+    paths:                      # for pushes to main only; tag pushes always run
+      - "autoins/**"
+      - "reference/**"
+      - "scripts/**"
+      - "generate.py"
+      - "validate.py"
+      - "requirements*.txt"
+      - "README.md"             # shipped inside the data zip
+      - ".github/workflows/release.yml"
   workflow_dispatch:
     inputs:
       tag:
@@ -40,15 +54,17 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
-  cancel-in-progress: false
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
+  # a newer push to main supersedes a rolling build still in progress; versioned releases always finish
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 defaults:
   run:
     shell: bash
 
 env:
-  TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+  ROLLING: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
+  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
   SEED: ${{ inputs.seed || '20250101' }}
   POLICIES: ${{ inputs.policies || '30000' }}
   FORMATS: ${{ inputs.formats || 'csv' }}
@@ -61,7 +77,9 @@ jobs:
     steps:
       - name: Check inputs
         run: |
-          [[ "$TAG" =~ ^v[0-9A-Za-z._-]+$ ]] || { echo "::error::Tag must look like v1.2.3 (got '$TAG')"; exit 1; }
+          if [[ "$ROLLING" != "true" ]]; then
+            [[ "$TAG" =~ ^v[0-9A-Za-z._-]+$ ]] || { echo "::error::Tag must look like v1.2.3 (got '$TAG')"; exit 1; }
+          fi
           [[ "$SEED" =~ ^[0-9]+$ ]] || { echo "::error::Seed must be a whole number"; exit 1; }
           [[ "$POLICIES" =~ ^[0-9]+$ ]] && (( POLICIES >= 1000 && POLICIES <= 500000 )) \
             || { echo "::error::Policies must be between 1,000 and 500,000"; exit 1; }
@@ -85,30 +103,27 @@ jobs:
         run: python generate.py --seed "$SEED" --policies "$POLICIES" --out build/output
 
       - name: Validate dataset
-        run: python validate.py --out build/output | tee build/validation.txt
-
-      - name: Compare with committed output
-        # Informational only. Byte-identical output is expected with the pinned library versions,
-        # but floating-point details can differ between CPUs.
         run: |
-          if [[ "$SEED" != "20250101" || "$POLICIES" != "30000" ]]; then
-            echo "Non-default settings; the committed output/ folder is not comparable."
-          elif diff -rq output build/output; then
-            echo "::notice::Regenerated data is byte-identical to the committed output/ folder."
-          else
-            echo "::warning::Regenerated data differs from the committed output/ folder. Regenerate and commit output/ if the generator changed."
-          fi
+          set -o pipefail
+          python validate.py --out build/output | tee build/validation.txt
 
       - name: Package release files
         run: >-
           python scripts/package_release.py --data build/output --tag "$TAG" --validation build/validation.txt
-          --dist dist --formats "$FORMATS"
+          --dist dist --formats "$FORMATS" --source "$GITHUB_SHA"
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mapfile -t files < <(find dist -maxdepth 1 -type f ! -name release_notes.md | sort)
+          if [[ "$ROLLING" == "true" ]]; then
+            # replace the rolling release (and move its tag) so it holds exactly this build's files
+            gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+            gh release create "$TAG" "${files[@]}" --title "Latest build of main" --notes-file dist/release_notes.md \
+              --target "$GITHUB_SHA" --prerelease
+            exit 0
+          fi
           flags=()
           [[ "$PRERELEASE" == "true" ]] && flags+=(--prerelease)
           if gh release view "$TAG" >/dev/null 2>&1; then

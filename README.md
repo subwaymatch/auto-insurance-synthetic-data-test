@@ -9,6 +9,17 @@ Everything about people, policies, premiums and claims is simulated. No record d
 real person. The geography is real: ZIP codes, Census demographics, and Chicago police crash
 and vehicle-theft counts.
 
+## Getting the data
+
+The data is published as GitHub releases, not committed to the repository. The `latest`
+release is rebuilt automatically whenever the generator changes on `main`:
+
+- Student data: [chicago-auto-insurance-data-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-csv.zip)
+- Instructor answer key: [chicago-auto-insurance-answer-key-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-csv.zip)
+
+Versioned releases (`v1.0.0` and so on) are listed on the [releases page](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases). To build the data
+yourself instead, see below.
+
 ## Quick start
 
 ```bash
@@ -24,8 +35,8 @@ python validate.py
 ```
 
 `generate.py` writes 22 CSV tables to `output/` and an instructor answer key to
-`output/answer_key/` in about 45 seconds. The default run is committed in `output/`, so the
-data can be used without running anything. `validate.py` re-reads those files and checks them
+`output/answer_key/` in about 45 seconds. `output/` is ignored by git: the published copy of the
+data is the releases above. `validate.py` re-reads those files and checks them
 against the calibration targets and for record-level consistency (vehicle lifecycles, what was
 known when each term was rated, policy dates, premium accounting and payments).
 
@@ -46,7 +57,13 @@ random numbers or format floats slightly differently, which would change the gen
 ## Releases
 
 `.github/workflows/release.yml` builds the dataset from source, runs the tests and
-`validate.py`, and publishes a GitHub release. To release the default configuration, push a tag:
+`validate.py`, and publishes a GitHub release. It runs in three ways:
+
+- **Automatically, on every push to `main`** that changes the generator, its reference data, the
+  release scripts or this README: it rebuilds the default configuration and replaces the rolling
+  `latest` pre-release, so the download links above always point at the current build. The release
+  notes record the commit it was built from.
+- **On a version tag**, for a fixed release of the default configuration:
 
 ```bash
 git tag v1.0.0
@@ -56,9 +73,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-To release another seed, size or set of file formats, open the Actions tab, choose "Release
-dataset", then "Run workflow", and enter a tag, seed, policy count and formats (default `csv`).
-Re-running for an existing tag replaces that release's files.
+- **By hand**, for another seed, size or set of file formats: open the Actions tab, choose
+  "Release dataset", then "Run workflow", and enter a tag, seed, policy count and formats (default
+  `csv`). Re-running for an existing tag replaces that release's files.
 
 Each release carries, for each format:
 
@@ -87,9 +104,8 @@ publishes it when its name is listed in the formats input.
 
 The release fails if a test or an integrity check fails. Calibration bands only count for books of
 20,000 policies or more; on smaller books they are reported as warnings, because a few hundred
-claims are too few to hold them. For the default settings, the workflow also reports whether the
-freshly built data matches the committed `output/` folder; a mismatch raises a warning, not a
-failure, because floating-point details can differ between machines.
+claims are too few to hold them. The same seed and settings give byte-identical files on any
+machine with the pinned library versions, so a release can always be rebuilt exactly.
 
 ## What the default run produces
 
@@ -291,11 +307,11 @@ the values each period was rated with.
 
 ## What a case study can find (instructor notes)
 
-`output/answer_key/` (and the separate answer-key zip in each release) holds the truth behind the data: each vehicle's expected loss by
-coverage, each driver's hidden risk factor, true mileage, true ZIP hazard, the full rating
-plan before and after distortion, and the claims not yet reported. Withhold it from students:
-give them the data zip from a release, not access to this repository, because the answer key is
-committed here.
+The answer-key zip in each release (and `output/answer_key/` when you build locally) holds the truth
+behind the data: each vehicle's expected loss by coverage, each driver's hidden risk factor, true
+mileage, true ZIP hazard, the full rating plan before and after distortion, and the claims not yet
+reported. Withhold it from students: give them the data zip from a release, not access to this
+repository, because anyone with the code can regenerate the answer key.
 
 Deliberate and emergent findings in the default run:
 
@@ -443,7 +459,7 @@ autoins/simulate.py      term-by-term simulation: rating, retention, household c
 autoins/claims.py        claim lifecycle: payments, reserves, claim detail, valuation cut-off
 autoins/quotes.py        the new-business quote funnel
 autoins/tables.py        output tables and answer key
-output/                  the default run (seed 20250101), committed
+output/                  where generate.py writes (ignored by git; published as releases)
 reference/               ZIP reference data, vehicle catalogue, name lists
 scripts/                 build reference/ from public sources; package release files in each format
                          (release_formats.py)
