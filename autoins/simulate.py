@@ -284,7 +284,8 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         has_car = np.bincount(v["pol"][v["active"]], minlength=n) > 0
         has_car[ev.pol[ev.kind == ARRIVAL].to_numpy()] = True
         has_car[v["pol"][sim.pending]] = True
-        empty = in_prog[~has_car[in_prog] & (T.last_gone[in_prog] >= 0)]
+        # (unless it went the day after the valuation date, which is not yet known)
+        empty = in_prog[~has_car[in_prog] & (T.last_gone[in_prog] >= 0) & (T.last_gone[in_prog] <= sim.ref.cal.valuation_day)]
         _cancel(T, empty, T.last_gone[empty], "Insured Request")
         live[empty] = False
         ev = ev[live[ev.pol.to_numpy()] | (ev.day.to_numpy() > nb[ev.pol.to_numpy()])]
@@ -309,6 +310,8 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
     cancelled = T.cancel_day[pol] >= 0
     # rows ending at a change that turned out to be a cancellation are cancelled like any other
     ran = (rows.end_kind.to_numpy() == END_RAN) | ((rows.end_kind.to_numpy() == END_ENDORSED) & cancelled & (x == T.cancel_day[pol]))
+    # a car destroyed on the valuation date leaves the day after it: not yet known, so its row still runs
+    ran |= (rows.end_kind.to_numpy() == END_GONE) & (x > sim.ref.cal.valuation_day)
     rows["end_kind"] = np.where(ran, END_RAN, rows.end_kind)
     sched = np.where(ran, T.e[pol], x)                  # cover as written, before any cancellation
     return rows.assign(
@@ -349,6 +352,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         occasional_youthful=cd["occasional_youthful"], bi_opt=p["bi_opt"][vp], um_opt=p["um_opt"][vp], med_opt=p["med_opt"][vp],
         coll_ded=np.where(v["has_coll"][V], np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]], 0),
         comp_ded=np.where(v["has_comp"][V], np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]], 0),
+        full_glass=v["full_glass"][V], rent_opt=np.where(v["has_rent"][V], v["rent_opt"][V], -1), has_tow=v["has_tow"][V],
         **{f"prem_{c}": prem[c] for c in C.COVERAGES}, **{f"exp_{c}": exp_loss[c] for c in C.COVERAGES})))
 
     if len(occ):
@@ -588,13 +592,15 @@ def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
     drv = sim.pop.drv
     ok = drv.active.to_numpy()[who]
     pol, day, who, code = pol[ok], day[ok], who[ok], code[ok]
-    is_ni = who == p["ni_drv"][pol]
     active = drv.active.to_numpy().copy()
     role, marital = drv.role.to_numpy().copy(), drv.marital.to_numpy().copy()
     removed, why = drv.removed_day.to_numpy().copy(), drv.removal_reason.to_numpy().copy()
     d_pol = drv.pol.to_numpy()
-    for q, d, w, c, ni in zip(pol, day, who, code, is_ni):
-        if ni:      # the named insured died: a surviving spouse takes the policy over, or it is cancelled
+    for q, d, w, c in zip(pol, day, who, code):
+        # two drivers of one policy can leave on the same day, so each is judged as the policy now stands
+        if c == 3 and role[w] != 1:
+            continue    # no longer a spouse: widowed earlier today, and now the named insured
+        if w == p["ni_drv"][q]:      # the named insured died: a surviving spouse takes the policy over, or it is cancelled
             spouse = np.flatnonzero((d_pol == q) & active & (role == 1))
             if len(spouse):
                 s0 = spouse[0]
