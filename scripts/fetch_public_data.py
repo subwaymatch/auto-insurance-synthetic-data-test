@@ -11,6 +11,12 @@ Sources (all public, no API key needed):
   * GeoNames postal code file (CC BY 4.0) for ZIP place names
   * City of Chicago Data Portal: Traffic Crashes (Crashes, People), Crimes,
     and ZIP Code boundaries
+  * For the vehicle catalogue (scripts/build_vehicle_catalogue.py): EPA/DOE fuel economy data
+    (fueleconomy.gov, every light-duty model sold in the US) and the City of Chicago Traffic Crashes -
+    Vehicles dataset (make, model, model year and use of every vehicle in a crash)
+
+    python scripts/fetch_public_data.py                    # everything
+    python scripts/fetch_public_data.py --only vehicles    # just the vehicle catalogue sources
 """
 from __future__ import annotations
 
@@ -32,7 +38,10 @@ GAZ_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazett
 GEONAMES_URL = "https://download.geonames.org/export/zip/US.zip"
 
 CHI = "https://data.cityofchicago.org/resource/"
-CRASHES, PEOPLE, CRIMES, ZIP_BOUNDS = "85ca-t3if", "u6pd-qa9d", "ijzp-q8t2", "unjd-c2ca"
+CRASHES, PEOPLE, CRIMES, ZIP_BOUNDS, VEHICLES = "85ca-t3if", "u6pd-qa9d", "ijzp-q8t2", "unjd-c2ca", "68nd-jvt3"
+EPA_URL = "https://www.fueleconomy.gov/feg/epadata/vehicles.csv.zip"
+VEHICLE_UNITS = "unit_type in('DRIVER','PARKED','DRIVERLESS')"
+PERSONAL_USE = "vehicle_use in('PERSONAL','UNKNOWN/NA','NOT IN USE','RIDESHARE SERVICE')"
 PERIOD = "crash_date between '2021-01-01T00:00:00' and '2025-12-31T23:59:59'"
 
 
@@ -83,11 +92,29 @@ def soql(dataset: str, fmt: str = "json", **params: str) -> str:
     return f"{CHI}{dataset}.{fmt}?{q}"
 
 
+def fetch_vehicle_sources(cache: Path) -> None:
+    get(EPA_URL, cache / "epa_vehicles.csv.zip")
+    # every vehicle in a 2021-2025 crash, by make, model, model year, type and use
+    get(soql(VEHICLES, "csv", select="make,model,vehicle_year,vehicle_type,vehicle_use,count(*) as n",
+             where=f"{PERIOD} AND {VEHICLE_UNITS}", group="make,model,vehicle_year,vehicle_type,vehicle_use",
+             limit="1000000"), cache / "chi_crash_vehicles.csv")
+    # personal vehicles by crash year and model year: the age of the cars on the road
+    get(soql(VEHICLES, "csv", select="date_extract_y(crash_date) as crash_year,vehicle_year,count(*) as n",
+             where=f"{PERIOD} AND {VEHICLE_UNITS} AND {PERSONAL_USE}", group="crash_year,vehicle_year",
+             limit="100000"), cache / "chi_crash_vehicle_age.csv")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cache", type=Path, default=Path("reference/_cache"))
-    cache = ap.parse_args().cache
+    ap.add_argument("--only", choices=["all", "vehicles"], default="all")
+    a = ap.parse_args()
+    cache = a.cache
     cache.mkdir(parents=True, exist_ok=True)
+    fetch_vehicle_sources(cache)
+    if a.only == "vehicles":
+        print("done")
+        return
 
     for t in ACS_TABLES:
         get_acs_filtered(t, cache / f"acs_{t}.psv")

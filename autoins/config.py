@@ -22,7 +22,7 @@ REFERENCE_DIR = REPO / "reference"
 @dataclass(frozen=True)
 class Config:
     seed: int = 20250101
-    n_policies: int = 30_000          # distinct policies ever written (initial book + new business)
+    n_policies: int = 50_000          # distinct policies ever written (initial book + new business)
     out_dir: Path = REPO / "output"
     start: str = "2022-01-01"         # first day simulated
     valuation: str = "2026-09-30"     # "as of" date of the extract; nothing later is known
@@ -49,7 +49,16 @@ PRIOR_ACCIDENT_FACTOR = 0.62         # prior-carrier accidents per true at-fault
 REPLACE_AGE_KNOTS = [0, 3, 6, 10, 15, 20]
 REPLACE_HAZARD = [0.05, 0.11, 0.13, 0.15, 0.17, 0.20]
 LEASE_END_HAZARD = 0.70              # leased vehicles three or more years old
-REPLACEMENT_AGE = dict(shape=1.5, scale=2.3)   # age of the vehicle bought as a replacement
+# Vehicle ages. The household fleet (gamma, years, before an income tilt: richer households drive newer cars)
+# is TUNED so the cars in force match Chicago personal vehicles in crashes 2021-2025 (City of Chicago Traffic
+# Crashes - Vehicles: mean age 9.4 years in 2021 rising to 10.2 in 2025; 41-48% ten or more years old, about
+# 21% fifteen or more). Replacements are a mix of new and used purchases (ASSUMED).
+FLEET_AGE = dict(shape=2.1, scale=4.8, cap=30.0)
+REPLACEMENT_AGE = dict(shape=1.6, scale=4.2)   # age of the vehicle bought as a replacement or an added car
+# Model popularity in reference/vehicle_catalogue.csv is measured on vehicles in Chicago crashes, mostly garaged
+# in the city (vehicle-weighted density about 16,000 people per square mile). Pickups are commoner where it is
+# less dense: their weight scales with (density / this) ** -0.45 (ASSUMED shape).
+VEHICLE_DENSITY_REF = 16_000
 # After a total loss the wrecked or stolen vehicle leaves the policy on the day after the loss. Most
 # households buy a replacement, which joins the policy (as a new insured vehicle) when it is bought.
 P_REPLACE_AFTER_TOTAL_LOSS = {"single": 0.93, "multi": 0.80}   # by vehicles on the policy (ASSUMED)
@@ -219,7 +228,7 @@ ANTI_THEFT_FACTOR = 0.80
 FREQ_TREND_CRASH = {2021: 0.96, 2022: 0.98, 2023: 1.01, 2024: 1.00, 2025: 0.99, 2026: 0.98}   # ASSUMED, near flat
 THEFT_YEAR_DAMPING = 0.55            # non-Kia/Hyundai theft follows the Chicago index ** damping (ASSUMED)
 KIA_HYUNDAI_THEFT = {2021: 1.0, 2022: 4.0, 2023: 6.0, 2024: 3.5, 2025: 2.5, 2026: 1.8}   # extra multiplier (ASSUMED, stylised)
-KIA_HYUNDAI_MODEL_YEARS = (2011, 2021)
+KIA_HYUNDAI_MODEL_YEARS = (2011, 2021)   # key-start models; electric models were not affected
 ANIMAL_SEASONALITY = [0.75, 0.65, 0.70, 0.80, 1.05, 1.10, 0.85, 0.75, 0.85, 1.40, 1.95, 1.20]
 WEATHER_SEASONALITY = [0.55, 0.60, 0.90, 1.30, 1.55, 1.65, 1.55, 1.35, 0.85, 0.65, 0.55, 0.50]
 GLASS_SEASONALITY = [1.20, 1.15, 1.10, 1.00, 0.95, 0.90, 0.90, 0.90, 0.90, 0.95, 1.00, 1.05]

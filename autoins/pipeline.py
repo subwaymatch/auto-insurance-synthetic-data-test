@@ -14,7 +14,7 @@ def generate(cfg: C.Config) -> dict:
     res = simulate.run(cfg, ref, pop)
     dev = claims.develop(cfg, ref, res)
     T, K = tables.build(cfg, ref, pop, res, dev)
-    T["quote_fact"] = quotes.build(cfg, ref, pop, res)
+    T["quote"] = quotes.build(cfg, ref, pop, res)
     summary = {"seed": cfg.seed, "policies": cfg.n_policies, "start": cfg.start, "valuation": cfg.valuation,
                "rows": {k: len(v) for k, v in T.items()}, "answer_key_rows": {k: len(v) for k, v in K.items()}}
     tables.write(T, K, res.plan, cfg, summary)

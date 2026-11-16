@@ -34,7 +34,7 @@ import pandas as pd
 
 from . import claims
 from . import config as C
-from . import population, rating, truth
+from . import names, population, rating, telematics, truth
 from .refdata import stream
 
 CANCEL_REASONS = ["", "Underwriting", "Non-Payment", "Insured Request", "Insured Deceased"]
@@ -59,6 +59,7 @@ class Result:
     reserves: pd.DataFrame   # every case reserve change, including those after the valuation date
     plan: rating.Plan
     static: truth.Static
+    tele: dict = None        # telematics enrolments and scores (see _telematics)
 
 
 class Records:
@@ -116,6 +117,30 @@ class Sim:
     pending_day: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))  # replacement comes after the term
     clm_pol: list = field(default_factory=list)
     clm_report: list = field(default_factory=list)
+    tele: "Tele" = None
+
+
+@dataclass
+class Tele:
+    """Telematics programme state: per policy (current enrolment, last scoring day, re-offer date) and the records."""
+    R: np.random.Generator
+    eid: np.ndarray
+    last_scored: np.ndarray
+    block: np.ndarray
+    device: np.ndarray
+    enrol: list = field(default_factory=list)       # (enrolment id, pol, start day, device)
+    ended: dict = field(default_factory=dict)       # enrolment id -> (end day, reason)
+    scores: list = field(default_factory=list)      # DataFrames, one per pass
+
+    def end(self, pols: np.ndarray, day: np.ndarray, reason: str, st) -> None:
+        pols, day = np.asarray(pols), np.broadcast_to(np.asarray(day), np.shape(pols))
+        on = self.eid[pols] >= 0
+        for e, d in zip(self.eid[pols][on], day[on]):
+            self.ended.setdefault(int(e), (int(d), reason))
+        self.eid[pols] = -1
+        cars = np.isin(st.v["pol"], pols)
+        st.v["tele_on"][cars] = False
+        st.v["tele_disc"][cars] = 0.0
 
 
 @dataclass
@@ -147,6 +172,8 @@ def run(cfg: C.Config, ref, pop) -> Result:
 
     sim = Sim(ref=ref, pop=pop, st=st, plan=plan, R=stream(cfg.seed, "simulate"),
               dev=claims.Development(cal, stream(cfg.seed, "claims"), stream(cfg.seed, "claim detail")), recs=recs)
+    sim.tele = Tele(R=stream(cfg.seed, "telematics"), eid=np.full(n, -1), last_scored=np.full(n, -10 ** 6),
+                    block=np.full(n, -10 ** 6), device=np.zeros(n, dtype=int))
     R = sim.R
     tm = p["term_months"]
     ty = tm / 12
@@ -168,6 +195,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
         tenure_years = (p["tenure_terms"] + k) * ty
         P = np.flatnonzero(cand)
         change = np.zeros(n)
+        _telematics(sim, P, k, s_all, rate_day, term_no)
 
         if k > 0:   # renewal decision, made with the renewal offer in hand
             v, drv = st.v, pop.drv
@@ -196,6 +224,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
             gone = P[~stay]
             nonrenew_term.append(last_term[gone])
             nonrenew_reason.append(np.where(company[~stay], "Company Non-Renewal", "Insured Did Not Renew"))
+            sim.tele.end(gone, s_all[gone], "Policy Ended", st)
             active[gone] = False
             cand[gone] = False
             P = P[stay]
@@ -240,6 +269,8 @@ def run(cfg: C.Config, ref, pop) -> Result:
         rows.append(term_rows)
         prev_s[P] = s_all[P]
         last_term[P] = term_of_pol[P]
+        done = P[T.cancel_day[P] >= 0]
+        sim.tele.end(done, T.cancel_day[done], "Policy Cancelled", st)
         active[P[cancel_day[P] >= 0]] = False
         n_terms += len(P)
         k += 1
@@ -252,8 +283,13 @@ def run(cfg: C.Config, ref, pop) -> Result:
     for c in ("n_drv", "n_veh", "ni_drv", "zi", "homeowner", "bi_opt", "um_opt"):   # the policy as it stands at the end
         pop.pol[c] = st.p[c]
     occ, feat, pays, reserves = sim.dev.result()
+    tl = sim.tele
+    enrol = pd.DataFrame(tl.enrol, columns=["eid", "pol", "start", "device"])
+    end = enrol.eid.map(lambda e: tl.ended.get(e, (-1, ""))[0])
+    enrol = enrol.assign(end=end, reason=enrol.eid.map(lambda e: tl.ended.get(e, (-1, ""))[1]))
+    scores = pd.concat(tl.scores, ignore_index=True) if tl.scores else pd.DataFrame()
     return Result(terms=terms, rows=pd.concat(rows, ignore_index=True), occ=occ, feat=feat, pays=pays, reserves=reserves,
-                  plan=plan, static=st)
+                  plan=plan, static=st, tele={"enrol": enrol, "scores": scores})
 
 
 # ----------------------------------------------------------------------------------------- one term
@@ -276,7 +312,14 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         V = np.flatnonzero(v["active"] & live[v["pol"]] & (v["added_day"] <= clock[v["pol"]]))
         a, why = clock[v["pol"][V]], reason_now[v["pol"][V]]
         while len(V):
-            V, a, why, arrivals = _simulate_rows(sim, T, V, a, why, nb, out)
+            # a policy's rows are rated in date order, so a replacement car joining later in the term is rated
+            # knowing the claims of cars that joined before it
+            vpol = st.v["pol"][V]                       # (vehicle arrays grow as replacements are added)
+            first_a = np.full(n, np.iinfo(np.int64).max)
+            np.minimum.at(first_a, vpol, a)
+            now = a == first_a[vpol]
+            Vn, an, whyn, arrivals = _simulate_rows(sim, T, V[now], a[now], why[now], nb, out)
+            V, a, why = np.r_[V[~now], Vn], np.r_[a[~now], an], np.r_[why[~now], whyn]
             ev = _events(ev, arrivals)
 
         # a policy whose last car has gone, with no replacement coming, is cancelled the day it went
@@ -333,6 +376,9 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
     points, _, acc = sim.recs.for_rows(dr, a, asof)
     prem, cd = _premium(sim, V, a, T.s[vp], points, acc, T.tenure[vp], T.ty[vp])
     ctx = truth.context(st, cal, V, a, b)
+    watched = np.where(v["tele_on"][V], telematics.BEHAVIOUR_FACTOR, 1.0)     # drivers take more care while monitored
+    for k_ in ("AF_MV", "AF_SV"):
+        ctx["rate"][k_] = ctx["rate"][k_] * watched
     occ, feat, wrecks, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
     occ, feat, stop_day, how = _stop_at_total_loss(occ, feat, wrecks, len(V))
     gone = stop_day >= 0
@@ -353,6 +399,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         coll_ded=np.where(v["has_coll"][V], np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]], 0),
         comp_ded=np.where(v["has_comp"][V], np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]], 0),
         full_glass=v["full_glass"][V], rent_opt=np.where(v["has_rent"][V], v["rent_opt"][V], -1), has_tow=v["has_tow"][V],
+        tele_on=v["tele_on"][V], tele_disc=v["tele_disc"][V],
         **{f"prem_{c}": prem[c] for c in C.COVERAGES}, **{f"exp_{c}": exp_loss[c] for c in C.COVERAGES})))
 
     if len(occ):
@@ -402,7 +449,112 @@ def _cancel(T: Term, pols: np.ndarray, day: np.ndarray, reason: str) -> None:
 def _premium(sim, V, day, eff, points, acc, tenure_years, term_years):
     """Full-term premium for vehicles V rated as of `day` on a term effective on `eff` (whose filed rates apply)."""
     cd = rating.codes(sim.st, sim.ref.cal, V, day, points, acc, tenure_years)
-    return rating.premium(sim.plan, cd, rating.limit_factors(sim.st, V), sim.ref.cal.rate_level_at(eff), term_years), cd
+    prem = rating.premium(sim.plan, cd, rating.limit_factors(sim.st, V), sim.ref.cal.rate_level_at(eff), term_years)
+    keep = 1 - sim.st.v["tele_disc"][V]
+    for c in telematics.DISCOUNTED_COVERAGES:
+        prem[c] = np.round(prem[c] * keep, 2)
+    return prem, cd
+
+
+def _telematics(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no) -> None:
+    """The telematics programme on each policy's rating date (telematics.py). The cars of enrolled policies are
+    scored on their driving since the last scoring, some customers leave the programme, and the programme is
+    offered to the others. Discounts apply to the term being rated."""
+    st, p, v, cal, tl = sim.st, sim.st.p, sim.st.v, sim.ref.cal, sim.tele
+    R, drv, n = tl.R, sim.pop.drv, len(p["zi"])
+    dens = sim.ref.zips.population_density_sqmi.to_numpy()
+    dob = drv.dob_day.to_numpy()
+
+    def measure(V, ws, we):
+        mid = (ws + we) // 2
+        dr = v["primary_drv"][V]
+        mt = telematics.metrics(R, truth.driver_multiplier(drv.iloc[dr], mid, cal), (mid - dob[dr]) / 365.25,
+                                v["true_miles"][V], dens[v["zi"][V]], we - ws)
+        return mt, telematics.score(mt, we - ws)
+
+    def record(V, ws, we, mt, sc, applies_s, leave):
+        """Publish the cars' scores; a customer who left on day `leave` is scored up to then and earns nothing.
+        Returns the discount each car is rated with from the term being rated."""
+        days = we - ws
+        left = leave >= 0
+        end = np.where(left, np.clip(leave, ws, we), we)
+        frac = np.where(days > 0, (end - ws) / np.maximum(days, 1), 0.0)
+        scored = (end - ws) >= telematics.MIN_SCORED_DAYS
+        disc = np.where(left, 0.0, np.where(scored, telematics.earned_discount(sc), telematics.PARTICIPATION_DISCOUNT))
+        keep = end > ws
+        tl.scores.append(pd.DataFrame(dict(
+            eid=tl.eid[v["pol"][V]], pol=v["pol"][V], veh=V, drv=v["primary_drv"][V], s=ws, e=end, days=end - ws,
+            miles=mt["miles"] * frac, trips=np.round(mt["trips"] * frac).astype(int), hard_brakes=mt["hard_brakes"],
+            rapid_accels=mt["rapid_accels"], speeding_pct=mt["speeding_pct"], phone_minutes=mt["phone_minutes"],
+            night_pct=mt["night_pct"], score=np.where(scored, sc, -1), discount=np.where(scored & ~left, disc, 0.0),
+            applies_s=np.where(left, -1, applies_s)))[keep])
+        return disc
+
+    # 1. cars of enrolled policies: scored for the window ending on the rating date
+    enrolled = P[tl.eid[P] >= 0]
+    if len(enrolled):
+        on = np.zeros(n, dtype=bool)
+        on[enrolled] = True
+        V = np.flatnonzero(v["active"] & on[v["pol"]] & v["tele_on"])
+        vp = v["pol"][V]
+        ws, we = np.maximum(v["tele_since"][V], tl.last_scored[vp]), rate_day[vp]
+        V, vp, ws, we = V[we > ws], vp[we > ws], ws[we > ws], we[we > ws]
+        mt, sc = measure(V, ws, we)
+        # the customer may leave during the window, more often after poor scores (the policy's average)
+        avg = np.bincount(vp, sc, n) / np.maximum(np.bincount(vp, minlength=n), 1)
+        start, span = np.full(n, 10 ** 9), np.zeros(n, dtype=int)
+        np.minimum.at(start, vp, ws)
+        np.maximum.at(span, vp, we - ws)
+        off = telematics.dropout(R, np.where(span[enrolled] > 0, avg[enrolled], 70.0), span[enrolled], tl.device[enrolled])
+        leave = np.full(n, -1)
+        leave[enrolled] = np.where(off >= 0, start[enrolled] + off, -1)
+        v["tele_disc"][V] = record(V, ws, we, mt, sc, s_all[vp], leave[vp])
+        gone = enrolled[leave[enrolled] >= 0]
+        tl.block[gone] = leave[gone] + telematics.REJOIN_WAIT_DAYS
+        tl.end(gone, leave[gone], "Opted Out", st)
+        stay = enrolled[leave[enrolled] < 0]
+        tl.last_scored[stay] = rate_day[stay]
+        # cars added since the policy joined start being monitored now, on the participation discount
+        on[:] = False
+        on[stay] = True
+        new = np.flatnonzero(v["active"] & on[v["pol"]] & ~v["tele_on"])
+        v["tele_on"][new], v["tele_since"][new], v["tele_disc"][new] = True, s_all[v["pol"][new]], telematics.PARTICIPATION_DISCOUNT
+
+    # 2. the offer, to policies not in the programme (and not just out of it)
+    offer = P[(tl.eid[P] < 0) & (tl.block[P] <= rate_day[P])]
+    if len(offer) == 0:
+        return
+    opening = (k == 0) & p["is_initial"][offer]
+    d = np.flatnonzero(drv.active.to_numpy() & np.isin(drv.pol.to_numpy(), offer))
+    dpol = drv.pol.to_numpy()[d]
+    m = truth.driver_multiplier(drv.iloc[d], rate_day[dpol], cal)
+    household = np.bincount(dpol, m, n)[offer] / np.maximum(np.bincount(dpol, minlength=n)[offer], 1)
+    young = (rate_day[offer] - dob[p["ni_drv"][offer]]) / 365.25 < 30
+    base = telematics.base_uptake(cal.year_frac(rate_day[offer]), term_no[offer] == 1, opening)
+    join = offer[telematics.uptake(R, base, household, young, p["channel"][offer])]
+    if len(join) == 0:
+        return
+    was_open = (k == 0) & p["is_initial"][join]
+    start = np.where(was_open, s_all[join] - R.integers(60, 1000, len(join)), s_all[join])
+    dev = telematics.device(R, cal.year_frac(start))
+    eid = len(tl.enrol) + np.arange(len(join))
+    tl.enrol.extend(zip(eid.tolist(), join.tolist(), start.tolist(), dev.tolist()))
+    tl.eid[join], tl.device[join], tl.last_scored[join] = eid, dev, start
+    on = np.zeros(n, dtype=bool)
+    on[join] = True
+    V = np.flatnonzero(v["active"] & on[v["pol"]])
+    vp = v["pol"][V]
+    since = np.zeros(n, dtype=int)
+    since[join] = start
+    v["tele_on"][V], v["tele_since"][V], v["tele_disc"][V] = True, since[vp], telematics.PARTICIPATION_DISCOUNT
+    # policies already in the programme when the extract starts were scored before it: their earned discount applies
+    old = V[was_open[np.searchsorted(join, vp)]]
+    if len(old):
+        op = v["pol"][old]
+        ws, we = np.maximum(since[op], rate_day[op] - 180), rate_day[op]
+        mt, sc = measure(old, ws, we)
+        v["tele_disc"][old] = record(old, ws, we, mt, sc, s_all[op], np.full(len(old), -1))
+        tl.last_scored[op] = rate_day[op]
 
 
 def _stop_at_total_loss(occ: pd.DataFrame, feat: pd.DataFrame, wrecks: pd.DataFrame, nv: int):
@@ -668,13 +820,16 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
     ni = p["ni_drv"][pol]
     own_name = (role != 3) & (R.random(m) < 0.20)
     ids = len(drv) + np.arange(m)
+    # a teen takes the household's group and surname; a spouse or other adult usually shares the group (names.py)
+    p_same = {1: names.SAME_GROUP_SPOUSE, 2: names.SAME_GROUP_OTHER_ADULT}.get(role, 1.0)
+    group = ref.names.related_group(R, drv.race_group.to_numpy()[ni], ref.names.zip_mix(zr), p_same)
     new = pd.DataFrame(dict(
         pol=pol, role=role, age=age, drv=ids, ord=p["n_drv"][pol], male=male, marital=marital, dob_day=dob,
         licensed_day=licensed, latent=R.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, m) * p["household_factor"][pol],
         good_grades=(role == 3) & (R.random(m) < C.GOOD_STUDENT_GRADES_P),
         school_end_day=dob + (population.school_end_age(R, m) * 365.25).astype(int), commute_miles=commute, employed=employed,
-        first_name=np.where(male, R.choice(ref.first_m, m), R.choice(ref.first_f, m)),
-        last_name=np.where(own_name, R.choice(ref.last, m), drv.last_name.to_numpy()[ni]), assigned=False, added_day=day,
+        first_name=ref.names.first_name(R, group, male, np.floor(cal.year_frac(dob)).astype(int)), race_group=group,
+        last_name=np.where(own_name, ref.names.surname(R, group), drv.last_name.to_numpy()[ni]), assigned=False, added_day=day,
         removed_day=-1, removal_reason=0, active=True))
     sim.pop.drv = pd.concat([drv, new[drv.columns]], ignore_index=True)
     np.add.at(p["n_drv"], pol, 1)
@@ -723,7 +878,8 @@ def _add_vehicles(sim: Sim, pol, day, primary) -> None:
     zi = p["zi"][pol]
     density = ref.zips.population_density_sqmi.to_numpy()[zi]
     in_city = (ref.zips.region.to_numpy() == "City of Chicago")[zi]
-    new = population.draw_vehicles(ref, R, pol, cal.year_frac(day), p["inc_rel"][pol], density, age_scale=4.3, age_shape=2.0)
+    new = population.draw_vehicles(ref, R, pol, cal.year_frac(day), p["inc_rel"][pol], density,
+                                   age_scale=C.FLEET_AGE["scale"], age_shape=C.FLEET_AGE["shape"])
     new["true_miles"], new["reported_miles"], new["use"] = population.draw_mileage(
         R, drv.commute_miles.to_numpy()[primary], (day - dob[primary]) / 365.25, drv.employed.to_numpy()[primary], extra, in_city)
     new["parking"] = population.draw_parking(R, density, p["homeowner"][pol].astype(bool))
