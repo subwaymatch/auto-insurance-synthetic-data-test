@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to create, e.g. v1.1.0"
+        description: "Release tag to create, e.g. v1.1.0 (1.1.0 also works: the v is added)"
         required: true
         type: string
       seed:
@@ -37,7 +37,7 @@ on:
       policies:
         description: "Number of policies"
         required: false
-        default: "50000"
+        default: "51391"
         type: string
       formats:
         description: "File formats, comma-separated (see scripts/release_formats.py)"
@@ -54,7 +54,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.tag, 'v') && inputs.tag || format('v{0}', inputs.tag)) || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
   # a newer push to main supersedes a rolling build still in progress; versioned releases always finish
   cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
@@ -64,9 +64,10 @@ defaults:
 
 env:
   ROLLING: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
-  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
+  # a version typed without its leading v (1.1.0) is released as v1.1.0
+  TAG: ${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.tag, 'v') && inputs.tag || format('v{0}', inputs.tag)) || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
   SEED: ${{ inputs.seed || '20250101' }}
-  POLICIES: ${{ inputs.policies || '50000' }}
+  POLICIES: ${{ inputs.policies || '51391' }}
   FORMATS: ${{ inputs.formats || 'csv' }}
   PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
 

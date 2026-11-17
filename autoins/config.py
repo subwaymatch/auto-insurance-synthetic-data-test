@@ -22,7 +22,7 @@ REFERENCE_DIR = REPO / "reference"
 @dataclass(frozen=True)
 class Config:
     seed: int = 20250101
-    n_policies: int = 50_000          # distinct policies ever written (initial book + new business)
+    n_policies: int = 51_391          # distinct policies ever written (initial book + new business)
     out_dir: Path = REPO / "output"
     start: str = "2022-01-01"         # first day simulated
     valuation: str = "2026-09-30"     # "as of" date of the extract; nothing later is known

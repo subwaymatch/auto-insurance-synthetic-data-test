@@ -13,7 +13,7 @@ realistic and more useful for teaching, and why.
 
 Dates are merge dates (US Central time). Figures for stages 1 to 4 are for the default run at the
 time (seed 20250101, 30,000 policies, 1 January 2022 to 30 September 2026), and for stage 5 the new
-default of 50,000 policies, unless stated otherwise.
+default of 51,391 policies, unless stated otherwise.
 
 1. **2026-11-13, Starting point.** The repository is created; the aim is to replace the old dataset
    (California geography, a loss ratio near 20%, no link between driver risk and claims).
@@ -31,11 +31,11 @@ default of 50,000 policies, unless stated otherwise.
    compared with a real insurer's portfolio; the 110 hand-picked car models become a catalogue of every
    US make, model and model year since 1997, weighted by Chicago's roads; the fleet ages to match; a
    telematics programme, realistic names and a consistent table layout are added; the default book grows
-   to 50,000 policies.
+   to 51,391 policies.
 
 ## Unreleased (in progress)
 
-Figures in this section are for the new default run (50,000 policies) unless stated otherwise.
+Figures in this section are for the new default run (51,391 policies) unless stated otherwise.
 
 ### Benchmarked against a real insurer's data
 
@@ -47,7 +47,7 @@ Figures in this section are for the new default run (50,000 policies) unless sta
   risk relationships, claim-cost and premium spread, retention, signal strength and data quality,
   not levels, since the markets and currencies differ), and `docs/real_data_comparison.md` reports it.
 - **Verdict.** The synthetic data looks realistic where a fair comparison is possible: drivers under 25
-  claim 1.37 times the average in the real book and 1.35 times in the synthetic one; urban vehicles
+  claim 1.37 times the average in the real book and 1.27 times in the synthetic one; urban vehicles
   1.14 and 1.13 times; claim costs and premiums spread alike. Four gaps remain open: claims barely drive
   customers away, payment plan carries no risk, the largest claims are smaller, and the data is too clean
   to teach data cleaning. A fifth, a fleet that was too young, is fixed below.
@@ -58,7 +58,7 @@ Figures in this section are for the new default run (50,000 policies) unless sta
   Camry was the same Camry. Real insurers rate on a make, model and model-year table.
 - **What.** `vehicle_model_year` now holds 8,750 model years of 940 models from 74 makes, from the
   Toyota Camry to the Bugatti Chiron, each with its body type, size class, rating segment, fuel, drive,
-  engine, price new, VIN pattern and rating symbols. 744 of the models from 56 makes appear in the
+  engine, price new, VIN pattern and rating symbols. 761 of the models from 58 makes appear in the
   default book. Price new, symbols and the model year moved here from the insured-vehicle table.
 - **Sources.** The EPA and Department of Energy fuel economy list (every light-duty model sold in the
   US), plus heavy-duty pickups and other vehicles EPA does not list. How common each model year is comes
@@ -73,7 +73,7 @@ Figures in this section are for the new default run (50,000 policies) unless sta
 - **Why.** Most large US insurers now offer a usage-based ("drive safe and save" style) discount, and its
   data is among the most important new rating information. It was listed as not modelled.
 - **What.** Lakefront DriveCheck is offered at new business and renewal; about a fifth to 30% of new
-  customers join, and enrolled cars grow from 13% of car-years in 2022 to 24% in 2026. Members get 5%
+  customers join, and enrolled cars grow from 13% of car-years in 2022 to 25% in 2026. Members get 5%
   for joining, then a discount of up to 30% earned by a 1-100 driving score built from miles, trips,
   hard braking, rapid acceleration, speeding, phone use and night driving. Scores never raise the premium.
   About one member in ten leaves each year, more after poor scores.
@@ -92,7 +92,7 @@ Figures in this section are for the new default run (50,000 policies) unless sta
 - **What.** Each household gets a synthetic race and ethnicity group drawn from its ZIP code's Census
   mix. Surnames come from the Census 2010 surname table for that group, and first names from Social
   Security first-name counts for the driver's sex and decade of birth (1880-2025), weighted to the group
-  with Tzioumis' (2018) first-name data re-based to the 2010 population. The default book now has 2,799
+  with Tzioumis' (2018) first-name data re-based to the 2010 population. The default book now has 2,801
   distinct first names that follow birth year: Mary and Linda for women born in the 1950s, Olivia and
   Emma for the 2000s.
 - **Fairness exercise.** The group affects nothing else (risk, prices and claims never use it) and
@@ -110,23 +110,35 @@ Figures in this section are for the new default run (50,000 policies) unless sta
 
 ### A regional insurer of realistic size
 
-- The default book is now 50,000 policies written over 4.75 years (was 30,000): about 28,000 in force at
-  the end, with 48,000 cars and about $50 million of premium a year, roughly 1% of the area's household
-  vehicles. The README now describes the insurer as the Chicago-area part of a small regional group.
+- The default book is now 51,391 policies written over 4.75 years (was 30,000; a deliberately unround
+  number): about 29,000 in force at the end, with 50,000 cars and about $53 million of premium a year,
+  roughly 1% of the area's household vehicles. The README now describes the insurer as the Chicago-area part of a small regional group.
 
 ### Calibration, checks and fixes
 
 - Every calibration band still holds on the larger book: frequency and severity against national figures
-  (1.00 to 1.30 times national frequency, 0.86 to 1.09 times severity), expected loss ratios on the
-  industry path (79% in 2022 falling to 64% in 2025), and an overall loss ratio of 70.3%.
+  (1.03 to 1.24 times national frequency, 0.86 to 1.04 times severity), expected loss ratios on the
+  industry path (79% in 2022 falling to 64% in 2025), and an overall loss ratio of 72.1%.
+- Each full accident year's actual loss ratio is now held to 0.85 to 1.15 times its expected one,
+  replacing an absolute band of 52% to 88%, which mixed calibration with claim luck. In the default run
+  2022 is 88.6% against 78.9% expected (1.12), because bodily injury came in at 1.21 times its expected
+  cost; calibration itself is still held by the expected loss ratio against industry.
 - New checks in `validate.py` cover the vehicle catalogue (one row per model year, every vehicle pointing
   to one) and the telematics programme (scores inside their enrolment and earning the published
   discount, discounts only on enrolled rows); three new tests cover them and the names.
 - **Fixed:** two replacement cars joining one policy on different days of the same term were rated at
   once, so the later one could miss a claim on the earlier one. Cars are now rated in date order.
 
+### Documentation
+
+- `docs/limitations.md` collects every limit of the dataset in one shareable page: what it leaves out,
+  where it differs from a real insurer's data, the assumptions that drive its results, how far its
+  numbers can be trusted, and its appropriate and inappropriate uses.
+
 ### Data publishing (infrastructure only)
 
+- The release workflow accepts a version typed without its leading `v` (`1.1.0` is released as
+  `v1.1.0`); an earlier manual run with `1.0.1` had stopped at the input check.
 - `.github/workflows/samples.yml` commits the first 100 rows of every table, the answer key and the real
   data to `samples/`, so the data can be browsed on GitHub; it reruns when the generator changes.
 - `scripts/fetch_public_data.py --only vehicles` and `scripts/build_vehicle_catalogue.py` rebuild the
