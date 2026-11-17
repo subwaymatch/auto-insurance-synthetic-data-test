@@ -532,17 +532,21 @@ over- or under-charging by area. ZIP-level correlations say nothing about indivi
 actuarial fairness, and a relationship planted in synthetic data is not evidence about how real
 insurers price.
 
-Names are realistic for the place. Each household is given a synthetic race and ethnicity group drawn
-from its ZIP code's Census mix (spouses share it about 90% of the time); surnames come from the Census
-2010 surname table for that group (`autoins/names.py`). The group is used for nothing else: risk,
+Names are realistic for the place and the person. Each household is given a synthetic race and
+ethnicity group drawn from its ZIP code's Census mix (spouses share it about 90% of the time). Surnames
+come from the Census 2010 surname table for that group, and first names from Social Security first-name
+frequencies for the driver's sex and decade of birth, weighted to the group with Tzioumis' (2018) data
+(`autoins/names.py`): a man born in the 1950s is likely a Robert or a David, a woman born in the 2000s an
+Olivia or an Emily. The group is used for nothing else: risk,
 prices and claims depend on ZIP-level crash and theft data and on the driver, never on it. It appears
 only in the answer key (`driver_truth.race_ethnicity`), so instructors can set a fairness audit: estimate
 each driver's race from surname and address with BISG (Bayesian Improved Surname Geocoding, the method
 Colorado's rules for insurers under SB21-169 and the CFPB use), test premiums for disparate impact, and
 check the estimates against the truth. A name works as a stand-in for race and ethnicity, which is
-exactly why it must never be a rating variable. First names currently come from a fixed list,
-independent of group and age; with the Social Security first-name file, `scripts/build_name_reference.py`
-also matches them to the driver's sex, decade of birth and group.
+exactly why it must never be a rating variable. The first-name weights are statistical patterns in the
+sources, with their limits: Tzioumis' shares come from adult mortgage applicants and are re-based to the
+2010 population, not to each birth cohort, and about a third of names given since 2000 are missing from
+that list and get the population's mix.
 
 ## Assumptions and limits
 
@@ -664,7 +668,7 @@ vehicle symbols.
 | Vehicle makes, models and model years; size class, drive, engine, fuel | US EPA and Department of Energy, fuel economy data (fueleconomy.gov, `vehicles.csv`) |
 | Vehicle popularity and vehicle age | City of Chicago Data Portal, Traffic Crashes - Vehicles (2021-2025, vehicles in personal use) |
 | Surnames by race and ethnicity | US Census Bureau, Frequently Occurring Surnames from the 2010 Census |
-| First names by sex, birth year and race and ethnicity (when built) | Social Security Administration national baby names; Tzioumis (2018), "Demographic aspects of first names", Scientific Data (Harvard Dataverse, CC0) |
+| First names by sex, decade of birth and race and ethnicity | Social Security Administration national baby names (1880-2025); Tzioumis (2018), "Demographic aspects of first names", Scientific Data (Harvard Dataverse, CC0), re-based to the Census 2010 population mix |
 | Frequency and severity benchmark | Triple-I, "Facts + Statistics: Auto insurance", table "Private Passenger Auto Insurance Losses, 2015-2024" (source: ISO, a Verisk business), with its footnotes on expenses, deductible and excluded losses |
 | Real-portfolio comparison | Lledó and Pavía, "Dataset of an actual motor vehicle insurance portfolio", Mendeley Data v2 (2024), doi:10.17632/5cxyb5fp4f.2, CC BY 4.0 |
 | Underinsured motorist limits | 215 ILCS 5/143a-2(4) (limits less amounts recovered from the at-fault driver's insurer) |
@@ -700,6 +704,10 @@ python scripts/build_vehicle_catalogue.py
 ```bash
 python -I scripts/build_name_reference.py
 ```
+
+ssa.gov refuses some automated downloads; if the name builder reports that, download
+`https://www.ssa.gov/oact/babynames/names.zip` in a browser, save it as
+`reference/_cache/ssa_names.zip` and run it again.
 
 ## Layout
 

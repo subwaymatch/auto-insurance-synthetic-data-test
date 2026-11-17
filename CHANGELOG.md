@@ -87,13 +87,18 @@ Figures in this section are for the new default run (50,000 policies) unless sta
 
 ### Names that fit the place, and a fairness exercise
 
-- **Why.** Names were drawn evenly from about 570 names, unrelated to place or age.
+- **Why.** Names were drawn evenly from about 570 names (218 first names), unrelated to place, age or
+  each other.
 - **What.** Each household gets a synthetic race and ethnicity group drawn from its ZIP code's Census
-  mix, and surnames come from the Census 2010 surname table for that group. The group affects nothing
-  else (risk, prices and claims never use it) and appears only in the instructor answer key, so a
-  fairness audit with BISG (estimating race from surname and address) can be checked against the truth.
-  First names still come from the old list; matching them to birth year and group needs the Social
-  Security first-name file, which this environment could not download.
+  mix. Surnames come from the Census 2010 surname table for that group, and first names from Social
+  Security first-name counts for the driver's sex and decade of birth (1880-2025), weighted to the group
+  with Tzioumis' (2018) first-name data re-based to the 2010 population. The default book now has 2,799
+  distinct first names that follow birth year: Mary and Linda for women born in the 1950s, Olivia and
+  Emma for the 2000s.
+- **Fairness exercise.** The group affects nothing else (risk, prices and claims never use it) and
+  appears only in the instructor answer key, so a fairness audit with BISG (estimating race from surname
+  and address) can be checked against the truth. Only `driver.first_name` and `driver.last_name` changed;
+  every other table is identical with or without the new names.
 
 ### A consistent table layout
 
@@ -125,7 +130,8 @@ Figures in this section are for the new default run (50,000 policies) unless sta
 - `.github/workflows/samples.yml` commits the first 100 rows of every table, the answer key and the real
   data to `samples/`, so the data can be browsed on GitHub; it reruns when the generator changes.
 - `scripts/fetch_public_data.py --only vehicles` and `scripts/build_vehicle_catalogue.py` rebuild the
-  vehicle catalogue from its sources; `scripts/build_name_reference.py` rebuilds the name tables.
+  vehicle catalogue from its sources; `scripts/build_name_reference.py` rebuilds the name tables
+  (`reference/surnames.csv`, `reference/first_names.csv`).
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

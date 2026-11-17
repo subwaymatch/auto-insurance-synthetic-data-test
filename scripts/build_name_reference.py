@@ -55,8 +55,12 @@ first_names.csv (sex, birth_decade, first_name, white, black, hispanic, asian, o
   By Bayes' rule,
       weight(name | sex, decade, group)  proportional to  births(name, sex, decade) x P(group | name),
   with births from SSA summed over the ten years of the decade (decade 2010 = 2010-2019)
-  and P(group | name) from Tzioumis. A name missing from the Tzioumis list gets the
-  overall group mix of the listed names (weighted by applicants). The file's "ALL OTHER
+  and P(group | name) from Tzioumis, re-based from the mortgage applicants' group mix to the
+  population's (the Census 2010 totals of the surname file): each name's shares are multiplied by
+  population share / applicant share for each group and renormalised. Without this, names shared
+  across groups would be under-weighted within the groups that are rare among applicants, and
+  distinctive names over-weighted. A name missing from the Tzioumis list gets the population's
+  group mix. The file's "ALL OTHER
   FIRST NAMES" row is not used for them: it describes names that were rare among adult
   mortgage applicants (28% Asian) and would mislabel names that only became common in
   recent decades. Within each sex and decade a name is kept if it is among the top
@@ -67,8 +71,10 @@ Caveats
 -------
 * Tzioumis' shares describe adult mortgage applicants (82% white, 4% Black, 7% Hispanic,
   6% Asian/Pacific Islander), not each birth cohort, and are not split by sex or birth
-  year. Names that became common only recently may be missing from the list and get the
-  overall mix (the script prints the share of births whose name is listed).
+  year. The re-basing above corrects the overall mix to the 2010 population, not to each birth
+  cohort (younger cohorts are more Hispanic and Asian). Names that became common only recently
+  may be missing from the list and get the population mix (the script prints the share of
+  births whose name is listed).
 * The Census file stores surnames without punctuation and cut to 15 letters.
 * Both name sources combine Asian with Pacific Islander; the ZIP "asian" share is Asian
   alone, and its residual share also includes "some other race".
@@ -233,7 +239,8 @@ def load_tzioumis(path: Path) -> tuple[pd.DataFrame, pd.Series]:
 
 
 def build_first_names(ssa: pd.DataFrame, p_group: pd.DataFrame | None, overall: pd.Series | None,
-                      top: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+                      top: int, population: pd.Series | None = None) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+    """population: each group's share of the population, to re-base the applicants' P(group | name) to."""
     if p_group is None:  # race-independent fallback
         p = np.ones((len(ssa), len(GROUPS)))
         matched = np.zeros(len(ssa), dtype=bool)
@@ -241,6 +248,9 @@ def build_first_names(ssa: pd.DataFrame, p_group: pd.DataFrame | None, overall: 
         p = p_group.reindex(ssa["first_name"].str.upper())[GROUPS].to_numpy(dtype=float, copy=True)
         matched = ~np.isnan(p[:, 0])
         p[~matched] = overall[GROUPS].to_numpy()
+        if population is not None:
+            p = p * (population[GROUPS] / overall[GROUPS]).to_numpy()
+            p = p / p.sum(axis=1, keepdims=True)
     w = pd.DataFrame(p * ssa["count"].to_numpy()[:, None], columns=GROUPS, index=ssa.index)
     cell = [ssa["sex"], ssa["birth_decade"]]
     full = w / w.groupby(cell).transform("sum")
@@ -318,7 +328,12 @@ def main() -> None:
             p_group, overall = load_tzioumis(tz_xlsx)
             print(f"\nTzioumis: {len(p_group):,} names; overall mix used for unlisted names: "
                   + ", ".join(f"{g} {overall[g]:.3f}" for g in GROUPS))
-        first, cov, matched = build_first_names(load_ssa(ssa_zip), p_group, overall, args.first_name_top)
+        population = None
+        if p_group is not None and have_census:
+            totals = build_surnames(census_zip)[1]["population_2010"].astype(float)
+            population = totals / totals.sum()
+            print("re-based to the 2010 population mix: " + ", ".join(f"{g} {population[g]:.3f}" for g in GROUPS))
+        first, cov, matched = build_first_names(load_ssa(ssa_zip), p_group, overall, args.first_name_top, population)
         dest = out_dir / "first_names.csv"
         first.to_csv(dest, index=False, float_format="%.5g", lineterminator="\n")
         print(f"wrote {dest}: {len(first):,} rows, {dest.stat().st_size / 1e6:.2f} MB")
