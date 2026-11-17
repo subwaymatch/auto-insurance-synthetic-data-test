@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -13,9 +14,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import release_formats  # noqa: E402
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import names, truth  # noqa: E402
+from autoins import names, schema, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -102,6 +105,27 @@ class GeneratorTest(unittest.TestCase):
         adults = set(zip(drv.loc[drv["driver_role"] != "Child", "policy_id"], drv.loc[drv["driver_role"] != "Child", "last_name"]))
         kids = drv[drv["driver_role"] == "Child"]
         self.assertTrue(all(k in adults for k in zip(kids["policy_id"], kids["last_name"])))     # a child shares an adult's surname
+
+    def test_key_map_covers_every_table(self) -> None:
+        """autoins/schema.py names a primary key for every table and a key for every ..._id column."""
+        cols = {p.stem: list(pd.read_csv(p, nrows=0).columns) for p in (self.root / "a").rglob("*.csv")}
+        self.assertEqual(schema.problems(cols), [])
+
+    def test_sqlite_release_links_every_table(self) -> None:
+        """The SQLite release format loads every table with its keys; every foreign key resolves."""
+        out = self.root / "a"
+        tables = {p.stem: p for p in sorted(out.glob("*.csv"))} | {p.stem: p for p in sorted((out / "answer_key").glob("*.csv"))}
+        db = self.root / "instructor.sqlite"
+        release_formats.write_sqlite(tables, db)            # raises if a reference does not resolve
+        con = sqlite3.connect(db)
+        for name, path in tables.items():
+            self.assertEqual(con.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0], len(pd.read_csv(path)), name)
+        self.assertEqual(len(con.execute('PRAGMA foreign_key_list("claim")').fetchall()), 8)
+        self.assertEqual(con.execute("SELECT DISTINCT typeof(zip_code) FROM location").fetchall(), [("text",)])
+        con.execute("PRAGMA foreign_keys = ON")
+        with self.assertRaises(sqlite3.IntegrityError):
+            con.execute("INSERT INTO claim (claim_id, policy_id) VALUES (-1, -1)")
+        con.close()
 
     def test_policy_counts_are_as_at_the_latest_status(self) -> None:
         """Number of Vehicles is the cars on the policy now (or on its last day of cover), not at the term start."""

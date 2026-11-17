@@ -493,6 +493,7 @@ Columns not listed for a table keep their meaning under the new name shown.
 
 | Old column | New column |
 |---|---|
+| *(new)* | `unreported_claim_id` (a primary key; the table had none) |
 | `Policy ID` | `policy_id` |
 | `Record ID` | `exposure_id` |
 | `Insured Vehicle ID` | `insured_vehicle_id` |

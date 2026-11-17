@@ -337,7 +337,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "other_driver_uninsured_probability": zt.p_other_driver_uninsured.round(4)})
     un = dev["unreported"]
     K["unreported_claim"] = pd.DataFrame({
-        "policy_id": polno(un.pol), "exposure_id": un.row + 1, "insured_vehicle_id": un.veh + 1, "coverage_code": un.cvg,
+        "unreported_claim_id": np.arange(1, len(un) + 1), "policy_id": polno(un.pol), "exposure_id": un.row + 1, "insured_vehicle_id": un.veh + 1, "coverage_code": un.cvg,
         "cause_of_loss": un.peril, "loss_date": D(un.day), "eventual_report_date": D(un.open_day),
         "ultimate_paid_loss": un.paid.round(2), "ultimate_recovery": (un.salvage + un.subro).round(2)})
     fu = feats

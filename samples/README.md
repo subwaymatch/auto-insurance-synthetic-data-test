@@ -44,7 +44,7 @@ data.
 | [`answer_key/exposure_truth.csv`](synthetic/answer_key/exposure_truth.csv) | 100 | 529,818 | 10 |
 | [`answer_key/insured_vehicle_truth.csv`](synthetic/answer_key/insured_vehicle_truth.csv) | 100 | 132,853 | 3 |
 | [`answer_key/location_truth.csv`](synthetic/answer_key/location_truth.csv) | 100 | 290 | 8 |
-| [`answer_key/unreported_claim.csv`](synthetic/answer_key/unreported_claim.csv) | 100 | 145 | 9 |
+| [`answer_key/unreported_claim.csv`](synthetic/answer_key/unreported_claim.csv) | 100 | 145 | 10 |
 
 ## real_data
 

@@ -135,8 +135,14 @@ Figures in this section are for the new default run (51,391 policies) unless sta
   where it differs from a real insurer's data, the assumptions that drive its results, how far its
   numbers can be trusted, and its appropriate and inappropriate uses.
 
-### Data publishing (infrastructure only)
+### Data publishing
 
+- **SQLite release format.** Each release now also carries the data as one SQLite database
+  (`...-sqlite.zip`) with every table, a primary key on each and every foreign key declared, indexed
+  and checked at build time (the build fails if any reference does not resolve). The instructor's
+  database also holds every data table, so the answer key links to it. `autoins/schema.py` records the
+  keys; tests check it covers every `..._id` column. The answer key's `unreported_claim` gained an
+  `unreported_claim_id` so that every table has a primary key. Releases publish `csv,sqlite` by default.
 - The release workflow accepts a version typed without its leading `v` (`1.1.0` is released as
   `v1.1.0`); an earlier manual run with `1.0.1` had stopped at the input check.
 - `.github/workflows/samples.yml` commits the first 100 rows of every table, the answer key and the real

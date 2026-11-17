@@ -23,8 +23,14 @@ household vehicles. Read it as the Chicago-area part of a regional carrier, not 
 The data is published as GitHub releases, not committed to the repository. The `latest`
 release is rebuilt automatically whenever the generator changes on `main`:
 
-- Student data: [chicago-auto-insurance-data-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-csv.zip)
-- Instructor answer key: [chicago-auto-insurance-answer-key-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-csv.zip)
+| | CSV files | SQLite database |
+|---|---|---|
+| Student data | [chicago-auto-insurance-data-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-csv.zip) | [chicago-auto-insurance-data-latest-sqlite.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-sqlite.zip) |
+| Instructor answer key | [chicago-auto-insurance-answer-key-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-csv.zip) | [chicago-auto-insurance-answer-key-latest-sqlite.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-sqlite.zip) |
+
+Both formats hold the same data. The SQLite database is one file with every table, its primary and
+foreign keys declared (see "SQLite database" below); the instructor's database also holds every data
+table, linked to the answer key.
 
 Versioned releases (`v1.0.0` and so on) are listed on the [releases page](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases).
 To look at the data without downloading it, browse [`samples/`](samples/README.md): the first 100
@@ -87,15 +93,19 @@ git push origin v1.0.0
 
 - **By hand**, for another seed, size or set of file formats: open the Actions tab, choose
   "Release dataset", then "Run workflow", and enter a tag (`v1.1.0`, or `1.1.0`: the `v` is added),
-  seed, policy count and formats (default `csv`). Re-running for an existing tag replaces that
-  release's files.
+  seed, policy count and formats (default `csv,sqlite`). Re-running for an existing tag replaces
+  that release's files.
 
 Each release carries, for each format:
 
 | File | Contents |
 |---|---|
 | `chicago-auto-insurance-data-<tag>-<format>.zip` | The tables, `run_summary.json` and this README. Give this to students. |
-| `chicago-auto-insurance-answer-key-<tag>-<format>.zip` | The answer key. Instructors only. |
+| `chicago-auto-insurance-answer-key-<tag>-<format>.zip` | The answer key, and `rating_plan.json`. Instructors only. In the SQLite format the database also holds every data table, linked to the answer key. |
+
+The formats are `csv` (one CSV file per table, about 65 MB zipped) and `sqlite` (one database with
+every table, about 110 MB zipped and 340 MB unzipped for students; 130 MB and 400 MB for
+instructors).
 
 and once:
 
@@ -107,10 +117,10 @@ and once:
 To package the same files locally:
 
 ```bash
-python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv
+python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv,sqlite
 ```
 
-**Adding a format** (Parquet, SQLite, Excel and so on) takes one function in
+**Adding a format** (Parquet, Excel and so on) takes one function in
 `scripts/release_formats.py`, registered under the format's name, plus its library in
 `requirements-release.txt`; the file explains the pattern with examples. The workflow then
 publishes it when its name is listed in the formats input.
@@ -285,7 +295,34 @@ column of the previous layout (`risk_fact`, `claims_fact`, "Policy Number" and s
 Keys: `policy_id`, `policy_term_id`, `driver_id`, `insured_vehicle_id`, `vehicle_model_year_id`,
 `location_id`, `exposure_id`, `claim_id`, `claim_feature_id`, `enrollment_id`, `agency_id`,
 `company_id`, `claim_office_id`. A claim's `involved_driver_id` is the insured driver involved, or the
-named insured.
+named insured. `autoins/schema.py` lists every table's primary key and every foreign key; the SQLite
+release declares them.
+
+### SQLite database
+
+The `sqlite` release format puts every table in one SQLite file, which any SQL tool opens (the `sqlite3`
+command line, DB Browser for SQLite, DBeaver, DuckDB, Python's `sqlite3`, R's `RSQLite`):
+
+- **Primary keys.** Every table has one, usually its `..._id` column (`zip_demographics` is keyed by
+  `zip_code`, `rate_change` by `effective_date`, the answer key's `unreported_claim` by
+  `unreported_claim_id`).
+- **Foreign keys.** Every reference is declared, for example `claim.exposure_id` references
+  `exposure.exposure_id` and `insured_vehicle.replaces_insured_vehicle_id` references
+  `insured_vehicle.insured_vehicle_id`, so database tools draw the diagram, and every foreign-key column
+  is indexed for fast joins. The build runs SQLite's `foreign_key_check` and `integrity_check` and fails
+  if any reference does not resolve. A blank reference (a quote that never became a policy) is `NULL`.
+- **Types.** Whole numbers are `INTEGER`, amounts and rates `REAL`, and dates (ISO `YYYY-MM-DD`), flags
+  (`Y`/`N`), codes and ZIP codes `TEXT`.
+- **Enforcement.** SQLite checks foreign keys on changes only when a connection asks:
+  `PRAGMA foreign_keys = ON;`.
+- **The instructor's database** holds every data table and the answer key in one file, linked: for
+  example `exposure_truth.exposure_id` references `exposure.exposure_id`.
+
+```sql
+SELECT l.region, SUM(e.earned_exposure) AS car_years, SUM(e.earned_premium) AS premium
+FROM exposure AS e JOIN location AS l ON l.location_id = e.location_id
+GROUP BY l.region;
+```
 
 **Current versus historical values.** The dimensions describe each policy, driver and vehicle as it
 stands at its latest status: on the valuation date if the policy is in force, otherwise on its last day
@@ -732,12 +769,13 @@ autoins/simulate.py      term-by-term simulation: rating, telematics, retention,
 autoins/claims.py        claim lifecycle: payments, reserves, claim detail, valuation cut-off
 autoins/quotes.py        the new-business quote funnel
 autoins/tables.py        output tables and answer key
+autoins/schema.py        each table's primary key and foreign keys (declared in the SQLite release)
 output/                  where generate.py writes (ignored by git; published as releases)
 samples/                 first 100 rows of every table (written by the samples workflow)
 reference/               ZIP reference data, vehicle catalogue and its curation, names
 real_data/               a real motor insurance portfolio, for comparison (CC BY 4.0)
 docs/                    limitations; comparison with the real portfolio; old-to-new schema map
-scripts/                 build reference/ from public sources; package releases; samples; real-data comparison
+scripts/                 build reference/ from public sources; package releases (CSV, SQLite); samples; real-data comparison
 .github/workflows/       release and samples workflows
 tests/                   python -m unittest discover tests
 CHANGELOG.md             what changed, and why, since the first version

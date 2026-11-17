@@ -3,7 +3,7 @@
 
     python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv
 
-Writes to --dist, for each format in --formats (see scripts/release_formats.py; default csv):
+Writes to --dist, for each format in --formats (csv, sqlite; see scripts/release_formats.py; default csv):
   chicago-auto-insurance-data-<tag>-<format>.<ext>        the tables (for students)
   chicago-auto-insurance-answer-key-<tag>-<format>.<ext>  the answer key (for instructors)
 and once per release:
@@ -55,7 +55,9 @@ def notes(tag: str, summary: dict, report: str, assets: dict[str, int], source: 
             "validation": "Full output of `validate.py`.", "SHA256SUMS": "Checksums for the files above."}
     for name, n in assets.items():
         key = next(k for k in desc if k in name)
-        fmt = next((f" ({f.upper()})" for f in FORMATS if f"-{f}." in name), "")
+        fmt = next((f" ({fn.label})" for f, fn in FORMATS.items() if f"-{f}." in name), "")
+        if key == "-answer-key-" and "-sqlite." in name:
+            fmt += " The database also holds every data table, linked to the answer key."
         human = f"{n / 1e6:.1f} MB" if n >= 1e5 else f"{n / 1e3:.0f} KB" if n >= 1e3 else f"{n} bytes"
         out.append(f"| `{name}` | {desc[key]}{fmt} | {human} |")
     out += ["", "Rows per table:", "", "| Table | Rows |", "|---|---|"]
@@ -86,7 +88,8 @@ def main() -> None:
     data = {"tables": {f.stem: f for f in sorted(a.data.glob("*.csv"))},
             "extras": [(a.data / "run_summary.json", "run_summary.json"), (REPO / "README.md", "README.md")]}
     key = {"tables": {f.stem: f for f in sorted(key_dir.glob("*.csv"))},
-           "extras": [(f, f.name) for f in sorted(key_dir.iterdir()) if f.is_file() and f.suffix != ".csv"]}
+           "extras": [(f, f.name) for f in sorted(key_dir.iterdir()) if f.is_file() and f.suffix != ".csv"],
+           "linked": data["tables"]}     # formats that link tables (SQLite) include the data the answer key refers to
     made = []
     for fmt in formats:
         made.append(FORMATS[fmt](Bundle(f"chicago-auto-insurance-data-{a.tag}-{fmt}", **data), a.dist))
