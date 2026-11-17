@@ -15,7 +15,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import truth  # noqa: E402
+from autoins import names, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -38,7 +38,7 @@ class GeneratorTest(unittest.TestCase):
 
     def read(self, name: str) -> pd.DataFrame:
         return pd.read_csv(self.root / "a" / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False,
-                           dtype={"Change Reason": str})
+                           dtype={"change_reason": str})
 
     def test_same_seed_is_byte_identical(self) -> None:
         files = sorted(p.relative_to(self.root / "a") for p in (self.root / "a").rglob("*") if p.is_file())
@@ -50,185 +50,208 @@ class GeneratorTest(unittest.TestCase):
         self.assertNotEqual(self.a["content_hash"], self.c["content_hash"])
 
     def test_claims_fall_inside_their_policy_term(self) -> None:
-        clm, term = self.read("claims_fact"), self.read("policy_term_fact")
-        m = clm.merge(term, on="Policy Term ID")
-        end = m["Cancel Date"].fillna(m["Policy Expiration Date"])
-        self.assertTrue(((m["Loss Date"] >= m["Policy Effective Date"]) & (m["Loss Date"] < end)).all())
-        self.assertTrue((clm["Report Date"] >= clm["Loss Date"]).all())
-        self.assertTrue((clm["Loss Date"] <= self.a["valuation"]).all())
-        self.assertTrue((clm["Loss Date"] >= self.a["start"]).all())
+        clm, term = self.read("claim"), self.read("policy_term")
+        m = clm.merge(term, on="policy_term_id")
+        end = m["cancel_date"].fillna(m["expiration_date"])
+        self.assertTrue(((m["loss_date"] >= m["effective_date"]) & (m["loss_date"] < end)).all())
+        self.assertTrue((clm["report_date"] >= clm["loss_date"]).all())
+        self.assertTrue((clm["loss_date"] <= self.a["valuation"]).all())
+        self.assertTrue((clm["loss_date"] >= self.a["start"]).all())
 
     def test_premium_and_exposure_are_sane(self) -> None:
-        risk = self.read("risk_fact")
-        self.assertTrue((risk["Total Premium"] > 0).all())
-        self.assertTrue((risk["Earned Premium"] <= risk["Total Premium"] + 0.01).all())
-        self.assertTrue(risk["Earned Exposure"].between(0, 1.01).all())
+        risk = self.read("exposure")
+        self.assertTrue((risk["total_premium"] > 0).all())
+        self.assertTrue((risk["earned_premium"] <= risk["total_premium"] + 0.01).all())
+        self.assertTrue(risk["earned_exposure"].between(0, 1.01).all())
 
     def test_record_level_integrity_checks_pass(self) -> None:
         """The validator's lifecycle, timing, date, premium and payment checks all hold."""
-        t = {n: self.read(n) for n in ("risk_fact", "policy_term_fact", "policy_dimension", "insured_vehicle_dimension",
-                                       "driver_dimension", "claims_fact", "claim_coverage_fact", "claim_payment_fact",
-                                       "driver_incident_fact")}
+        t = {n: self.read(n) for n in ("exposure", "policy_term", "policy", "insured_vehicle",
+                                       "driver", "claim", "claim_feature", "claim_payment",
+                                       "driver_incident")}
         start = np.datetime64(self.a["start"])
-        r_start = np.maximum(pd.to_datetime(t["risk_fact"]["Coverage Start Date"]).to_numpy(), start)
-        r_end = r_start + np.round(t["risk_fact"]["Earned Exposure"].to_numpy() * 365.25).astype("timedelta64[D]")
+        r_start = np.maximum(pd.to_datetime(t["exposure"]["coverage_start_date"]).to_numpy(), start)
+        r_end = r_start + np.round(t["exposure"]["earned_exposure"].to_numpy() * 365.25).astype("timedelta64[D]")
         rep, out = validate.Report(), io.StringIO()
         with contextlib.redirect_stdout(out):
             validate.integrity_lifecycle(rep, *t.values(), r_start, r_end, self.a["valuation"])
-            validate.integrity_claims_and_quotes(rep, t["policy_term_fact"], t["insured_vehicle_dimension"], t["claims_fact"],
-                                                 t["claim_coverage_fact"], self.read("claim_reserve_fact"), self.read("quote_fact"))
-            validate.integrity_limits(rep, t["claim_coverage_fact"].merge(
-                t["claims_fact"][["Claim ID", "Record ID", "Cause of Loss"]], on="Claim ID").merge(t["risk_fact"], on="Record ID"))
+            validate.integrity_claims_and_quotes(rep, t["policy_term"], t["insured_vehicle"], t["claim"],
+                                                 t["claim_feature"], self.read("claim_reserve_transaction"), self.read("quote"))
+            validate.integrity_limits(rep, t["claim_feature"].merge(
+                t["claim"][["claim_id", "exposure_id", "cause_of_loss"]], on="claim_id").merge(t["exposure"], on="exposure_id"))
         self.assertEqual(rep.failures, 0, out.getvalue())
+
+    def test_vehicle_catalogue_and_telematics_checks_pass(self) -> None:
+        """Every vehicle points to a make, model and model year; telematics discounts follow the published rules."""
+        risk, term, veh, clm = self.read("exposure"), self.read("policy_term"), self.read("insured_vehicle"), self.read("claim")
+        vmy = self.read("vehicle_model_year")
+        rep, out = validate.Report(), io.StringIO()
+        with contextlib.redirect_stdout(out):
+            validate.integrity_vehicles(rep, vmy, veh, risk, clm)
+            validate.integrity_telematics(rep, self.read("telematics_enrollment"), self.read("telematics_score"), risk, term,
+                                          pd.Timestamp(self.a["valuation"]))
+        self.assertEqual(rep.failures, 0, out.getvalue())
+        self.assertGreater(len(vmy), 5000)                       # the full catalogue, not just the models insured
+        self.assertGreater((risk["telematics_enrolled"] == "Y").mean(), 0.02)
+
+    def test_names_follow_the_household_and_race_is_only_in_the_answer_key(self) -> None:
+        drv, truth_ = self.read("driver"), pd.read_csv(self.root / "a" / "answer_key" / "driver_truth.csv")
+        published = [pd.read_csv(p, nrows=0).columns for p in (self.root / "a").glob("*.csv")]
+        self.assertFalse(any("race" in c for cols in published for c in cols))
+        self.assertEqual(set(truth_["race_ethnicity"]) <= set(names.GROUP_LABELS), True)
+        adults = set(zip(drv.loc[drv["driver_role"] != "Child", "policy_id"], drv.loc[drv["driver_role"] != "Child", "last_name"]))
+        kids = drv[drv["driver_role"] == "Child"]
+        self.assertTrue(all(k in adults for k in zip(kids["policy_id"], kids["last_name"])))     # a child shares an adult's surname
 
     def test_policy_counts_are_as_at_the_latest_status(self) -> None:
         """Number of Vehicles is the cars on the policy now (or on its last day of cover), not at the term start."""
-        pol, veh, term = self.read("policy_dimension"), self.read("insured_vehicle_dimension"), self.read("policy_term_fact")
-        live = pol[pol["Policy Status"] == "In Force"].set_index("Policy Number")
-        on_now = veh[veh["Removed Date"].isna()].groupby("Policy Number").size().reindex(live.index).fillna(0)
-        self.assertTrue((live["Number of Vehicles"] == on_now).all())
-        self.assertFalse((veh["Removed Date"].dropna() > self.a["valuation"]).any())
+        pol, veh, term = self.read("policy"), self.read("insured_vehicle"), self.read("policy_term")
+        live = pol[pol["policy_status"] == "In Force"].set_index("policy_id")
+        on_now = veh[veh["removed_date"].isna()].groupby("policy_id").size().reindex(live.index).fillna(0)
+        self.assertTrue((live["number_of_vehicles"] == on_now).all())
+        self.assertFalse((veh["removed_date"].dropna() > self.a["valuation"]).any())
         # the latest term's opening count is kept under its own name, and differs when a car came or went mid-term
-        opening = term.sort_values("Policy Effective Date").groupby("Policy Number")["Vehicles at Term Start"].last().reindex(live.index)
-        self.assertGreater((opening != live["Number of Vehicles"]).sum(), 10)
+        opening = term.sort_values("effective_date").groupby("policy_id")["vehicles_at_term_start"].last().reindex(live.index)
+        self.assertGreater((opening != live["number_of_vehicles"]).sum(), 10)
 
     def test_same_day_events_have_a_defined_order(self) -> None:
         """A company claim reaches the driving record the day after the payment that makes it chargeable, so
         a loss or payment on a rating date is never part of that rating."""
-        inc, clm = self.read("driver_incident_fact"), self.read("claims_fact")
-        own = inc[inc.Source == "Company Claim"].merge(clm[["Claim ID", "Loss Date"]], on="Claim ID")
-        self.assertTrue((own["Known Date"] > own["Loss Date"]).all())
-        pay = self.read("claim_payment_fact")
-        first = pay[pay["Payment Type"] == "Loss"].groupby("Claim ID")["Payment Date"].min()
-        self.assertTrue((own["Known Date"] > own["Claim ID"].map(first)).all())
+        inc, clm = self.read("driver_incident"), self.read("claim")
+        own = inc[inc.source == "Company Claim"].merge(clm[["claim_id", "loss_date"]], on="claim_id")
+        self.assertTrue((own["known_date"] > own["loss_date"]).all())
+        pay = self.read("claim_payment")
+        first = pay[pay["payment_type"] == "Loss"].groupby("claim_id")["payment_date"].min()
+        self.assertTrue((own["known_date"] > own["claim_id"].map(first)).all())
 
     def test_uninsured_and_underinsured_motorist_are_told_apart(self) -> None:
-        feat = self.read("claim_coverage_fact")
-        um = feat[feat["Coverage Code"] == "UM"]
-        self.assertTrue(set(um["UM/UIM Type"]) <= {"Uninsured", "Underinsured"})
-        self.assertTrue(feat.loc[feat["Coverage Code"] != "UM", "UM/UIM Type"].isna().all())
-        self.assertTrue((feat["Other Insurer Payment"].notna() == (feat["UM/UIM Type"] == "Underinsured")).all())
+        feat = self.read("claim_feature")
+        um = feat[feat["coverage_code"] == "UM"]
+        self.assertTrue(set(um["um_uim_type"]) <= {"Uninsured", "Underinsured"})
+        self.assertTrue(feat.loc[feat["coverage_code"] != "UM", "um_uim_type"].isna().all())
+        self.assertTrue((feat["other_insurer_payment"].notna() == (feat["um_uim_type"] == "Underinsured")).all())
 
     def test_total_losses_end_the_vehicle(self) -> None:
-        clm, feat, veh, risk = self.read("claims_fact"), self.read("claim_coverage_fact"), self.read("insured_vehicle_dimension"), self.read("risk_fact")
-        tl = feat[(feat["Total Loss"] == "Y") & (feat["Owner Retained Salvage"] == "N")].merge(
-            clm[["Claim ID", "Insured Vehicle ID", "Loss Date"]], on="Claim ID")
+        clm, feat, veh, risk = self.read("claim"), self.read("claim_feature"), self.read("insured_vehicle"), self.read("exposure")
+        tl = feat[(feat["total_loss"] == "Y") & (feat["owner_retained_salvage"] == "N")].merge(
+            clm[["claim_id", "insured_vehicle_id", "loss_date"]], on="claim_id")
         self.assertGreater(len(tl), 20)
-        last_loss = clm.groupby("Insured Vehicle ID")["Loss Date"].max()
-        last_cover = risk.groupby("Insured Vehicle ID")["Coverage End Date"].max()
-        for vid, day in tl.groupby("Insured Vehicle ID")["Loss Date"].min().items():
+        last_loss = clm.groupby("insured_vehicle_id")["loss_date"].max()
+        last_cover = risk.groupby("insured_vehicle_id")["coverage_end_date"].max()
+        for vid, day in tl.groupby("insured_vehicle_id")["loss_date"].min().items():
             self.assertEqual(last_loss[vid], day, f"vehicle {vid} has a loss after its total loss")
             self.assertLessEqual(last_cover[vid], str(np.datetime64(day) + np.timedelta64(1, "D")))
-        replaced = veh[veh["Replaces Vehicle ID"].isin(tl["Insured Vehicle ID"])]
+        replaced = veh[veh["replaces_insured_vehicle_id"].isin(tl["insured_vehicle_id"])]
         self.assertGreater(len(replaced), 0)
-        self.assertTrue(veh["Insured Vehicle ID"].is_unique)
-        self.assertTrue((replaced["Insured Vehicle ID"] > replaced["Replaces Vehicle ID"]).all())   # a new ID, added later
-        old = veh.set_index("Insured Vehicle ID").loc[replaced["Replaces Vehicle ID"]]
-        self.assertTrue((old["Removed Date"].to_numpy() <= replaced["Added Date"].to_numpy()).all())
+        self.assertTrue(veh["insured_vehicle_id"].is_unique)
+        self.assertTrue((replaced["insured_vehicle_id"] > replaced["replaces_insured_vehicle_id"]).all())   # a new ID, added later
+        old = veh.set_index("insured_vehicle_id").loc[replaced["replaces_insured_vehicle_id"]]
+        self.assertTrue((old["removed_date"].to_numpy() <= replaced["added_date"].to_numpy()).all())
 
     def test_opening_book_is_in_force_on_the_start_date(self) -> None:
-        pol, term, risk = self.read("policy_dimension"), self.read("policy_term_fact"), self.read("risk_fact")
+        pol, term, risk = self.read("policy"), self.read("policy_term"), self.read("exposure")
         start = self.a["start"]
-        old = pol[pol["Original Inception Date"] < start]
+        old = pol[pol["original_inception_date"] < start]
         self.assertGreater(len(old), 500)
-        first = term.sort_values("Policy Effective Date").groupby("Policy Number").head(1).set_index("Policy Number")
-        f = first.reindex(old["Policy Number"])
-        self.assertTrue(((f["Policy Effective Date"] <= start) & (f["Policy Expiration Date"] > start)).all())
-        opening = term[term["Policy Effective Date"] < start]
-        self.assertTrue((opening["Earned Before Extract"] > 0).all())
-        r = risk[risk["Policy Term ID"].isin(opening["Policy Term ID"])]
-        days = (pd.to_datetime(r["Coverage End Date"]).clip(upper=pd.Timestamp(self.a["valuation"]) + pd.Timedelta(days=1))
-                - pd.to_datetime(r["Coverage Start Date"]).clip(lower=pd.Timestamp(start))).dt.days / 365.25
-        self.assertTrue(np.allclose(r["Earned Exposure"], days, atol=1e-3))      # only the part after the start is earned
+        first = term.sort_values("effective_date").groupby("policy_id").head(1).set_index("policy_id")
+        f = first.reindex(old["policy_id"])
+        self.assertTrue(((f["effective_date"] <= start) & (f["expiration_date"] > start)).all())
+        opening = term[term["effective_date"] < start]
+        self.assertTrue((opening["earned_premium_before_extract"] > 0).all())
+        r = risk[risk["policy_term_id"].isin(opening["policy_term_id"])]
+        days = (pd.to_datetime(r["coverage_end_date"]).clip(upper=pd.Timestamp(self.a["valuation"]) + pd.Timedelta(days=1))
+                - pd.to_datetime(r["coverage_start_date"]).clip(lower=pd.Timestamp(start))).dt.days / 365.25
+        self.assertTrue(np.allclose(r["earned_exposure"], days, atol=1e-3))      # only the part after the start is earned
         # new business is exactly the first term of a policy
-        self.assertTrue(((term["Business Type"] == "New") == (term["Term Number"] == 1)).all())
-        self.assertTrue((pol["Original Inception Date"] <= pol["Policy Effective Date"]).all())
+        self.assertTrue(((term["business_type"] == "New") == (term["term_number"] == 1)).all())
+        self.assertTrue((pol["original_inception_date"] <= pol["first_effective_date"]).all())
 
     def test_rating_uses_only_information_known_on_the_rating_date(self) -> None:
-        term, inc = self.read("policy_term_fact"), self.read("driver_incident_fact")
-        self.assertTrue((term["Rating Date"] <= term["Policy Effective Date"]).all())
-        own = inc[inc.Source == "Company Claim"]
+        term, inc = self.read("policy_term"), self.read("driver_incident")
+        self.assertTrue((term["rating_date"] <= term["effective_date"]).all())
+        own = inc[inc.source == "Company Claim"]
         self.assertGreater(len(own), 20)
-        self.assertTrue((own["Known Date"] >= own["Incident Date"]).all())
-        self.assertGreater((own["Known Date"] > own["Incident Date"]).mean(), 0.95)
+        self.assertTrue((own["known_date"] >= own["incident_date"]).all())
+        self.assertGreater((own["known_date"] > own["incident_date"]).mean(), 0.95)
 
     def test_household_changes_are_endorsements(self) -> None:
-        risk, drv, veh = self.read("risk_fact"), self.read("driver_dimension"), self.read("insured_vehicle_dimension")
-        mid = risk[risk["Endorsement Number"] > 0]
+        risk, drv, veh = self.read("exposure"), self.read("driver"), self.read("insured_vehicle")
+        mid = risk[risk["endorsement_number"] > 0]
         self.assertGreater(len(mid), 100)
-        reasons = set("; ".join(mid["Change Reason"].dropna()).split("; "))
+        reasons = set("; ".join(mid["change_reason"].dropna()).split("; "))
         self.assertTrue({"Address Change", "Vehicle Replaced", "Driver Removed"} <= reasons, reasons)
-        self.assertTrue((mid["Rating Date"] == mid["Coverage Start Date"]).all())       # re-rated on the day of the change
+        self.assertTrue((mid["rating_date"] == mid["coverage_start_date"]).all())       # re-rated on the day of the change
         # a vehicle's rows within a term are consecutive: each starts where the previous one ended
-        r = risk.sort_values(["Insured Vehicle ID", "Coverage Start Date"])
-        prev = r.groupby(["Insured Vehicle ID", "Policy Term ID"])["Coverage End Date"].shift()
-        self.assertTrue((prev.isna() | (prev == r["Coverage Start Date"])).all())
-        left = drv[drv["Removed Date"].notna()]
+        r = risk.sort_values(["insured_vehicle_id", "coverage_start_date"])
+        prev = r.groupby(["insured_vehicle_id", "policy_term_id"])["coverage_end_date"].shift()
+        self.assertTrue((prev.isna() | (prev == r["coverage_start_date"])).all())
+        left = drv[drv["removed_date"].notna()]
         self.assertGreater(len(left), 10)
-        self.assertTrue(set(left["Removal Reason"]) <= {"Moved Out", "Divorce", "Deceased"})
-        self.assertTrue({"Sold", "Destroyed or Stolen"} <= set(veh["Removal Reason"].dropna()))
-        moved = risk.groupby("Policy Number")["Location ID"].nunique()
+        self.assertTrue(set(left["removal_reason"]) <= {"Moved Out", "Divorce", "Deceased"})
+        self.assertTrue({"Sold", "Destroyed or Stolen"} <= set(veh["removal_reason"].dropna()))
+        moved = risk.groupby("policy_id")["location_id"].nunique()
         self.assertGreater((moved > 1).sum(), 10)
 
     def test_owner_retained_salvage_follows_illinois_rules(self) -> None:
-        feat, clm, veh = self.read("claim_coverage_fact"), self.read("claims_fact"), self.read("insured_vehicle_dimension")
-        kept = feat[feat["Owner Retained Salvage"] == "Y"].merge(clm, on="Claim ID").merge(
-            veh[["Insured Vehicle ID", "Vehicle Model Year", "Removal Reason"]], on="Insured Vehicle ID")
-        age = pd.to_datetime(kept["Loss Date"]).dt.year - kept["Vehicle Model Year"]
-        self.assertTrue(((age >= 9) | kept["Cause of Loss"].isin(["WEATHER", "HAIL_CAT"])).all())
-        self.assertTrue((kept["Salvage Recovery"] == 0).all())
-        self.assertFalse((kept["Removal Reason"] == "Total Loss").any())
+        feat, clm, veh = self.read("claim_feature"), self.read("claim"), self.read("insured_vehicle")
+        kept = feat[feat["owner_retained_salvage"] == "Y"].merge(clm, on="claim_id").merge(
+            veh[["insured_vehicle_id", "removal_reason"]], on="insured_vehicle_id").merge(
+            self.read("vehicle_model_year")[["vehicle_model_year_id", "model_year"]], on="vehicle_model_year_id")
+        age = pd.to_datetime(kept["loss_date"]).dt.year - kept["model_year"]
+        self.assertTrue(((age >= 9) | kept["cause_of_loss"].isin(["WEATHER", "HAIL_CAT"])).all())
+        self.assertTrue((kept["salvage_recovery"] == 0).all())
+        self.assertFalse((kept["removal_reason"] == "Total Loss").any())
 
     def test_premium_ledger_reconciles(self) -> None:
-        ledger, term = self.read("policy_transaction_fact"), self.read("policy_term_fact")
-        self.assertTrue({"New Business", "Renewal", "Endorsement", "Cancellation"} <= set(ledger["Transaction Type"]))
-        self.assertTrue((ledger["Processed Date"] <= self.a["valuation"]).all())
-        done = term[term["Policy Expiration Date"] < "2026-04-01"].set_index("Policy Term ID")
-        w = ledger[ledger["Transaction Type"] != "Cancellation"].groupby("Policy Term ID")["Written Premium"].sum()
-        gap = (done["Written Premium"] + done["Endorsement Premium"] - w.reindex(done.index).fillna(0)).abs()
-        self.assertLess(gap.max(), 0.05 + 0.01 * done["Vehicles at Term Start"].max())
+        ledger, term = self.read("premium_transaction"), self.read("policy_term")
+        self.assertTrue({"New Business", "Renewal", "Endorsement", "Cancellation"} <= set(ledger["transaction_type"]))
+        self.assertTrue((ledger["processed_date"] <= self.a["valuation"]).all())
+        done = term[term["expiration_date"] < "2026-04-01"].set_index("policy_term_id")
+        w = ledger[ledger["transaction_type"] != "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
+        gap = (done["written_premium"] + done["endorsement_premium"] - w.reindex(done.index).fillna(0)).abs()
+        self.assertLess(gap.max(), 0.05 + 0.01 * done["vehicles_at_term_start"].max())
 
     def test_reserve_history_rebuilds_past_incurred(self) -> None:
-        feat, res, pay = self.read("claim_coverage_fact"), self.read("claim_reserve_fact"), self.read("claim_payment_fact")
-        self.assertTrue({"Initial Reserve", "Reserve Review", "Payment", "Close"} <= set(res["Transaction Type"]))
+        feat, res, pay = self.read("claim_feature"), self.read("claim_reserve_transaction"), self.read("claim_payment")
+        self.assertTrue({"Initial Reserve", "Reserve Review", "Payment", "Close"} <= set(res["transaction_type"]))
         # an earlier evaluation: open features then carried a reserve that later closed to zero
         on = "2024-06-30"
-        os_ = res[(res["Reserve Type"] == "Loss") & (res["Transaction Date"] <= on)].groupby("Claim Feature ID")["Outstanding Reserve"].last()
+        os_ = res[(res["reserve_type"] == "Loss") & (res["transaction_date"] <= on)].groupby("claim_feature_id")["outstanding_reserve"].last()
         self.assertGreater(os_.sum(), 0)
-        later_closed = feat.set_index("Claim Feature ID").reindex(os_[os_ > 0].index)["Feature Status"] == "Closed"
+        later_closed = feat.set_index("claim_feature_id").reindex(os_[os_ > 0].index)["feature_status"] == "Closed"
         self.assertGreater(later_closed.mean(), 0.5)
-        expense = pay[pay["Payment Type"] == "Expense"]
-        self.assertTrue(set(expense["Transaction Type"]) == {"DCC Expense", "A&O Expense"})
+        expense = pay[pay["payment_type"] == "Expense"]
+        self.assertTrue(set(expense["transaction_type"]) == {"DCC Expense", "A&O Expense"})
 
     def test_quote_funnel(self) -> None:
-        q = self.read("quote_fact")
-        self.assertTrue(0.10 < (q["Bound"] == "Y").mean() < 0.35)
-        ia = q[q["Competitor Annual Premium"].notna()]
-        cheap = ia["Quoted Annual Premium"] < ia["Competitor Annual Premium"]
-        self.assertGreater((ia.loc[cheap, "Bound"] == "Y").mean(), (ia.loc[~cheap, "Bound"] == "Y").mean())
-        self.assertTrue(q.loc[q["Bound"] == "N", "Policy Number"].isna().all())
+        q = self.read("quote")
+        self.assertTrue(0.10 < (q["bound"] == "Y").mean() < 0.35)
+        ia = q[q["competitor_annual_premium"].notna()]
+        cheap = ia["quoted_annual_premium"] < ia["competitor_annual_premium"]
+        self.assertGreater((ia.loc[cheap, "bound"] == "Y").mean(), (ia.loc[~cheap, "bound"] == "Y").mean())
+        self.assertTrue(q.loc[q["bound"] == "N", "policy_id"].isna().all())
 
     def test_optional_coverages(self) -> None:
-        feat, clm, risk = self.read("claim_coverage_fact"), self.read("claims_fact"), self.read("risk_fact")
-        f = feat.merge(clm[["Claim ID", "Record ID"]], on="Claim ID").merge(risk, on="Record ID")
-        for code, col, cap in (("RENT", "Rental Premium", 1_500), ("TOW", "Towing Premium", 100)):
-            g = f[f["Coverage Code"] == code]
+        feat, clm, risk = self.read("claim_feature"), self.read("claim"), self.read("exposure")
+        f = feat.merge(clm[["claim_id", "exposure_id"]], on="claim_id").merge(risk, on="exposure_id")
+        for code, col, cap in (("RENT", "rental_premium", 1_500), ("TOW", "towing_premium", 100)):
+            g = f[f["coverage_code"] == code]
             self.assertGreater(len(g), 5, code)
-            self.assertTrue((g[col] > 0).all() and (g["Paid Loss"] <= cap + 0.01).all(), code)
+            self.assertTrue((g[col] > 0).all() and (g["paid_loss"] <= cap + 0.01).all(), code)
 
     def test_month_end_anniversaries(self) -> None:
-        term = self.read("policy_term_fact")
-        day = pd.to_datetime(term["Policy Effective Date"]).dt.day
+        term = self.read("policy_term")
+        day = pd.to_datetime(term["effective_date"]).dt.day
         self.assertTrue((day >= 29).any() and (day == 31).any())
 
     def test_payments_are_varied_and_reconcile(self) -> None:
-        feat, pay = self.read("claim_coverage_fact"), self.read("claim_payment_fact")
-        loss = pay[pay["Payment Type"] == "Loss"]
-        n = loss.groupby("Claim Feature ID").size()
+        feat, pay = self.read("claim_feature"), self.read("claim_payment")
+        loss = pay[pay["payment_type"] == "Loss"]
+        n = loss.groupby("claim_feature_id").size()
         self.assertGreater(n.max(), 2)
-        paid = loss.groupby("Claim Feature ID").Amount.sum().reindex(feat["Claim Feature ID"]).fillna(0)
-        self.assertTrue(np.allclose(paid.to_numpy(), feat["Paid Loss"].to_numpy(), atol=0.005))
-        self.assertTrue(set(loss["Transaction Type"]) >= {"Partial Payment", "Final Payment"})
+        paid = loss.groupby("claim_feature_id").amount.sum().reindex(feat["claim_feature_id"]).fillna(0)
+        self.assertTrue(np.allclose(paid.to_numpy(), feat["paid_loss"].to_numpy(), atol=0.005))
+        self.assertTrue(set(loss["transaction_type"]) >= {"Partial Payment", "Final Payment"})
 
 
 class CalendarTest(unittest.TestCase):

@@ -57,17 +57,17 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
     comp = q.premium.to_numpy() / np.exp(q.log_ratio.to_numpy())
     show = np.isin(np.array(C.CHANNELS)[q.channel.to_numpy()], C.COMPARATIVE_RATER_CHANNELS)
     return pd.DataFrame({
-        "Quote ID": np.arange(1, len(q) + 1), "Quote Date": D(q.quote_day), "Proposed Effective Date": D(q.eff),
-        "Distribution Channel": np.array(C.CHANNELS)[q.channel.to_numpy()], "Agency ID": q.agency,
-        "Location ID": ref.zips.location_id.to_numpy()[q.zi.to_numpy()], "Term Length Months": q.term_months,
-        "Named Insured Age": np.floor(q.ni_age).astype(int), "Number of Drivers": q.n_drv.astype(int),
-        "Youngest Driver Age": np.floor(q.young).astype(int), "Number of Vehicles": q.n_veh.astype(int),
-        "Prior Insurance": np.where(q.prior, "Y", "N"), "Insurance Score": q.score.astype("Int64"),
-        "BI Limit": [f"{C.BI_LIMITS[i][0] // 1000}/{C.BI_LIMITS[i][1] // 1000}" for i in q.bi_opt],
-        "Quoted Annual Premium": q.premium.round(2),
-        "Competitor Annual Premium": pd.array(np.where(show, comp.round(2), np.nan), dtype="Float64"),
-        "Bound": np.where(q.bound, "Y", "N"),
-        "Policy Number": pd.Series(1_000_000 + q.pol.to_numpy() + 1).astype("Int64").where(q.bound.to_numpy())})
+        "quote_id": np.arange(1, len(q) + 1), "quote_date": D(q.quote_day), "proposed_effective_date": D(q.eff),
+        "distribution_channel": np.array(C.CHANNELS)[q.channel.to_numpy()], "agency_id": q.agency,
+        "location_id": ref.zips.location_id.to_numpy()[q.zi.to_numpy()], "term_months": q.term_months,
+        "named_insured_age": np.floor(q.ni_age).astype(int), "number_of_drivers": q.n_drv.astype(int),
+        "youngest_driver_age": np.floor(q.young).astype(int), "number_of_vehicles": q.n_veh.astype(int),
+        "prior_insurance": np.where(q.prior, "Y", "N"), "insurance_score": q.score.astype("Int64"),
+        "bi_limit": [f"{C.BI_LIMITS[i][0] // 1000}/{C.BI_LIMITS[i][1] // 1000}" for i in q.bi_opt],
+        "quoted_annual_premium": q.premium.round(2),
+        "competitor_annual_premium": pd.array(np.where(show, comp.round(2), np.nan), dtype="Float64"),
+        "bound": np.where(q.bound, "Y", "N"),
+        "policy_id": pd.Series(1_000_000 + q.pol.to_numpy() + 1).astype("Int64").where(q.bound.to_numpy())})
 
 
 def _base_logit(channel: np.ndarray) -> np.ndarray:

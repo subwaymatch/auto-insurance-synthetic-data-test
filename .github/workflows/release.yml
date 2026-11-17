@@ -37,7 +37,7 @@ on:
       policies:
         description: "Number of policies"
         required: false
-        default: "30000"
+        default: "50000"
         type: string
       formats:
         description: "File formats, comma-separated (see scripts/release_formats.py)"
@@ -66,7 +66,7 @@ env:
   ROLLING: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
   TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
   SEED: ${{ inputs.seed || '20250101' }}
-  POLICIES: ${{ inputs.policies || '30000' }}
+  POLICIES: ${{ inputs.policies || '50000' }}
   FORMATS: ${{ inputs.formats || 'csv' }}
   PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
 

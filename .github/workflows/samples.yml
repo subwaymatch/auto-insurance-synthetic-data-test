@@ -1,0 +1,88 @@
+name: Sample CSVs
+
+# Builds the default dataset and commits the first rows of every CSV file to samples/, so the data can be
+# browsed on GitHub without downloading a release. Covers every synthetic table, the answer key and the real
+# portfolio in real_data/. See samples/README.md.
+#
+#   * Runs on every push to main that changes the generator, its reference data or the real data.
+#   * Or run it from the Actions tab ("Run workflow"), optionally with another number of rows. Run on another
+#     branch, it commits the samples to that branch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "autoins/**"
+      - "reference/**"
+      - "real_data/**"
+      - "generate.py"
+      - "requirements.txt"
+      - "scripts/make_samples.py"
+      - ".github/workflows/samples.yml"
+  workflow_dispatch:
+    inputs:
+      rows:
+        description: "Rows to keep from each file"
+        required: false
+        default: "100"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: samples-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  ROWS: ${{ inputs.rows || '100' }}
+
+jobs:
+  samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check inputs
+        run: '[[ "$ROWS" =~ ^[0-9]+$ ]] && (( ROWS >= 1 && ROWS <= 5000 )) || { echo "::error::Rows must be between 1 and 5,000"; exit 1; }'
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate dataset (default configuration, same as the latest release)
+        run: python generate.py --out build/output
+
+      - name: Write samples
+        run: python scripts/make_samples.py --rows "$ROWS" --out samples synthetic=build/output real_data=real_data
+
+      - name: Commit samples if they changed
+        run: |
+          git add -A samples
+          if git diff --cached --quiet; then
+            echo "Samples are unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update sample CSVs (first $ROWS rows of each file)"
+          for attempt in 1 2 3 4; do
+            git push && exit 0
+            sleep $((attempt * 5))
+            git pull --rebase
+          done
+          echo "::error::Could not push the samples"
+          exit 1
+
+      - name: Summary
+        run: cat samples/README.md >> "$GITHUB_STEP_SUMMARY"

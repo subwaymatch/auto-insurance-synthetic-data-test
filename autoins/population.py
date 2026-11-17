@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import truth
+from . import names, truth
 from .refdata import Reference, stream
 
 
@@ -179,10 +179,18 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     drv["good_grades"] = (drv.role == 3) & (r.random(nd) < C.GOOD_STUDENT_GRADES_P)
     drv["school_end_day"] = drv.dob_day + (school_end_age(r, nd) * 365.25).astype(int)
     drv["employed"], drv["commute_miles"] = draw_commute(r, age, zr.iloc[p_], in_city[p_])
-    drv["first_name"] = np.where(male, r.choice(ref.first_m, nd), r.choice(ref.first_f, nd))
-    surname = r.choice(ref.last, n)
-    own_name = (drv.role == 2) | ((drv.role == 1) & (r.random(nd) < 0.20))
-    drv["last_name"] = np.where(own_name, r.choice(ref.last, nd), surname[p_])
+    # names (see autoins/names.py): a synthetic race and ethnicity group from the ZIP's Census mix, used only for names
+    nr, ns = stream(cfg.seed, "names" + tag), ref.names
+    mix = ns.zip_mix(zr)
+    hh_group = ns.draw_group(nr, mix)
+    role = drv.role.to_numpy()
+    p_same = np.where(role == 1, names.SAME_GROUP_SPOUSE, np.where(role == 2, names.SAME_GROUP_OTHER_ADULT, 1.0))
+    group = ns.related_group(nr, hh_group[p_], mix[p_], p_same)
+    drv["race_group"] = group
+    drv["first_name"] = ns.first_name(nr, group, male, np.floor(cal.year_frac(drv.dob_day.to_numpy())).astype(int))
+    surname = ns.surname(nr, hh_group)
+    own_name = (role == 2) | ((role == 1) & (nr.random(nd) < 0.20))
+    drv["last_name"] = np.where(own_name, ns.surname(nr, group), surname[p_])
     n_drv = drv.groupby("pol").size().reindex(range(n)).to_numpy()
     pol["n_drv"] = n_drv
 
@@ -191,7 +199,7 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     vp = np.repeat(np.arange(n), n_veh)
     nv = len(vp)
     veh = draw_vehicles(ref, r, vp, cal.year_frac(pol.first_day.to_numpy()[vp]), inc_rel[vp],
-                        zr.population_density_sqmi.to_numpy()[vp], age_scale=4.3, age_shape=2.0)
+                        zr.population_density_sqmi.to_numpy()[vp], age_scale=C.FLEET_AGE["scale"], age_shape=C.FLEET_AGE["shape"])
     model_year = veh.model_year.to_numpy()
     # rank vehicles within the policy by value (most valuable first) and assign primary drivers
     veh["neg_value"] = -truth.actual_cash_value(veh.msrp.to_numpy(), model_year, pol.first_day.to_numpy()[vp], cal)
@@ -354,25 +362,32 @@ def draw_lag(r: np.random.Generator, m: int, min_days: float, shape: float = 1.0
 
 
 def draw_vehicles(ref: Reference, r: np.random.Generator, pol_idx, year_frac, inc_rel, density, age_scale, age_shape) -> pd.DataFrame:
-    """Pick a make, model and model year for each vehicle. Used for the starting fleet and for replacements."""
-    mdl = ref.models
+    """Pick a make, model and model year (a row of reference/vehicle_catalogue.csv) for each vehicle. Used for
+    the starting fleet, added cars and replacements. The model year comes from the vehicle's age; the model is
+    drawn among those sold that year, by popularity, tilted by income (luxury and electric models for richer
+    households, economy models for poorer ones) and by density (pickups where it is less dense)."""
+    mdl, s = ref.models, ref.vehicle_sampler
     nv = len(pol_idx)
-    vage = np.minimum(r.gamma(age_shape, age_scale * np.clip(inc_rel, 0.3, 4) ** -0.35), 24.0)
+    vage = np.minimum(r.gamma(age_shape, age_scale * np.clip(inc_rel, 0.3, 4) ** -0.35), C.FLEET_AGE["cap"])
     model_year = np.minimum(np.floor(year_frac - vage + 0.4), np.floor(year_frac)).astype(int)
-    seg = mdl.segment.to_numpy()
-    base_w = mdl.popularity.to_numpy()[None, :] * (
-        (model_year[:, None] >= mdl.first_year.to_numpy()[None, :]) & (model_year[:, None] <= mdl.last_year.to_numpy()[None, :]))
+    model_year = np.clip(model_year, s.first_year, s.last_year)
+    yi = model_year - s.first_year
+    segs = np.array(truth.SEGMENTS)
     ir = np.clip(inc_rel, 0.25, 5)[:, None]
-    aff = np.where(seg == "luxury", ir ** 1.3, np.where(seg == "economy", ir ** -0.5, np.where(seg == "ev", ir ** 1.0, 1.0)))
-    geo = np.where(seg == "truck", np.clip(density / 4000, 0.2, 5)[:, None] ** -0.45, 1.0)
-    mi_ = row_choice(base_w * aff * geo + 1e-9, r)
+    aff = np.where(segs == "luxury", ir ** 1.3, np.where(segs == "economy", ir ** -0.5, np.where(segs == "ev", ir ** 1.0, 1.0)))
+    geo = np.where(segs == "truck", np.clip(np.asarray(density) / C.VEHICLE_DENSITY_REF, 0.1, 5)[:, None] ** -0.45, 1.0)
+    seg = row_choice(s.seg_total[yi] * aff * geo, r)
+    g = yi * len(segs) + seg
+    target = s.group_offset[g] + r.random(nv) * s.group_total[g]
+    pos = np.clip(np.searchsorted(s.cum, target, side="right"), s.group_start[g], s.group_end[g] - 1)
+    mi_ = s.order[pos]
     veh = pd.DataFrame(dict(pol=pol_idx, model_idx=mi_, model_year=model_year))
-    veh["msrp"] = mdl.msrp_2024.to_numpy()[mi_] * 1.03 ** (model_year - 2024)
-    veh["segment"] = seg[mi_]
+    veh["msrp"] = mdl.msrp.to_numpy()[mi_].astype(float)
+    veh["segment"] = mdl.segment.to_numpy()[mi_]
     veh["body_type"] = mdl.body_type.to_numpy()[mi_]
     veh["theft_factor"] = mdl.theft_factor.to_numpy()[mi_]
-    veh["kia_hyundai"] = np.isin(mdl.make.to_numpy()[mi_], ["Kia", "Hyundai"]) & (model_year >= C.KIA_HYUNDAI_MODEL_YEARS[0]) \
-        & (model_year <= C.KIA_HYUNDAI_MODEL_YEARS[1])
+    veh["kia_hyundai"] = np.isin(mdl.make.to_numpy()[mi_], ["Kia", "Hyundai"]) & (mdl.fuel_type.to_numpy()[mi_] != "Electric") \
+        & (model_year >= C.KIA_HYUNDAI_MODEL_YEARS[0]) & (model_year <= C.KIA_HYUNDAI_MODEL_YEARS[1])
     lux = np.isin(veh.segment, ["luxury", "ev"])
     veh["adas"] = r.random(nv) < np.clip((model_year - np.where(lux, 2013, 2015)) / 7, 0, 0.96)
     veh["anti_theft"] = r.random(nv) < np.where(model_year >= 2010, 0.85, 0.40)

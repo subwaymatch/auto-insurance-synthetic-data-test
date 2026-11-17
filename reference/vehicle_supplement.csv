@@ -1,0 +1,17 @@
+# Models a household may insure that EPA fuel economy data does not cover (gross vehicle weight over 8,500 lb).
+# Engine figures are the most common configuration; msrp_2024 is an approximate base price in 2024 dollars.
+make,model,first_year,last_year,vehicle_class,fuel_type,drive,cylinders,displacement,msrp_2024
+Ford,F-250 Super Duty,1999,2026,Heavy-Duty Pickup,Gasoline,4WD,8,6.8,49000
+Ford,F-350 Super Duty,1999,2026,Heavy-Duty Pickup,Diesel,4WD,8,6.7,51000
+Ford,Excursion,2000,2005,Standard SUV,Gasoline,4WD,10,6.8,58000
+Chevrolet,Silverado 2500HD,2001,2026,Heavy-Duty Pickup,Gasoline,4WD,8,6.6,48000
+Chevrolet,Silverado 3500HD,2001,2026,Heavy-Duty Pickup,Diesel,4WD,8,6.6,52000
+GMC,Sierra 2500HD,2001,2026,Heavy-Duty Pickup,Gasoline,4WD,8,6.6,51000
+GMC,Sierra 3500HD,2001,2026,Heavy-Duty Pickup,Diesel,4WD,8,6.6,54000
+Dodge,Ram 2500,1997,2010,Heavy-Duty Pickup,Diesel,4WD,6,6.7,47000
+Dodge,Ram 3500,1997,2010,Heavy-Duty Pickup,Diesel,4WD,6,6.7,50000
+Ram,2500,2011,2026,Heavy-Duty Pickup,Diesel,4WD,6,6.7,47000
+Ram,3500,2011,2026,Heavy-Duty Pickup,Diesel,4WD,6,6.7,50000
+Nissan,Titan XD,2016,2024,Heavy-Duty Pickup,Gasoline,4WD,8,5.6,50000
+Hummer,H1,1997,2006,Standard SUV,Diesel,4WD,8,6.5,150000
+Hummer,H2,2003,2009,Standard SUV,Gasoline,4WD,8,6.0,82000

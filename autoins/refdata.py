@@ -81,19 +81,49 @@ def _midyear_interp(cal: Calendar, table: dict[int, float], days: np.ndarray) ->
 
 
 @dataclass
+class VehicleSampler:
+    """Draws catalogue rows (make, model and model year) for vehicles of given model years. Rows are grouped by
+    model year and segment; a vehicle first picks a segment (popularity of its model year's segments, tilted
+    by household income and density), then a model within it in proportion to popularity."""
+    first_year: int
+    last_year: int
+    seg_total: np.ndarray        # (model year, segment) -> total popularity
+    order: np.ndarray            # catalogue rows sorted by model year, then segment
+    cum: np.ndarray              # cumulative popularity along `order`
+    group_offset: np.ndarray     # cumulative popularity before each (model year, segment) group
+    group_total: np.ndarray
+    group_start: np.ndarray      # position in `order` of each group's first row
+    group_end: np.ndarray        # position in `order` after each group's last row
+
+    @classmethod
+    def build(cls, models: pd.DataFrame, segments: list[str]) -> "VehicleSampler":
+        y0, y1 = int(models.model_year.min()), int(models.model_year.max())
+        seg = models.segment.map({s: i for i, s in enumerate(segments)}).to_numpy()
+        assert not np.isnan(seg.astype(float)).any(), "catalogue has a segment the simulation does not know"
+        g = (models.model_year.to_numpy() - y0) * len(segments) + seg
+        order = np.lexsort((np.arange(len(models)), g))
+        w = models.popularity.to_numpy()[order]
+        cum = np.cumsum(w)
+        ng = (y1 - y0 + 1) * len(segments)
+        total = np.bincount(g, weights=models.popularity.to_numpy(), minlength=ng)
+        count = np.bincount(g, minlength=ng)
+        end = np.cumsum(count)
+        offset = np.concatenate([[0.0], np.cumsum(total)[:-1]])
+        return cls(y0, y1, total.reshape(-1, len(segments)), order, cum, offset, total, end - count, end)
+
+
+@dataclass
 class Reference:
     zips: pd.DataFrame
     models: pd.DataFrame
-    first_m: np.ndarray
-    first_f: np.ndarray
-    last: np.ndarray
     cal: Calendar
+    names: object = None                       # names.NameSampler
+    vehicle_sampler: VehicleSampler | None = None
 
 
 def load(cfg: C.Config) -> Reference:
     zips = pd.read_csv(C.REFERENCE_DIR / "zip_reference.csv", dtype={"zip": str})
-    models = pd.read_csv(C.REFERENCE_DIR / "vehicle_models.csv")
-    names = pd.read_csv(C.REFERENCE_DIR / "names.csv", keep_default_na=False)
+    models = pd.read_csv(C.REFERENCE_DIR / "vehicle_catalogue.csv")
     season = pd.read_csv(C.REFERENCE_DIR / "month_seasonality.csv").set_index("month")
     yearly = pd.read_csv(C.REFERENCE_DIR / "year_indices.csv").set_index("year")
 
@@ -127,8 +157,7 @@ def load(cfg: C.Config) -> Reference:
         level[max((np.datetime64(d) - start).astype(int), 0):] *= 1 + chg
     cal.rate_level = level
 
-    return Reference(
-        zips=zips, models=models,
-        first_m=names.name[names.kind == "M"].to_numpy(), first_f=names.name[names.kind == "F"].to_numpy(),
-        last=names.name[names.kind == "L"].to_numpy(), cal=cal,
-    )
+    from .names import NameSampler
+    from .truth import SEGMENTS
+    return Reference(zips=zips, models=models, cal=cal, names=NameSampler.load(),
+                     vehicle_sampler=VehicleSampler.build(models, SEGMENTS))

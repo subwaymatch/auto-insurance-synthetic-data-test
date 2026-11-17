@@ -229,6 +229,10 @@ class Static:
         v["seg_code"] = np.array([SEGMENTS.index(x) for x in seg], dtype=int)
         v["use_factor"] = np.where(v["use"] == "Business", C.BUSINESS_USE_FACTOR, 1.0)
         v["zi"] = self.p["zi"][v["pol"]]
+        # telematics (see telematics.py): the discount the car is rated with, and whether it is being monitored
+        v.setdefault("tele_disc", np.zeros(len(veh)))
+        v.setdefault("tele_on", np.zeros(len(veh), dtype=bool))
+        v.setdefault("tele_since", np.full(len(veh), -10 ** 6))
         return v
 
     def retire(self, old: np.ndarray, day: np.ndarray, reason: int) -> None:
