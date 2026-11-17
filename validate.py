@@ -46,8 +46,13 @@ BENCHMARK_FREQ_BAND = (0.85, 1.45)
 BENCHMARK_SEV_BAND = (0.85, 1.15)
 TOWING_LIMIT = 100                      # towing and labor pays up to this per claim
 
-LOSS_RATIO_BAND = (0.52, 0.88)          # every full accident year; industry 2022-2025 ran roughly 61%-80%,
-                                        # and a book this size moves several points on large claims alone
+# Each full accident year's actual loss ratio against its expected one (answer key): the claims simulated are
+# consistent with their expectation, give or take claim luck. Calibration itself is held by the expected loss
+# ratio against industry (below). A year of a ~50,000-policy book has about 450 paid bodily injury claims, whose
+# total alone varies by roughly 2.5 loss-ratio points (one standard deviation); in the default run 2022 is 1.12
+# times expected, mostly from bodily injury at 1.21 times. (This replaced an absolute band of 52% to 88% on the
+# actual ratio, which mixed calibration with luck.)
+ACTUAL_TO_EXPECTED_BAND = (0.85, 1.15)
 OVERALL_LOSS_RATIO_BAND = (0.62, 0.76)
 # Expected (noise-free, from the answer key) loss ratio by accident year, against industry pure loss ratios
 # (incurred losses excluding LAE / earned premium, direct). US private auto: 80.2% (2022, APCIA), 75.4% (2023),
@@ -507,10 +512,14 @@ def main() -> None:
         print(f"  {y}: earned premium ${prem:>12,.0f}   car-years {(overlap * (days > 0)).sum() / 365.25:>8,.0f}   "
               f"loss ratio {lr[y]:6.1%}   (catastrophe {cat:5.1%})   LAE ratio {clm.loc[m, 'paid_expense'].sum() / prem:5.1%}")
     full = [y for y in years if y < years[-1]]
-    for y in full:
-        rep.band(f"{y} loss ratio", lr[y], LOSS_RATIO_BAND, "{:.1%}")
     exp_loss = truth.set_index("exposure_id")["expected_loss_total"].reindex(risk["exposure_id"]).to_numpy()
     exp_rate = np.divide(exp_loss, days, out=np.zeros(len(risk)), where=days > 0)
+    for y in full:
+        a_, b_ = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
+        overlap = (np.minimum(e, b_) - np.maximum(s, a_)).astype("timedelta64[D]").astype(int).clip(0)
+        expected_lr = (overlap * exp_rate).sum() / (overlap * rate).sum()
+        rep.band(f"{y} loss ratio ({lr[y]:.1%}) relative to its expected ({expected_lr:.1%})", lr[y] / expected_lr,
+                 ACTUAL_TO_EXPECTED_BAND, "{:.2f}")
     for y, b in INDUSTRY_LOSS_RATIO_BAND.items():
         a_, b_ = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
         overlap = (np.minimum(e, b_) - np.maximum(s, a_)).astype("timedelta64[D]").astype(int).clip(0)

@@ -4,7 +4,8 @@ A seeded generator that produces a realistic personal auto insurance book for on
 carrier writing in the seven-county Chicago area (Cook, DuPage, Lake, Will, Kane, McHenry,
 Kendall). It replaces an older synthetic dataset whose loss ratio (about 20%) and risk
 relationships were not credible. [CHANGELOG.md](CHANGELOG.md) records every step taken to make
-the data more realistic.
+the data more realistic, and [docs/limitations.md](docs/limitations.md) collects everything it
+still leaves out or simplifies, and what it should and should not be used for.
 
 Everything about people, policies, premiums and claims is simulated. No record describes a
 real person. The geography is real (ZIP codes, Census demographics, and Chicago police crash
@@ -13,8 +14,8 @@ the US since 1997, weighted by how often each appears on Chicago's roads.
 
 **The insurer.** "Lakefront" is a small regional group: three underwriting companies
 (preferred, standard and non-standard) selling through independent agents, exclusive agents and
-direct. The default book writes 50,000 policies over 4.75 years, about 28,000 of them in force at
-the end with some 48,000 cars and $50 million of premium a year: roughly 1% of the area's
+direct. The default book writes 51,391 policies over 4.75 years, about 29,000 of them in force at
+the end with some 50,000 cars and $53 million of premium a year: roughly 1% of the area's
 household vehicles. Read it as the Chicago-area part of a regional carrier, not a national one.
 
 ## Getting the data
@@ -54,7 +55,7 @@ national figures on those figures' own definitions.
 | Option | Default | Meaning |
 |---|---|---|
 | `--seed` | `20250101` | Same seed and options give byte-identical files |
-| `--policies` | `50000` | Distinct policies ever written (in-force book plus new business) |
+| `--policies` | `51391` | Distinct policies ever written (in-force book plus new business) |
 | `--start` | `2022-01-01` | First day simulated |
 | `--valuation` | `2026-09-30` | "As of" date of the extract; nothing later is known |
 | `--out` | `output/` | Output folder |
@@ -85,8 +86,9 @@ git push origin v1.0.0
 ```
 
 - **By hand**, for another seed, size or set of file formats: open the Actions tab, choose
-  "Release dataset", then "Run workflow", and enter a tag, seed, policy count and formats (default
-  `csv`). Re-running for an existing tag replaces that release's files.
+  "Release dataset", then "Run workflow", and enter a tag (`v1.1.0`, or `1.1.0`: the `v` is added),
+  seed, policy count and formats (default `csv`). Re-running for an existing tag replaces that
+  release's files.
 
 Each release carries, for each format:
 
@@ -132,15 +134,15 @@ python scripts/make_samples.py --rows 100 --out samples synthetic=output real_da
 
 | | |
 |---|---|
-| Policies / policy terms | 50,000 / 229,767 (22,895 of the terms were already in force on the start date) |
-| Drivers / vehicles | 88,655 / 129,371 (4,059 drivers left a policy; 28,574 vehicles traded in, 5,899 sold, 8,865 destroyed or stolen, 1,407 taken by a leaving driver) |
-| Vehicle models | 744 of the catalogue's 940 models (56 makes) are insured |
-| Exposure rows / premium transactions | 515,155 (24.4% start at a mid-term change) / 313,537 (75,672 endorsements) |
-| Earned exposure | 205,520 car-years |
-| Earned premium | $210.3 million ($1,023 per car-year, $1,729 per policy-year) |
-| Claims / coverage features / reserve transactions | 22,677 / 40,071 / 131,510 (43% of closed liability and medical features and 17% of closed physical damage features paid nothing) |
-| Quotes | 142,043, of which 18.9% bound |
-| Telematics | 14,207 enrolments and 61,904 driving scores; enrolled cars are 13% of car-years in 2022, rising to 24% in 2026 |
+| Policies / policy terms | 51,391 / 236,951 (23,538 of the terms were already in force on the start date) |
+| Drivers / vehicles | 91,102 / 132,853 (4,126 drivers left a policy; 29,169 vehicles traded in, 6,135 sold, 9,266 destroyed or stolen, 1,375 taken by a leaving driver) |
+| Vehicle models | 761 of the catalogue's 940 models (58 makes) are insured |
+| Exposure rows / premium transactions | 529,818 (24.3% start at a mid-term change) / 323,060 (77,882 endorsements) |
+| Earned exposure | 211,396 car-years |
+| Earned premium | $216.4 million ($1,024 per car-year, $1,730 per policy-year) |
+| Claims / coverage features / reserve transactions | 23,189 / 41,124 / 135,427 (42% of closed liability and medical features and 17% of closed physical damage features paid nothing) |
+| Quotes | 146,204, of which 18.9% bound |
+| Telematics | 14,592 enrolments and 64,229 driving scores; enrolled cars are 13% of car-years in 2022, rising to 25% in 2026 |
 
 ### Frequency and severity against national figures, like for like
 
@@ -156,22 +158,22 @@ catastrophe claims.
 
 | Coverage | Year | Claims per 100 car-years | National | Average paid | National |
 |---|---|---|---|---|---|
-| Bodily injury (with LAE) | 2022 | 0.42 | 0.70 | $19,260 | $24,681 |
-| | 2023 | 0.77 | 0.78 | $22,416 | $26,178 |
-| | 2024 | 0.92 | 0.80 | $26,705 | $28,278 |
-| Property damage (with LAE) | 2022 | 2.82 | 2.54 | $6,204 | $6,024 |
-| | 2023 | 2.84 | 2.59 | $7,057 | $6,554 |
-| | 2024 | 2.83 | 2.50 | $7,844 | $6,770 |
-| Collision ($500 deductible) | 2022 | 5.67 | 4.48 | $4,584 | $5,377 |
-| | 2023 | 5.89 | 4.48 | $5,048 | $5,521 |
-| | 2024 | 5.44 | 4.16 | $5,070 | $5,489 |
-| Comprehensive ($500 deductible, no wind or water) | 2022 | 3.52 | 3.78 | $1,891 | $2,175 |
-| | 2023 | 4.05 | 4.08 | $2,013 | $2,305 |
-| | 2024 | 4.25 | 3.95 | $1,958 | $2,306 |
+| Bodily injury (with LAE) | 2022 | 0.40 | 0.70 | $19,203 | $24,681 |
+| | 2023 | 0.82 | 0.78 | $25,313 | $26,178 |
+| | 2024 | 0.91 | 0.80 | $26,328 | $28,278 |
+| Property damage (with LAE) | 2022 | 2.67 | 2.54 | $6,155 | $6,024 |
+| | 2023 | 3.09 | 2.59 | $6,802 | $6,554 |
+| | 2024 | 2.82 | 2.50 | $7,068 | $6,770 |
+| Collision ($500 deductible) | 2022 | 5.20 | 4.48 | $4,947 | $5,377 |
+| | 2023 | 5.56 | 4.48 | $4,964 | $5,521 |
+| | 2024 | 5.54 | 4.16 | $5,166 | $5,489 |
+| Comprehensive ($500 deductible, no wind or water) | 2022 | 3.77 | 3.78 | $1,893 | $2,175 |
+| | 2023 | 4.20 | 4.08 | $2,156 | $2,305 |
+| | 2024 | 4.22 | 3.95 | $1,771 | $2,306 |
 
-Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.07
-times national for bodily injury, 1.11 for property damage, 1.30 for collision and 1.00 for
-comprehensive, and severity 0.91, 1.09, 0.90 and 0.86 times national. `validate.py` prints this table
+Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.10
+times national for bodily injury, 1.13 for property damage, 1.24 for collision and 1.03 for
+comprehensive, and severity 0.95, 1.04, 0.92 and 0.86 times national. `validate.py` prints this table
 for any run and holds frequency to 0.85 to 1.45 times national and severity to 0.85 to 1.15 times.
 
 What still differs, and how to read it:
@@ -183,8 +185,9 @@ What still differs, and how to read it:
 - **Bodily injury in 2022.** The extract has no claims from accidents before its start date, so the
   first calendar year's payments are too few (injury claims take a year or more to settle). That
   year is shown but not held to a band.
-- **Sampling.** A year has about 400 paid bodily injury claims and 700 comprehensive claims in the
-  $500 slice, so single-year severities move 5% to 10% by chance.
+- **Sampling.** A year has about 400 paid bodily injury claims and 750 comprehensive claims in the
+  $500 slice, so single-year severities move 10% or more by chance (comprehensive in 2024, at 0.77
+  times national, is low in this run for that reason).
 - **An older fleet.** Vehicles are about ten years old on average, as on Chicago's roads, so more
   collision and comprehensive claims are capped by a modest vehicle value; physical damage severity
   sits at the low end of its band.
@@ -193,9 +196,9 @@ What still differs, and how to read it:
   or when a claim counts as paid).
 
 Whole-extract figures on the dataset's own basis (every deductible and cause, loss only), which
-`validate.py` also holds to bands so that the book stays stable from seed to seed: bodily injury 0.78
-paid claims per 100 car-years at $24,597; property damage 2.77 at $7,009; collision 5.27 at $5,120;
-comprehensive 4.97 at $2,253. These are not comparable with the national table.
+`validate.py` also holds to bands so that the book stays stable from seed to seed: bodily injury 0.80
+paid claims per 100 car-years at $24,301; property damage 2.82 at $6,836; collision 5.16 at $5,172;
+comprehensive 4.99 at $2,341. These are not comparable with the national table.
 
 ### Loss ratios
 
@@ -205,26 +208,28 @@ calendar year):
 
 | | 2022 | 2023 | 2024 | 2025 | 2026 (nine months) |
 |---|---|---|---|---|---|
-| This dataset, actual | 80.8% | 76.3% | 70.6% | 67.8% | 59.4% |
-| This dataset, expected (answer key, free of claim luck) | 79.2% | 75.5% | 66.1% | 63.9% | 65.2% |
+| This dataset, actual | 88.6% | 79.8% | 67.5% | 63.7% | 68.1% |
+| This dataset, expected (answer key, free of claim luck) | 78.9% | 75.3% | 66.0% | 63.9% | 65.4% |
 | US private passenger auto | 80.2% | 75.4% | 66.1% | 61.5% | 60.4% (Q1) |
 | Illinois private passenger auto | 79.6% | 72.8% | 63.4% | 60.1% | |
 
 The book enters 2022 under-priced, as the industry did after pandemic-era rate cuts, and rate
 increases (+48% cumulative, close to the industry's +12.1% in 2022, +16.5% in 2023, +7.6% in 2024
-and +3.7% in 2025) bring it back. Overall it runs 70.3%, against about 70% for the US and 68% for
+and +3.7% in 2025) bring it back. Overall it runs 72.1%, against about 70% for the US and 68% for
 Illinois over 2022 to 2025. The expected loss ratio is held to the industry path by `validate.py`.
-Telematics discounts take 1.5% off the premium in 2022, rising to 2.8% in 2026, so later years run a
+Telematics discounts take 1.5% off the premium in 2022, rising to 2.9% in 2026, so later years run a
 little above the industry figures. The actual figures move several points a year on large injury
-claims alone, so other seeds give different year-by-year figures within the same range. The 2026
-figure is low because it is immature: young injury claims are reserved low and late-reported
-claims are missing.
+claims alone. In this run 2022 is the unlucky year: bodily injury came in at 1.21 times its expected
+cost, so the actual 88.6% sits ten points above the expected 78.9%; other seeds and sizes give
+different years their bad luck. `validate.py` holds each full year's actual loss ratio to 0.85 to 1.15
+times its expected one. The 2026 figure is immature: young injury claims are reserved low and
+late-reported claims are missing.
 
 These are pure loss ratios. Three different ratios are easy to confuse:
 
 - **Pure loss ratio** (above): losses only.
 - **Loss and LAE ratio**: add loss adjustment expense. The expense booked to individual claims in
-  this dataset is 4% to 6% of premium for mature accident years (`claim.paid_expense`, shown
+  this dataset is 5% to 6.5% of premium for mature accident years (`claim.paid_expense`, shown
   beside each year by `validate.py`). Industry LAE, which also includes claim department overhead not
   booked to any claim, ran 8.0% to 10.2% of premium in 2022 to 2025.
 - **Combined ratio**: also adds commissions, other underwriting expenses and dividends. Nothing in
@@ -455,12 +460,12 @@ kind most US insurers now run:
 - **Claims that pay nothing.** As in real claim files, many features close without payment:
   liability claims against an insured who was not at fault, injury claims opened as a precaution
   and never pursued, and damage reported then withdrawn. They carry a nominal reserve while open.
-  About 43% of closed liability and medical features and 17% of closed collision and comprehensive
+  About 42% of closed liability and medical features and 17% of closed collision and comprehensive
   features pay nothing (industry 2025: about 45% and just under 25%).
 - **Reserves.** Each feature opens with a formula reserve and is re-estimated on a review cycle (every
   90 days for injury, 30 for physical damage). Early injury estimates average about 86% of ultimate and
   improve as claims mature, so bodily injury incurred develops upward (12-to-24-month factors of about
-  1.07 to 1.16) while collision barely moves; payments erode reserves, closing releases them, and
+  1.12 to 1.21) while collision barely moves; payments erode reserves, closing releases them, and
   precautionary injury claims carry a nominal reserve. Litigated features also carry an expense
   reserve. `claim_reserve_transaction` records every change, so incurred can be rebuilt as of any date.
 - **Claim detail.** About half of paid bodily injury claimants are represented by an attorney (57%
@@ -504,16 +509,16 @@ Deliberate and emergent findings in the default run:
 
 | Finding | What the data shows |
 |---|---|
-| Young drivers are under-priced | Expected loss ratio 74% to 85% for classes under 25, against 68% for ages 25 to 64 |
-| Mileage is under-used | Expected loss ratio rises from 64% under 5,000 reported miles to 84% at 16,000+ |
-| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for affected models peak at 6.4 in 2023, against 1.0 to 1.5 for others |
-| Automatic emergency braking is unpriced | Expected loss ratio 65.7% with it, 71.5% without |
+| Young drivers are under-priced | Expected loss ratio 75% to 87% for classes under 25, against 68% for ages 25 to 64 |
+| Mileage is under-used | Expected loss ratio rises from 64% under 5,000 reported miles to 83% at 16,000+ |
+| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for affected models peak at 10.5 in 2023, against 0.8 to 1.7 for others |
+| Automatic emergency braking is unpriced | Expected loss ratio 65.4% with it, 71.5% without |
 | Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 62%, against 70.5% for the rest; selection and the 7% behaviour effect can be separated only with the answer key |
-| The telematics discount under-reacts to the score | Expected loss ratio 66% for cars earning 10% or less, 48% for those earning 21% to 30% |
+| The telematics discount under-reacts to the score | Expected loss ratio 65% for cars earning 10% or less, 48% for those earning 21% to 30% |
 | Telematics mileage exposes under-reporting | Annualised `telematics_score.miles_driven` is above the car's reported `insured_vehicle.annual_mileage` for two cars in three (10% above for the median car) |
-| Rates lagged costs, then caught up | Expected loss ratio falls from 79% (2022) and 76% (2023) to 66% and 64% (2024, 2025), as the industry's did |
-| Case reserves develop | Bodily injury incurred grows by 7% to 16% from 12 to 24 months as early, low reserves are corrected; collision moves 1% to 3% |
-| New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 36% of the time, those above 12% |
+| Rates lagged costs, then caught up | Expected loss ratio falls from 79% (2022) and 75% (2023) to 66% and 64% (2024, 2025), as the industry's did |
+| Case reserves develop | Bodily injury incurred grows by 12% to 21% from 12 to 24 months as early, low reserves are corrected; collision moves 1% to 2% |
+| New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 37% of the time, those above 12% |
 | Insurance score is priced roughly right | Premium more than doubles from the worst tier to the best; expected loss ratio drifts only from 65% to 72%, partly because telematics discounts go mostly to good-score customers |
 | The newest year is not fully known | Late-reported claims are missing, open claims carry imperfect reserves, and closed claims can reopen |
 | Price increases cost retention | Renewal probability falls with the size of the increase |
@@ -549,6 +554,9 @@ sources, with their limits: Tzioumis' shares come from adult mortgage applicants
 that list and get the population's mix.
 
 ## Assumptions and limits
+
+[docs/limitations.md](docs/limitations.md) collects these, the data's gaps and its appropriate uses in
+one place, for sharing.
 
 All assumptions live in `autoins/config.py` and `autoins/telematics.py`, each marked ANCHORED (published
 figure), TUNED (set to hit an anchored target) or ASSUMED (judgement). The ones that matter most:
@@ -728,7 +736,7 @@ output/                  where generate.py writes (ignored by git; published as 
 samples/                 first 100 rows of every table (written by the samples workflow)
 reference/               ZIP reference data, vehicle catalogue and its curation, names
 real_data/               a real motor insurance portfolio, for comparison (CC BY 4.0)
-docs/                    comparison with the real portfolio; old-to-new schema map
+docs/                    limitations; comparison with the real portfolio; old-to-new schema map
 scripts/                 build reference/ from public sources; package releases; samples; real-data comparison
 .github/workflows/       release and samples workflows
 tests/                   python -m unittest discover tests
