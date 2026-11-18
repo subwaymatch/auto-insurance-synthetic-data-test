@@ -5,9 +5,11 @@ app, a plug-in device or a windshield beacon on every car on the policy, get a p
 away, and from the next renewal a discount earned by their driving score. Scores never raise the premium, as in
 most US programmes. Some customers leave the programme, more often those who see a poor score.
 
-What the device sees is generated from the truth the insurer cannot see: the primary driver's at-fault propensity
-(age, experience and the hidden risk factor, truth.driver_multiplier) and the car's true annual mileage, which the
-customer usually understates. So the score carries risk information the rating plan lacks, imperfectly (the
+What the device sees is generated from the truth the insurer cannot see: the at-fault propensity (age, experience and
+the hidden risk factor, truth.driver_multiplier) of the driver assigned to the car at the time, and the car's true
+annual mileage, which the customer usually understates. A score is one driver's driving of one car: a scoring
+window in which the car's assigned driver changed is split there (split_windows), each part is scored as its own
+driver's, and the car's discount is the days-weighted average of the discounts its parts earned. So the score carries risk information the rating plan lacks, imperfectly (the
 metrics are noisy), and the programme attracts safer drivers (favourable selection). Being monitored also makes
 people drive a little more carefully: at-fault crash frequency is lower while a car is enrolled (BEHAVIOUR_FACTOR),
 which the answer key's expected losses include. Selection and behaviour can be told apart only with the answer key.
@@ -102,3 +104,30 @@ def dropout(r: np.random.Generator, s, days, device_type) -> np.ndarray:
     p = 1 - np.exp(-rate * np.asarray(days) / 365.25)
     leave = r.random(len(p)) < p
     return np.where(leave, np.floor(r.random(len(p)) * np.maximum(days, 1)).astype(int), -1)
+
+
+def split_windows(log_veh, log_day, log_drv, veh, ws, we):
+    """Split scoring windows [ws, we) of cars `veh` where the car's assigned driver changes, so each part is one
+    driver's driving. log_veh, log_day and log_drv are the cars' assignment histories sorted by car and day: from
+    log_day on, log_drv drives log_veh (the exposure rows' rated driver). A day before a car's first entry takes
+    that entry's driver. Only entries dated before a window's end can affect it, so a later change of driver
+    never alters an earlier score. Returns (window index, part start, part end, driver), parts in date order."""
+    log_veh, log_day, log_drv = (np.asarray(a, dtype=np.int64) for a in (log_veh, log_day, log_drv))
+    veh, ws, we = (np.asarray(a, dtype=np.int64) for a in (veh, ws, we))
+    off, span = 2 ** 21, 2 ** 22                       # days run from about -10**6 to a few thousand
+    key = log_veh * span + log_day + off
+    lo = np.searchsorted(log_veh, veh, "left")
+    if len(veh) and not (log_veh[np.minimum(lo, len(log_veh) - 1)] == veh).all():
+        raise ValueError("a scored car has no assignment history")
+    j0 = np.maximum(np.searchsorted(key, veh * span + ws + off, "right") - 1, lo)     # the entry in force at ws
+    j1 = np.maximum(np.searchsorted(key, veh * span + we + off, "left"), j0 + 1)     # entries dated before we
+    n = j1 - j0
+    w = np.repeat(np.arange(len(veh)), n)
+    pos = np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n)
+    j = j0[w] + pos
+    start = np.where(pos == 0, ws[w], log_day[j])
+    end = np.where(pos == n[w] - 1, we[w], np.r_[start[1:], 0])
+    d = log_drv[j]
+    first = (pos == 0) | (d != np.r_[-1, d[:-1]])      # consecutive entries for one driver (a move) are one part
+    last = np.r_[first[1:], True]
+    return w[first], start[first], end[last], d[first]

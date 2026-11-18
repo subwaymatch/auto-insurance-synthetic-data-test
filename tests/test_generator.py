@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import release_formats  # noqa: E402
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import names, schema, truth  # noqa: E402
+from autoins import names, population, refdata, schema, simulate, telematics, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -285,6 +285,23 @@ class GeneratorTest(unittest.TestCase):
         s22 = drv[drv["sr22_filed_date"].notna()]
         self.assertTrue((s22["sr22_filed_date"] >= s22["added_date"]).all())
 
+    def test_renewal_offers_keep_every_decision(self) -> None:
+        """Every renewal evaluated is kept, declined and company non-renewals included, with the premium it was
+        evaluated at, made from the exposure in force on its offer date; outcomes agree with the policy terms."""
+        o, term, risk = self.read("renewal_offer"), self.read("policy_term"), self.read("exposure")
+        rep, out = validate.Report(), io.StringIO()
+        with contextlib.redirect_stdout(out):
+            validate.integrity_renewals(rep, o, term, risk, self.a["valuation"])
+        self.assertEqual(rep.failures, 0, out.getvalue())
+        declined = o[o["outcome"].isin(["Insured Did Not Renew", "Company Non-Renewal"])]
+        self.assertTrue({"Renewed", "Insured Did Not Renew", "Cancelled Before Renewal", "Pending"} <= set(o["outcome"]))
+        self.assertTrue((declined["renewal_premium"] > 0).all() and declined["offer_date"].notna().all())
+        contact = self.read("customer_contact")
+        self.assertIn("Notice of Non-Renewal", set(contact["purpose"])) if (o["outcome"] == "Company Non-Renewal").any() else None
+        truth_ = pd.read_csv(self.root / "a" / "answer_key" / "renewal_offer_truth.csv")
+        self.assertEqual(len(truth_), len(o))
+        self.assertTrue(truth_["acceptance_probability"].dropna().between(0, 1).all())
+
     def test_renewals_changed_after_the_offer_are_re_rated(self) -> None:
         t = self.read("policy_term")
         self.assertTrue((t["offer_date"] <= t["rating_date"]).all() and (t["rating_date"] <= t["effective_date"]).all())
@@ -386,6 +403,146 @@ class LimitTest(unittest.TestCase):
         cap = truth.reserve_caps(paid, gross, 25_000.0, accident, len(k), np.full(len(k), 50_000.0))
         self.assertTrue((cap >= paid - 0.01).all() and (cap <= 25_000).all())
         self.assertTrue((np.bincount(accident, cap) <= 50_000 + 0.01).all())
+
+
+class TelematicsAssignmentTest(unittest.TestCase):
+    """A score is the driving of the driver assigned to the car at the time (simulate._scored_parts)."""
+    log = dict(log_veh=[5, 5, 7], log_day=[simulate.OPENING, 100, simulate.OPENING], log_drv=[10, 11, 20])
+
+    def split(self, log, ws=0, we=90):
+        return [tuple(int(x) for x in a) for a in zip(*telematics.split_windows(
+            log["log_veh"], log["log_day"], log["log_drv"], np.array([5]), np.array([ws]), np.array([we])))]
+
+    def test_a_later_takeover_leaves_an_earlier_score_alone(self) -> None:
+        # a spouse takes the car over on day 100, after the window ends on day 90
+        self.assertEqual(self.split(self.log), [(0, 0, 90, 10)])
+        for later in (91, 150, 400):         # moving the takeover anywhere after the window changes nothing
+            self.assertEqual(self.split({**self.log, "log_day": [simulate.OPENING, later, simulate.OPENING]}), [(0, 0, 90, 10)])
+        self.assertEqual(self.split({**self.log, "log_day": [simulate.OPENING, 90, simulate.OPENING]}), [(0, 0, 90, 10)])
+
+    def test_a_change_inside_the_window_splits_it(self) -> None:
+        log = {**self.log, "log_day": [simulate.OPENING, 50, simulate.OPENING]}
+        self.assertEqual(self.split(log), [(0, 0, 50, 10), (0, 50, 90, 11)])
+        # a move (same driver, new garaging ZIP) is not a change of driver
+        log = dict(log_veh=[5, 5, 5], log_day=[simulate.OPENING, 30, 60], log_drv=[10, 10, 11])
+        self.assertEqual(self.split(log), [(0, 0, 60, 10), (0, 60, 90, 11)])
+
+    def test_scores_do_not_depend_on_later_assignments(self) -> None:
+        """With the same draws, the metrics of an earlier window are the same however the car is assigned later."""
+        def metrics(log):
+            w, s, e, d = telematics.split_windows(log["log_veh"], log["log_day"], log["log_drv"], np.array([5, 7]),
+                                                  np.array([0, 0]), np.array([90, 90]))
+            prop = np.array([0.7, 1.4, 1.0])[d - 10 if (d < 20).all() else np.where(d < 20, d - 10, 2)]
+            return telematics.metrics(np.random.default_rng(3), prop, np.full(len(d), 40.0), np.full(len(d), 9000.0),
+                                      np.full(len(d), 5000.0), e - s)
+        a = metrics(self.log)
+        b = metrics({**self.log, "log_day": [simulate.OPENING, 300, simulate.OPENING]})
+        for k in a:
+            np.testing.assert_array_equal(a[k], b[k])
+
+
+class RenewalTimelineTest(unittest.TestCase):
+    """A renewal offer and decision depend only on the policy's history up to the offer date (simulate._renewals).
+    Re-evaluating each offer at the end of the run, with everything that happened later in the history (later claims,
+    moves, cars, drivers and records, and the policy's current state), gives the offer and decision made at the time."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cfg = replace(C.Config(), n_policies=1200, seed=21)
+        ref = refdata.load(cfg)
+        cls.res = simulate.run(cfg, ref, population.build(cfg, ref))
+        cls.sim = cls.res.sim
+
+    def evaluate(self, off, rows=None):
+        """Evaluate the offers in `off` again, pass by pass, with each car's telematics discount from the offer day."""
+        out = []
+        for k, g in off.groupby("k"):
+            g = g.sort_values("pol")
+            cars = self.res.offer_cars[self.res.offer_cars.exp_term.isin(g.exp_term)]
+            tele = np.zeros(len(self.sim.st.v["pol"]))
+            tele[cars.veh.to_numpy()] = cars.tele_disc.to_numpy()
+            a = lambda c: g[c].to_numpy()
+            ev, _ = simulate.evaluate_offers(self.sim, a("pol"), a("exp_term"), a("offer_day"), a("eff"), a("since"), a("tenure"),
+                                             a("ty"), a("ni_age"), self.res.rows if rows is None else rows, tele)
+            flag = simulate.underwriting_review(self.sim, a("pol"), a("offer_day"), a("eff"))
+            out.append(pd.DataFrame({"pol": a("pol"), "exp_term": a("exp_term"), "n_veh": ev["n_veh"], "expiring": ev["expiring"],
+                                     "premium": ev["premium"], "p_accept": 1 / (1 + np.exp(-ev["logit"])),
+                                     "prev_claims": ev["prev_claims"],
+                                     "company": flag & (a("u_company") < simulate.UW_NONRENEW_P)}))
+        return pd.concat(out).set_index("exp_term").reindex(off.exp_term)
+
+    def assertSameOffers(self, off, again) -> None:
+        for c in ("n_veh", "prev_claims", "company"):
+            np.testing.assert_array_equal(again[c].to_numpy(), off[c].to_numpy(), c)
+        for c in ("expiring", "premium", "p_accept"):
+            np.testing.assert_allclose(again[c].to_numpy(), off[c].to_numpy(), rtol=0, atol=1e-6, err_msg=c)
+        accept = again["p_accept"].to_numpy() > off["u_stay"].to_numpy()
+        np.testing.assert_array_equal(accept, off["u_stay"].to_numpy() < off["p_accept"].to_numpy())
+
+    def test_offers_are_the_same_with_the_whole_later_history(self) -> None:
+        off = self.res.offers
+        self.assertGreater(len(off), 2000)
+        self.assertSameOffers(off, self.evaluate(off))
+        self.assertTrue({"Insured Did Not Renew", "Renewed"} <= set(off.outcome))
+
+    def test_later_claims_moves_and_records_cannot_change_an_offer(self) -> None:
+        # one offer per policy (a claim the day after one offer would rightly count at the policy's next offer)
+        sim, off = self.sim, self.res.offers.sample(frac=1, random_state=1).drop_duplicates("pol").sort_values("exp_term")
+        p, v, drv = sim.st.p, sim.st.v, sim.pop.drv
+        saved = (list(sim.clm_pol), list(sim.clm_report), list(sim.recs.parts), sim.recs._frame, p["homeowner"].copy(),
+                 v["primary_drv"].copy(), drv["marital"].copy())
+        try:
+            pol, o = off.pol.to_numpy(), off.offer_day.to_numpy()
+            # a claim reported the day after each offer, and a serious record known the day after it
+            sim.clm_pol.append(pol)
+            sim.clm_report.append(o + 1)
+            d = drv.drv.to_numpy()[np.isin(drv.pol.to_numpy(), pol)]
+            for _ in range(3):
+                sim.recs.add(d, np.full(len(d), o.min() - 10), np.full(len(d), simulate.KIND["major"]), np.full(len(d), o.max() + 1))
+            # later exposure: every car of the expiring term moves to another ZIP the day after the offer, with
+            # another driver, and the household's current state is scrambled
+            r = self.res.rows
+            later = r[r.term.isin(off.exp_term)].copy()
+            later["s"] = off.set_index("exp_term").offer_day.reindex(later.term).to_numpy() + 1
+            later["zi"], later["drv"] = (later.zi + 1) % len(sim.ref.zips), later.drv[::-1].to_numpy()
+            p["homeowner"][:] = 1 - p["homeowner"]
+            v["primary_drv"][:] = v["primary_drv"][::-1]
+            drv["marital"] = "M"
+            self.assertSameOffers(off, self.evaluate(off, pd.concat([r, later], ignore_index=True)))
+            # but a claim reported on the offer date itself counts, and lowers the chance of renewing
+            fresh = off[off.prev_claims == 0]
+            sim.clm_pol.append(fresh.pol.to_numpy())
+            sim.clm_report.append(fresh.offer_day.to_numpy())
+            again = self.evaluate(fresh)
+            self.assertTrue((again.prev_claims.to_numpy() == 1).all() and (again.p_accept.to_numpy() < fresh.p_accept.to_numpy()).all())
+        finally:
+            sim.clm_pol[:], sim.clm_report[:], sim.recs.parts[:] = saved[0], saved[1], saved[2]
+            sim.recs._frame, p["homeowner"][:], v["primary_drv"][:], drv["marital"] = saved[3], saved[4], saved[5], saved[6]
+
+    def test_records_count_from_the_day_they_become_known(self) -> None:
+        sim = self.sim
+        off = self.res.offers[~self.res.offers.company].iloc[:200]
+        pol, o, eff = off.pol.to_numpy(), off.offer_day.to_numpy(), off.eff.to_numpy()
+        drv = sim.pop.drv
+        dp, rem = drv.pol.to_numpy(), drv.removed_day.to_numpy()
+        # one driver of each policy who is on it on the offer date
+        i_of = pd.Series(np.arange(len(pol)), index=pol)
+        on = np.isin(dp, pol) & (drv.added_day.to_numpy() <= o[i_of.reindex(dp).fillna(0).astype(int).to_numpy()])
+        d = pd.DataFrame({"drv": drv.drv.to_numpy()[on], "pol": dp[on]}).drop_duplicates("pol")
+        d = d[(rem[d.drv] < 0) | (rem[d.drv] > o[i_of[d.pol].to_numpy()])]
+        when = o[i_of[d.pol].to_numpy()]
+        saved = (list(sim.recs.parts), sim.recs._frame)
+        try:
+            for known, flagged in ((when + 1, False), (when, True)):
+                sim.recs.parts[:] = saved[0]
+                sim.recs._frame = None
+                for _ in range(3):     # three at-fault accidents in the year before the renewal
+                    sim.recs.add(d.drv, when - 200, np.full(len(d), simulate.KIND["accident"]), known)
+                got = simulate.underwriting_review(sim, pol, o, eff)[i_of[d.pol].to_numpy()]
+                self.assertEqual(bool(got.all()), flagged)
+                self.assertEqual(bool(got.any()), flagged)
+        finally:
+            sim.recs.parts[:], sim.recs._frame = saved
 
 
 class ChargeabilityTest(unittest.TestCase):

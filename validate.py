@@ -142,6 +142,43 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
               and s_.loc[scored, "driving_score"].between(1, 100).all()
               and ((s_.loc[scored, "earned_discount_pct"] == rule[scored]) | (s_.loc[scored, "earned_discount_pct"] == 0)).all(),
               f"{len(s_):,} scores, mean {s_['driving_score'].mean():.1f}, average earned discount {s_['earned_discount_pct'].mean():.1f}%")
+    # a score is one driver's driving of one car: the driver is the car's rated driver (exposure rows) on every day
+    # scored, and a period before the car's first exposure row is its first row's driver (the opening assignment)
+    x = s_[["score_id", "insured_vehicle_id", "driver_id", "period_start_date", "period_end_date"]].merge(
+        risk[["insured_vehicle_id", "driver_id", "coverage_start_date", "coverage_end_date"]], on="insured_vehicle_id",
+        suffixes=("", "_rated"))
+    x = x[(x["period_start_date"] < x["coverage_end_date"]) & (x["period_end_date"] > x["coverage_start_date"])]
+    other = x.loc[x["driver_id"] != x["driver_id_rated"], "score_id"].nunique()
+    nxt = s_[["enrollment_id", "insured_vehicle_id", "period_start_date", "driver_id"]].merge(
+        s_[["enrollment_id", "insured_vehicle_id", "period_end_date", "driver_id"]], left_on=["enrollment_id", "insured_vehicle_id", "period_start_date"],
+        right_on=["enrollment_id", "insured_vehicle_id", "period_end_date"], suffixes=("", "_before"))
+    split = int((nxt["driver_id"] != nxt["driver_id_before"]).sum())
+    first = risk.sort_values(["insured_vehicle_id", "coverage_start_date"], kind="stable").groupby("insured_vehicle_id").head(1)
+    first = first.set_index("insured_vehicle_id")
+    before = s_["period_end_date"].to_numpy() <= first["coverage_start_date"].reindex(s_["insured_vehicle_id"]).to_numpy()
+    opening = s_[before]
+    rep.check("each score is the driving of the driver assigned to the car on the days scored (by the exposure rows; "
+              "the opening assignment before the car's first row)",
+              other == 0 and (opening["driver_id"].to_numpy()
+                              == first["driver_id"].reindex(opening["insured_vehicle_id"]).to_numpy()).all()
+              and s_.loc[~before, "score_id"].isin(x["score_id"]).all(),
+              f"{other:,} scores overlap another driver's exposure; {before.sum():,} scores before the car's first exposure row; "
+              f"{split:,} scoring periods split where the car's driver changed")
+    # the discount a car is rated with at the start of a term is the days-weighted average of the discounts its scores
+    # applied to that term earned (rounded half up), or the participation discount if none of them was scored
+    ap = s_[s_["applied_to_policy_term_id"].notna() & s_["driving_score"].notna()]
+    g = ap.assign(w=ap["days_monitored"] * ap["earned_discount_pct"]).groupby(
+        ["applied_to_policy_term_id", "insured_vehicle_id"])[["w", "days_monitored"]].sum()
+    rule_pct = np.floor((2 * g["w"] + g["days_monitored"]) / (2 * g["days_monitored"]))
+    applied = term.set_index("policy_term_id").reindex(s_["applied_to_policy_term_id"].dropna().astype(int))
+    rep.check("a score's discount applies to a later term of the same policy, starting on or after the period scored",
+              (applied["effective_date"].to_numpy() >= s_.loc[s_["applied_to_policy_term_id"].notna(), "period_end_date"].to_numpy()).all()
+              and (applied["policy_id"].to_numpy() == s_.loc[s_["applied_to_policy_term_id"].notna(), "policy_id"].to_numpy()).all())
+    first_rows = risk[(risk["endorsement_number"] == 0) & (risk["telematics_enrolled"] == "Y")]
+    want = rule_pct.reindex(pd.MultiIndex.from_arrays([first_rows["policy_term_id"], first_rows["insured_vehicle_id"]])).fillna(5)
+    rep.check("each enrolled car starts a term on the days-weighted discount its scores for that term earned, or 5% if "
+              "none was scored", (first_rows["telematics_discount_pct"].to_numpy() == want.to_numpy()).all(),
+              f"{len(first_rows):,} enrolled car-terms")
     on = risk[risk["telematics_enrolled"] == "Y"].merge(term[["policy_term_id", "offer_date"]], on="policy_term_id")
     j = on[["exposure_id", "policy_id", "coverage_start_date", "offer_date"]].merge(
         enrol[["policy_id", "enrollment_date", "end_date"]], on="policy_id")
@@ -151,6 +188,68 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
               "was offered; other rows carry no telematics discount",
               on["exposure_id"].isin(j.loc[ok, "exposure_id"]).all() and (risk.loc[risk["telematics_enrolled"] == "N", "telematics_discount_pct"] == 0).all()
               and risk["telematics_discount_pct"].between(0, 30).all())
+
+
+def integrity_renewals(rep, offers, term, risk, valuation) -> None:
+    """Renewal offers: each is dated inside its expiring term and made from the policy as it stood on the offer date
+    (the expiring term's exposure rows in force that day), and its outcome agrees with the policy terms."""
+    o = offers
+    t = term.set_index("policy_term_id")
+    exp = t.reindex(o["expiring_policy_term_id"])
+    val = str(pd.Timestamp(valuation).date())
+    rep.check("each renewal offer is made during its expiring term, by the valuation date, for the term that follows",
+              (exp["policy_id"].to_numpy() == o["policy_id"].to_numpy()).all()
+              and (o["offer_date"].to_numpy() >= exp["effective_date"].to_numpy()).all()
+              and (o["offer_date"] < o["renewal_effective_date"]).all() and (o["offer_date"] <= val).all()
+              and (exp["expiration_date"].to_numpy() == o["renewal_effective_date"].to_numpy()).all()
+              and not o["expiring_policy_term_id"].duplicated().any(),
+              f"{len(o):,} offers: {o['outcome'].value_counts().to_dict()}")
+    # the snapshot: the vehicles and the premium in force on the offer date
+    r = risk[["policy_term_id", "coverage_start_date", "coverage_end_date", "total_premium"]].merge(
+        o[["renewal_offer_id", "expiring_policy_term_id", "offer_date"]], left_on="policy_term_id",
+        right_on="expiring_policy_term_id")
+    r = r[(r["coverage_start_date"] <= r["offer_date"]) & (r["coverage_end_date"] > r["offer_date"])]
+    g = r.groupby("renewal_offer_id").agg(n=("total_premium", "size"), prem=("total_premium", "sum")).reindex(o["renewal_offer_id"]).fillna(0)
+    rep.check("each offer covers the vehicles in force on its offer date, at the premium they were then insured for",
+              (g["n"].to_numpy() == o["vehicles_offered"].to_numpy()).all()
+              and np.allclose(g["prem"].to_numpy(), o["expiring_premium"].to_numpy(), atol=0.05),
+              f"{(o['vehicles_offered'] == 0).sum():,} offers with no vehicle on the policy that day (a replacement to come)")
+    has = o["expiring_premium"] > 0
+    pct = np.round((o.loc[has, "renewal_premium"] / o.loc[has, "expiring_premium"] - 1) * 100, 1)
+    rep.check("the premium change is the renewal premium against the expiring premium",
+              (np.abs(pct - o.loc[has, "premium_change_pct"]) <= 0.11).all() and o.loc[~has, "premium_change_pct"].isna().all())
+    # outcomes
+    ren = o[o["outcome"] == "Renewed"]
+    new = t.reindex(ren["renewal_policy_term_id"].astype(int))
+    # (a term already running on the start date was renewed before the extract: its offer is not in it)
+    later = term["term_number"] > term.groupby("policy_id")["term_number"].transform("min")
+    renewals = term.loc[(term["business_type"] == "Renewal") & later, "policy_term_id"]
+    revised = np.where(new["rating_date"] > new["offer_date"], new["rating_date"], "")
+    rep.check("every renewal term after the first in the data is a renewed offer, with the offer's date, and its revised "
+              "offer date if re-rated",
+              set(ren["renewal_policy_term_id"].astype(int)) == set(renewals) and len(ren) == len(renewals)
+              and (new["offer_date"].to_numpy() == ren["offer_date"].to_numpy()).all()
+              and (new["effective_date"].to_numpy() == ren["renewal_effective_date"].to_numpy()).all()
+              and (ren["revised_offer_date"].fillna("").to_numpy() == revised).all()
+              and o.loc[o["outcome"] != "Renewed", "renewal_policy_term_id"].isna().all(),
+              f"{ren['revised_offer_date'].notna().sum():,} renewals revised after a household change")
+    nr = o[o["outcome"].isin(["Company Non-Renewal", "Insured Did Not Renew"])]
+    nr_terms = term[term["nonrenewal_reason"].notna()]
+    rep.check("every non-renewed term has one offer whose outcome is its non-renewal reason",
+              t["nonrenewal_reason"].reindex(nr["expiring_policy_term_id"]).tolist() == nr["outcome"].tolist()
+              and set(nr["expiring_policy_term_id"]) == set(nr_terms["policy_term_id"]))
+    cx = exp["cancel_date"].notna().to_numpy()
+    rep.check("an offer ends 'Cancelled Before Renewal' exactly when its expiring term was cancelled after the offer date",
+              ((o["outcome"] == "Cancelled Before Renewal").to_numpy() == cx).all()
+              and (exp.loc[cx, "cancel_date"].to_numpy() > o.loc[cx, "offer_date"].to_numpy()).all())
+    pending = o["outcome"] == "Pending"
+    company = o["underwriting_decision"] == "Non-Renew"
+    rep.check("a renewal is pending only when it takes effect after the valuation date; a company non-renewal is never "
+              "sent a telematics offer or a revision",
+              (o.loc[pending, "renewal_effective_date"] > val).all() and (ren["renewal_effective_date"] <= val).all()
+              and (company == (o["outcome"] == "Company Non-Renewal") | (company & (o["outcome"] == "Cancelled Before Renewal"))).all()
+              and o.loc[company, "telematics_opt_in"].isna().all() and o.loc[company, "revised_offer_date"].isna().all(),
+              f"{pending.sum():,} pending; telematics opt-in {o['telematics_opt_in'].value_counts().to_dict()}")
 
 
 def integrity_limits(rep, f) -> None:
@@ -448,6 +547,7 @@ def main() -> None:
     inc, ledger = read("driver_incident"), read("premium_transaction")
     reserves, quotes, vmy = read("claim_reserve_transaction"), read("quote"), read("vehicle_model_year")
     enrol, tscores = read("telematics_enrollment"), read("telematics_score")
+    offers = read("renewal_offer")
     truth = pd.read_csv(out / "answer_key" / "exposure_truth.csv")
     summary = json.loads((out / "run_summary.json").read_text())
     start, valuation = np.datetime64(summary["start"]), np.datetime64(summary["valuation"])
@@ -500,6 +600,7 @@ def main() -> None:
     integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes)
     integrity_vehicles(rep, vmy, veh, risk, clm)
     integrity_telematics(rep, enrol, tscores, risk, term, pd.Timestamp(valuation), pol, veh, drv)
+    integrity_renewals(rep, offers, term, risk, valuation)
     old = term[pd.to_datetime(term["expiration_date"]) < pd.Timestamp(valuation) - pd.Timedelta(days=90)]
     written = ledger[ledger["transaction_type"] != "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
     returned = ledger[ledger["transaction_type"] == "Cancellation"].groupby("policy_term_id")["written_premium"].sum()

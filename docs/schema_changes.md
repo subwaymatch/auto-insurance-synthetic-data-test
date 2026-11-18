@@ -40,7 +40,9 @@ same name in every table that holds it (`policy_id`, never `Policy Number` in on
 | `answer_key/vehicle_truth` | `answer_key/insured_vehicle_truth` |  |
 | `answer_key/zip_truth` | `answer_key/location_truth` |  |
 | *(new)* | `telematics_enrollment` | One row per enrolment in the telematics programme. |
-| *(new)* | `telematics_score` | One row per insured vehicle per scoring period. |
+| *(new)* | `telematics_score` | One row per insured vehicle, driver and scoring period. |
+| *(new)* | `renewal_offer` | One row per renewal evaluated on its offer date, renewed or not (added after the third external review). |
+| *(new)* | `answer_key/renewal_offer_truth` | Each renewal offer's true chance of being accepted. |
 
 ## Columns
 
@@ -534,3 +536,14 @@ Columns not listed for a table keep their meaning under the new name shown.
 ### `telematics_score` (new)
 
 `score_id`, `enrollment_id`, `policy_id`, `insured_vehicle_id`, `driver_id`, `period_start_date`, `period_end_date`, `days_monitored`, `trips`, `miles_driven`, `hard_brakes_per_100_miles`, `rapid_accelerations_per_100_miles`, `speeding_pct`, `phone_use_minutes_per_100_miles`, `night_driving_pct`, `driving_score`, `earned_discount_pct`, `applied_to_policy_term_id`
+
+A score covers one driver's driving of one car: a scoring period in which the car's assigned driver changed is
+split there (added after the third external review).
+
+### `renewal_offer` (new)
+
+`renewal_offer_id`, `policy_id`, `expiring_policy_term_id`, `offer_date`, `renewal_effective_date`, `vehicles_offered`, `expiring_premium`, `renewal_premium`, `premium_change_pct`, `telematics_opt_in`, `underwriting_decision`, `revised_offer_date`, `outcome`, `renewal_policy_term_id`
+
+### `answer_key/renewal_offer_truth` (new)
+
+`renewal_offer_id`, `acceptance_probability`

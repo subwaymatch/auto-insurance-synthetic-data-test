@@ -66,31 +66,38 @@ def territories(ref) -> tuple[np.ndarray, np.ndarray]:
 
 
 def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarray, accidents: np.ndarray,
-          tenure_years: np.ndarray) -> dict:
+          tenure_years: np.ndarray, household: dict = None) -> dict:
     """Rating variable levels for vehicles V rated as of day s. points, accidents (the primary driver's
-    record) and tenure_years are per vehicle row."""
+    record) and tenure_years are per vehicle row. The household (each car's rated driver, the driver's marital
+    status, the address, homeowner, multi-car and occasional-youthful status) is the policy as it stands now,
+    unless `household` gives it as it stood on an earlier day: per row "drv", "married", "zi", "homeowner",
+    "multi_car" and "occasional_youthful" (a renewal offer evaluated from the policy's history)."""
     v, p = st.v, st.p
     drv = st.pop.drv
     pol = v["pol"][V]
-    d = v["primary_drv"][V]
+    d = v["primary_drv"][V] if household is None else household["drv"]
     age = (s - drv.dob_day.to_numpy()[d]) / 365.25
     male = drv.male.to_numpy()[d]
     band = np.searchsorted([18, 21, 25, 30, 40, 50, 65, 75], age, side="right")
     cls = np.where(band <= 2, band * 2 + (~male), band + 3)
     score = p["insurance_score"][pol]
     vage = cal.year_frac(s) - v["model_year"][V]
-    # a household driver under 25 with no car of their own is rated on the policy's least valuable vehicle
-    s_pol = np.zeros(len(p["zi"]), dtype=int)
-    s_pol[pol] = s
-    dp = drv.pol.to_numpy()
-    young = drv.active.to_numpy() & ~drv.assigned.to_numpy() & ((s_pol[dp] - drv.dob_day.to_numpy()) / 365.25 < 25)
-    young_unassigned = np.bincount(dp, young, len(s_pol)) > 0
-    # ... on whichever insured vehicle now has the highest rank (the least valuable car when first written)
-    last_rank = np.full(len(s_pol), -1)
-    np.maximum.at(last_rank, v["pol"][v["active"]], v["rank"][v["active"]])
+    if household is None:
+        # a household driver under 25 with no car of their own is rated on the policy's least valuable vehicle
+        s_pol = np.zeros(len(p["zi"]), dtype=int)
+        s_pol[pol] = s
+        dp = drv.pol.to_numpy()
+        young = drv.active.to_numpy() & ~drv.assigned.to_numpy() & ((s_pol[dp] - drv.dob_day.to_numpy()) / 365.25 < 25)
+        young_unassigned = np.bincount(dp, young, len(s_pol)) > 0
+        # ... on whichever insured vehicle now has the highest rank (the least valuable car when first written)
+        last_rank = np.full(len(s_pol), -1)
+        np.maximum.at(last_rank, v["pol"][v["active"]], v["rank"][v["active"]])
+        household = {"married": (drv.marital.to_numpy()[d] == "M").astype(int), "zi": v["zi"][V],
+                     "homeowner": p["homeowner"][pol].astype(int), "multi_car": (p["n_veh"][pol] > 1).astype(int),
+                     "occasional_youthful": (young_unassigned[pol] & (v["rank"][V] == last_rank[pol])).astype(int)}
     return {
         "class": cls,
-        "married": (drv.marital.to_numpy()[d] == "M").astype(int),
+        "married": np.asarray(household["married"]).astype(int),
         "inexperienced": ((s - drv.licensed_day.to_numpy()[d]) < 3 * 365.25).astype(int),
         "good_student": truth.good_student(drv.good_grades.to_numpy()[d], drv.school_end_day.to_numpy()[d],
                                            drv.dob_day.to_numpy()[d], s).astype(int),
@@ -103,30 +110,38 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
         "vehicle_value": np.searchsorted([24_000, 30_000, 38_000, 48_000, 62_000], v["msrp"][V], side="right"),
         "mileage": np.searchsorted([5_000, 8_000, 12_000, 16_000], v["reported_miles"][V], side="right"),
         "use": np.where(v["use"][V] == "Business", 2, np.where(v["use"][V] == "Commute", 1, 0)),
-        "multi_car": (p["n_veh"][pol] > 1).astype(int),
-        "homeowner": p["homeowner"][pol].astype(int),
+        "multi_car": np.asarray(household["multi_car"]).astype(int),
+        "homeowner": np.asarray(household["homeowner"]).astype(int),
         "multi_policy": p["multi_policy"][pol].astype(int),
         "prior_insurance": p["prior_insurance"][pol].astype(int),
         "paid_in_full": (p["pay_plan"][pol] == 0).astype(int),
         "tenure": np.searchsorted([1, 3, 6], tenure_years, side="right"),
-        "occasional_youthful": (young_unassigned[pol] & (v["rank"][V] == last_rank[pol])).astype(int),
-        "zi": v["zi"][V],
+        "occasional_youthful": np.asarray(household["occasional_youthful"]).astype(int),
+        "zi": np.asarray(household["zi"]),
     }
 
 
-def limit_factors(st: truth.Static, V: np.ndarray) -> dict:
-    v, p = st.v, st.p
-    pol = v["pol"][V]
+def limit_factors(st: truth.Static, V: np.ndarray, cover: dict = None) -> dict:
+    """Limit, deductible and option factors for vehicles V: the coverage as it stands now, or as given in `cover`
+    (per row: "bi_opt", "um_opt", "med_opt", "has_coll", "coll_ded_opt", "has_comp", "comp_ded_opt",
+    "full_glass", "has_rent", "rent_opt", "has_tow")."""
+    if cover is None:
+        v, p = st.v, st.p
+        pol = v["pol"][V]
+        cover = {k: p[k][pol] for k in ("bi_opt", "um_opt", "med_opt")}
+        cover.update({k: v[k][V] for k in ("has_coll", "coll_ded_opt", "has_comp", "comp_ded_opt", "full_glass",
+                                           "has_rent", "rent_opt", "has_tow")})
+    c = cover
     return {
-        "BI": np.array(C.BI_LIMIT_FACTOR)[p["bi_opt"][pol]],
-        "PD": np.array(C.PD_LIMIT_FACTOR)[p["bi_opt"][pol]],
-        "UM": np.array(C.UM_LIMIT_FACTOR)[p["um_opt"][pol]],
-        "MED": np.array(C.MED_LIMIT_FACTOR)[p["med_opt"][pol]],
-        "COLL": v["has_coll"][V] * np.array(C.COLL_DED_FACTOR)[v["coll_ded_opt"][V]],
-        "COMP": v["has_comp"][V] * np.array(C.COMP_DED_FACTOR)[v["comp_ded_opt"][V]]
-                * np.where(v["full_glass"][V], C.FULL_GLASS_FACTOR, 1.0),
-        "RENT": v["has_rent"][V] * np.array(C.RENTAL_FACTOR)[v["rent_opt"][V]],
-        "TOW": v["has_tow"][V] * 1.0,
+        "BI": np.array(C.BI_LIMIT_FACTOR)[c["bi_opt"]],
+        "PD": np.array(C.PD_LIMIT_FACTOR)[c["bi_opt"]],
+        "UM": np.array(C.UM_LIMIT_FACTOR)[c["um_opt"]],
+        "MED": np.array(C.MED_LIMIT_FACTOR)[c["med_opt"]],
+        "COLL": c["has_coll"] * np.array(C.COLL_DED_FACTOR)[c["coll_ded_opt"]],
+        "COMP": c["has_comp"] * np.array(C.COMP_DED_FACTOR)[c["comp_ded_opt"]]
+                * np.where(c["full_glass"], C.FULL_GLASS_FACTOR, 1.0),
+        "RENT": c["has_rent"] * np.array(C.RENTAL_FACTOR)[c["rent_opt"]],
+        "TOW": c["has_tow"] * 1.0,
     }
 
 
