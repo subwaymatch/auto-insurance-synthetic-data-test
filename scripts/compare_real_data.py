@@ -218,6 +218,8 @@ def load_synthetic(folder: Path) -> tuple[pd.DataFrame, dict]:
         s["true_el"] = s.true_el / s.expo
     s = bands(s)
     extra = {"summary": summary, "terms": terms, "claims": cl, "features": features, "drivers": drv, "risk_rows": len(rf)}
+    if (folder / "renewal_offer.csv").exists():     # every renewal offered, declined ones included
+        extra["offers"] = pd.read_csv(folder / "renewal_offer.csv", usecols=["premium_change_pct", "outcome"])
     return s, extra
 
 
@@ -527,7 +529,16 @@ def report(real_all: pd.DataFrame, real: pd.DataFrame, types: pd.DataFrame, syn:
     lr = r.stub[ok].groupby(b, observed=False).agg(["size", "mean"])
     print("\n  Real: renewal offers (premium change on the previous year) and the share not renewed:")
     print(table([[k, f"{int(v['size']):,}", fmt_pct(v['mean'])] for k, v in lr.iterrows()], ["Premium change", "Offers", "Not renewed"]))
-    print("  Synthetic: the tables record only renewals that were accepted, so the offer behind a non-renewal is not visible.")
+    if "offers" in extra:
+        o = extra["offers"]
+        o = o[o.outcome.isin(["Renewed", "Insured Did Not Renew"]) & o.premium_change_pct.notna()]
+        b = pd.cut(o.premium_change_pct / 100, bins, labels=labels, right=False)
+        so = (o.outcome == "Insured Did Not Renew").groupby(b, observed=False).agg(["size", "mean"])
+        print("  Synthetic: renewal offers the company made that reached their renewal date (renewal_offer), by the offered")
+        print("  premium change on the same cars, and the share the insured did not renew:")
+        print(table([[k, f"{int(v['size']):,}", fmt_pct(v['mean'])] for k, v in so.iterrows()], ["Premium change", "Offers", "Not renewed"]))
+    else:
+        print("  Synthetic: this build has no renewal_offer table, so the offer behind a non-renewal is not visible.")
 
     # [9] claim mix --------------------------------------------------------------------------------------
     section(9, "What a claim is: claim types and coverages")
