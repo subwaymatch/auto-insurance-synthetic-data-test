@@ -103,7 +103,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["policy_term"] = pd.DataFrame({
         "policy_term_id": terms.term + 1, "policy_id": polno(terms.pol), "term_number": terms.term_no,
         "business_type": np.where(terms.new_business, "New", "Renewal"),
-        "effective_date": D(terms.s), "expiration_date": D(terms.e), "rating_date": D(terms.rate_day),
+        "effective_date": D(terms.s), "expiration_date": D(terms.e), "offer_date": D(terms.offer_day),
+        "rating_date": D(terms.rate_day),
         "cancel_date": np.where(cancelled, D(terms.cancel_day.clip(0)), ""), "cancel_reason": terms.cancel_reason,
         "nonrenewal_reason": terms.nonrenewal_reason, "vehicles_at_term_start": terms.vehicles.astype(int),
         "written_premium": terms.written.round(2), "endorsement_premium": (terms.net_written - terms.written).round(2),
@@ -337,7 +338,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "other_driver_uninsured_probability": zt.p_other_driver_uninsured.round(4)})
     un = dev["unreported"]
     K["unreported_claim"] = pd.DataFrame({
-        "policy_id": polno(un.pol), "exposure_id": un.row + 1, "insured_vehicle_id": un.veh + 1, "coverage_code": un.cvg,
+        "unreported_claim_id": np.arange(1, len(un) + 1), "policy_id": polno(un.pol), "exposure_id": un.row + 1, "insured_vehicle_id": un.veh + 1, "coverage_code": un.cvg,
         "cause_of_loss": un.peril, "loss_date": D(un.day), "eventual_report_date": D(un.open_day),
         "ultimate_paid_loss": un.paid.round(2), "ultimate_recovery": (un.salvage + un.subro).round(2)})
     fu = feats
@@ -410,7 +411,8 @@ def _sr22(cfg, inc: pd.DataFrame, drv: pd.DataFrame, V: int, D) -> dict:
     filed = np.maximum(np.nan_to_num(latest, nan=-10 ** 6), drv.added_day.to_numpy()) + R.integers(0, 8, len(drv))
     end = np.nan_to_num(latest, nan=-10 ** 6) + int(SR22_YEARS * 365.25)
     on = ~np.isnan(latest) & (end > filed) & (filed <= V) & ((drv.removed_day.to_numpy() < 0) | (drv.removed_day.to_numpy() > filed))
-    return {"sr22_filed_date": np.where(on, D(np.clip(filed, 0, None)), ""), "sr22_end_date": np.where(on, D(np.clip(end, 0, None)), "")}
+    # dates before the start are real dates (day numbers count back from it), so they are written as they are
+    return {"sr22_filed_date": np.where(on, D(np.where(on, filed, 0)), ""), "sr22_end_date": np.where(on, D(np.where(on, end, 0)), "")}
 
 
 def _conviction_dates(cfg, records: pd.DataFrame, D) -> np.ndarray:
@@ -418,8 +420,10 @@ def _conviction_dates(cfg, records: pd.DataFrame, D) -> np.ndarray:
     R = stream(cfg.seed, "convictions")
     mvr = records.source.to_numpy() == "Motor Vehicle Record"
     day, known = records.day.to_numpy(), records.known.to_numpy()
-    conv = np.maximum(known - R.integers(3, 15, len(records)), day + 1)
-    return np.where(mvr, D(np.clip(conv, 0, None)), "")
+    # on or after the day after the incident, and before the record posts (a conviction before the start keeps
+    # its own date: clipping it to the start would put it after the day it became known)
+    conv = np.minimum(np.maximum(known - R.integers(3, 15, len(records)), day + 1), known)
+    return np.where(mvr, D(conv), "")
 
 
 def _transactions(cfg, cal, terms, rows, veh, D, polno) -> pd.DataFrame:
@@ -479,7 +483,9 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno) -> pd
     nb = terms[terms.new_business]
     add(nb.pol, nb.s, "New Business Welcome")
     rn = terms[~terms.new_business]
-    add(rn.pol, rn.rate_day, "Renewal Offer")
+    add(rn.pol, rn.offer_day, "Renewal Offer")
+    rr = rn[rn.rate_day > rn.offer_day]
+    add(rr.pol, rr.rate_day, "Revised Renewal Offer")
     bill = terms[(pol.pay_plan.to_numpy()[terms.pol] == 2) & (R.random(len(terms)) < 0.45)]
     add(bill.pol, bill.s + R.integers(25, 150, len(bill)), "Payment Reminder", phone=0.10)
     npay = terms[terms.cancel_reason == "Non-Payment"]

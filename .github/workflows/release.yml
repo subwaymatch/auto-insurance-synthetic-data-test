@@ -37,12 +37,12 @@ on:
       policies:
         description: "Number of policies"
         required: false
-        default: "51391"
+        default: "43368"
         type: string
       formats:
         description: "File formats, comma-separated (see scripts/release_formats.py)"
         required: false
-        default: "csv"
+        default: "csv,sqlite"
         type: string
       prerelease:
         description: "Mark as a pre-release"
@@ -67,8 +67,8 @@ env:
   # a version typed without its leading v (1.1.0) is released as v1.1.0
   TAG: ${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.tag, 'v') && inputs.tag || format('v{0}', inputs.tag)) || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
   SEED: ${{ inputs.seed || '20250101' }}
-  POLICIES: ${{ inputs.policies || '51391' }}
-  FORMATS: ${{ inputs.formats || 'csv' }}
+  POLICIES: ${{ inputs.policies || '43368' }}
+  FORMATS: ${{ inputs.formats || 'csv,sqlite' }}
   PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
 
 jobs:

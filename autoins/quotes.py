@@ -7,6 +7,11 @@ the book are the quotes that bound, so their competitive position is drawn given
 that did not bind come from a separate population of prospects, drawn and rated exactly like new business
 with the same rating plan, keeping those that did not bind. Competing premiums are visible only on
 independent-agent quotes, through the agent's comparative rater, as in practice.
+
+Every quote offers the telematics programme. A prospect who opts in is quoted with the participation
+discount, bound or not: bound quotes show what the policy was written with, and prospects opt in at the
+rate the programme's take-up model gives new business (telematics.uptake), so a discounted quote is no
+more likely to be a bound one than its opt-in makes it.
 """
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import population, rating, truth
+from . import population, rating, telematics, truth
 from .refdata import stream
 from .simulate import Records
 
@@ -37,11 +42,11 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
     drv = pop.drv[pop.drv.added_day.to_numpy() <= pop.pol.first_day.to_numpy()[pop.drv.pol.to_numpy()]]
     young = drv.assign(age=(pop.pol.first_day.to_numpy()[drv.pol.to_numpy()] - drv.dob_day) / 365.25).groupby("pol").age.min()
     bound = pd.DataFrame(dict(
-        quote_day=nb.rate_day.to_numpy(), eff=nb.s.to_numpy(), pol=nb.pol.to_numpy(), channel=pol.channel.to_numpy(),
+        quote_day=nb.offer_day.to_numpy(), eff=nb.s.to_numpy(), pol=nb.pol.to_numpy(), channel=pol.channel.to_numpy(),
         agency=pol.agency_id.to_numpy(), zi=at_quote("zi"), ni_age=pol.ni_age.to_numpy(),
         n_drv=drv.groupby("pol").size().reindex(nb.pol).to_numpy(), n_veh=first.size().reindex(nb.pol).to_numpy(),
         young=young.reindex(nb.pol).to_numpy(), prior=pol.prior_insurance.to_numpy(), score=pol.insurance_score.to_numpy(),
-        bi_opt=at_quote("bi_opt"),
+        bi_opt=at_quote("bi_opt"), telematics=first["tele_on"].any().reindex(nb.pol).fillna(False).to_numpy().astype(bool),
         term_months=pol.term_months.to_numpy(), premium=annual, bound=True))
     bound["log_ratio"] = _position(R, bound.channel.to_numpy(), bind=True)
 
@@ -64,6 +69,7 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
         "youngest_driver_age": np.floor(q.young).astype(int), "number_of_vehicles": q.n_veh.astype(int),
         "prior_insurance": np.where(q.prior, "Y", "N"), "insurance_score": q.score.astype("Int64"),
         "bi_limit": [f"{C.BI_LIMITS[i][0] // 1000}/{C.BI_LIMITS[i][1] // 1000}" for i in q.bi_opt],
+        "telematics_opt_in": np.where(q.telematics.to_numpy().astype(bool), "Y", "N"),
         "quoted_annual_premium": q.premium.round(2),
         "competitor_annual_premium": pd.array(np.where(show, comp.round(2), np.nan), dtype="Float64"),
         "bound": np.where(q.bound, "Y", "N"),
@@ -108,13 +114,23 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generat
     ty = p["term_months"] / 12
     cd = rating.codes(st, cal, V, first[vp], points[dr], acc[dr], np.zeros(len(V)))
     prem = rating.premium(plan, cd, rating.limit_factors(st, V), cal.rate_level_at(first[vp]), ty[vp])
-    annual = np.bincount(vp, sum(prem.values()), len(first)) / ty
     channel = p["channel"]
+    # the telematics offer, taken up as by new business (simulate._telematics), with the participation discount
+    d_act = np.flatnonzero(pp.drv.active.to_numpy())
+    m = truth.driver_multiplier(pp.drv.iloc[d_act], quote_day[d_pol[d_act]], cal)
+    household = np.bincount(d_pol[d_act], m, len(first)) / np.maximum(np.bincount(d_pol[d_act], minlength=len(first)), 1)
+    young_ni = (quote_day - pp.drv.dob_day.to_numpy()[p["ni_drv"]]) / 365.25 < 30
+    base = telematics.base_uptake(cal.year_frac(quote_day), np.ones(len(first), dtype=bool), np.zeros(len(first), dtype=bool))
+    opt_in = telematics.uptake(R, base, household, young_ni, channel)
+    for c in telematics.DISCOUNTED_COVERAGES:
+        prem[c] = np.round(prem[c] * np.where(opt_in[vp], 1 - telematics.PARTICIPATION_DISCOUNT, 1.0), 2)
+    annual = np.bincount(vp, sum(prem.values()), len(first)) / ty
     log_ratio = R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(first))
     lost = R.random(len(first)) >= _bind_p(channel, log_ratio)
     young = pp.drv.assign(age=(first[d_pol] - pp.drv.dob_day.to_numpy()) / 365.25).groupby("pol").age.min().to_numpy()
     out = pd.DataFrame(dict(
         quote_day=quote_day, eff=first, pol=-1, channel=channel, agency=p["agency_id"], zi=p["zi"], ni_age=p["ni_age"],
         n_drv=p["n_drv"], n_veh=p["n_veh"], young=young, prior=p["prior_insurance"], score=p["insurance_score"],
-        bi_opt=p["bi_opt"], term_months=p["term_months"], premium=annual, bound=False, log_ratio=log_ratio))
+        bi_opt=p["bi_opt"], telematics=opt_in, term_months=p["term_months"], premium=annual, bound=False,
+        log_ratio=log_ratio))
     return out[lost]

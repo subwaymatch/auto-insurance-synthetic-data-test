@@ -3,7 +3,7 @@
 
     python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv
 
-Writes to --dist, for each format in --formats (see scripts/release_formats.py; default csv):
+Writes to --dist, for each format in --formats (csv, sqlite; see scripts/release_formats.py; default csv):
   chicago-auto-insurance-data-<tag>-<format>.<ext>        the tables (for students)
   chicago-auto-insurance-answer-key-<tag>-<format>.<ext>  the answer key (for instructors)
 and once per release:
@@ -11,7 +11,8 @@ and once per release:
   SHA256SUMS.txt
   release_notes.md                                        body for the GitHub release (not uploaded as a file)
 
-Assets use fixed timestamps and order, so the same data always gives the same bytes.
+Every asset also carries the documentation (README.md, CHANGELOG.md and docs/*.md, at the paths the README links
+to). Assets use fixed timestamps and order, so the same data always gives the same bytes.
 """
 from __future__ import annotations
 
@@ -27,6 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_formats import FORMATS, Bundle  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
+# documentation shipped inside every asset, at the paths the README links to, so the links work offline
+DOCS = [(REPO / "README.md", "README.md"), (REPO / "CHANGELOG.md", "CHANGELOG.md")] + \
+    [(f, f"docs/{f.name}") for f in sorted((REPO / "docs").glob("*.md"))]
 
 
 def notes(tag: str, summary: dict, report: str, assets: dict[str, int], source: str = "") -> str:
@@ -43,7 +47,9 @@ def notes(tag: str, summary: dict, report: str, assets: dict[str, int], source: 
     if size:
         out += [f"| Earned car-years | {size.group(1)} |", f"| Earned premium | ${size.group(2)} |",
                 f"| Claims | {size.group(3)} |"]
-    out += ["", f"**Validation:** {'all checks passed' if passed else 'SOME CHECKS FAILED, see the validation report'}.", ""]
+    out += ["", f"**Validation:** {'all checks passed' if passed else 'SOME CHECKS FAILED, see the validation report'}.", "",
+            "Each zip includes `README.md`, `CHANGELOG.md` and `docs/`. Read `docs/limitations.md` before drawing "
+            "conclusions from the data.", ""]
     if lr:
         out += ["Loss ratio by accident year (the last year is partial and not yet fully reported):", "",
                 "| " + " | ".join(y for y, _ in lr) + " |", "|" + "---|" * len(lr), "| " + " | ".join(v for _, v in lr) + " |", ""]
@@ -55,7 +61,9 @@ def notes(tag: str, summary: dict, report: str, assets: dict[str, int], source: 
             "validation": "Full output of `validate.py`.", "SHA256SUMS": "Checksums for the files above."}
     for name, n in assets.items():
         key = next(k for k in desc if k in name)
-        fmt = next((f" ({f.upper()})" for f in FORMATS if f"-{f}." in name), "")
+        fmt = next((f" ({fn.label})" for f, fn in FORMATS.items() if f"-{f}." in name), "")
+        if key == "-answer-key-" and "-sqlite." in name:
+            fmt += " The database also holds every data table, linked to the answer key."
         human = f"{n / 1e6:.1f} MB" if n >= 1e5 else f"{n / 1e3:.0f} KB" if n >= 1e3 else f"{n} bytes"
         out.append(f"| `{name}` | {desc[key]}{fmt} | {human} |")
     out += ["", "Rows per table:", "", "| Table | Rows |", "|---|---|"]
@@ -84,9 +92,10 @@ def main() -> None:
 
     key_dir = a.data / "answer_key"
     data = {"tables": {f.stem: f for f in sorted(a.data.glob("*.csv"))},
-            "extras": [(a.data / "run_summary.json", "run_summary.json"), (REPO / "README.md", "README.md")]}
+            "extras": [(a.data / "run_summary.json", "run_summary.json")] + DOCS}
     key = {"tables": {f.stem: f for f in sorted(key_dir.glob("*.csv"))},
-           "extras": [(f, f.name) for f in sorted(key_dir.iterdir()) if f.is_file() and f.suffix != ".csv"]}
+           "extras": [(f, f.name) for f in sorted(key_dir.iterdir()) if f.is_file() and f.suffix != ".csv"] + DOCS,
+           "linked": data["tables"]}     # formats that link tables (SQLite) include the data the answer key refers to
     made = []
     for fmt in formats:
         made.append(FORMATS[fmt](Bundle(f"chicago-auto-insurance-data-{a.tag}-{fmt}", **data), a.dist))

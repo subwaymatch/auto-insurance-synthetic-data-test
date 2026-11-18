@@ -22,10 +22,10 @@ REFERENCE_DIR = REPO / "reference"
 @dataclass(frozen=True)
 class Config:
     seed: int = 20250101
-    n_policies: int = 51_391          # distinct policies ever written (initial book + new business)
+    n_policies: int = 43_368          # distinct policies ever written (initial book + new business)
     out_dir: Path = REPO / "output"
     start: str = "2022-01-01"         # first day simulated
-    valuation: str = "2026-09-30"     # "as of" date of the extract; nothing later is known
+    valuation: str = "2026-12-31"     # "as of" date of the extract; nothing later is known
     initial_book_share: float = 0.46  # share of policies already in force on the start date (their term in
                                       # force on that date is included, with only the part after it earned)
 
@@ -122,6 +122,8 @@ SCHOOL_END_AGE = {"high_school": (18.2, 18.8), "college": (21.5, 23.5)}   # age 
 # When information reaches the insurer (ASSUMED). Every rating, underwriting and renewal decision uses
 # only what is known on its decision date.
 RENEWAL_OFFER_LEAD_DAYS = (30, 45)   # renewal offers are rated and mailed this many days before the effective date
+OPENING_CAR_HELD_YEARS = 4.0         # cars on policies renewing at the start: mean years on the policy before the
+                                     # first rating in the extract, cut at the policy's inception (ASSUMED)
 NEW_BUSINESS_QUOTE_LEAD_DAYS = (0, 14)
 MVR_POSTING_LAG = dict(min_days=14, shape=2.0, scale=25.0)   # violation date to conviction on the driving record (mean ~64)
 PRIOR_CARRIER_REPORT_LAG = dict(min_days=7, mean=30.0)        # accident date to appearing on the claims-history report

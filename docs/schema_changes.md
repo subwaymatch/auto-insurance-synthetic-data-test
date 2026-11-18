@@ -312,6 +312,7 @@ Columns not listed for a table keep their meaning under the new name shown.
 | `Business Type` | `business_type` |
 | `Policy Effective Date` | `effective_date` |
 | `Policy Expiration Date` | `expiration_date` |
+| (new) | `offer_date` |
 | `Rating Date` | `rating_date` |
 | `Cancel Date` | `cancel_date` |
 | `Cancel Reason` | `cancel_reason` |
@@ -377,6 +378,7 @@ Columns not listed for a table keep their meaning under the new name shown.
 | `Prior Insurance` | `prior_insurance` |
 | `Insurance Score` | `insurance_score` |
 | `BI Limit` | `bi_limit` |
+| (new) | `telematics_opt_in` |
 | `Quoted Annual Premium` | `quoted_annual_premium` |
 | `Competitor Annual Premium` | `competitor_annual_premium` |
 | `Bound` | `bound` |
@@ -493,6 +495,7 @@ Columns not listed for a table keep their meaning under the new name shown.
 
 | Old column | New column |
 |---|---|
+| *(new)* | `unreported_claim_id` (a primary key; the table had none) |
 | `Policy ID` | `policy_id` |
 | `Record ID` | `exposure_id` |
 | `Insured Vehicle ID` | `insured_vehicle_id` |

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -13,9 +14,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import release_formats  # noqa: E402
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import names, truth  # noqa: E402
+from autoins import names, schema, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -102,6 +105,27 @@ class GeneratorTest(unittest.TestCase):
         adults = set(zip(drv.loc[drv["driver_role"] != "Child", "policy_id"], drv.loc[drv["driver_role"] != "Child", "last_name"]))
         kids = drv[drv["driver_role"] == "Child"]
         self.assertTrue(all(k in adults for k in zip(kids["policy_id"], kids["last_name"])))     # a child shares an adult's surname
+
+    def test_key_map_covers_every_table(self) -> None:
+        """autoins/schema.py names a primary key for every table and a key for every ..._id column."""
+        cols = {p.stem: list(pd.read_csv(p, nrows=0).columns) for p in (self.root / "a").rglob("*.csv")}
+        self.assertEqual(schema.problems(cols), [])
+
+    def test_sqlite_release_links_every_table(self) -> None:
+        """The SQLite release format loads every table with its keys; every foreign key resolves."""
+        out = self.root / "a"
+        tables = {p.stem: p for p in sorted(out.glob("*.csv"))} | {p.stem: p for p in sorted((out / "answer_key").glob("*.csv"))}
+        db = self.root / "instructor.sqlite"
+        release_formats.write_sqlite(tables, db)            # raises if a reference does not resolve
+        con = sqlite3.connect(db)
+        for name, path in tables.items():
+            self.assertEqual(con.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0], len(pd.read_csv(path)), name)
+        self.assertEqual(len(con.execute('PRAGMA foreign_key_list("claim")').fetchall()), 8)
+        self.assertEqual(con.execute("SELECT DISTINCT typeof(zip_code) FROM location").fetchall(), [("text",)])
+        con.execute("PRAGMA foreign_keys = ON")
+        with self.assertRaises(sqlite3.IntegrityError):
+            con.execute("INSERT INTO claim (claim_id, policy_id) VALUES (-1, -1)")
+        con.close()
 
     def test_policy_counts_are_as_at_the_latest_status(self) -> None:
         """Number of Vehicles is the cars on the policy now (or on its last day of cover), not at the term start."""
@@ -253,6 +277,23 @@ class GeneratorTest(unittest.TestCase):
         self.assertTrue(np.allclose(paid.to_numpy(), feat["paid_loss"].to_numpy(), atol=0.005))
         self.assertTrue(set(loss["transaction_type"]) >= {"Partial Payment", "Final Payment"})
 
+    def test_conviction_and_sr22_dates_before_the_start_are_kept(self) -> None:
+        inc, drv = self.read("driver_incident"), self.read("driver")
+        cv = inc[inc["conviction_date"].notna()]
+        self.assertTrue((cv["conviction_date"] > cv["incident_date"]).all() and (cv["conviction_date"] <= cv["known_date"]).all())
+        self.assertTrue((cv["conviction_date"] < "2022-01-01").any())
+        s22 = drv[drv["sr22_filed_date"].notna()]
+        self.assertTrue((s22["sr22_filed_date"] >= s22["added_date"]).all())
+
+    def test_renewals_changed_after_the_offer_are_re_rated(self) -> None:
+        t = self.read("policy_term")
+        self.assertTrue((t["offer_date"] <= t["rating_date"]).all() and (t["rating_date"] <= t["effective_date"]).all())
+        late = t[t["offer_date"] < t["rating_date"]]
+        self.assertTrue(len(late) > 0 and (late["business_type"] == "Renewal").all())
+        q = self.read("quote")
+        self.assertEqual(set(q["telematics_opt_in"]), {"Y", "N"})
+        self.assertTrue((q.loc[q["bound"] == "N", "telematics_opt_in"] == "Y").any())
+
 
 class CalendarTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -326,6 +367,25 @@ class LimitTest(unittest.TestCase):
         benefit, other = truth.underinsured(np.array([80_000.0, 20_000.0, 300_000.0]), 100_000, np.array([25_000, 25_000, 250_000]))
         self.assertEqual(benefit.tolist(), [55_000.0, 0.0, 0.0])
         self.assertEqual(other.tolist(), [25_000.0, 20_000.0, 250_000.0])
+
+    def test_underinsured_allows_for_the_other_insurers_per_accident_limit(self) -> None:
+        # three injured occupants with $40,000 each against an at-fault driver insured for 25/50: that insurer
+        # pays $50,000 in all, not 3 x $25,000, so our underinsured cover owes $70,000, not $45,000
+        gross, accident = np.full(3, 40_000.0), np.zeros(3, dtype=int)
+        benefit, other = truth.underinsured(gross, 100_000, np.full(3, 25_000.0), accident, 1, np.array([50_000.0]))
+        self.assertAlmostEqual(other.sum(), 50_000.0, places=2)
+        self.assertAlmostEqual(benefit.sum(), 70_000.0, places=2)
+        self.assertGreater(truth.AGG_SHARE["UIM"].max(), 1.0)       # the expected loss allows for it too
+
+    def test_reserve_caps_stay_within_the_limits(self) -> None:
+        r = np.random.default_rng(5)
+        k = r.integers(1, 5, 5_000)
+        accident = np.repeat(np.arange(len(k)), k)
+        gross = 20_000 * np.exp(1.2 * r.standard_normal(len(accident)))
+        paid = truth.cap_per_accident(np.minimum(gross, 25_000), accident, len(k), np.full(len(k), 50_000.0))
+        cap = truth.reserve_caps(paid, gross, 25_000.0, accident, len(k), np.full(len(k), 50_000.0))
+        self.assertTrue((cap >= paid - 0.01).all() and (cap <= 25_000).all())
+        self.assertTrue((np.bincount(accident, cap) <= 50_000 + 0.01).all())
 
 
 class ChargeabilityTest(unittest.TestCase):

@@ -211,11 +211,10 @@ def load_synthetic(folder: Path) -> tuple[pd.DataFrame, dict]:
     s["claims"] = s.claims.astype(int)
 
     if (folder / f"{SYN_TABLES['exposure_truth'][0]}.csv").exists():   # expected loss per car-year, from the answer key
-        rt = read("exposure_truth").merge(rf[["record_id", "term_id", "vehicle_id", "cover_start", "cover_end", "earned_exposure"]],
-                                      on="record_id")
-        yrs = (pd.to_datetime(rt.cover_end) - pd.to_datetime(rt.cover_start)).dt.days / 365.25
-        rt["w"] = rt.expected_loss / yrs.where(yrs > 0) * rt.earned_exposure
-        s = s.merge(rt.groupby(key).w.sum().rename("true_el"), left_on=key, right_index=True, how="left")
+        # the answer key's expected loss already covers each row's earned window (the part inside the extract,
+        # up to any cancellation), the same window as earned_exposure, so it is summed as it is
+        rt = read("exposure_truth").merge(rf[["record_id", "term_id", "vehicle_id"]], on="record_id")
+        s = s.merge(rt.groupby(key).expected_loss.sum().rename("true_el"), left_on=key, right_index=True, how="left")
         s["true_el"] = s.true_el / s.expo
     s = bands(s)
     extra = {"summary": summary, "terms": terms, "claims": cl, "features": features, "drivers": drv, "risk_rows": len(rf)}

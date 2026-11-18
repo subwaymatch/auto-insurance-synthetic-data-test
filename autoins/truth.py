@@ -136,6 +136,18 @@ def cap_per_accident(paid, accident, n_accidents: int, room) -> np.ndarray:
     return (cut + (over & paying & (rank < spare[accident]))) / 100
 
 
+def reserve_caps(paid, gross, per_person, accident, n_accidents: int, room) -> np.ndarray:
+    """The most an adjuster may reserve for each claimant of an injury coverage: the per-person limit, and a share
+    of the per-accident limit that never falls below what the claimant is eventually paid. The room the paid
+    amounts leave under each accident's limit is shared in proportion to the claimants' damages, so the
+    claimants' caps add up to no more than the per-accident limit and paid plus case reserve stays inside it."""
+    paid, w = np.asarray(paid, dtype=float), np.asarray(gross, dtype=float) + 1.0
+    room = np.maximum(np.asarray(room, dtype=float), 0.0)
+    slack = np.maximum(room - np.bincount(accident, paid, n_accidents), 0.0)[accident]
+    share = w / np.bincount(accident, w, n_accidents)[accident]
+    return np.floor(np.minimum(per_person, paid + slack * share) * 100) / 100
+
+
 def other_driver_limits(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.ndarray]:
     """Bodily injury limits (per person, per accident) of n at-fault drivers who are insured."""
     lims, w = zip(*C.OTHER_DRIVER_BI_LIMIT.items())
@@ -143,10 +155,15 @@ def other_driver_limits(rng: np.random.Generator, n: int) -> tuple[np.ndarray, n
     return pp, np.array([dict(C.BI_LIMITS)[x] for x in pp])
 
 
-def underinsured(gross, um_pp, other_pp):
-    """Underinsured motorist benefit per claimant before the per-accident limit: damages up to the policy's
-    own per-person limit, less what the at-fault driver's insurer pays. Returns (benefit, other insurer's payment)."""
+def underinsured(gross, um_pp, other_pp, accident=None, n_accidents: int = 0, other_pa=None):
+    """Underinsured motorist benefit per claimant before our per-accident limit: damages up to the policy's own
+    per-person limit, less what the at-fault driver's insurer pays. That insurer pays each claimant up to its
+    per-person limit and, given `accident` and `other_pa`, all of an accident's claimants together up to its
+    per-accident limit (shared pro rata), so several claimants can leave more for our coverage to pay.
+    Returns (benefit, other insurer's payment)."""
     other = np.minimum(gross, other_pp)
+    if accident is not None:
+        other = cap_per_accident(other, accident, n_accidents, other_pa)
     return np.maximum(np.minimum(gross, um_pp) - other, 0.0), other
 
 
@@ -154,14 +171,16 @@ AGG_SCALES = np.geomspace(0.5, 1.6, 12)        # severity level (segment factor 
 
 
 def _aggregate_shares(n: int = 40_000) -> dict:
-    """Share of per-person-limited injury payments that the per-accident limit leaves, by coverage, limit
-    option and severity level. `expected` multiplies its per-claimant figures by these so that the answer
+    """Share of per-person-limited injury payments that the per-accident limits leave, by coverage, limit
+    option and severity level (for underinsured motorist, above 1 where the at-fault insurer's own per-accident
+    limit leaves more to pay). `expected` multiplies its per-claimant figures by these so that the answer
     key allows for accidents with several claimants. Built once by simulation from a fixed set of draws
     (they are part of the model, not of a run), common to every cell so the shares vary smoothly."""
     r = np.random.default_rng(143)
     live = np.arange(4)[None, :] < (1 + r.choice(4, n, p=C.BI_CLAIMANTS_P))[:, None]
     z, u = r.standard_normal((n, 4)), r.random((n, 4))
-    other_pp, _ = other_driver_limits(r, n)
+    other_pp, other_pa = other_driver_limits(r, n)
+    acc = np.repeat(np.arange(n), 4)
     out = {}
     for cov, sev in (("BI", C.BI_SEV), ("UM", C.UM_SEV), ("UIM", C.UM_SEV)):
         base = sev["median"] * np.exp(sev["sigma"] * z) * live
@@ -170,12 +189,17 @@ def _aggregate_shares(n: int = 40_000) -> dict:
         for i, (pp, pa) in enumerate(C.BI_LIMITS):
             for j, scale in enumerate(AGG_SCALES):
                 if cov == "UIM":
-                    paid, other = underinsured(base * scale, pp, other_pp[:, None])
+                    # `expected` works per claimant; the accident adds the other insurer's per-accident limit,
+                    # which leaves more to us, and our own per-accident limit less what that insurer paid
+                    per_claimant, _ = underinsured(base * scale, pp, other_pp[:, None])
+                    paid, other = underinsured((base * scale).ravel(), pp, np.repeat(other_pp, 4), acc, n, other_pa)
+                    paid, other = paid.reshape(n, 4), other.reshape(n, 4)
                     room = np.maximum(pa - other.sum(1), 0.0)
                 else:
                     paid, room = np.minimum(base * scale, pp), pa
-                tot = (paid * pays).sum(1)
-                tab[i, j] = np.minimum(tot, room).sum() / tot.sum() if tot.sum() > 0 else 1.0
+                    per_claimant = paid
+                tot, base_tot = (paid * pays).sum(1), (per_claimant * pays).sum()
+                tab[i, j] = np.minimum(tot, room).sum() / base_tot if base_tot > 0 else 1.0
         out[cov] = tab
     return out
 
@@ -450,10 +474,12 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         return ids
 
     def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False,
-            um_type="", offset=0.0):
+            um_type="", offset=0.0, cap=np.inf):
+        """cap: the most the feature could pay under the policy (its limit, or its share of a per-accident limit);
+        case reserves never exceed it."""
         feats.append(pd.DataFrame(dict(occ=ids, cvg=cov, claimant=claimant, gross=gross, paid=np.where(cwp, 0.0, paid),
                                        cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
-                                       nominal=nominal, um_type=um_type, offset=offset)))
+                                       nominal=nominal, um_type=um_type, offset=offset, cap=cap)))
 
     def injury_features(cov, ids, vi, day, sev, pp, pa, factor):
         if len(ids) == 0:
@@ -464,7 +490,8 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         gross = sev["median"] * factor[o] * _trend(cal, "BI", day[o]) * np.exp(sev["sigma"] * rng.standard_normal(len(o)))
         cwp = rng.random(len(o)) < C.CWP[cov]
         paid = cap_per_accident(np.where(cwp, 0.0, np.minimum(gross, pp[o])), o, len(ids), pa)   # per-accident limit
-        add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "")
+        add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "",
+            cap=reserve_caps(paid, gross, pp[o], o, len(ids), pa))
 
     def collision_features(peril, ids, vi, day, file_p, subro_p):
         # the damage to the insured car happens whether or not anyone claims it from us
@@ -480,7 +507,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         paid, salvage, retained = settle_total(paid, paid_total, total * c["acv"][vi] * rng.uniform(*C.SALVAGE_RANGE, len(vi)), vi, day)
         subro = (rng.random(len(vi)) < subro_p) * rng.uniform(*C.SUBROGATION_SHARE, len(vi)) * (paid - salvage)
         add("COLL", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
-            subro=subro[keep], retained=retained[keep])
+            subro=subro[keep], retained=retained[keep], cap=np.maximum(c["acv"][vi] - c["coll_ded"][vi], 0.0)[keep])
         paid_now = keep & (paid > 0)
         rental(ids[paid_now], vi[paid_now], total[paid_now])
         tow(ids, vi, peril)
@@ -492,7 +519,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         ids, vi, day = ids[m], vi[m], day[m]
         if len(ids):
             gross = C.MED_SEV["median"] * _trend(cal, "BI", day) * np.exp(C.MED_SEV["sigma"] * rng.standard_normal(len(vi)))
-            add("MED", ids, gross, np.minimum(gross, c["med_lim"][vi]), rng.random(len(vi)) < C.CWP["MED"])
+            add("MED", ids, gross, np.minimum(gross, c["med_lim"][vi]), rng.random(len(vi)) < C.CWP["MED"], cap=c["med_lim"][vi])
 
     def rental(ids, vi, total):
         """Rental reimbursement while a covered car is repaired, or replaced after a total loss."""
@@ -505,12 +532,13 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         days = np.ceil(med * np.exp(sig * rng.standard_normal(len(ids))))
         cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * rng.standard_normal(len(ids)))
         daily, most = np.array(C.RENTAL_OPTIONS)[c["rent_opt"][vi]].T
-        add("RENT", ids, days * cost, np.minimum(days * np.minimum(cost, daily), most), rng.random(len(ids)) < C.CWP["RENT"])
+        add("RENT", ids, days * cost, np.minimum(days * np.minimum(cost, daily), most), rng.random(len(ids)) < C.CWP["RENT"],
+            cap=most)
 
     def tow(ids, vi, peril):
         m = c["has_tow"][vi] & (rng.random(len(vi)) < C.TOW_P.get(peril, 0.0))
         cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(m.sum()))
-        add("TOW", ids[m], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(m.sum()) < C.CWP["TOW"])
+        add("TOW", ids[m], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(m.sum()) < C.CWP["TOW"], cap=C.TOWING_LIMIT)
 
     def uim_features(ids, vi, day):
         """Underinsured motorist: the insured's injury damages above what the at-fault driver's insurer pays,
@@ -522,14 +550,15 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
         gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * rng.standard_normal(len(o)))
-        other_pp, _ = other_driver_limits(rng, len(ids))
-        excess, other = underinsured(gross, c["um_pp"][vi][o], other_pp[o])
+        other_pp, other_pa = other_driver_limits(rng, len(ids))
+        excess, other = underinsured(gross, c["um_pp"][vi][o], other_pp[o], o, len(ids), other_pa)
         cwp = rng.random(len(o)) < C.CWP["UM"]
         room = c["um_pa"][vi] - np.bincount(o, other, len(ids))
         paid = cap_per_accident(np.where(cwp, 0.0, excess), o, len(ids), room)
+        cap = reserve_caps(paid, excess, np.maximum(c["um_pp"][vi][o] - other, 0.0), o, len(ids), room)
         keep = (excess > 0) & (cwp | (paid > 0))
         add("UM", ids[o][keep], gross[keep], paid[keep], cwp[keep], claimant=claimant[keep], um_type="Underinsured",
-            offset=np.round(other[keep], 2))
+            offset=np.round(other[keep], 2), cap=cap[keep])
 
     def unpaid(cov, ids, p):
         """Claims opened and closed without payment: liability denied, or an injury claim never pursued."""
@@ -548,7 +577,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     ids = new_occurrences("AF_MV", vi, day, _pick_driver(c, "key_af", vi, rng), at_fault=True)
     m = rng.random(len(vi)) < C.P_PD_GIVEN_AF_MV
     g = pd_paid(rng.standard_normal(m.sum()), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
-    add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"])
+    add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"], cap=c["pd_lim"][vi[m]])
     m = rng.random(len(vi)) < c["p_bi"][vi]
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]])
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_MV"])
@@ -559,7 +588,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     ids = new_occurrences("AF_SV", vi, day, _pick_driver(c, "key_af", vi, rng), at_fault=True)
     m = rng.random(len(vi)) < C.P_PD_GIVEN_AF_SV
     g = pd_paid(rng.standard_normal(m.sum()), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
-    add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"])
+    add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"], cap=c["pd_lim"][vi[m]])
     m = rng.random(len(vi)) < C.P_BI_GIVEN_AF_SV
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]])
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_SV"])
@@ -603,12 +632,13 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         ids = np.full(len(vi), -1)
         need = keep | towed
         ids[need] = new_occurrences(peril, vi[need], day[need], np.full(need.sum(), -1), cat=cat)
+        ded = (c["glass_ded"] if peril == "GLASS" else c["comp_ded"])[vi]
         add("COMP", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
-            retained=retained[keep])
+            retained=retained[keep], cap=np.maximum(c["acv"][vi] - ded, 0.0)[keep])
         paid_now = keep & ~cwp & (paid > 0) & (peril != "GLASS")
         rental(ids[paid_now], vi[paid_now], total[paid_now])
         cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(towed.sum()))
-        add("TOW", ids[towed], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(towed.sum()) < C.CWP["TOW"])
+        add("TOW", ids[towed], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(towed.sum()) < C.CWP["TOW"], cap=C.TOWING_LIMIT)
         w = total & ~(keep & paid_total)
         wreck(vi[w], day[w], ids[w])
 
