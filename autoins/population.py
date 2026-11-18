@@ -276,8 +276,32 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     veh["replaces"] = -1               # the vehicle this one replaced
     veh["salvage_title"] = False       # owner kept it after a total loss
     veh["active"] = True
+    _opening_book_added_days(cfg, cal, pol, drv, veh, tag)
 
     return Population(pol=pol, drv=drv, veh=veh, usage=usage, incidents=incidents, zip_truth=zt, agencies=agencies)
+
+
+def _opening_book_added_days(cfg, cal, pol: pd.DataFrame, drv: pd.DataFrame, veh: pd.DataFrame, tag: str) -> None:
+    """When the drivers and cars of a policy already renewing on the start date joined it. They were on the policy
+    before its first term in the extract was rated, so they joined before that rating date: a driver at the
+    policy's inception or on being licensed, a car at inception or when it was bought (its model year on sale,
+    then a few years' holding), whichever is later. One that would have joined after the rating date makes the
+    insurer re-rate that renewal (simulate.run). Policies first written in the extract add everything on their
+    first day, after the quote that rated them, as new business does."""
+    r = stream(cfg.seed, "added days" + tag)
+    first, renewing = pol.first_day.to_numpy(), pol.tenure_terms.to_numpy() > 0
+    inception = cal.day_of(pol.first_month.to_numpy() - pol.tenure_terms.to_numpy() * pol.term_months.to_numpy(),
+                           pol.dom.to_numpy())
+    before_rating = first - (C.RENEWAL_OFFER_LEAD_DAYS[1] + 1)
+    dp = drv.pol.to_numpy()
+    joined = np.minimum(np.maximum(inception[dp], drv.licensed_day.to_numpy()), first[dp])
+    drv["added_day"] = np.where(renewing[dp], joined, first[dp])
+    vp = veh.pol.to_numpy()
+    on_sale = (np.array([f"{y - 1}-10-01" for y in veh.model_year.to_numpy()], dtype="datetime64[D]")
+               - cal.start).astype(int)
+    held = before_rating[vp] - np.floor(r.exponential(C.OPENING_CAR_HELD_YEARS * 365.25, len(vp))).astype(int)
+    joined = np.minimum(np.maximum(np.maximum(inception[vp], on_sale), held), first[vp])
+    veh["added_day"] = np.where(renewing[vp], joined, first[vp])
 
 
 def policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u):

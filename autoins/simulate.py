@@ -8,7 +8,10 @@ Each term is rated (and each renewal offered, and each underwriting non-renewal 
 rating date, before the effective date, using only incidents known by then: violations once they
 post to the driving record, accidents once they appear on a claims-history report, and the
 company's own at-fault claims once their payments make them chargeable (claims.Development).
-A mid-term change is rated on the day it happens, with what is known that day.
+A mid-term change is rated on the day it happens, with what is known that day. A change between a
+renewal offer and the renewal's effective date (a move, a car or driver added or gone) also re-rates
+the renewal on the day of the change, as a policy system re-issues a pending renewal, so the term's
+rating date is that day and the offer date stays on the term.
 
 Household changes. Households change during a term as well as at renewal: they move within the
 area, buy, sell and trade cars, add newly licensed teenagers and new spouses, and lose drivers who
@@ -118,6 +121,7 @@ class Sim:
     clm_pol: list = field(default_factory=list)
     clm_report: list = field(default_factory=list)
     tele: "Tele" = None
+    last_change: np.ndarray = None      # per policy: the latest day its drivers, cars or address changed
 
 
 @dataclass
@@ -174,6 +178,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
               dev=claims.Development(cal, stream(cfg.seed, "claims"), stream(cfg.seed, "claim detail")), recs=recs)
     sim.tele = Tele(R=stream(cfg.seed, "telematics"), eid=np.full(n, -1), last_scored=np.full(n, -10 ** 6),
                     block=np.full(n, -10 ** 6), device=np.zeros(n, dtype=int))
+    sim.last_change = np.full(n, -10 ** 6)
     R = sim.R
     tm = p["term_months"]
     ty = tm / 12
@@ -253,14 +258,15 @@ def run(cfg: C.Config, ref, pop) -> Result:
             _renewal_changes(sim, renewing, s_all, ty, change)
         events = _events(_pending_arrivals(sim, renewing, s_all, x_pol), _schedule_events(sim, P, s_all, x_pol))
         _refresh_usage(sim)
+        rated = _rerated(sim, rate_day, s_all, term_no)
         term_of_pol = np.full(n, -1)
         term_of_pol[P] = n_terms + np.arange(len(P))
-        T = Term(s=s_all, e=e_all, x_pol=x_pol, cancel_day=cancel_day, cancel_reason=cancel_reason, rate_day=rate_day,
+        T = Term(s=s_all, e=e_all, x_pol=x_pol, cancel_day=cancel_day, cancel_reason=cancel_reason, rate_day=rated,
                  tenure=tenure_years, ty=ty, term_of_pol=term_of_pol, last_gone=np.full(n, -1))
         term_rows = _simulate_term(sim, T, P, events)
 
         terms.append(pd.DataFrame(dict(
-            term=term_of_pol[P], pol=P, term_no=term_no[P], s=s_all[P], e=e_all[P], rate_day=rate_day[P],
+            term=term_of_pol[P], pol=P, term_no=term_no[P], s=s_all[P], e=e_all[P], offer_day=rate_day[P], rate_day=rated[P],
             cancel_day=cancel_day[P], cancel_reason=np.array(CANCEL_REASONS)[cancel_reason[P]],
             rate_level=cal.rate_level_at(s_all[P]), new_business=term_no[P] == 1)))
         # the premium the customer compares the next renewal offer against: cars still insured at expiry
@@ -337,6 +343,8 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         pe = ev.pol.to_numpy()
         due = live[pe] & (ev.day.to_numpy() == nb[pe]) & (nb[pe] < T.x_pol[pe])
         labels = _apply_events(sim, T, ev[due])
+        changed = np.fromiter(labels.keys(), dtype=int, count=len(labels))
+        sim.last_change[changed] = np.maximum(sim.last_change[changed], nb[changed])
         ev = ev[~due & (live[pe] | (ev.kind.to_numpy() == ARRIVAL))]
         reason_now[:] = ""
         for pol, lab in labels.items():
@@ -421,6 +429,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
     st.retire(old, left, np.where(how[gone] == 1, REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")))
     op = vp[gone]
     np.maximum.at(T.last_gone, op, left)
+    np.maximum.at(sim.last_change, op, left)
     replace = R.random(len(old)) < np.where(p["n_veh"][op] > 1, C.P_REPLACE_AFTER_TOTAL_LOSS["multi"],
                                              C.P_REPLACE_AFTER_TOTAL_LOSS["single"])
     buy = left + population.draw_lag(R, len(old), **C.TOTAL_LOSS_REPLACEMENT_DELAY)
@@ -433,6 +442,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
     first_new = len(v["pol"])
     if now.any():
         st.add_replacements(old[now], _draw_replacements(sim, old[now], buy[now]))
+        np.maximum.at(sim.last_change, op[now], buy[now])
     Vn = np.arange(first_new, len(st.v["pol"]))
     return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), arrivals
 
@@ -444,6 +454,22 @@ def _events(*parts: pd.DataFrame) -> pd.DataFrame:
 
 def _cancel(T: Term, pols: np.ndarray, day: np.ndarray, reason: str) -> None:
     T.cancel_day[pols], T.cancel_reason[pols], T.x_pol[pols] = day, CANCEL_REASONS.index(reason), day
+
+
+def _rerated(sim: Sim, offer_day: np.ndarray, s_all: np.ndarray, term_no: np.ndarray) -> np.ndarray:
+    """The day each term is finally rated. A renewal is offered on its offer day; if the household changes after
+    that and on or before the effective date (a move, a car or driver added or gone), the policy system re-rates
+    the pending renewal that day, so the renewal's premium and rating date reflect the change. New business is
+    rated on its quote day: its drivers and cars join on the first day by definition."""
+    st, drv = sim.st, sim.pop.drv
+    last = sim.last_change.copy()
+    v = st.v
+    a = np.flatnonzero(v["active"])
+    np.maximum.at(last, v["pol"][a], v["added_day"][a])
+    d = np.flatnonzero(drv.active.to_numpy())
+    np.maximum.at(last, drv.pol.to_numpy()[d], drv.added_day.to_numpy()[d])
+    late = (term_no > 1) & (last > offer_day) & (last <= s_all)
+    return np.where(late, last, offer_day)
 
 
 def _premium(sim, V, day, eff, points, acc, tenure_years, term_years):
@@ -464,6 +490,8 @@ def _telematics(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no) -> No
     R, drv, n = tl.R, sim.pop.drv, len(p["zi"])
     dens = sim.ref.zips.population_density_sqmi.to_numpy()
     dob = drv.dob_day.to_numpy()
+    # a window scores a car's driving while it and its primary driver are on the policy
+    joined = lambda V: np.maximum(v["added_day"][V], drv.added_day.to_numpy()[v["primary_drv"][V]])
 
     def measure(V, ws, we):
         mid = (ws + we) // 2
@@ -497,7 +525,7 @@ def _telematics(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no) -> No
         on[enrolled] = True
         V = np.flatnonzero(v["active"] & on[v["pol"]] & v["tele_on"])
         vp = v["pol"][V]
-        ws, we = np.maximum(v["tele_since"][V], tl.last_scored[vp]), rate_day[vp]
+        ws, we = np.maximum(np.maximum(v["tele_since"][V], tl.last_scored[vp]), joined(V)), rate_day[vp]
         V, vp, ws, we = V[we > ws], vp[we > ws], ws[we > ws], we[we > ws]
         mt, sc = measure(V, ws, we)
         # the customer may leave during the window, more often after poor scores (the policy's average)
@@ -535,7 +563,9 @@ def _telematics(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no) -> No
     if len(join) == 0:
         return
     was_open = (k == 0) & p["is_initial"][join]
-    start = np.where(was_open, s_all[join] - R.integers(60, 1000, len(join)), s_all[join])
+    # a policy in the programme when the extract starts joined it some time after the policy was written
+    inception = cal.day_of(p["first_month"][join] - p["tenure_terms"][join] * p["term_months"][join], p["dom"][join])
+    start = np.where(was_open, np.maximum(s_all[join] - R.integers(60, 1000, len(join)), inception), s_all[join])
     dev = telematics.device(R, cal.year_frac(start))
     eid = len(tl.enrol) + np.arange(len(join))
     tl.enrol.extend(zip(eid.tolist(), join.tolist(), start.tolist(), dev.tolist()))
@@ -549,9 +579,11 @@ def _telematics(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no) -> No
     v["tele_on"][V], v["tele_since"][V], v["tele_disc"][V] = True, since[vp], telematics.PARTICIPATION_DISCOUNT
     # policies already in the programme when the extract starts were scored before it: their earned discount applies
     old = V[was_open[np.searchsorted(join, vp)]]
+    ws = np.maximum(np.maximum(since[v["pol"][old]], rate_day[v["pol"][old]] - 180), joined(old))
+    old, ws = old[ws < rate_day[v["pol"][old]]], ws[ws < rate_day[v["pol"][old]]]
     if len(old):
         op = v["pol"][old]
-        ws, we = np.maximum(since[op], rate_day[op] - 180), rate_day[op]
+        we = rate_day[op]
         mt, sc = measure(old, ws, we)
         v["tele_disc"][old] = record(old, ws, we, mt, sc, s_all[op], np.full(len(old), -1))
         tl.last_scored[op] = rate_day[op]
@@ -686,6 +718,7 @@ def _pending_arrivals(sim: Sim, renewing: np.ndarray, s_all: np.ndarray, x_pol: 
     now = ok & (arrive == s_all[pp])
     if now.any():
         sim.st.add_vehicles(_draw_replacements(sim, pend[now], arrive[now]))
+        np.maximum.at(sim.last_change, pp[now], arrive[now])
     later = ok & ~now
     return pd.DataFrame(dict(pol=pp[later], day=arrive[later], kind=ARRIVAL, target=pend[later], extra=-1))
 

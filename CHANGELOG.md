@@ -13,7 +13,8 @@ realistic and more useful for teaching, and why.
 
 Dates are merge dates (US Central time). Figures for stages 1 to 4 are for the default run at the
 time (seed 20250101, 30,000 policies, 1 January 2022 to 30 September 2026), and for stage 5 the new
-default of 51,391 policies, unless stated otherwise.
+default of 51,391 policies (later 43,368 policies to 31 December 2026; see stage 5), unless stated
+otherwise.
 
 1. **2026-11-13, Starting point.** The repository is created; the aim is to replace the old dataset
    (California geography, a loss ratio near 20%, no link between driver risk and claims).
@@ -30,12 +31,14 @@ default of 51,391 policies, unless stated otherwise.
 5. **Unreleased, Real vehicles, real-data benchmark, telematics and a cleaner schema.** The data is
    compared with a real insurer's portfolio; the 110 hand-picked car models become a catalogue of every
    US make, model and model year since 1997, weighted by Chicago's roads; the fleet ages to match; a
-   telematics programme, realistic names and a consistent table layout are added; the default book grows
-   to 51,391 policies.
+   telematics programme, realistic names and a consistent table layout are added; an external review's
+   findings are fixed; the default book becomes 43,368 policies over five full years (2022 to 2026).
 
 ## Unreleased (in progress)
 
-Figures in this section are for the new default run (51,391 policies) unless stated otherwise.
+Figures in this section were measured on the 51,391-policy default run (to 30 September 2026) unless
+stated otherwise; the last two subsections move the default to 43,368 policies to 31 December 2026 and
+give that run's figures.
 
 ### Benchmarked against a real insurer's data
 
@@ -110,9 +113,9 @@ Figures in this section are for the new default run (51,391 policies) unless sta
 
 ### A regional insurer of realistic size
 
-- The default book is now 51,391 policies written over 4.75 years (was 30,000; a deliberately unround
-  number): about 29,000 in force at the end, with 50,000 cars and about $53 million of premium a year,
-  roughly 1% of the area's household vehicles. The README now describes the insurer as the Chicago-area part of a small regional group.
+- The default book grew to 51,391 policies (was 30,000; a deliberately unround number), then settled at
+  43,368 policies (see "Size and dates" below). The README now describes the insurer as the Chicago-area
+  part of a small regional group.
 
 ### Calibration, checks and fixes
 
@@ -150,6 +153,55 @@ Figures in this section are for the new default run (51,391 policies) unless sta
 - `scripts/fetch_public_data.py --only vehicles` and `scripts/build_vehicle_catalogue.py` rebuild the
   vehicle catalogue from its sources; `scripts/build_name_reference.py` rebuilds the name tables
   (`reference/surnames.csv`, `reference/first_names.csv`).
+
+### Fixes from an external review
+
+An outside review (another AI coding assistant) checked the generator twice. Every finding was
+confirmed and fixed; `docs/review_response.md` answers each one with before-and-after counts. Each fix
+has a new check in `validate.py` or a new test.
+
+- **Renewals re-rated after late changes.** A move, or a car or driver added or gone, between a
+  renewal offer and its effective date now re-rates the pending renewal that day (9,727 of 179,382
+  renewals, 5.4%), with a "Revised Renewal Offer" contact. `policy_term` gains `offer_date` beside
+  `rating_date`. Before, 1,738 renewal rows were rated at an address not yet in force.
+- **When the opening book's drivers and cars joined.** Drivers and cars on policies already renewing on
+  the start date were dated as added on their first term's start, after it was rated; they now join at
+  inception, on being licensed, or when the car was bought, before the first rating in the data.
+- **Conviction and SR-22 dates.** Dates before 2022 were clipped to 1 January 2022, putting 7,982
+  convictions after the day they became known; they keep their real dates.
+- **Case reserves within limits.** Paid loss plus case reserve could exceed a per-person, per-accident or
+  per-claim limit (61 features and 9 accidents); every reserve now stays inside what the coverage can pay.
+- **Underinsured motorist.** The at-fault driver's insurer now pays within its per-accident limit too, so
+  an accident with several injured occupants leaves more to our cover (the reviewer's example: $70,000,
+  not $45,000), in the claims and the answer key's expected losses.
+- **Telematics chronology.** Score windows start no earlier than the car and its driver joined the
+  policy (6,741 did), and enrolments from before the extract no earlier than the policy's inception.
+- **Quotes and telematics.** Every quote now offers the programme; prospects who did not bind opt in at the
+  same modelled rate and get the same discount. New column `quote.telematics_opt_in`.
+- **Real-data comparison.** `scripts/compare_real_data.py` scaled the answer key's expected losses down
+  twice for rows starting before 2022 (its "true expected loss" Gini moves from 0.247 to 0.251).
+- **Release contents.** Every release zip now carries `README.md`, `CHANGELOG.md` and `docs/`, which the
+  README links to.
+- **Like-for-like loss-ratio checks.** The answer key's expected losses exclude catastrophes, so
+  `validate.py` now compares them with actual losses without catastrophes, and adds the year's
+  catastrophe losses before comparing with industry loss ratios.
+- **Documentation.** Statements that claimed more than the checks prove were corrected (liability limits
+  do change at renewal; passing `validate.py` shows its rules hold, not that the data has no other flaw;
+  the national comparison is approximate). New gaps the review named (claim handling history, payees,
+  quote revisions) are listed in `docs/limitations.md`.
+
+### Size and dates
+
+- The default run is now **43,368 policies from 1 January 2022 to 31 December 2026**: five full calendar
+  years, and smaller release files. About 24,000 policies are in force at the end, with 41,000 cars and
+  $47 million of premium a year. 205,616 policy terms, 184,498 earned car-years, $189.7 million earned
+  premium, 20,381 claims.
+- Every calibration band holds: frequency 1.03 to 1.30 times national and severity 0.85 to 1.05 times;
+  expected loss ratios (plus catastrophes) of 79.1%, 77.1%, 67.9% and 64.8% for 2022 to 2025 against the
+  industry path; an overall loss ratio of 68.3%. Comprehensive and collision severity sit at the bottom
+  of their band (0.85 and 0.86), as physical damage severity has run low in every recent run.
+- `scripts/readme_figures.py` prints every run figure the README, changelog and limitations quote, so
+  they can be refreshed after any change.
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

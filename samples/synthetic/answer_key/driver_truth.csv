@@ -1,101 +1,101 @@
 driver_id,latent_risk_factor,race_ethnicity
-1,1.6802,Hispanic
-2,0.1449,White (non-Hispanic)
-3,0.6861,White (non-Hispanic)
-4,1.4998,White (non-Hispanic)
-5,1.8478,White (non-Hispanic)
-6,0.8656,White (non-Hispanic)
-7,0.1524,Black (non-Hispanic)
-8,0.3985,Hispanic
-9,0.5806,White (non-Hispanic)
-10,0.4841,White (non-Hispanic)
-11,0.4434,White (non-Hispanic)
-12,1.7576,White (non-Hispanic)
-13,0.359,White (non-Hispanic)
-14,0.6127,Black (non-Hispanic)
-15,3.3211,Black (non-Hispanic)
-16,1.0897,White (non-Hispanic)
-17,0.6004,White (non-Hispanic)
-18,0.2112,Asian or Pacific Islander (non-Hispanic)
-19,2.2184,Hispanic
-20,1.0385,Hispanic
-21,0.7856,Hispanic
-22,0.9782,Hispanic
-23,0.6851,White (non-Hispanic)
-24,0.2057,Asian or Pacific Islander (non-Hispanic)
-25,0.9988,Asian or Pacific Islander (non-Hispanic)
-26,0.5972,White (non-Hispanic)
-27,0.5016,Hispanic
-28,1.6481,Hispanic
-29,1.7071,Black (non-Hispanic)
-30,1.2504,Black (non-Hispanic)
-31,1.2657,White (non-Hispanic)
-32,0.8937,White (non-Hispanic)
-33,1.6108,Hispanic
-34,1.0156,Black (non-Hispanic)
-35,0.7677,Black (non-Hispanic)
-36,1.0226,Black (non-Hispanic)
-37,1.5228,White (non-Hispanic)
-38,0.5808,White (non-Hispanic)
-39,1.4164,White (non-Hispanic)
-40,0.6501,White (non-Hispanic)
-41,2.4971,White (non-Hispanic)
-42,2.7956,Black (non-Hispanic)
-43,1.4778,Black (non-Hispanic)
-44,1.7905,White (non-Hispanic)
-45,0.4312,White (non-Hispanic)
-46,1.3889,Black (non-Hispanic)
-47,0.8078,White (non-Hispanic)
-48,0.2967,White (non-Hispanic)
-49,0.3375,White (non-Hispanic)
-50,0.0406,White (non-Hispanic)
-51,0.5096,Black (non-Hispanic)
-52,0.5706,Black (non-Hispanic)
-53,0.3966,White (non-Hispanic)
-54,0.7426,White (non-Hispanic)
-55,1.406,Hispanic
-56,1.125,Hispanic
-57,0.4348,Hispanic
-58,0.5468,White (non-Hispanic)
-59,0.2624,Hispanic
-60,0.7802,Hispanic
-61,1.796,Hispanic
-62,0.77,White (non-Hispanic)
-63,0.7482,White (non-Hispanic)
-64,0.7898,White (non-Hispanic)
-65,1.293,White (non-Hispanic)
-66,0.9069,Hispanic
-67,0.9843,Asian or Pacific Islander (non-Hispanic)
-68,0.6587,Asian or Pacific Islander (non-Hispanic)
-69,1.5211,Asian or Pacific Islander (non-Hispanic)
-70,1.3825,Hispanic
-71,2.3597,Black (non-Hispanic)
-72,1.2355,Black (non-Hispanic)
-73,0.4912,Black (non-Hispanic)
-74,1.1606,Black (non-Hispanic)
-75,1.7736,White (non-Hispanic)
-76,1.1028,Asian or Pacific Islander (non-Hispanic)
-77,1.5964,Asian or Pacific Islander (non-Hispanic)
-78,2.1265,White (non-Hispanic)
-79,0.9509,White (non-Hispanic)
-80,0.6716,Black (non-Hispanic)
-81,1.5636,White (non-Hispanic)
-82,0.8028,Other or multiracial (non-Hispanic)
-83,3.4631,Other or multiracial (non-Hispanic)
-84,0.4072,White (non-Hispanic)
-85,0.5932,White (non-Hispanic)
-86,0.3832,Other or multiracial (non-Hispanic)
-87,0.997,Other or multiracial (non-Hispanic)
-88,0.2612,Other or multiracial (non-Hispanic)
-89,0.6002,Other or multiracial (non-Hispanic)
-90,1.4719,Hispanic
-91,1.5334,Hispanic
-92,0.6568,Hispanic
-93,2.2732,White (non-Hispanic)
-94,0.7217,White (non-Hispanic)
-95,0.4505,White (non-Hispanic)
-96,1.0959,White (non-Hispanic)
-97,0.1281,Hispanic
-98,1.0996,Hispanic
-99,0.3861,White (non-Hispanic)
-100,1.3471,White (non-Hispanic)
+1,0.5647,Hispanic
+2,1.2701,Hispanic
+3,0.8132,White (non-Hispanic)
+4,3.0437,White (non-Hispanic)
+5,1.573,White (non-Hispanic)
+6,1.5561,White (non-Hispanic)
+7,0.6819,Black (non-Hispanic)
+8,0.1497,Black (non-Hispanic)
+9,1.2582,White (non-Hispanic)
+10,1.5387,White (non-Hispanic)
+11,0.888,White (non-Hispanic)
+12,0.5523,White (non-Hispanic)
+13,0.3379,White (non-Hispanic)
+14,1.114,White (non-Hispanic)
+15,0.7592,Black (non-Hispanic)
+16,0.629,White (non-Hispanic)
+17,0.3806,White (non-Hispanic)
+18,1.1411,White (non-Hispanic)
+19,0.1991,White (non-Hispanic)
+20,0.9293,Hispanic
+21,1.4883,Hispanic
+22,0.5774,Hispanic
+23,0.5203,White (non-Hispanic)
+24,0.8934,White (non-Hispanic)
+25,0.8351,Asian or Pacific Islander (non-Hispanic)
+26,2.0127,Asian or Pacific Islander (non-Hispanic)
+27,0.6175,White (non-Hispanic)
+28,0.3202,White (non-Hispanic)
+29,0.1664,Hispanic
+30,0.4517,Hispanic
+31,0.7675,Black (non-Hispanic)
+32,0.4386,White (non-Hispanic)
+33,0.1125,White (non-Hispanic)
+34,0.5034,Hispanic
+35,1.0355,Hispanic
+36,2.3942,Hispanic
+37,0.8355,Black (non-Hispanic)
+38,0.8616,White (non-Hispanic)
+39,0.4628,White (non-Hispanic)
+40,0.7068,White (non-Hispanic)
+41,0.844,White (non-Hispanic)
+42,0.1455,White (non-Hispanic)
+43,0.4179,Black (non-Hispanic)
+44,0.3255,White (non-Hispanic)
+45,0.6553,White (non-Hispanic)
+46,2.596,White (non-Hispanic)
+47,1.0684,White (non-Hispanic)
+48,0.5603,White (non-Hispanic)
+49,1.2103,White (non-Hispanic)
+50,0.3003,White (non-Hispanic)
+51,0.697,White (non-Hispanic)
+52,0.5124,Black (non-Hispanic)
+53,0.4755,White (non-Hispanic)
+54,0.3027,Asian or Pacific Islander (non-Hispanic)
+55,1.27,Hispanic
+56,1.8982,White (non-Hispanic)
+57,0.1592,Hispanic
+58,0.265,Hispanic
+59,1.0466,White (non-Hispanic)
+60,0.3695,White (non-Hispanic)
+61,2.0326,White (non-Hispanic)
+62,2.485,White (non-Hispanic)
+63,0.4463,White (non-Hispanic)
+64,0.815,White (non-Hispanic)
+65,0.8214,Hispanic
+66,1.5897,Hispanic
+67,2.2881,Asian or Pacific Islander (non-Hispanic)
+68,1.2532,White (non-Hispanic)
+69,0.8404,Asian or Pacific Islander (non-Hispanic)
+70,0.8867,Asian or Pacific Islander (non-Hispanic)
+71,1.2347,Hispanic
+72,1.3227,Black (non-Hispanic)
+73,1.1216,Black (non-Hispanic)
+74,1.8278,Black (non-Hispanic)
+75,0.191,White (non-Hispanic)
+76,1.2231,Asian or Pacific Islander (non-Hispanic)
+77,0.4798,Asian or Pacific Islander (non-Hispanic)
+78,1.4209,White (non-Hispanic)
+79,0.9771,White (non-Hispanic)
+80,2.0688,Black (non-Hispanic)
+81,1.7767,White (non-Hispanic)
+82,2.2063,White (non-Hispanic)
+83,2.1939,Other or multiracial (non-Hispanic)
+84,1.389,White (non-Hispanic)
+85,1.4007,White (non-Hispanic)
+86,0.7595,Other or multiracial (non-Hispanic)
+87,1.638,White (non-Hispanic)
+88,1.2081,Hispanic
+89,1.055,Hispanic
+90,0.6669,Hispanic
+91,0.6145,White (non-Hispanic)
+92,0.1975,White (non-Hispanic)
+93,0.7798,White (non-Hispanic)
+94,0.7649,White (non-Hispanic)
+95,0.4719,Hispanic
+96,0.5058,White (non-Hispanic)
+97,1.1389,White (non-Hispanic)
+98,0.7876,White (non-Hispanic)
+99,1.1043,White (non-Hispanic)
+100,0.629,White (non-Hispanic)

@@ -48,14 +48,15 @@ TOWING_LIMIT = 100                      # towing and labor pays up to this per c
 
 # Each full accident year's actual loss ratio against its expected one (answer key): the claims simulated are
 # consistent with their expectation, give or take claim luck. Calibration itself is held by the expected loss
-# ratio against industry (below). A year of a ~50,000-policy book has about 450 paid bodily injury claims, whose
-# total alone varies by roughly 2.5 loss-ratio points (one standard deviation); in the default run 2022 is 1.12
-# times expected, mostly from bodily injury at 1.21 times. (This replaced an absolute band of 52% to 88% on the
-# actual ratio, which mixed calibration with luck.)
+# ratio against industry (below). A year of the default book has about 250 paid bodily injury claims, whose
+# total alone varies by 1.5 to 3 loss-ratio points (one standard deviation; scripts/readme_figures.py). The
+# answer key's expected losses exclude catastrophes, so the actual ratio is taken without them. (This replaced
+# an absolute band of 52% to 88% on the actual ratio, which mixed calibration with luck.)
 ACTUAL_TO_EXPECTED_BAND = (0.85, 1.15)
 OVERALL_LOSS_RATIO_BAND = (0.62, 0.76)
-# Expected (noise-free, from the answer key) loss ratio by accident year, against industry pure loss ratios
-# (incurred losses excluding LAE / earned premium, direct). US private auto: 80.2% (2022, APCIA), 75.4% (2023),
+# Expected (noise-free, from the answer key) loss ratio by accident year plus the year's catastrophe losses
+# (which industry figures include and the answer key's expected losses leave out), against industry pure loss
+# ratios (incurred losses excluding LAE / earned premium, direct). US private auto: 80.2% (2022, APCIA), 75.4% (2023),
 # 66.1% (2024) and 61.5% (2025) (S&P Global); Illinois: 79.6%, 72.8%, 63.4% and 60.1% (Illinois DOI market
 # share reports). Bands are about +/-5 points around those figures.
 INDUSTRY_LOSS_RATIO_BAND = {2022: (0.74, 0.85), 2023: (0.68, 0.80), 2024: (0.59, 0.70), 2025: (0.55, 0.67)}
@@ -114,10 +115,19 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
           f"top makes {veh.merge(vmy, on='vehicle_model_year_id')['make'].value_counts(normalize=True).head(6).round(3).to_dict()}")
 
 
-def integrity_telematics(rep, enrol, scores, risk, term, valuation) -> None:
+def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, veh=None, drv=None) -> None:
     """The telematics programme: enrolments, scores and the discounts rated on each exposure row."""
     dt = lambda x: pd.to_datetime(x)
     e = enrol.set_index("enrollment_id")
+    if pol is not None:
+        inception = dt(pol.set_index("policy_id")["original_inception_date"])
+        added_v = dt(veh.set_index("insured_vehicle_id")["added_date"]).reindex(scores["insured_vehicle_id"]).to_numpy()
+        added_d = dt(drv.set_index("driver_id")["added_date"]).reindex(scores["driver_id"]).to_numpy()
+        start = dt(scores["period_start_date"]).to_numpy()
+        rep.check("a policy joins the programme after it was written, and a car is scored only while it and its "
+                  "driver are on the policy",
+                  (dt(enrol["enrollment_date"]).to_numpy() >= inception.reindex(enrol["policy_id"]).to_numpy()).all()
+                  and (start >= added_v).all() and (start >= added_d).all())
     rep.check("enrolments end after they start and by the valuation date",
               (e["end_date"].isna() | (dt(e["end_date"]) >= dt(e["enrollment_date"]))).all()
               and (dt(e["enrollment_date"]) <= valuation).all() and (dt(e["end_date"]).dropna() <= valuation).all(),
@@ -132,13 +142,13 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation) -> None:
               and s_.loc[scored, "driving_score"].between(1, 100).all()
               and ((s_.loc[scored, "earned_discount_pct"] == rule[scored]) | (s_.loc[scored, "earned_discount_pct"] == 0)).all(),
               f"{len(s_):,} scores, mean {s_['driving_score'].mean():.1f}, average earned discount {s_['earned_discount_pct'].mean():.1f}%")
-    on = risk[risk["telematics_enrolled"] == "Y"].merge(term[["policy_term_id", "rating_date"]], on="policy_term_id", suffixes=("", "_term"))
-    j = on[["exposure_id", "policy_id", "coverage_start_date", "rating_date_term"]].merge(
+    on = risk[risk["telematics_enrolled"] == "Y"].merge(term[["policy_term_id", "offer_date"]], on="policy_term_id")
+    j = on[["exposure_id", "policy_id", "coverage_start_date", "offer_date"]].merge(
         enrol[["policy_id", "enrollment_date", "end_date"]], on="policy_id")
     ok = (dt(j["enrollment_date"]) <= dt(j["coverage_start_date"])) \
-        & (j["end_date"].isna() | (dt(j["end_date"]) >= dt(j["rating_date_term"])))
+        & (j["end_date"].isna() | (dt(j["end_date"]) >= dt(j["offer_date"])))
     rep.check("rows rated in the programme belong to an enrolment that began by the row's start and was live when its term "
-              "was rated; other rows carry no telematics discount",
+              "was offered; other rows carry no telematics discount",
               on["exposure_id"].isin(j.loc[ok, "exposure_id"]).all() and (risk.loc[risk["telematics_enrolled"] == "N", "telematics_discount_pct"] == 0).all()
               and risk["telematics_discount_pct"].between(0, 30).all())
 
@@ -177,6 +187,20 @@ def integrity_limits(rep, f) -> None:
     rep.check("rental and towing payments stay within the per-claim maximum",
               (paid[rent] <= f.loc[rent, "rental_reimbursement"].str.split("/").str[1].astype(float) + cent).all()
               and (paid[code == "TOW"] <= TOWING_LIMIT + cent).all())
+    # case reserves too: an adjuster reserves within the limits, so paid plus case reserve obeys every limit above
+    inc = f["paid_loss"] + f["case_reserve"]
+    lim = pd.Series(np.inf, index=f.index)
+    lim[bi] = split("bi_limit", 0)[bi]
+    lim[um] = split("um_limit", 0)[um] - offset[um]
+    lim[code == "PD"], lim[code == "MED"] = f.loc[code == "PD", "pd_limit"], f.loc[code == "MED", "med_pay_limit"]
+    lim[code == "COLL"] = (value - f["collision_deductible"]).clip(lower=0)[code == "COLL"]
+    lim[code == "COMP"] = pd.Series((value - comp_ded).clip(lower=0), index=f.index)[code == "COMP"]
+    lim[rent] = f.loc[rent, "rental_reimbursement"].str.split("/").str[1].astype(float)
+    lim[code == "TOW"] = TOWING_LIMIT
+    rep.check("paid loss plus case reserve stays within every per-person, per-accident and per-claim limit",
+              (inc <= lim + cent).all() and (by_accident(bi, inc) <= first(bi, split("bi_limit", 1)) + cent).all()
+              and (by_accident(um, inc) <= first(um, split("um_limit", 1)) - by_accident(um, offset) + cent).all(),
+              f"{(f['case_reserve'] > 0).sum():,} features with a case reserve")
     on = lambda k, col: (f.loc[code == k, col] > 0).all()
     rep.check("the coverage terms on each risk row agree with its premiums",
               ((f["rental_premium"] > 0) == f["rental_reimbursement"].notna()).all()
@@ -254,8 +278,22 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
     # loss or payment on the rating date itself is never part of that rating.
     t = term.set_index("policy_term_id")
     eff, rdate = dt(t["effective_date"]), dt(t["rating_date"])
-    rep.check("every term is rated before it takes effect", (rdate <= eff).all()
-              and (dt(risk["rating_date"]) <= cov_s).all())
+    rep.check("every term is offered, then rated, before it takes effect", (dt(t["offer_date"]) <= rdate).all()
+              and (rdate <= eff).all() and (dt(risk["rating_date"]) <= cov_s).all(),
+              f"{(dt(t['offer_date']) < rdate).sum():,} renewals re-rated after a change between offer and effective date")
+    # a renewal or endorsement is rated with the household as it stood that day: its car and rated driver are
+    # already on the policy, and its address is the one in force (new business is quoted before its first day)
+    later = (risk["endorsement_number"] > 0) | (t["business_type"].reindex(risk["policy_term_id"]).to_numpy() == "Renewal")
+    r_ = risk[later]
+    rated = dt(r_["rating_date"]).to_numpy()
+    on_v = (dt(v["added_date"]).reindex(r_["insured_vehicle_id"]).to_numpy() <= rated)
+    on_d = (dt(drv.set_index("driver_id")["added_date"]).reindex(r_["driver_id"]).to_numpy() <= rated)
+    cover = risk[["policy_id", "location_id"]].assign(s=cov_s.to_numpy(), e=cov_e.to_numpy())
+    x = r_[["exposure_id", "policy_id", "location_id"]].assign(d=rated).merge(cover, on="policy_id", suffixes=("", "_then"))
+    x = x[(x.s.to_numpy() <= x.d.to_numpy()) & (x.e.to_numpy() > x.d.to_numpy())]
+    moved = (x.location_id != x.location_id_then).groupby(x.exposure_id).all()
+    rep.check("renewals and changes are rated with the car, driver and address on the policy on the rating date",
+              on_v.all() and on_d.all() and not moved.any(), f"{len(r_):,} rows; {len(x.exposure_id.unique()):,} had cover on their rating date")
     i = inc.assign(d=dt(inc["incident_date"]), k=dt(inc["known_date"]))
     j = risk[["exposure_id", "driver_id", "coverage_start_date", "rating_date"]].merge(
         i[["driver_id", "d", "k", "incident_type"]], on="driver_id")
@@ -267,6 +305,13 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
               (risk["exposure_id"].map(pts).fillna(0) == risk["rated_violation_points"]).all()
               and (risk["exposure_id"].map(acc).fillna(0) == risk["rated_at_fault_accidents"]).all())
     rep.check("an incident is known only after it happened", (i.k >= i.d).all())
+    cv = i[i["conviction_date"].notna()]
+    rep.check("a conviction falls after the violation and on or before it reaches the driving record",
+              ((dt(cv["conviction_date"]) > cv.d) & (dt(cv["conviction_date"]) <= cv.k)).all(), f"{len(cv):,} convictions")
+    s22 = drv[drv["sr22_filed_date"].notna()]
+    rep.check("an SR-22 is filed before it ends, and only after the driver joined the policy",
+              ((dt(s22["sr22_filed_date"]) < dt(s22["sr22_end_date"]))
+               & (dt(s22["sr22_filed_date"]) >= dt(s22["added_date"]))).all(), f"{len(s22):,} filings")
     own = i[i["source"] == "Company Claim"]
     rep.check("the company's own claims reach the driving record after the loss date, never on it", (own.k > own.d).all(),
               f"{len(own):,} chargeable company claims")
@@ -454,7 +499,7 @@ def main() -> None:
     integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end, valuation)
     integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes)
     integrity_vehicles(rep, vmy, veh, risk, clm)
-    integrity_telematics(rep, enrol, tscores, risk, term, pd.Timestamp(valuation))
+    integrity_telematics(rep, enrol, tscores, risk, term, pd.Timestamp(valuation), pol, veh, drv)
     old = term[pd.to_datetime(term["expiration_date"]) < pd.Timestamp(valuation) - pd.Timedelta(days=90)]
     written = ledger[ledger["transaction_type"] != "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
     returned = ledger[ledger["transaction_type"] == "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
@@ -501,14 +546,14 @@ def main() -> None:
     rate = np.divide(risk["earned_premium"].to_numpy(), days, out=np.zeros(len(risk)), where=days > 0)
     loss_year = pd.to_datetime(clm["loss_date"]).dt.year
     years = sorted(loss_year.unique())
-    lr = {}
+    lr, cat_lr = {}, {}
     for y in years:
         a, b = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
         overlap = (np.minimum(e, b) - np.maximum(s, a)).astype("timedelta64[D]").astype(int).clip(0)
         prem = (overlap * rate).sum()
         m = loss_year == y
         lr[y] = clm.loc[m, "net_incurred_loss"].sum() / prem
-        cat = clm.loc[m & clm["catastrophe_id"].notna(), "net_incurred_loss"].sum() / prem
+        cat = cat_lr[y] = clm.loc[m & clm["catastrophe_id"].notna(), "net_incurred_loss"].sum() / prem
         print(f"  {y}: earned premium ${prem:>12,.0f}   car-years {(overlap * (days > 0)).sum() / 365.25:>8,.0f}   "
               f"loss ratio {lr[y]:6.1%}   (catastrophe {cat:5.1%})   LAE ratio {clm.loc[m, 'paid_expense'].sum() / prem:5.1%}")
     full = [y for y in years if y < years[-1]]
@@ -518,15 +563,20 @@ def main() -> None:
         a_, b_ = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
         overlap = (np.minimum(e, b_) - np.maximum(s, a_)).astype("timedelta64[D]").astype(int).clip(0)
         expected_lr = (overlap * exp_rate).sum() / (overlap * rate).sum()
-        rep.band(f"{y} loss ratio ({lr[y]:.1%}) relative to its expected ({expected_lr:.1%})", lr[y] / expected_lr,
-                 ACTUAL_TO_EXPECTED_BAND, "{:.2f}")
+        # the answer key's expected losses leave out the (fictional, dated) catastrophes, so they are compared
+        # with the year's losses excluding catastrophes
+        rep.band(f"{y} loss ratio excluding catastrophes ({lr[y] - cat_lr[y]:.1%}) relative to its expected "
+                 f"({expected_lr:.1%})", (lr[y] - cat_lr[y]) / expected_lr, ACTUAL_TO_EXPECTED_BAND, "{:.2f}")
     for y, b in INDUSTRY_LOSS_RATIO_BAND.items():
         a_, b_ = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
         overlap = (np.minimum(e, b_) - np.maximum(s, a_)).astype("timedelta64[D]").astype(int).clip(0)
-        if y in years and y < years[-1]:
-            rep.band(f"{y} expected loss ratio (answer key) vs industry", (overlap * exp_rate).sum() / (overlap * rate).sum(), b, "{:.1%}")
+        if y in years and y < years[-1]:     # industry ratios include catastrophes: the year's are added
+            rep.band(f"{y} expected loss ratio (answer key) plus catastrophes vs industry",
+                     (overlap * exp_rate).sum() / (overlap * rate).sum() + cat_lr[y], b, "{:.1%}")
     rep.band("overall loss ratio", clm["net_incurred_loss"].sum() / ep, OVERALL_LOSS_RATIO_BAND, "{:.1%}")
-    print(f"  note: {years[-1]} is a partial year and excludes claims not yet reported, so it looks better than it will develop.")
+    whole = pd.Timestamp(valuation).strftime("%m-%d") == "12-31"
+    print(f"  note: {years[-1]} is {'the latest accident year, the least developed' if whole else 'a partial year'}: its "
+          "claims not yet reported are missing and its injury claims are young, so it looks better than it will develop.")
     # the book in force on the start date is there from day one: no artificial ramp-up in the first year
     bounds = (start.astype("M8[M]") + np.arange(13).astype("timedelta64[M]")).astype("M8[D]")
     per_day = [(np.minimum(e, b) - np.maximum(s, a)).astype(int).clip(0).sum() / (b - a).astype(int)

@@ -61,10 +61,13 @@ DCC_COVERAGES = {"BI", "UM", "MED"}
 # ultimate on a review cycle. The estimate's error (RESERVE_ERROR: log bias and noise, injury reserves
 # starting low) is strongly correlated from one review to the next and shrinks as the claim matures,
 # which produces case development in the incurred triangles. Payments erode the reserve; closing takes
-# it to zero; a reopening sets it again for the expected supplement.
+# it to zero; a reopening sets it again for the expected supplement. Paid plus case reserve never exceeds
+# what the coverage could pay (the feature's `cap`: its limit, or its share of a per-accident limit, or the
+# car's value less the deductible): adjusters reserve within the policy limits, and expected legal costs
+# are carried in the separate expense reserve.
 RESERVE_REVIEW_DAYS = {"BI": 90, "UM": 90, "MED": 60, "PD": 30, "COLL": 30, "COMP": 30, "RENT": 30, "TOW": 30}
 RESERVE_PERSISTENCE = 0.75           # correlation of successive estimate errors
-MIN_RESERVE = 250                    # an open feature always carries at least this
+MIN_RESERVE = 250                    # an open feature carries at least this, unless less is left under its limit
 RESERVE_ROUNDING = 50
 
 # Claim detail (ASSUMED shapes). Bodily injury attorney involvement was 57% in 2022 and the litigation rate
@@ -229,6 +232,7 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     mu = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][0]).to_numpy()
     sg = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][1]).to_numpy()
     fid = f.fid.to_numpy()
+    cap = f["cap"].fillna(np.inf).to_numpy() if "cap" in f else np.full(n, np.inf)
 
     # reviews: at opening, then on the coverage's review cycle until the first close
     life = np.maximum(cd - od, 1)
@@ -248,17 +252,19 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     est = np.where(U[i] > 0, U[i] * np.exp((mu[i] + sg[i] * z) * (1 - phi) ** 0.7), formula[i] * np.exp(0.3 * z))
     est = np.where((k == 0) & (U[i] > 0), formula[i] * np.exp(0.3 * z), est)      # formula reserve at first notice
     est = np.where(nominal[i], nominal_amt[i] * np.exp(0.3 * z), est)
+    est = np.minimum(est, cap[i])
     parts = [pd.DataFrame(dict(fid=fid[i], day=day, order=0, est=est, pay=0.0,
                                txn=np.where(k == 0, "Initial Reserve", "Reserve Review")))]
     ro = np.flatnonzero(f.reopen_day.to_numpy() >= 0)
     supp = f.supp.to_numpy()[ro]
     parts.append(pd.DataFrame(dict(fid=fid[ro], day=f.reopen_day.to_numpy()[ro], order=0,
-                                   est=U[ro] - supp + supp * np.exp(0.3 * R.standard_normal(len(ro))), pay=0.0, txn="Reopen")))
+                                   est=np.minimum(U[ro] - supp + supp * np.exp(0.3 * R.standard_normal(len(ro))), cap[ro]),
+                                   pay=0.0, txn="Reopen")))
     closes = np.r_[cd, f.final_close_day.to_numpy()[ro]]
     parts.append(pd.DataFrame(dict(fid=np.r_[fid, fid[ro]], day=closes, order=2, est=np.nan, pay=0.0, txn="Close")))
     loss = pays[pays.kind == "Loss"]
     parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=1, est=np.nan, pay=loss.amount, txn="Payment")))
-    out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE)]
+    out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE, pd.Series(cap, index=fid))]
 
     # expense reserve on litigated features: set when the suit is filed, eroded by legal bills, closed with the feature
     li = np.flatnonzero(f.suit_day.to_numpy() >= 0)
@@ -273,8 +279,9 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     return pd.concat(out, ignore_index=True)
 
 
-def _outstanding(ev: pd.DataFrame, rtype: str, floor: float) -> pd.DataFrame:
-    """Turn dated reserve events (estimates, payments, closes) into reserve changes and balances."""
+def _outstanding(ev: pd.DataFrame, rtype: str, floor: float, cap: pd.Series = None) -> pd.DataFrame:
+    """Turn dated reserve events (estimates, payments, closes) into reserve changes and balances. With `cap` (by
+    feature), a balance never exceeds the cap less what has been paid, even after rounding or the floor."""
     ev = ev.sort_values(["fid", "day", "order"], kind="stable").reset_index(drop=True)
     g = ev.groupby("fid")
     paid = g.pay.cumsum().to_numpy()
@@ -283,6 +290,9 @@ def _outstanding(ev: pd.DataFrame, rtype: str, floor: float) -> pd.DataFrame:
     started = ~np.isnan(est)
     bal = np.where((is_open.to_numpy() > 0) & started,
                    np.maximum(np.round((np.nan_to_num(est) - paid) / RESERVE_ROUNDING) * RESERVE_ROUNDING, floor), 0.0)
+    if cap is not None:
+        left = np.floor(np.maximum(cap.reindex(ev.fid).to_numpy() - paid, 0.0) * 100) / 100
+        bal = np.minimum(bal, left)
     prev = pd.Series(bal).groupby(ev.fid.to_numpy()).shift().fillna(0).to_numpy()
     ev = ev.assign(rtype=rtype, delta=bal - prev, outstanding=bal)
     return ev.loc[ev.delta != 0, ["fid", "day", "rtype", "txn", "delta", "outstanding"]]
