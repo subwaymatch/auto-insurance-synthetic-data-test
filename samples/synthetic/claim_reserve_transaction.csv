@@ -95,7 +95,7 @@ reserve_transaction_id,claim_feature_id,claim_id,transaction_date,reserve_type,t
 94,80,49,2022-01-08,Loss,Initial Reserve,750.0,750.0
 95,81,50,2022-01-08,Loss,Initial Reserve,700.0,700.0
 96,82,51,2022-01-08,Loss,Initial Reserve,1000.0,1000.0
-97,83,52,2022-01-08,Loss,Initial Reserve,2550.0,2550.0
-98,3,3,2022-01-09,Loss,Payment,-700.0,1200.0
-99,3,3,2022-01-09,Loss,Payment,-1037.57,162.43
-100,3,3,2022-01-09,Loss,Close,-162.43,0.0
+97,3,3,2022-01-09,Loss,Payment,-700.0,1200.0
+98,3,3,2022-01-09,Loss,Payment,-1037.57,162.43
+99,3,3,2022-01-09,Loss,Close,-162.43,0.0
+100,9,6,2022-01-09,Loss,Close,-700.0,0.0
