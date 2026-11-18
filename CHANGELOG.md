@@ -31,14 +31,17 @@ otherwise.
 5. **Unreleased, Real vehicles, real-data benchmark, telematics and a cleaner schema.** The data is
    compared with a real insurer's portfolio; the 110 hand-picked car models become a catalogue of every
    US make, model and model year since 1997, weighted by Chicago's roads; the fleet ages to match; a
-   telematics programme, realistic names and a consistent table layout are added; an external review's
-   findings are fixed; the default book becomes 43,368 policies over five full years (2022 to 2026).
+   telematics programme, realistic names and a consistent table layout are added; two external reviews'
+   findings are fixed, the second by deciding renewals and telematics scores only on what was known at the
+   time and keeping every renewal offer; the default book becomes 43,368 policies over five full years
+   (2022 to 2026).
 
 ## Unreleased (in progress)
 
 Figures in this section were measured on the 51,391-policy default run (to 30 September 2026) unless
-stated otherwise; the last two subsections move the default to 43,368 policies to 31 December 2026 and
-give that run's figures.
+stated otherwise; "Fixes from an external review" and "Size and dates" move the default to 43,368 policies to
+31 December 2026 and give that run's figures, and the last subsection gives the run after the third review's
+fixes.
 
 ### Benchmarked against a real insurer's data
 
@@ -202,6 +205,44 @@ has a new check in `validate.py` or a new test.
   of their band (0.85 and 0.86), as physical damage severity has run low in every recent run.
 - `scripts/readme_figures.py` prints every run figure the README, changelog and limitations quote, so
   they can be refreshed after any change.
+
+### Fixes from a third external review
+
+A third review (at `9fe6062`) confirmed the earlier fixes and found two more decisions dated in the past
+that used later information. Both are fixed; `docs/review_response.md` gives the before-and-after counts
+and a controlled counterfactual.
+
+- **Telematics scores belong to the driver who drove.** A car's score was generated from, and published
+  against, the car's driver as it stood after the whole term had been simulated: 211 scores overlapped
+  another driver's exposure and 48 named a driver who took the car over after the window. The simulator
+  now keeps effective-dated histories (each car's rated driver and ZIP, each driver's marital status, each
+  policy's named insured and homeowner status), and a window in which the car's driver changed is split
+  there and each part scored as that driver's (165 splits in the default run). A car's discount is the
+  days-weighted average of what its parts earned. Cars on the policy on the scoring date are scored even if
+  they leave before the renewal. Fixed along the way: 4 scores of customers who had left the programme were
+  linked to a term that began before them.
+- **Renewals decided on the offer date.** The underwriting review, the telematics offer, the renewal premium
+  and the customer's decision now use only the policy as it stood on the offer date (the expiring term's
+  exposure rows in force that day), records known by then and claims reported by then, with their own
+  random stream. A change before the effective date still re-rates the renewal (a revised offer), but cannot
+  rewrite the offer or the decision. Holding the draws fixed, the old information would have changed 315 of
+  174,487 decisions and the premium of 12,013 offers.
+- **New table `renewal_offer`** (179,620 rows): every renewal evaluated, renewed or not, with its offer
+  date, vehicles, expiring and renewal premium, premium change, telematics opt-in, underwriting decision,
+  revised offer date and outcome (renewed, not renewed by the insured, company non-renewal, cancelled
+  before renewal, or pending at the valuation date). The answer key's `renewal_offer_truth` has each
+  offer's true acceptance probability. Customer contacts now include the offers that were declined and a
+  notice for each company non-renewal. An opt-in to telematics at a renewal that was not taken is no
+  longer an enrolment ending the day it began (257 were).
+- **Checks.** `validate.py` checks scores against the exposure rows' driver on every day scored, the
+  discount rule, and each offer against the exposure in force on its offer date and the policy terms'
+  outcomes. Seven new tests, including a counterfactual one: every offer evaluated again at the end of the
+  run, with the whole later history present, is the same offer and decision.
+- **The default run after these fixes** (content hash `4b5bca69599df49e`): 205,742 policy terms, 460,831
+  exposure rows, 184,833 earned car-years, $190.1 million earned premium, 20,343 claims, 12,298 telematics
+  enrolments and 59,553 scores. Every calibration band holds: frequency 1.05 to 1.34 times national and
+  severity 0.87 to 1.03 times; expected loss ratios (plus catastrophes) of 79.3%, 77.6%, 67.9% and 64.7%
+  for 2022 to 2025; an overall loss ratio of 66.9%; annualised retention 83.4% (was 83.3%).
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

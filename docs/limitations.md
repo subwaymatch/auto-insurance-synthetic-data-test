@@ -41,12 +41,11 @@ symbols) are fictional and cannot be matched to anything real.
 | Claims open on the start date, and payments on accidents before 2022 | Calendar-year paid and incurred figures for the whole company are too low in 2022; bodily injury in 2022 is not held to the national benchmark | Claim systems |
 | Third-party claimants as people who can be followed across claims | No claimant-level fraud or repeat-claimant analysis | Claim systems |
 | Billing and instalment events, reinstatements after a lapse | Non-payment cancellations appear, but not the billing trail behind them | Billing systems |
-| Renewal offers that were declined, with the offered premium | Price elasticity can be studied only on accepted renewals and on new-business quotes | Policy systems |
 | Excluded drivers; separate mailing and garaging addresses | Every listed driver is rated; the garaging ZIP is the only address | Policy systems |
 | Uninsured motorist property damage; custom equipment and loan or lease gap cover | The coverage menu is narrower than Illinois' | Policy systems |
 | Medical diagnosis codes, recovery reserves, fraud outcomes | Only referrals to the special investigations unit, not proven fraud | Claim systems; Medicare reporting |
 | Claim handling history: adjuster assignments, status changes, and who each payment went to | No adjuster workload or payee analysis; status changes show only as open, close and reopen dates | Claim systems |
-| Quote revisions, underwriting referrals and declines | One quote per prospect, bound or not; only renewals show a revision (`offer_date` before `rating_date`) | Rating and policy systems |
+| Quote revisions, underwriting referrals and declines | One quote per prospect, bound or not; a renewal has one offer (`renewal_offer`) and at most one revision after a household change | Rating and policy systems |
 | Trip-level telematics data | Only per-period summaries and scores | Telematics vendors |
 | Reinsurance | No ceded premium or recoveries | Ceded statistical data |
 | Edit errors, out-of-sequence bookings, missing values | See section 6 | Every production system |
@@ -56,23 +55,23 @@ symbols) are fictional and cannot be matched to anything real.
 `docs/real_data_comparison.md` compares the book with a real motor portfolio (Lledó and Pavía, Mendeley
 Data 2024, CC BY 4.0; almost certainly a Spanish insurer, 2015 to 2018). The two markets, currencies and
 products differ, so only shapes are compared, not levels. Where a fair comparison is possible the synthetic
-data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.29 times
-in the synthetic, newly licensed drivers 1.37 and 1.38 times, urban vehicles 1.14 and 1.13 times, and
+data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.28 times
+in the synthetic, newly licensed drivers 1.37 and 1.36 times, urban vehicles 1.14 and 1.11 times, and
 claim costs and premiums spread alike. These differences remain:
 
 1. **Claims barely drive customers away.** A real contract with a claim is 1.45 times as likely to end as
-   one without; a synthetic one 1.12 times. Few synthetic non-renewals are the company's decision (121 of
-   12,230), so long-standing customers are not safer than new ones, as they are in real books (0.69 times
-   the claim frequency after ten years in the real data, 0.98 in the synthetic).
+   one without; a synthetic one 1.12 times. Few synthetic non-renewals are the company's decision (134 of
+   12,113), so long-standing customers are not safer than new ones, as they are in real books (0.69 times
+   the claim frequency after ten years in the real data, 1.00 in the synthetic).
 2. **Payment plan carries no risk.** Real half-yearly payers claim 1.61 times as often as annual payers,
-   other things equal; synthetic instalment payers 1.03 times.
+   other things equal; synthetic instalment payers 1.04 times.
 3. **The largest claims are smaller.** The costliest 1% of claim-years make up 24% of real claim cost and
    16% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
    checked against US data.
 4. **Channel makes no difference.** Real broker business runs 12% above average frequency; synthetic
    business is the same in every channel.
 5. **Shared factors carry less predictive signal.** A simple model on the factors both books record ranks
-   held-out real claims better (Gini 0.22) than synthetic ones (0.16), largely because of points 1, 2 and 4.
+   held-out real claims better (Gini 0.22) than synthetic ones (0.15), largely because of points 1, 2 and 4.
 
 The real portfolio has defects of its own (its claim counts do not change from one year to the next as
 they should), so it cannot benchmark claim-count dispersion, claim persistence or the frequency level.
@@ -100,6 +99,9 @@ Those synthetic figures are plausible but unverified.
   loss ratio path.
 - Income, insurance score, payment plan and multi-policy status stay fixed for a policy's life; liability
   limits change only at renewal, and homeowner status only with a move.
+- A renewal is decided once, on its offer date. A revised offer after a household change re-rates the renewal
+  but the customer does not decide again, and coverage changes the customer makes at renewal (deductibles,
+  limits) are not offered back as a new quote, so the written premium can differ from `renewal_premium`.
 
 **Claims**
 
@@ -111,6 +113,10 @@ Those synthetic figures are plausible but unverified.
 - Claimants are not people: a liability or injury feature has a claimant number within its claim only.
 - Payment patterns, reserve review cycles and timing (rating lead times, driving-record posting lags,
   replacement delays, endorsement processing) are judgement calls.
+- Case reserves are capped so that paid plus reserve stays within each limit, and for injury coverages the
+  room under a per-accident limit is shared among claimants using their eventual payments and true damages
+  (`autoins/truth.py`, `reserve_caps`), which a real adjuster does not know. Reserves therefore never
+  breach a limit and never need cutting back for that reason; real reserve development is noisier.
 
 **Policies and households**
 
@@ -137,6 +143,9 @@ Those synthetic figures are plausible but unverified.
   published descriptions of US programmes, not fitted to any insurer's data.
 - A member who leaves mid-term keeps the discount, and the behaviour effect, until the next renewal. A
   car added mid-term is monitored only from the next renewal.
+- A score reads only the driver assigned to the car (its rated driver): other household drivers who use
+  the car are not seen. When the assigned driver changes, the period is split, and the car's discount
+  averages the parts by days.
 
 **Names and race**
 
@@ -156,9 +165,9 @@ Those synthetic figures are plausible but unverified.
   benchmark or a single carrier's experience, and results by subgroup, how variables depend on each other,
   large-loss tails and local geography are assumed or tuned, not validated.
 - **Claim luck is real.** A year of this book has about 250 paid bodily injury claims, and one standard
-  deviation of their total is 1.5 to 3 loss-ratio points. In the default run 2022 comes in below its
-  expected loss ratio (75.1% against 78.8%, both without catastrophes) and 2023 above it (78.1% against
-  75.2%). Other seeds and sizes give other years their luck; `validate.py` holds each year's actual,
+  deviation of their total is 1.4 to 2.8 loss-ratio points. In the default run 2022 comes in below its
+  expected loss ratio (77.5% against 78.8%, both without catastrophes) and 2023 above it (76.6% against
+  75.4%). Other seeds and sizes give other years their luck; `validate.py` holds each year's actual,
   without catastrophes, to 0.85 to 1.15 times its expected.
 - **The last year is immature.** 2026 is the least developed year: young injury claims are reserved low,
   and claims not yet reported are missing (they are in the answer key).
@@ -166,8 +175,8 @@ Those synthetic figures are plausible but unverified.
   fall in the national comparison, so single-year severities move by 10% or more by chance.
 - **Physical damage severity runs low.** Like-for-like comprehensive severity has come in at 0.81 to 0.88
   times national across recent runs, and collision at 0.86 to 0.92 (an older city fleet, whose claims are
-  capped by modest vehicle values). In the default run they are 0.85 and 0.86, at the bottom of
-  `validate.py`'s 0.85 to 1.15 band, so a different seed or size can fall just outside it.
+  capped by modest vehicle values). In the default run they are 0.87 and 0.92, in the lower part of
+  `validate.py`'s 0.85 to 1.15 band, and a different seed or size can fall just outside it.
 - **Seed and size matter.** The same seed and size give byte-identical files, but a different seed or
   policy count changes every random draw: compare methods across seeds before reading much into one
   figure.

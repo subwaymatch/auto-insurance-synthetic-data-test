@@ -318,9 +318,11 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "change_amount": rs.delta.round(2), "outstanding_reserve": rs.outstanding.round(2)})
 
     T.update(_telematics_tables(res.tele, terms, V, D, polno))
+    of = res.offers.sort_values(["offer_day", "pol"], kind="stable").reset_index(drop=True)
+    T["renewal_offer"], K["renewal_offer_truth"] = _renewal_offers(of, D, polno)
     known_veh = veh.assign(removal_reason=reason_v)
     T["premium_transaction"] = _transactions(cfg, cal, terms, rows, known_veh, D, polno)
-    T["customer_contact"] = _communications(cfg, cal, pol, terms, rows, claims, cg, known_veh, D, polno)
+    T["customer_contact"] = _communications(cfg, cal, pol, terms, rows, claims, cg, known_veh, of, D, polno)
 
     # ---- answer key ---------------------------------------------------------------------------------
     exp_cols = [f"exp_{c}" for c in C.COVERAGES]
@@ -402,6 +404,26 @@ def _telematics_tables(tele: dict, terms: pd.DataFrame, V: int, D, polno) -> dic
     return out
 
 
+def _renewal_offers(of: pd.DataFrame, D, polno) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Every renewal the insurer evaluated, renewed or not: the offer as made on its offer date, from the policy as it
+    stood that day (the expiring term's exposure rows in force on it), the underwriting decision, a revision after a
+    later household change, and how it ended. The answer key holds the customer's true chance of accepting it."""
+    opt = lambda day: np.where(day >= 0, D(np.clip(day, 0, None)), "")
+    oid = np.arange(1, len(of) + 1)
+    pct = np.where(of.expiring > 0, np.round(of.change * 100, 1), np.nan)
+    table = pd.DataFrame({
+        "renewal_offer_id": oid, "policy_id": polno(of.pol), "expiring_policy_term_id": of.exp_term + 1,
+        "offer_date": D(of.offer_day), "renewal_effective_date": D(of.eff), "vehicles_offered": of.n_veh,
+        "expiring_premium": of.expiring.round(2), "renewal_premium": of.premium.round(2),
+        "premium_change_pct": pct, "telematics_opt_in": of.tele_opt,
+        "underwriting_decision": np.where(of.company, "Non-Renew", "Renew"),
+        "revised_offer_date": opt(of.revised_day.to_numpy()), "outcome": of.outcome,
+        "renewal_policy_term_id": pd.array(np.where(of.term >= 0, of.term + 1, pd.NA), dtype="Int64")})
+    truth_ = pd.DataFrame({"renewal_offer_id": oid,
+                           "acceptance_probability": np.where(of.company, np.nan, of.p_accept.round(4))})
+    return table, truth_
+
+
 def _sr22(cfg, inc: pd.DataFrame, drv: pd.DataFrame, V: int, D) -> dict:
     """SR-22 filings: after a conviction for driving under the influence, driving while suspended or leaving
     the scene, the insurer files proof of insurance with the state for three years (the latest filing shown)."""
@@ -467,7 +489,7 @@ def _transactions(cfg, cal, terms, rows, veh, D, polno) -> pd.DataFrame:
         "change_reason": tx.reason, "written_premium": tx.amount.round(2) + 0.0})
 
 
-def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno) -> pd.DataFrame:
+def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, D, polno) -> pd.DataFrame:
     """Customer contacts tied to real events in the data (welcome kits, renewals, billing, claims)."""
     R = stream(cfg.seed, "communications")
     V = cal.valuation_day
@@ -482,10 +504,13 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, D, polno) -> pd
 
     nb = terms[terms.new_business]
     add(nb.pol, nb.s, "New Business Welcome")
-    rn = terms[~terms.new_business]
-    add(rn.pol, rn.offer_day, "Renewal Offer")
-    rr = rn[rn.rate_day > rn.offer_day]
-    add(rr.pol, rr.rate_day, "Revised Renewal Offer")
+    # every renewal offer, taken up or not; a company non-renewal gets a notice instead
+    sent = offers[~offers.company]
+    add(sent.pol, sent.offer_day, "Renewal Offer")
+    nr = offers[offers.company]
+    add(nr.pol, nr.offer_day, "Notice of Non-Renewal", digital_ok=False)
+    rr = offers[offers.revised_day >= 0]
+    add(rr.pol, rr.revised_day, "Revised Renewal Offer")
     bill = terms[(pol.pay_plan.to_numpy()[terms.pol] == 2) & (R.random(len(terms)) < 0.45)]
     add(bill.pol, bill.s + R.integers(25, 150, len(bill)), "Payment Reminder", phone=0.10)
     npay = terms[terms.cancel_reason == "Non-Payment"]

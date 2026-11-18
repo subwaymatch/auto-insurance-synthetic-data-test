@@ -28,6 +28,7 @@ PRIMARY_KEYS = {
     "exposure": "exposure_id",
     "telematics_enrollment": "enrollment_id",
     "telematics_score": "score_id",
+    "renewal_offer": "renewal_offer_id",
     "customer_contact": "contact_id",
     # claims
     "claim": "claim_id",
@@ -41,6 +42,7 @@ PRIMARY_KEYS = {
     "location_truth": "location_id",
     "claim_feature_truth": "claim_feature_id",
     "unreported_claim": "unreported_claim_id",
+    "renewal_offer_truth": "renewal_offer_id",
 }
 
 # table -> {column: (referenced table, referenced column)}. A blank value is allowed (no reference).
@@ -68,6 +70,9 @@ FOREIGN_KEYS = {
     "telematics_score": {"enrollment_id": ("telematics_enrollment", "enrollment_id"), "policy_id": ("policy", "policy_id"),
                          "insured_vehicle_id": ("insured_vehicle", "insured_vehicle_id"), "driver_id": ("driver", "driver_id"),
                          "applied_to_policy_term_id": ("policy_term", "policy_term_id")},
+    "renewal_offer": {"policy_id": ("policy", "policy_id"),
+                      "expiring_policy_term_id": ("policy_term", "policy_term_id"),
+                      "renewal_policy_term_id": ("policy_term", "policy_term_id")},
     "customer_contact": {"policy_id": ("policy", "policy_id")},
     "claim": {"policy_id": ("policy", "policy_id"), "policy_term_id": ("policy_term", "policy_term_id"),
               "exposure_id": ("exposure", "exposure_id"), "involved_driver_id": ("driver", "driver_id"),
@@ -85,6 +90,7 @@ FOREIGN_KEYS = {
     "claim_feature_truth": {"claim_feature_id": ("claim_feature", "claim_feature_id")},
     "unreported_claim": {"policy_id": ("policy", "policy_id"), "exposure_id": ("exposure", "exposure_id"),
                          "insured_vehicle_id": ("insured_vehicle", "insured_vehicle_id")},
+    "renewal_offer_truth": {"renewal_offer_id": ("renewal_offer", "renewal_offer_id")},
 }
 
 # Columns stored as text whatever their values look like (ZIP codes are labels, not numbers).
