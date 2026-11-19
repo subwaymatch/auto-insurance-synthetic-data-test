@@ -38,6 +38,37 @@ ZIP_PENETRATION_SIGMA = 0.35          # lognormal spread of market share by ZIP
 CHANNELS = ["Independent Agent", "Exclusive Agent", "Direct"]
 CHANNEL_P = [0.45, 0.25, 0.30]
 
+# Household stability (ASSUMED). A hidden trait of each household, standard normal before the shifts below: how
+# settled it is, financially and otherwise. It lowers claim frequency, raises retention and payment discipline,
+# and makes a household likelier to own its home, bundle other policies, have had continuous insurance, pay in
+# full and have been a customer for longer. The insurer never sees it; it sees those consequences, which is why
+# the discounts built on them (FILED_DISCOUNTS) carry real signal, and why new business, which arrives less
+# stable than the customers who stayed, costs more than it is charged.
+STABILITY_FREQ = 0.30                 # log at-fault propensity per unit of stability (lower is safer)
+STABILITY_SHIFT = {"opening": 0.30, "new": -0.30}      # the book in force at the start has already been selected
+STABILITY_CHANNEL = {"Independent Agent": -0.05, "Exclusive Agent": 0.20, "Direct": -0.15}
+STABILITY_ON = dict(homeowner=1.00, married=0.25, multi_policy=0.70, prior_insurance=1.00, paid_in_full=0.16,
+                    eft=0.20, tenure=0.40, score=0.25)     # log-odds (or as noted in population.py) per unit
+STABILITY_RETENTION = 0.45            # renewal logit per unit of stability
+STABILITY_CANCEL = {"nonpay": -0.55, "request": -0.30}    # log mid-term cancellation rate per unit
+# Channel and agency effects beyond stability (ASSUMED). Independent agents place harder-to-place risks; direct
+# customers shop more at renewal. Each agency also has a hidden book quality (a multiplier on its customers'
+# at-fault propensity, lognormal) and a retention effect, correlated: a careless agency also churns its book.
+CHANNEL_FREQ = {"Independent Agent": 1.05, "Exclusive Agent": 0.97, "Direct": 1.00}
+CHANNEL_RETENTION = {"Independent Agent": 0.0, "Exclusive Agent": 0.15, "Direct": -0.25}   # renewal logit
+AGENCY_QUALITY_SIGMA = 0.11           # spread of agencies' book quality (log at-fault propensity)
+AGENCY_RETENTION_SIGMA = 0.18         # spread of agencies' retention effect (renewal logit)
+AGENCY_QUALITY_RETENTION_CORR = -0.5
+N_AGENCIES = {"Independent Agent": 44, "Exclusive Agent": 14}
+MULTI_CAR_FREQ = 0.90                 # at-fault and not-at-fault crash frequency of each car on a multi-car policy
+# New customers claim more (ASSUMED shape; sized to the new-business penalty real books show: a CAS study of 25
+# books, Wu and Lin 2009, found new business loss ratios 13 points above renewal, improving for three to five
+# years). The multiplier on the perils below is 1 + sum of amplitude * exp(-days since inception / days): a
+# short burst after a policy is written (damage that was already there, claims soon after buying cover) and a
+# slow fade as the customers who shopped around settle in. The rating plan sees only its loyalty discount.
+NEW_CUSTOMER = {"early": (0.25, 45.0), "slow": (0.26, 540.0)}
+NEW_CUSTOMER_PERILS = ["AF_MV", "AF_SV", "PARKED", "THEFT_TOTAL", "THEFT_PARTIAL", "VANDALISM"]
+
 AGE_TILT_IN_FORCE = 0.008            # customers already on the books skew older ...
 AGE_TILT_NEW_BUSINESS = -0.016       # ... and new customers younger (per year of age from 45)
 KID_RATE_BY_VEHICLES = [0.10, 0.30, 0.75, 0.90]   # expected driving-age children for parents 36-62, by cars owned
@@ -119,6 +150,17 @@ GOOD_STUDENT_GRADES_P = 0.40         # children on the policy who keep a B avera
 P_COLLEGE = 0.60                     # of those, the share who go on to college
 SCHOOL_END_AGE = {"high_school": (18.2, 18.8), "college": (21.5, 23.5)}   # age range when full-time school ends
 
+# The working week (ASSUMED weights; the days losses happen on come from Chicago's daily counts, see
+# refdata._daily_index). Relative weight of a (weekday, Saturday, Sunday or holiday) for the day a quote is
+# given and the day a new policy starts, by channel: agents' offices keep business hours, the website does not.
+DAY_WEIGHTS = {
+    "quote": {"Independent Agent": (1.0, 0.25, 0.08), "Exclusive Agent": (1.0, 0.35, 0.08), "Direct": (1.0, 0.80, 0.70)},
+    "effective": {"Independent Agent": (1.0, 0.55, 0.40), "Exclusive Agent": (1.0, 0.55, 0.40), "Direct": (1.0, 0.90, 0.85)},
+}
+FIRST_OF_MONTH_WEIGHT = 3.0          # policies are more often written to start on the 1st
+ENDORSEMENT_SAME_DAY_P = 0.60        # changes keyed the day they take effect (else a few days later: backdated)
+LOSS_MINUTE_HEAPING = {0: 0.22, 30: 0.14, 15: 0.06, 45: 0.06}   # reported loss times bunch on round minutes
+
 # When information reaches the insurer (ASSUMED). Every rating, underwriting and renewal decision uses
 # only what is known on its decision date.
 RENEWAL_OFFER_LEAD_DAYS = (30, 45)   # renewal offers are rated and mailed this many days before the effective date
@@ -191,7 +233,7 @@ AGE_KNOTS = [16, 17, 18, 19, 20, 22, 25, 30, 40, 50, 60, 65, 70, 75, 80, 85, 92]
 AGE_FACTOR = [3.6, 3.1, 2.7, 2.4, 2.15, 1.75, 1.30, 1.05, 0.95, 0.90, 0.90, 0.95, 1.02, 1.15, 1.35, 1.65, 2.0]
 YOUNG_MALE_EXTRA = 0.30               # +30% at 18 and under, fading to zero by 27
 MARRIED_FACTOR = 0.93
-GOOD_STUDENT_FACTOR = 0.92
+GOOD_STUDENT_FACTOR = 0.80
 INEXPERIENCE_KNOTS = [0, 1, 3, 5]
 INEXPERIENCE_FACTOR = [1.35, 1.25, 1.10, 1.0]
 MILEAGE_ELASTICITY = 0.45             # frequency ~ (miles / 10,000) ** elasticity
@@ -203,10 +245,10 @@ ZIP_RANDOM_EFFECT_SIGMA = {"crash": 0.12, "theft": 0.20}   # true ZIP hazard the
 # benchmark for comprehensive excludes wind and water losses and is for a $500 deductible, so glass, theft,
 # vandalism, animal and other losses are tuned against it on that basis, and weather comes on top.
 BASE_RATE = {
-    "AF_MV": 0.0377,        # insured at fault, another vehicle involved
-    "AF_SV": 0.0123,        # insured at fault, single vehicle
-    "NAF": 0.0348,          # insured not at fault
-    "PARKED": 0.0152,       # hit while parked / unoccupied
+    "AF_MV": 0.0411,        # insured at fault, another vehicle involved
+    "AF_SV": 0.0134,        # insured at fault, single vehicle
+    "NAF": 0.0379,          # insured not at fault
+    "PARKED": 0.0166,       # hit while parked / unoccupied
     "GLASS": 0.0360,
     "THEFT_TOTAL": 0.0011,
     "THEFT_PARTIAL": 0.0050,
@@ -260,14 +302,20 @@ COLL_PERIL_SEV = {"AF_MV": 1.00, "AF_SV": 1.30, "NAF": 0.95, "PARKED": 0.55}
 TOTAL_LOSS_THRESHOLD = 0.72                         # repair cost / actual cash value
 SALVAGE_RANGE = (0.12, 0.32)                        # share of actual cash value recovered on a total loss
 COMP_SEV = {                                        # lognormal (median, sigma) unless noted
-    "GLASS": (700, 0.60), "THEFT_PARTIAL": (2_600, 0.90), "VANDALISM": (2_100, 0.90),
-    "ANIMAL": (5_500, 0.70), "WEATHER": (2_700, 0.90), "OTHER_COMP": (1_800, 0.90),
+    "GLASS": (740, 0.60), "THEFT_PARTIAL": (2_800, 0.90), "VANDALISM": (2_250, 0.90),
+    "ANIMAL": (5_850, 0.70), "WEATHER": (2_700, 0.90), "OTHER_COMP": (1_950, 0.90),
     "HAIL_CAT": (3_900, 0.75), "WIND_CAT": (2_300, 0.85),
 }
 GLASS_ADAS_FACTOR = 1.7                             # windshield camera recalibration
 SEGMENT_PD_SEV = {"truck": 1.15}                    # heavier striking vehicle does more damage
 SEGMENT_BI_SEV = {"truck": 1.10}
 SUV_PD_SEV = 1.05
+
+# Injury settlements are negotiated, so they land on round figures (ASSUMED): each agreed amount is rounded to
+# the step for its size, or to twice that step half the time; one in eight keeps its exact amount (a claim
+# settled for its medical bills). Steps divide every policy limit. (upper bound of the size band, step)
+SETTLEMENT_STEPS = [(1_000, 50), (5_000, 100), (25_000, 250), (100_000, 500), (np.inf, 2_500)]
+SETTLEMENT_EXACT_P = 0.125
 
 # Claim propensities (ASSUMED unless noted)
 P_PD_GIVEN_AF_MV = 0.96
@@ -302,7 +350,7 @@ CHARGEABLE_POSTING_DAYS = 1         # the claim goes on the driver's record this
 # --------------------------------------------------------------------------
 # Driver record (ASSUMED rates; tuned so ~84% of drivers have no violation in 3 years)
 # --------------------------------------------------------------------------
-VIOLATION_RATE = 0.060              # minor moving violations per driver-year for a reference driver
+VIOLATION_RATE = 0.064              # minor moving violations per driver-year for a reference driver
 MAJOR_VIOLATION_RATE = 0.0035
 VIOLATION_LATENT_EXPONENT = 0.8     # how strongly violations follow the latent risk
 MINOR_VIOLATIONS = ["Speeding 1-14 mph over", "Speeding 15-25 mph over", "Disobeyed traffic signal",
@@ -320,7 +368,7 @@ LOOKBACK_DAYS = 3 * 365
 # The plan is fitted to the true expected loss cost by minimum bias, then the
 # deliberate distortions below are applied. They are the "answers" a case study
 # can look for; they are also written to answer_key/rating_plan.json.
-TARGET_LOSS_RATIO = 0.775           # at day-one cost levels, before catastrophes: the book starts under-priced,
+TARGET_LOSS_RATIO = 0.825           # at day-one cost levels, before catastrophes: the book starts under-priced,
                                     # as the industry was entering 2022 after pandemic-era rate cuts (TUNED so
                                     # accident-year loss ratios follow the industry: about 80% in 2022, 73-75%
                                     # in 2023, 63-66% in 2024 and about 61% in 2025; see validate.py)
@@ -331,6 +379,25 @@ PLANTED_DISTORTIONS = {
               "21-24 M": 0.90, "21-24 F": 0.90, "75+": 0.88},
     "mileage_exponent": 0.5,        # mileage relativities are flattened (square root of the fitted value)
 }
+# Filed discounts and surcharges (ASSUMED, typical of filed personal auto plans). Unlike the class, territory,
+# vehicle and insurance-score relativities, these are not fitted to the true expected cost: a real carrier files
+# them as round percentages, partly for marketing and retention, and they are only roughly what the risk
+# justifies. The rest of the plan is fitted around them. (levels in the order of rating.LEVELS; coverages they
+# apply to). The answer key's rating_plan.json gives what each is truly worth beside what is filed.
+LIABILITY_AND_COLLISION = ["BI", "PD", "UM", "MED", "COLL"]
+DRIVER_COVERAGES = ["BI", "PD", "MED", "COLL"]
+MAIN_COVERAGES = ["BI", "PD", "UM", "MED", "COLL", "COMP"]
+FILED_DISCOUNTS = {
+    "multi_car": ([1.00, 0.90], MAIN_COVERAGES),                 # 10% multi-car discount
+    "multi_policy": ([1.00, 0.92], MAIN_COVERAGES),              # 8% multi-policy (bundling) discount
+    "homeowner": ([1.00, 0.95], LIABILITY_AND_COLLISION),        # 5% homeowner discount
+    "paid_in_full": ([1.00, 0.94], MAIN_COVERAGES),              # 6% paid-in-full discount
+    "prior_insurance": ([1.08, 1.00], LIABILITY_AND_COLLISION),  # 8% surcharge without prior insurance
+    "tenure": ([1.00, 0.98, 0.96, 0.94], MAIN_COVERAGES),        # loyalty discount: 2%, 4%, 6%
+    "good_student": ([1.00, 0.90], DRIVER_COVERAGES),            # 10% good-student discount
+    "married": ([1.00, 0.95], DRIVER_COVERAGES),                 # 5% married discount
+}
+
 # Filed rate changes, by effective date (ASSUMED timing; sized to the industry cycle). US private auto rates
 # rose 12.1% in 2022, 16.5% in 2023 and 7.6% in 2024 (S&P Global RateWatch), approved increases slowed to
 # 3.7% in 2025 (AM Best), and Illinois' largest writer cut rates in 2025 (State Farm). Cumulative here: +48%.
@@ -340,11 +407,18 @@ RATE_CHANGES = [("2022-04-01", 0.04), ("2022-10-01", 0.08), ("2023-03-01", 0.10)
 # --------------------------------------------------------------------------
 # Retention and cancellation (ASSUMED)
 # --------------------------------------------------------------------------
-RENEWAL_BASE_LOGIT = {6: 2.30, 12: 1.65}
+RENEWAL_BASE_LOGIT = {6: 2.42, 12: 1.75}
 PRICE_ELASTICITY = 6.0              # logit points per 100% premium increase above the tolerance
 PRICE_TOLERANCE = 0.03
 MIDTERM_INSURED_REQUEST_RATE = 0.030   # per year
 NONPAY_RATE = {"Paid in Full": 0.0, "Monthly EFT": 0.022, "Monthly Bill": 0.065}   # per year, mid score
+NONPAY_NEW_BUSINESS = 1.6            # new customers miss payments more often in their first term
+# A cancellation for non-payment follows a missed instalment (billing.py): instalments fall due monthly on the
+# policy's anniversary day, and cover ends some days after the one that went unpaid (a past-due notice, then a
+# notice of cancellation at least 10 days ahead, as Illinois requires). Which instalment is missed: each later
+# one is this much less likely than the one before (new customers default early).
+NONPAY_INSTALLMENT_DECAY = {"new": 0.55, "renewal": 0.85}
+NONPAY_GRACE_DAYS = (21, 28)         # from the missed due date to the cancellation taking effect
 UW_CANCEL_NEW_BUSINESS_P = 0.008
 
 # --------------------------------------------------------------------------

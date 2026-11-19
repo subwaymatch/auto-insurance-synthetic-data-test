@@ -12,7 +12,7 @@ import pandas as pd
 
 from . import config as C
 from . import names, truth
-from .refdata import Reference, stream
+from .refdata import Reference, day_weight, stream
 
 
 @dataclass
@@ -33,22 +33,51 @@ def row_choice(p: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     return np.minimum((u > cum).sum(axis=1), p.shape[1] - 1)
 
 
+AGENCY_WORDS = ["Lakeshore", "Prairie", "Fox Valley", "North Shore", "Midway", "Heartland", "Great Lakes", "Tri-County",
+                "Windy City", "Riverwalk", "Parkway", "Cornerstone", "Gateway", "Landmark", "Keystone", "Meridian",
+                "Summit", "Harbor", "Liberty", "Unity", "Beacon", "Crossroads", "Evergreen", "Pinnacle", "Blackhawk",
+                "Prairie State", "Fox River", "Kane County", "DuPage", "Will County", "McHenry County", "Calumet",
+                "Burnham", "Marquette", "Illini", "Tollway", "Southland", "Northwest", "Oak Leaf", "Three Rivers",
+                "Lincoln", "Garfield", "Riverside", "Lakeview", "Stonebridge", "Ironwood", "Silver Maple", "Blue Heron",
+                "Red Oak", "Cardinal", "Monarch", "Sentinel", "Frontier", "Compass", "Anchor", "Bridgeview", "Heritage",
+                "Homestead", "Millennium", "Skyline", "Lighthouse", "Old Mill", "Goldfinch", "Bluestem"]
+AGENCY_SUFFIXES = ["Insurance Agency", "Insurance Group", "Insurance Services", "Insurance Brokers", "Agency"]
+# Commission schedules (ASSUMED, typical of personal auto): share of written premium paid to the agency
+COMMISSION = {"Independent Agent": dict(new=[0.12, 0.13, 0.15], new_p=[0.35, 0.40, 0.25], renewal_cut=0.02),
+              "Exclusive Agent": dict(new=[0.10, 0.11, 0.12], new_p=[0.30, 0.40, 0.30], renewal_cut=0.03)}
+
+
 def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
+    """The agencies and the two direct units. Each agency has a size, a home ZIP, a commission schedule and two
+    hidden traits the insurer does not record: the quality of the book it writes (a multiplier on its customers'
+    at-fault propensity) and how well it keeps its customers (a shift in their renewal odds)."""
     z = ref.zips
-    words_a = ["Lakeshore", "Prairie", "Fox Valley", "North Shore", "Midway", "Heartland", "Great Lakes", "Tri-County",
-               "Windy City", "Riverwalk", "Parkway", "Cornerstone", "Gateway", "Landmark", "Keystone", "Meridian",
-               "Summit", "Harbor", "Liberty", "Unity", "Beacon", "Crossroads", "Evergreen", "Pinnacle"]
-    words_b = ["Insurance Agency", "Insurance Group", "Insurance Services", "Insurance Brokers", "Agency"]
-    n_ind, n_exc = 16, 8
-    homes = rng.choice(len(z), n_ind + n_exc, replace=False, p=(z.population / z.population.sum()).to_numpy())
+    n_ind, n_exc = C.N_AGENCIES["Independent Agent"], C.N_AGENCIES["Exclusive Agent"]
+    m = n_ind + n_exc
+    assert m <= len(AGENCY_WORDS), "add names to AGENCY_WORDS for more agencies"
+    homes = rng.choice(len(z), m, replace=False, p=(z.population / z.population.sum()).to_numpy())
     rows = []
     for i, h in enumerate(homes):
-        rows.append(dict(agency_id=i + 1, name=f"{words_a[i]} {words_b[rng.integers(len(words_b))]}",
+        rows.append(dict(agency_id=i + 1, name=f"{AGENCY_WORDS[i]} {AGENCY_SUFFIXES[rng.integers(len(AGENCY_SUFFIXES))]}",
                          channel=C.CHANNELS[0] if i < n_ind else C.CHANNELS[1], zi=int(h),
-                         size=float(rng.lognormal(0, 0.6))))
+                         size=float(rng.lognormal(0, 0.8))))
     rows.append(dict(agency_id=len(rows) + 1, name="Direct - Online", channel="Direct", zi=-1, size=0.7))
     rows.append(dict(agency_id=len(rows) + 1, name="Direct - Contact Center", channel="Direct", zi=-1, size=0.3))
-    return pd.DataFrame(rows)
+    ag = pd.DataFrame(rows)
+    rho = C.AGENCY_QUALITY_RETENTION_CORR
+    e1, e2 = rng.standard_normal(len(ag)), rng.standard_normal(len(ag))
+    agent = (ag.channel != "Direct").to_numpy()
+    ag["quality"] = np.where(agent, C.AGENCY_QUALITY_SIGMA * e1, 0.0)            # log at-fault propensity
+    ag["retention"] = np.where(agent, C.AGENCY_RETENTION_SIGMA * (rho * e1 + np.sqrt(1 - rho ** 2) * e2), 0.0)
+    new, ren = np.zeros(len(ag)), np.zeros(len(ag))
+    for ch, c in COMMISSION.items():
+        k = (ag.channel == ch).to_numpy()
+        new[k] = rng.choice(c["new"], k.sum(), p=c["new_p"])
+        ren[k] = new[k] - c["renewal_cut"]
+    ag["commission_new"], ag["commission_renewal"] = new, ren
+    # appointed (first contracted) some years before the extract begins
+    ag["appointed_days_before_start"] = np.where(agent, rng.integers(400, 24 * 365, len(ag)), 26 * 365)
+    return ag
 
 
 def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Population:
@@ -95,21 +124,28 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     hi = np.array([C.AGE_BAND_BOUNDS[b][1] for b in bands])[bi_]
     ni_age = lo + r.random(n) * (hi - lo)
 
+    # Channel first, then the household's hidden stability (config.STABILITY_*): the book already in force has
+    # been selected by years of renewals, new customers arrive less settled, and the channels differ.
+    channel = r.choice(3, n, p=C.CHANNEL_P if channel_p is None else channel_p)
+    channel = np.where((ni_age < 35) & (r.random(n) < 0.25), 2, channel)
+    S = C.STABILITY_ON
+    stab = r.normal(0, 1, n) + np.where(is_init, C.STABILITY_SHIFT["opening"], C.STABILITY_SHIFT["new"]) \
+        + np.array([C.STABILITY_CHANNEL[c] for c in C.CHANNELS])[channel]
+
     # Households with many vehicles often split them across policies, so the tail is thinned (ASSUMED).
     n_veh = 1 + row_choice(zr[["veh_hh_share_1", "veh_hh_share_2", "veh_hh_share_3", "veh_hh_share_4plus"]].to_numpy()
                            * np.array([1.15, 1.0, 0.65, 0.45]), r)
     p_m = np.interp(ni_age, [18, 24, 28, 35, 50, 65, 85], [0.05, 0.18, 0.42, 0.58, 0.63, 0.60, 0.45])
-    odds = p_m / (1 - p_m) * np.array([0.45, 1.8, 2.2, 2.2])[n_veh - 1]
+    odds = p_m / (1 - p_m) * np.array([0.45, 1.8, 2.2, 2.2])[n_veh - 1] * np.exp(S["married"] * stab)
     married = r.random(n) < odds / (1 + odds)
     p_own = zr.pct_owner_occupied.to_numpy().clip(0.03, 0.97)
-    odds = p_own / (1 - p_own) * np.interp(ni_age, [18, 25, 35, 50, 70], [0.2, 0.35, 0.9, 1.5, 1.8]) * np.where(married, 1.6, 0.8)
+    odds = p_own / (1 - p_own) * np.interp(ni_age, [18, 25, 35, 50, 70], [0.2, 0.35, 0.9, 1.5, 1.8]) * np.where(married, 1.6, 0.8) \
+        * np.exp(S["homeowner"] * stab)
     homeowner = r.random(n) < odds / (1 + odds)
     income = zr.median_household_income.to_numpy() * np.interp(ni_age, [18, 25, 35, 50, 65, 80], [0.5, 0.75, 1.0, 1.15, 0.95, 0.7]) \
         * np.where(married, 1.25, 0.8) * np.exp(r.normal(0, 0.5, n))
     inc_rel = income / 85_000
 
-    channel = r.choice(3, n, p=C.CHANNEL_P if channel_p is None else channel_p)
-    channel = np.where((ni_age < 35) & (r.random(n) < 0.25), 2, channel)
     agencies = _agencies(ref, stream(cfg.seed, "agency"))
     agency_id = np.zeros(n, dtype=int)
     lat, lon = zr.lat.to_numpy(), zr.lon.to_numpy()
@@ -124,17 +160,22 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
             wgt = a["size"].to_numpy()[None] * np.exp(-dist / 7.0) + 1e-6
         agency_id[m] = a.agency_id.to_numpy()[row_choice(wgt, r)]
 
-    # terms completed before the first term in the data
-    tenure_terms = np.where(is_init, np.floor(r.exponential(4.5, n) * 12 / term_months), 0).astype(int)
+    # terms completed before the first term in the data: settled households have been customers for longer
+    tenure_mean = 4.5 * np.exp(S["tenure"] * (stab - C.STABILITY_SHIFT["opening"]) - S["tenure"] ** 2 / 2)
+    tenure_terms = np.where(is_init, np.floor(r.exponential(tenure_mean) * 12 / term_months), 0).astype(int)
     tenure_terms = np.minimum(tenure_terms, ((ni_age - 18).clip(0) * 12 / term_months).astype(int))
-    multi_policy = r.random(n) < np.where(homeowner, 0.55, 0.20) * np.array([1.0, 1.25, 0.7])[channel]
-    first_month, tenure_terms, dom = policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u)
+    p_mp = np.where(homeowner, 0.55, 0.20) * np.array([1.0, 1.25, 0.7])[channel]
+    odds = p_mp / (1 - p_mp) * np.exp(S["multi_policy"] * stab)
+    multi_policy = r.random(n) < odds / (1 + odds)
+    first_month, tenure_terms, dom = policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u, channel)
     first_day = cal.day_of(first_month, dom)
+    inception_day = cal.day_of(first_month - tenure_terms * term_months, dom)     # when the policy was first written
 
     pol = pd.DataFrame(dict(
         pol=np.arange(n), zi=zi, term_months=term_months, first_month=first_month, dom=dom, first_day=first_day,
         is_initial=is_init, tenure_terms=tenure_terms, n_veh=n_veh, married=married, homeowner=homeowner,
-        income=income, inc_rel=inc_rel, channel=channel, agency_id=agency_id, multi_policy=multi_policy, ni_age=ni_age))
+        income=income, inc_rel=inc_rel, channel=channel, agency_id=agency_id, multi_policy=multi_policy, ni_age=ni_age,
+        stab=stab, agency_retention=agencies.retention.to_numpy()[agency_id - 1], inception_day=inception_day))
     in_city = (zr.region == "City of Chicago").to_numpy()
 
     # ---- drivers ----------------------------------------------------------------
@@ -172,9 +213,13 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     transit = zr.pct_commute_transit.to_numpy()[p_]
     delay = r.exponential(np.where(drv.role == 3, 0.6, 0.8 + 5.0 * transit))
     drv["licensed_day"] = drv.dob_day + ((16 + np.minimum(delay, (age - 16).clip(0))) * 365.25).astype(int)
-    household = np.exp(r.normal(-C.HOUSEHOLD_SIGMA ** 2 / 2, C.HOUSEHOLD_SIGMA, n))
-    drv["latent"] = r.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, nd) * household[p_]
-    pol["household_factor"] = household
+    # frailty: each driver's own, times what the household shares (a random part and its stability), times the
+    # book it came through (its channel and the quality of its agency)
+    household = np.exp(r.normal(-C.HOUSEHOLD_SIGMA ** 2 / 2, C.HOUSEHOLD_SIGMA, n)) \
+        * np.exp(-C.STABILITY_FREQ * stab - C.STABILITY_FREQ ** 2 / 2)
+    book = np.exp(agencies.quality.to_numpy()[agency_id - 1]) * np.array([C.CHANNEL_FREQ[c] for c in C.CHANNELS])[channel]
+    drv["latent"] = r.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, nd) * (household * book)[p_]
+    pol["household_factor"] = household * book
     # good grades are a trait; the discount itself depends on the date (truth.good_student)
     drv["good_grades"] = (drv.role == 3) & (r.random(nd) < C.GOOD_STUDENT_GRADES_P)
     drv["school_end_day"] = drv.dob_day + (school_end_age(r, nd) * 365.25).astype(int)
@@ -231,9 +276,11 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
 
     # ---- insurance score, driver records, underwriting tier -------------------------
     r = stream(cfg.seed, "underwriting" + tag)
-    ni_latent = drv.latent.to_numpy()[first_drv]
-    zscore = (0.50 * np.log(inc_rel) / 0.6 + 0.30 * np.clip((ni_age - 45) / 20, -1.2, 1.5) + 0.30 * homeowner
-              - 0.55 * (np.log(ni_latent) + 0.25) / 0.72 + 0.55 * r.normal(0, 1, n))
+    # the insurance score reflects the household itself (its income, age, stability and the named insured's own
+    # risk), not the agency it came through; it does not use homeownership
+    ni_latent = drv.latent.to_numpy()[first_drv] / book
+    zscore = (0.20 + 0.50 * np.log(inc_rel) / 0.6 + 0.30 * np.clip((ni_age - 45) / 20, -1.2, 1.5) + S["score"] * stab
+              - 0.55 * (np.log(ni_latent) + 0.25) / 0.72 + 0.50 * r.normal(0, 1, n))
     score = np.clip(np.round(700 + 75 * zscore), 350, 900)
     no_hit = r.random(n) < np.interp(ni_age, [18, 22, 30, 60], [0.20, 0.10, 0.03, 0.02])
     pol["insurance_score"] = np.where(no_hit, np.nan, score)
@@ -243,15 +290,19 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     fd = pol.first_day.to_numpy()[incidents.pol.to_numpy()]
     recent = (incidents.day <= fd) & (incidents.day > fd - C.LOOKBACK_DAYS) & (incidents.known_day <= fd)
     pts = np.bincount(incidents.pol[recent], np.where(incidents.kind[recent] == "minor", 1, np.where(incidents.kind[recent] == "major", 4, 3)), n)
-    p_lapse = 1 / (1 + np.exp(-(-2.6 - 0.9 * zscore - 0.04 * (ni_age - 40).clip(-22, 0))))
+    p_lapse = 1 / (1 + np.exp(-(-2.6 - 0.9 * zscore - 0.04 * (ni_age - 40).clip(-22, 0) - S["prior_insurance"] * stab)))
     prior_ins = is_init | (r.random(n) > p_lapse)
     pol["prior_insurance"] = prior_ins
-    tier = np.where(~prior_ins | (pts >= 5) | (score < 560) & ~no_hit, 2,
-                    np.where((score >= 740) & ~no_hit & (pts == 0) & (homeowner | (tenure_terms * term_months >= 36)), 0, 1))
+    # company placement (underwriting rules on what the insurer sees): a poor record or score goes to the
+    # non-standard company, as does a customer without prior insurance unless the score and record are sound;
+    # a strong score, a clean record and continuous insurance go to the preferred company
+    weak = (score < 680) | no_hit | (pts >= 2)
+    tier = np.where((pts >= 5) | ((score < 560) & ~no_hit) | (~prior_ins & weak), 2,
+                    np.where((score >= 740) & ~no_hit & (pts == 0) & prior_ins, 0, 1))
     pol["tier"] = tier
     u = r.random(n)
-    p_pif = np.clip(0.30 + 0.12 * zscore, 0.05, 0.75)
-    p_eft = (1 - p_pif) * 0.62
+    p_pif = np.clip(0.30 + 0.12 * zscore + S["paid_in_full"] * stab, 0.05, 0.80)
+    p_eft = (1 - p_pif) * np.clip(0.62 + S["eft"] * stab, 0.30, 0.90)
     pol["pay_plan"] = np.where(u < p_pif, 0, np.where(u < p_pif + p_eft, 1, 2))
 
     # ---- coverages ------------------------------------------------------------------
@@ -304,14 +355,26 @@ def _opening_book_added_days(cfg, cal, pol: pd.DataFrame, drv: pd.DataFrame, veh
     veh["added_day"] = np.where(renewing[vp], joined, first[vp])
 
 
-def policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u):
+def anniversary_day(cal, month, u, channel) -> np.ndarray:
+    """The day of `month` a policy starts on, drawn over the month's real days: more often the 1st, and less
+    often a weekend or a holiday, most of all through agents (config.DAY_WEIGHTS)."""
+    d = np.arange(1, 32)
+    w3 = np.array([C.DAY_WEIGHTS["effective"][c] for c in C.CHANNELS])[channel]
+    month = np.asarray(month)
+    w = day_weight(cal, cal.day_of(month[:, None], d[None, :]), w3[:, None, :]) \
+        * np.where(d == 1, C.FIRST_OF_MONTH_WEIGHT, 1.0)[None, :] * (d[None, :] <= cal.days_in_month(month)[:, None])
+    cum = np.cumsum(w, axis=1)
+    return d[(np.asarray(u)[:, None] * cum[:, -1:] > cum).sum(axis=1).clip(0, 30)]
+
+
+def policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u, channel):
     """Fix each policy's anniversary day and first term. Returns (first_month, tenure_terms, dom).
 
     The anniversary day is a day of the month the policy was originally written, drawn over that
-    month's real length, so policies written on the 29th to 31st exist and renew on the last day of
-    shorter months (see Calendar.day_of)."""
+    month's real days (anniversary_day), so policies written on the 29th to 31st exist and renew on the
+    last day of shorter months (see Calendar.day_of)."""
     tm = term_months
-    dom = 1 + np.floor(dom_u * cal.days_in_month(first_month - tenure_terms * tm)).astype(int)
+    dom = anniversary_day(cal, first_month - tenure_terms * tm, dom_u, channel)
     # the in-force book's first term must still be in force on the start date; if it would end on or
     # before it, the policy enters with the next term instead (one more term of tenure, same inception)
     late = is_init & (cal.day_of(first_month + tm, dom) <= 0)
@@ -323,7 +386,7 @@ def policy_calendar(cal, is_init, first_month, tenure_terms, term_months, dom_u)
         day = cal.day_of(first_month, dom)
         bad = ~is_init & ((day > cal.valuation_day) if shift < 0 else (day < 0))
         first_month = first_month + bad * shift
-        dom = np.where(bad, 1 + np.floor(dom_u * cal.days_in_month(first_month)).astype(int), dom)
+        dom = np.where(bad, anniversary_day(cal, first_month, dom_u, channel), dom)
     return first_month, tenure_terms, dom
 
 
@@ -445,8 +508,9 @@ def usage_table(veh_id, veh_pol, veh_primary, veh_extra, drv_id, drv_pol) -> tup
     return usage[["veh", "drv", "weight"]], assigned
 
 
-def violations(drv: pd.DataFrame, t0: np.ndarray, t1: np.ndarray, r: np.random.Generator) -> pd.DataFrame:
-    """Moving violations for each driver between day t0 and day t1."""
+def violations(drv: pd.DataFrame, t0: np.ndarray, t1: np.ndarray, r: np.random.Generator, cal) -> pd.DataFrame:
+    """Moving violations for each driver between day t0 and day t1. A conviction posts to the driving record
+    on a business day."""
     years = (t1 - t0).clip(0) / 365.25
     behaviour = drv.latent.to_numpy() ** C.VIOLATION_LATENT_EXPONENT * np.where(drv.male, 1.25, 0.80) \
         * np.interp(drv.age.to_numpy(), [16, 20, 30, 50, 70], [1.9, 1.8, 1.25, 0.85, 0.5])
@@ -456,7 +520,7 @@ def violations(drv: pd.DataFrame, t0: np.ndarray, t1: np.ndarray, r: np.random.G
         k = r.poisson(rate * behaviour ** (1.4 if kind == "major" else 1.0) * years)
         d = np.repeat(np.arange(len(drv)), k)
         day = (t0[d] + r.random(len(d)) * (t1[d] - t0[d])).astype(int)
-        known = day + draw_lag(r, len(d), **C.MVR_POSTING_LAG)     # on the driving record once the conviction posts
+        known = cal.spread_business(day + draw_lag(r, len(d), **C.MVR_POSTING_LAG), r.random(len(d)))     # on the driving record once the conviction posts
         out.append(pd.DataFrame(dict(drv=ids[d], day=day, kind=kind, description=r.choice(names, len(d), p=probs),
                                      known_day=known)))
     return pd.concat(out, ignore_index=True)
@@ -470,7 +534,7 @@ def prior_accidents(r: np.random.Generator, drv: pd.DataFrame, t0, t1, joined, c
     lam = (C.BASE_RATE["AF_MV"] + C.BASE_RATE["AF_SV"]) * C.PRIOR_ACCIDENT_FACTOR * hazard * years * np.where(drv.assigned, 1.0, 0.35)
     d = np.repeat(np.arange(len(drv)), r.poisson(lam))
     day = (t0[d] + r.random(len(d)) * (t1[d] - t0[d])).astype(int)
-    known = day + draw_lag(r, len(d), **C.PRIOR_CARRIER_REPORT_LAG)
+    known = cal.spread_business(day + draw_lag(r, len(d), **C.PRIOR_CARRIER_REPORT_LAG), r.random(len(d)))
     return pd.DataFrame(dict(drv=drv.drv.to_numpy()[d], day=day, kind="accident", description="At-fault accident", known_day=known))
 
 
@@ -483,7 +547,7 @@ def _driver_records(cfg, ref, pol, drv, zt, r) -> pd.DataFrame:
     p_ = drv.pol.to_numpy()
     first_day = pol.first_day.to_numpy()[p_]
     t0 = np.maximum(first_day - C.LOOKBACK_DAYS, drv.licensed_day.to_numpy())
-    out = [violations(drv, t0, np.full(nd, cal.valuation_day), r)]
+    out = [violations(drv, t0, np.full(nd, cal.valuation_day), r, cal)]
     # accidents before the simulated claims begin (the company's own claims are added during the simulation)
     t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, 0), first_day)
     out.append(prior_accidents(r, drv, t0, t1, first_day, zt.true_crash_hazard.to_numpy()[pol.zi.to_numpy()[p_]], cal))

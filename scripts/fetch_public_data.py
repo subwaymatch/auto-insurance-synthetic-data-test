@@ -15,8 +15,12 @@ Sources (all public, no API key needed):
     (fueleconomy.gov, every light-duty model sold in the US) and the City of Chicago Traffic Crashes -
     Vehicles dataset (make, model, model year and use of every vehicle in a crash)
 
+  * For the calendar (scripts/build_calendar_reference.py): City of Chicago daily counts of crashes and of
+    vehicle thefts, and their counts by weekday and hour
+
     python scripts/fetch_public_data.py                    # everything
     python scripts/fetch_public_data.py --only vehicles    # just the vehicle catalogue sources
+    python scripts/fetch_public_data.py --only calendar    # just the daily and hourly counts
 """
 from __future__ import annotations
 
@@ -104,13 +108,34 @@ def fetch_vehicle_sources(cache: Path) -> None:
              limit="100000"), cache / "chi_crash_vehicle_age.csv")
 
 
+def fetch_calendar_sources(cache: Path) -> None:
+    """Crashes and vehicle thefts by day (2021 onward: the days the simulation covers) and by weekday and hour."""
+    get(soql(CRASHES, "csv", select="date_trunc_ymd(crash_date) as day,count(*) as n",
+             where="crash_date >= '2021-01-01T00:00:00'", group="day", order="day", limit="100000"),
+        cache / "chi_crashes_by_day.csv")
+    get(soql(CRIMES, "csv", select="date_trunc_ymd(date) as day,count(*) as n",
+             where="primary_type='MOTOR VEHICLE THEFT' AND year >= 2021", group="day", order="day", limit="100000"),
+        cache / "chi_theft_by_day.csv")
+    get(soql(CRASHES, "csv", select="crash_day_of_week,crash_hour,count(*) as n", where=PERIOD,
+             group="crash_day_of_week,crash_hour", order="crash_day_of_week,crash_hour", limit="1000"),
+        cache / "chi_crashes_by_weekday_hour.csv")
+    get(soql(CRIMES, "csv", select="date_extract_dow(date) as dow,date_extract_hh(date) as hour,count(*) as n",
+             where="primary_type='MOTOR VEHICLE THEFT' AND year between 2021 and 2025", group="dow,hour", order="dow,hour",
+             limit="1000"), cache / "chi_theft_by_weekday_hour.csv")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cache", type=Path, default=Path("reference/_cache"))
-    ap.add_argument("--only", choices=["all", "vehicles"], default="all")
+    ap.add_argument("--only", choices=["all", "vehicles", "calendar"], default="all")
     a = ap.parse_args()
     cache = a.cache
     cache.mkdir(parents=True, exist_ok=True)
+    if a.only in ("all", "calendar"):
+        fetch_calendar_sources(cache)
+    if a.only == "calendar":
+        print("done")
+        return
     fetch_vehicle_sources(cache)
     if a.only == "vehicles":
         print("done")

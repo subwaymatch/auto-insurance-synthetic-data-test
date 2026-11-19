@@ -1,10 +1,14 @@
 """The insurer's rating plan: what each vehicle is charged.
 
-The plan only sees what a real insurer would see (the rating variables below). It is
-fitted to the true expected loss cost with the classic minimum-bias procedure, so it is
-broadly adequate, and then the deliberate distortions in config.PLANTED_DISTORTIONS are
-applied. Everything the plan cannot see (latent driver risk, true mileage, parking, ZIP
-effects inside a territory, the Kia/Hyundai theft wave) is left unpriced.
+The plan only sees what a real insurer would see (the rating variables below). Its discounts and
+surcharges (multi-car, multi-policy, homeowner, paid in full, prior insurance, tenure, good student,
+married) are filed as round percentages (config.FILED_DISCOUNTS), as real plans file them. Every
+other relativity is fitted around those to the true expected loss cost with the classic minimum-bias
+procedure, so the plan is broadly adequate, and then the deliberate distortions in
+config.PLANTED_DISTORTIONS are applied. Everything the plan cannot see (latent driver risk, household
+stability, the agency's book quality, true mileage, parking, ZIP effects inside a territory, the
+Kia/Hyundai theft wave) is left unpriced, and a filed discount is right only as far as its round
+percentage happens to match what the risk justifies (Plan.indicated holds what it would be).
 """
 from __future__ import annotations
 
@@ -48,6 +52,7 @@ class Plan:
     base: dict = field(default_factory=dict)         # coverage -> base rate (annual, at rate level 1.0)
     factors: dict = field(default_factory=dict)      # coverage -> variable -> relativities
     fitted: dict = field(default_factory=dict)       # the same before planted distortions
+    indicated: dict = field(default_factory=dict)    # every variable fitted freely: what each is truly worth
     terr_liab: np.ndarray = None                     # ZIP index -> territory
     terr_comp: np.ndarray = None
 
@@ -165,11 +170,18 @@ def premium(plan: Plan, cd: dict, lim: dict, rate_level: np.ndarray, term_years:
             for cov in C.COVERAGES}
 
 
-def _minimum_bias(variables: dict, y: np.ndarray, sweeps: int = 40, credibility: float = 25.0) -> dict:
-    """Bailey's multiplicative minimum-bias fit. Sparse levels are pulled toward 1.0."""
+def filed_factors(cov: str) -> dict:
+    """The filed discount and surcharge tables as they apply to one coverage (1.0 where a discount does not)."""
+    return {k: np.array(f if cov in covs else [1.0] * len(f)) for k, (f, covs) in C.FILED_DISCOUNTS.items()}
+
+
+def _minimum_bias(variables: dict, y: np.ndarray, sweeps: int = 40, credibility: float = 25.0, offset=None) -> dict:
+    """Bailey's multiplicative minimum-bias fit. Sparse levels are pulled toward 1.0. `offset` is a fixed
+    multiplier on each row (the filed discounts), which the fitted variables work around."""
     f = {k: np.ones(len(LEVELS[k])) for k in variables}
-    mean = y.mean()
-    pred = np.full(len(y), mean)
+    off = np.ones(len(y)) if offset is None else np.asarray(offset, dtype=float)
+    mean = y.sum() / off.sum()
+    pred = mean * off
     for _ in range(sweeps):
         for k, code in variables.items():
             other = pred / f[k][code]
@@ -196,12 +208,21 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
     ctx = truth.context(st, cal, V, s, s + 365, cost_day=0)
     ctx["expo"] = {k: np.full(len(V), cal.exposure(truth.PERIL_GROUP[k], 0, 365)) for k in ctx["rate"]}
     ctx["expo"]["THEFT_TOTAL"] = np.where(ctx["kh"], cal.exposure("theft_kh", 0, 365), ctx["expo"]["THEFT_TOTAL"])
+    first_year = truth.new_customer_factor(ctx["t0"], s, s + 365)       # each policy's year from its first day in the data
+    for k in C.NEW_CUSTOMER_PERILS:
+        ctx["expo"][k] = ctx["expo"][k] * first_year
     y = truth.expected(ctx, cal)
     lim = limit_factors(st, V)
     for cov in C.COVERAGES:
         m = lim[cov] > 0
         variables = {k: a[m] for k, a in _variables(plan, cov, cd).items()}
-        fitted = _minimum_bias(variables, y[cov][m] / lim[cov][m])
+        target = y[cov][m] / lim[cov][m]
+        plan.indicated[cov] = _minimum_bias(variables, target)
+        # the filed discounts are taken as given; everything else is fitted around them
+        filed = filed_factors(cov)
+        offset = np.prod([filed[k][variables[k]] for k in filed], axis=0)
+        fitted = _minimum_bias({k: a for k, a in variables.items() if k not in filed}, target, offset=offset)
+        fitted.update({k: np.round(a, 3) for k, a in filed.items()})
         plan.fitted[cov] = fitted
         f = {k: a.copy() for k, a in fitted.items()}
         for ordered in ("violation_points", "at_fault_accidents"):      # a filed plan would not reward a worse record
@@ -219,8 +240,12 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
 
 def to_json(plan: Plan) -> dict:
     out = {"base_rates_annual": plan.base, "planted_distortions": C.PLANTED_DISTORTIONS,
-           "rate_changes": C.RATE_CHANGES, "relativities": {}, "relativities_before_distortion": {}}
-    for table, key in (("factors", "relativities"), ("fitted", "relativities_before_distortion")):
+           "filed_discounts": {k: {"factors": dict(zip(LEVELS[k], f)), "coverages": covs}
+                               for k, (f, covs) in C.FILED_DISCOUNTS.items()},
+           "rate_changes": C.RATE_CHANGES, "relativities": {}, "relativities_before_distortion": {},
+           "relativities_indicated": {}}
+    for table, key in (("factors", "relativities"), ("fitted", "relativities_before_distortion"),
+                       ("indicated", "relativities_indicated")):
         for cov, f in getattr(plan, table).items():
             out[key][cov] = {k: dict(zip(LEVELS[k], map(float, a))) for k, a in f.items()}
     return out

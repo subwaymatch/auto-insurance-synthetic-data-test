@@ -116,6 +116,16 @@ def comp_gross(peril: str, z, u, repair_factor, adas, trend, acv):
     return np.where(total, acv, np.minimum(damage, acv)), total
 
 
+def round_settlement(x, rng: np.random.Generator) -> np.ndarray:
+    """Agreed injury damages as negotiated: round figures (config.SETTLEMENT_STEPS), never below one step."""
+    x = np.asarray(x, dtype=float)
+    bounds = np.array([b for b, _ in C.SETTLEMENT_STEPS])
+    step = np.array([s for _, s in C.SETTLEMENT_STEPS])[np.searchsorted(bounds, x, side="right").clip(0, len(bounds) - 1)]
+    step = step * np.where(rng.random(len(x)) < 0.5, 2, 1)
+    exact = rng.random(len(x)) < C.SETTLEMENT_EXACT_P
+    return np.where(exact, np.round(x, 2), np.maximum(np.round(x / step), 1) * step)
+
+
 def cap_per_accident(paid, accident, n_accidents: int, room) -> np.ndarray:
     """Share each accident's per-accident limit among its claimants. `paid` holds what each claimant would
     get under the per-person limit, `accident` the accident each belongs to, and `room` each accident's
@@ -287,12 +297,39 @@ class Static:
         self.u_veh, self.u_drv, self.u_w = usage.veh.to_numpy(), usage.drv.to_numpy(), usage.weight.to_numpy()
 
 
+def new_customer_factor(t0, s, x) -> np.ndarray:
+    """Average over days [s, x) of the new-customer multiplier 1 + sum(amplitude * exp(-days since t0 / scale))
+    (config.NEW_CUSTOMER), for policies first written on day t0."""
+    a = np.maximum(np.asarray(s) - t0, 0).astype(float)
+    b = np.maximum(np.asarray(x) - t0, a + 1)
+    f = np.ones(len(a))
+    for amp, scale in C.NEW_CUSTOMER.values():
+        f += amp * scale / (b - a) * (np.exp(-a / scale) - np.exp(-b / scale))
+    return f
+
+
+def new_customer_days(t0, s, x, rng: np.random.Generator) -> np.ndarray:
+    """Loss days in [s, x) for the claims the new-customer multiplier adds: drawn from its decaying part."""
+    a = np.maximum(np.asarray(s) - t0, 0).astype(float)
+    b = np.maximum(np.asarray(x) - t0, a + 1)
+    parts = np.array([amp * scale * (np.exp(-a / scale) - np.exp(-b / scale)) for amp, scale in C.NEW_CUSTOMER.values()])
+    which = (rng.random(len(a)) * parts.sum(axis=0) > np.cumsum(parts, axis=0)[:-1]).sum(axis=0)
+    scale = np.array([v[1] for v in C.NEW_CUSTOMER.values()])[which]
+    lo, hi = np.exp(-a / scale), np.exp(-b / scale)
+    t = -scale * np.log(lo - rng.random(len(a)) * (lo - hi))
+    return np.clip(t0 + np.floor(t).astype(int), s, np.maximum(np.asarray(x) - 1, s))
+
+
 def set_window(c: dict, cal: Calendar, s: np.ndarray, x: np.ndarray) -> None:
     """Change the exposure window of a context (used when a total loss ends a vehicle's cover early).
     Severity and vehicle value stay as simulated; only the exposure behind the expected loss changes."""
     c["s"], c["x"] = s, x
+    # exposure is counted inside the extract: the new-customer multiplier is averaged over the same days
+    c["nc"] = new_customer_factor(c["t0"], np.clip(s, 0, cal.horizon), np.clip(x, 0, cal.horizon))
     c["expo"] = {k: cal.exposure(PERIL_GROUP[k], s, x) for k in c["rate"]}
     c["expo"]["THEFT_TOTAL"] = np.where(c["kh"], cal.exposure("theft_kh", s, x), c["expo"]["THEFT_TOTAL"])
+    for k in C.NEW_CUSTOMER_PERILS:
+        c["expo"][k] = c["expo"][k] * c["nc"]
 
 
 def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarray, cost_day=None) -> dict:
@@ -326,14 +363,15 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     crash, theft = zt["true_crash_hazard"][zi], zt["true_theft_hazard"][zi]
     dens = zt["density_factor"][zi]
     mile = v["mile_rel"][V]
-    drive = mile ** C.MILEAGE_ELASTICITY * v["use_factor"][V] * v["seg_freq"][V]
+    multi = np.where(p["n_veh"][pol] > 1, C.MULTI_CAR_FREQ, 1.0)      # each car of a multi-car household is driven less hard
+    drive = mile ** C.MILEAGE_ELASTICITY * v["use_factor"][V] * v["seg_freq"][V] * multi
     adas = v["adas"][V]
     park = v["parking"][V]
     B = C.BASE_RATE
     c["rate"] = {
         "AF_MV": B["AF_MV"] * c["h_af"] * drive * np.where(adas, C.ADAS_FREQ_FACTOR["AF_MV"], 1.0) * crash,
         "AF_SV": B["AF_SV"] * c["h_af"] * drive * np.where(adas, C.ADAS_FREQ_FACTOR["AF_SV"], 1.0) * crash ** 0.5,
-        "NAF": B["NAF"] * c["h_naf"] * mile ** C.MILEAGE_ELASTICITY * crash,
+        "NAF": B["NAF"] * c["h_naf"] * mile ** C.MILEAGE_ELASTICITY * multi * crash,
         "PARKED": B["PARKED"] * dens * np.array(C.PARKING_HIT_FACTOR)[park] * crash ** 0.5,
         "GLASS": B["GLASS"] * mile ** 0.5,
         "THEFT_TOTAL": B["THEFT_TOTAL"] * theft * v["theft_factor"][V] * np.array(C.PARKING_THEFT_FACTOR)[park]
@@ -348,6 +386,7 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     }
     kh = v["kia_hyundai"][V]
     c["kh"] = kh
+    c["t0"] = p["inception_day"][pol]
     set_window(c, cal, s, x)
 
     # coverage terms and cost levels
@@ -488,6 +527,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
         gross = sev["median"] * factor[o] * _trend(cal, "BI", day[o]) * np.exp(sev["sigma"] * rng.standard_normal(len(o)))
+        gross = round_settlement(gross, rng)
         cwp = rng.random(len(o)) < C.CWP[cov]
         paid = cap_per_accident(np.where(cwp, 0.0, np.minimum(gross, pp[o])), o, len(ids), pa)   # per-accident limit
         add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "",
@@ -550,6 +590,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
         gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * rng.standard_normal(len(o)))
+        gross = round_settlement(gross, rng)
         other_pp, other_pa = other_driver_limits(rng, len(ids))
         excess, other = underinsured(gross, c["um_pp"][vi][o], other_pp[o], o, len(ids), other_pa)
         cwp = rng.random(len(o)) < C.CWP["UM"]
@@ -566,11 +607,20 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         add(cov, ids, np.zeros(len(ids)), np.zeros(len(ids)), np.ones(len(ids), dtype=bool), nominal=True)
 
     def draw(peril, group=None, mask=None):
-        lam = c["rate"][peril] * (cal.exposure(group, c["s"], c["x"]) if group else c["expo"][peril])
+        """Loss events of one peril: (vehicle row, day). `group` picks the calendar intensity (default the
+        peril's own); new customers' extra claims fall early in the policy's life (new_customer_days)."""
+        g = group or PERIL_GROUP[peril]
+        extra = peril in C.NEW_CUSTOMER_PERILS
+        lam = c["rate"][peril] * cal.exposure(g, c["s"], c["x"]) * (c["nc"] if extra else 1.0)
         if mask is not None:
             lam = lam * mask
         vi = np.repeat(np.arange(c["n"]), rng.poisson(lam))
-        return vi, cal.sample_days(group or PERIL_GROUP[peril], c["s"][vi], c["x"][vi], rng)
+        day = cal.sample_days(g, c["s"][vi], c["x"][vi], rng)
+        if extra and len(vi):
+            early = rng.random(len(vi)) < 1 - 1 / c["nc"][vi]
+            lo, hi = np.clip(c["s"][vi], 0, cal.horizon), np.clip(c["x"][vi], 0, cal.horizon)
+            day = np.where(early, new_customer_days(c["t0"][vi], lo, hi, rng), day)
+        return vi, day
 
     # --- driving perils ---
     vi, day = draw("AF_MV")

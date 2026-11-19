@@ -73,7 +73,10 @@ class Bundle:
 
 
 def read_table(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, keep_default_na=False, na_values=[""], low_memory=False)
+    """A table as written, with labels that look like numbers (ZIP codes) kept as text even where some are blank."""
+    cols = pd.read_csv(path, nrows=0).columns
+    return pd.read_csv(path, keep_default_na=False, na_values=[""], low_memory=False,
+                       dtype={c: str for c in cols if c in schema.TEXT_COLUMNS})
 
 
 def register(name: str, extension: str, label: str | None = None) -> Callable:

@@ -34,7 +34,11 @@ otherwise.
    telematics programme, realistic names and a consistent table layout are added; two external reviews'
    findings are fixed, the second by deciding renewals and telematics scores only on what was known at the
    time and keeping every renewal offer; the default book becomes 43,368 policies over five full years
-   (2022 to 2026).
+   (2022 to 2026). A realism audit then asked whether the data looks like an operating company's: discounts
+   are now filed and only roughly right, new customers and some agencies cost more than they are charged,
+   staff work business days and losses follow Chicago's real days, records carry policy numbers, claim
+   numbers and VINs, and every premium is billed and collected and every claim payment has a payee, a cheque
+   number and an approver.
 
 ## Unreleased (in progress)
 
@@ -243,6 +247,97 @@ and a controlled counterfactual.
   enrolments and 59,553 scores. Every calibration band holds: frequency 1.05 to 1.34 times national and
   severity 0.87 to 1.03 times; expected loss ratios (plus catastrophes) of 79.3%, 77.6%, 67.9% and 64.7%
   for 2022 to 2025; an overall loss ratio of 66.9%; annualised retention 83.4% (was 83.3%).
+
+### A realism audit: an operating company's data
+
+**Why.** An audit of the default run (at `ee55aa1`) asked a different question from the earlier reviews:
+not whether the records are consistent, but whether they look like the data of a company that sells
+insurance, employs people and pays its bills. Measured on the data, they did not:
+
+| Finding | Before | After |
+|---|---|---|
+| Discounts ran backwards or were nil (effect on bodily injury premium) | Homeowner +13.7%, prior insurance +7.3%, good student +3.7%, six years' tenure +3.9%, multi-car +0.4%, multi-policy +0.7%, paid in full -2.0% | Filed: homeowner -5%, no prior insurance +8%, good student -10%, tenure -2% to -6%, multi-car -10%, multi-policy -8%, paid in full -6% |
+| New business cost the same as renewals (expected loss ratio) | 69.2% against 68.8% | 77.9% against 68.0% |
+| Claims no likelier early in a policy's life (per 100 policy-years) | 18.6 in the first 30 days, 18.9 after a year | 24.7 in the first 30 days, 18.2 after two years |
+| Channels alike (expected loss ratio: direct, exclusive, independent) | 68.1%, 69.3%, 69.2% | 69.8%, 64.0%, 72.6% |
+| Agencies alike | 24 agencies, expected loss ratios 65% to 73% | 58 agencies and two direct units, 56% to 91% (10th to 90th percentile 64% to 80%) |
+| No week: claim payments dated on a Saturday or Sunday | 28.6% ($36.6 million) | None |
+| Suits and convictions dated at a weekend | 28.5% and 28.8% | None |
+| Winter crash claims a day no more varied than chance | Variance 5.25 against a mean of 5.29 | 6.09 against 4.99; 18 on the busiest day |
+| Identifiers were counters that showed how the data was built | Policy IDs up to 1019949 were exactly the opening book; every policy's first term ID was its policy ID less 1,000,000; no business keys | IDs follow creation dates; policy, quote, claim and feature numbers, full VINs with check digits, unit and driver numbers |
+| Injury settlements paid to the cent | About 1% of settlements below a limit were whole dollars | 86% of paid bodily injury features are whole dollars, 72% multiples of $250 |
+| Non-payment cancellations spread evenly over the term from day 35 | | Three to four weeks after an instalment that was never paid |
+| No cash, payees or people | 24 tables | 29: bills, receipts, employees, vendors and producers, and payee, cheque and approver on every claim payment |
+
+**What changed.**
+
+- **Hidden household stability** (`autoins/population.py`, `config.STABILITY_*`). Each household has a
+  hidden trait, how settled it is, that lowers claim frequency and missed payments, raises retention, and
+  makes it likelier to own its home, bundle, have had prior insurance, pay in full and have been a customer
+  for longer. The book in force at the start is more stable than new business. The insurance score no longer
+  uses homeownership (which made homeowners look worse at a given score) and reflects stability instead.
+- **Filed discounts** (`config.FILED_DISCOUNTS`, `autoins/rating.py`). The eight discounts and surcharges
+  are filed as round percentages; every other relativity is fitted around them. The answer key's
+  `rating_plan.json` adds `filed_discounts` and `relativities_indicated` (each factor fitted freely), so each
+  discount can be compared with what the risk justifies: multi-car and multi-policy are about right,
+  the loyalty discount is a third of what tenure is worth, and the good-student and married discounts have
+  no support once class and record are rated. Company placement no longer depends on homeownership or
+  tenure, and a customer without prior insurance goes to the non-standard company only if the score or
+  record is weak too; the companies now hold 30%, 58% and 12% of policies (were 25%, 66% and 9%).
+- **New customers claim more** (`config.NEW_CUSTOMER`, `autoins/truth.py`): a burst in the first weeks and a
+  fade over two or three years, on at-fault, parked, theft and vandalism losses, sized to the 13-point gap
+  between new and renewal loss ratios a CAS study found across 25 books. Car on a multi-car policy: 10% fewer
+  crashes each. Good students: 20% fewer (was 8%).
+- **Channels and agencies** (`config.CHANNEL_*`, `AGENCY_*`). 44 independent and 14 exclusive agencies
+  (were 16 and 8), each with a hidden book quality and hold on its customers; independent-agent business is
+  a little worse, exclusive-agent customers stay longer, direct customers shop more.
+- **The working calendar** (`autoins/refdata.py`, `reference/daily_index.csv`, `reference/hour_of_day.csv`).
+  Crash and theft intensity follows Chicago's daily counts from 2021 to September 2026 (new downloads in
+  `scripts/fetch_public_data.py --only calendar`, built by `scripts/build_calendar_reference.py`), so
+  weekdays, holidays and storm days are real. A business-day calendar (federal holidays and the day after
+  Thanksgiving) governs payments and their clearing, closes, reserve reviews, suits, fraud referrals,
+  convictions and their posting, SR-22 filings, renewal offers, keyed policy changes and letters; weekend
+  work is spread over the next week. About half of weekend first notices are held over. Agents quote on
+  weekdays; 8.9% of new policies start on the 1st. `claim.loss_time` is new.
+- **Round settlements** (`config.SETTLEMENT_STEPS`). Agreed bodily injury and uninsured motorist damages
+  are rounded to steps that grow with size ($50 to $5,000); advances and supplements are round too.
+- **Identifiers** (`autoins/identifiers.py`). `policy.policy_number` (serial, company code, two MOD 97-10
+  check digits), `quote.quote_number`, `claim.claim_number`, `claim_feature.feature_number`,
+  `insured_vehicle.vin` (17 characters, valid check digit, still beginning with `0`) and `unit_number`,
+  `driver.driver_number`, `license_state` and `license_number_masked`, `agency.agency_code`,
+  `underwriting_company.company_code` and `naic_style_code`. Integer keys are renumbered in creation order
+  through the key map in `autoins/schema.py`.
+- **Billing** (`autoins/billing.py`): `billing_invoice` (906,326 bills) and `billing_receipt` (917,096
+  receipts): instalments, fees, late and returned payments, endorsements spread over the remaining
+  instalments, cancellation settlements, refunds and write-offs. Non-payment cancellations follow a missed
+  instalment (`simulate._missed_installment`), and billing notices in `customer_contact` come from the bills.
+- **Commission.** `premium_transaction.commission_rate_pct` and `commission_amount`; each agency's rates and
+  appointment date in `agency`; a `producer` table and `policy.producer_id`.
+- **Claim payments** (`autoins/payments.py`): `employee` (desks, turnover, payment authority) and `vendor`
+  (684 fictional organisations); `claim.adjuster_id`; and on `claim_payment` the payee type and name,
+  vendor, method, cheque number, status, cleared date and approver.
+- **Answer key.** `policy_truth` (stability, household risk factor) and `agency_truth` (book quality,
+  retention effect).
+- **Calibration.** Crash base rates up 9%, the target loss ratio at day-one cost levels 82.5% (was 77.5%:
+  the fit now includes new customers' first-year claims), renewal base odds up a little, comprehensive
+  severities up about 7% (like-for-like comprehensive severity had been at the bottom of its band).
+- **Checks.** `validate.py` gains checks on the calendar, identifiers and their check digits, creation
+  order, billing against the ledger and the cash, non-payment timing, cheque sequence, approval and
+  employment, payees and vendors, commission and the filed discounts, and bands on the new-business gap,
+  the spread across agencies, retention by channel, round settlements and the weekday pattern of crashes.
+  14 new tests (56 in all). The SQLite loader keeps ZIP codes as text where a table has blanks.
+- **The default run after these changes** (content hash `ee6e59c038858485`): 202,389 policy terms, 451,997
+  exposure rows, 179,915 earned car-years, $181.2 million earned premium ($1,007 per car-year, was $1,028),
+  19,784 claims. Frequency 1.03 to 1.24 times national and severity 0.88 to 1.03 times; expected loss ratios
+  (plus catastrophes) of 80.4%, 78.2%, 68.1% and 65.4% for 2022 to 2025; an overall loss ratio of 68.6%;
+  annualised retention 82.6%. Two other builds (seed 7; 20,000 policies with seed 99) pass every check.
+  Generation takes about 85 seconds (was 60) and the files are 435 MB (were 245 MB), a third of it billing.
+
+**Left as it was.** New business and quote volumes are still level through the year and across years;
+physical damage premiums and take-up are still below Illinois' averages (collision and comprehensive about a
+third lower per covered car; collision carried on 67% of cars against 83% statewide); claims still barely
+drive customers away; there is no general ledger and no planted error or fraud. All are in
+[docs/limitations.md](docs/limitations.md).
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

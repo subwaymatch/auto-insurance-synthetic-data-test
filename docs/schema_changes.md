@@ -547,3 +547,44 @@ split there (added after the third external review).
 ### `answer_key/renewal_offer_truth` (new)
 
 `renewal_offer_id`, `acceptance_probability`
+
+## Added after the realism audit
+
+Nothing was renamed or removed. These tables and columns are new (see CHANGELOG.md, "A realism audit").
+Integer keys kept their names but were renumbered in the order records were created, so a `policy_id` or
+`policy_term_id` from an earlier build does not identify the same record in a later one.
+
+### New tables
+
+| Table | One row per |
+|---|---|
+| `billing_invoice` | Bill sent to a policyholder |
+| `billing_receipt` | Payment received, bank draft returned unpaid, or refund |
+| `employee` | Claims employee |
+| `vendor` | Organisation paid on claims or collected from |
+| `producer` | Licensed agent at an agency |
+| `answer_key/policy_truth` | Policy (hidden stability, household risk factor) |
+| `answer_key/agency_truth` | Agency (hidden book quality, retention effect) |
+
+### New columns
+
+| Table | Columns |
+|---|---|
+| `policy` | `policy_number`, `producer_id` |
+| `quote` | `quote_number` |
+| `driver` | `driver_number`, `license_state`, `license_number_masked` |
+| `insured_vehicle` | `unit_number`, `vin` |
+| `claim` | `claim_number`, `loss_time`, `adjuster_id` |
+| `claim_feature` | `feature_number` |
+| `claim_payment` | `payee_type`, `payee_name`, `vendor_id`, `payment_method`, `check_number`, `payment_status`, `cleared_date`, `approved_by_employee_id` |
+| `premium_transaction` | `commission_rate_pct`, `commission_amount` |
+| `agency` | `agency_code`, `appointment_date`, `new_business_commission_pct`, `renewal_commission_pct` |
+| `underwriting_company` | `company_code`, `naic_style_code` |
+
+### Changed values
+
+| Table | Column | Change |
+|---|---|---|
+| `customer_contact` | `purpose` | "Payment Reminder" is gone; "Past Due Notice" and "Notice of Cancellation" now follow an unpaid bill (most are followed by payment, not cancellation); "Returned Payment Notice" and "Cancellation for Non-Payment" are new |
+| `agency` | | 58 agencies and two direct units (were 24 and two) |
+

@@ -22,7 +22,7 @@ import pandas as pd
 
 from . import config as C
 from . import population, rating, telematics, truth
-from .refdata import stream
+from .refdata import day_weight, stream
 from .simulate import Records
 
 
@@ -106,7 +106,9 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generat
     st = truth.Static.build(pp, ref)
     p, v = st.p, st.v
     first = p["first_day"]
-    quote_day = first - R.integers(C.NEW_BUSINESS_QUOTE_LEAD_DAYS[0], C.NEW_BUSINESS_QUOTE_LEAD_DAYS[1] + 1, len(first))
+    quote_w = np.array([C.DAY_WEIGHTS["quote"][c] for c in C.CHANNELS])[p["channel"]]
+    quote_day = first - cal.weighted_lead(first, *C.NEW_BUSINESS_QUOTE_LEAD_DAYS,
+                                          lambda d: day_weight(cal, d, quote_w[:, None, :]), R.random(len(first)))
     d_pol = pp.drv.pol.to_numpy()
     points, _, acc = Records(pp.incidents).as_of(len(d_pol), first[d_pol], quote_day[d_pol])
     V = np.arange(len(v["pol"]))
