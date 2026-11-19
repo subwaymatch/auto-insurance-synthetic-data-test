@@ -48,7 +48,7 @@ import pandas as pd
 
 from . import claims
 from . import config as C
-from . import names, population, rating, telematics, truth
+from . import market, names, population, rating, telematics, truth
 from .refdata import day_weight, stream
 
 CANCEL_REASONS = ["", "Underwriting", "Non-Payment", "Insured Request", "Insured Deceased"]
@@ -180,8 +180,10 @@ class Sim:
     n_occ: int = 0
     pending: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))      # total-loss cars whose
     pending_day: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=int))  # replacement comes after the term
-    clm_pol: list = field(default_factory=list)
+    clm_pol: list = field(default_factory=list)     # every claim: its policy and the day it was reported
     clm_report: list = field(default_factory=list)
+    af_pol: list = field(default_factory=list)      # the at-fault ones again
+    af_report: list = field(default_factory=list)
     tele: "Tele" = None
     last_change: np.ndarray = None      # per policy: the latest day its drivers, cars or address changed
 
@@ -508,6 +510,9 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         occ = sim.dev.add(occ, feat)
         sim.clm_pol.append(occ.pol.to_numpy())
         sim.clm_report.append(occ.report_day.to_numpy())
+        af = occ.at_fault.to_numpy().astype(bool)
+        sim.af_pol.append(occ.pol.to_numpy()[af])
+        sim.af_report.append(occ.report_day.to_numpy()[af])
         ch = occ[occ.chargeable_day >= 0]
         sim.recs.add(ch.drv, ch.day, np.full(len(ch), KIND["accident"]), ch.chargeable_day)
 
@@ -746,14 +751,14 @@ def _programme_offer(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no):
 
 
 # ----------------------------------------------------------------------------------------- renewals
-UW_NONRENEW_P = 0.6     # share of the policies the underwriting review flags that the company does not renew
+UW_NONRENEW_P = 0.5     # share of the policies the underwriting review flags that the company does not renew
 CHANNEL_RETENTION = np.array([C.CHANNEL_RETENTION[c] for c in C.CHANNELS])
 
 
 def underwriting_review(sim: Sim, pols: np.ndarray, offer_day: np.ndarray, eff: np.ndarray) -> np.ndarray:
-    """Whether the underwriting review on each policy's offer day flags it for non-renewal: three or more at-fault
-    accidents, or two or more major violations, among the drivers on the policy that day, dated in the three years
-    before the renewal and known by the offer day. (Arrays aligned with pols.)"""
+    """Whether the underwriting review on each policy's offer day flags it for non-renewal: two or more at-fault
+    accidents, two or more major violations, or one of each, among the drivers on the policy that day, dated in
+    the three years before the renewal and known by the offer day. (Arrays aligned with pols.)"""
     drv = sim.pop.drv
     dp, rem = drv.pol.to_numpy(), drv.removed_day.to_numpy()
     i_of = np.full(len(sim.st.p["zi"]), -1)
@@ -763,7 +768,8 @@ def underwriting_review(sim: Sim, pols: np.ndarray, offer_day: np.ndarray, eff: 
     o = np.where(mine, offer_day[j], -10 ** 9)
     on = mine & (drv.added_day.to_numpy() <= o) & ((rem < 0) | (rem > o))
     _, majors, acc = sim.recs.as_of(len(dp), np.where(mine, eff[j], 0), o)
-    return (np.bincount(j[on], acc[on], len(pols)) >= 3) | (np.bincount(j[on], majors[on], len(pols)) >= 2)
+    acc, majors = np.bincount(j[on], acc[on], len(pols)), np.bincount(j[on], majors[on], len(pols))
+    return (acc >= 2) | (majors >= 2) | ((acc >= 1) & (majors >= 1))
 
 
 def evaluate_offers(sim: Sim, pols, exp_term, offer_day, eff, since, tenure_years, term_years, ni_age, rows: pd.DataFrame,
@@ -810,15 +816,26 @@ def evaluate_offers(sim: Sim, pols, exp_term, offer_day, eff, since, tenure_year
     j = i_of[cp]
     cr, j = cr[j >= 0], j[j >= 0]
     prev_claims = np.bincount(j[(cr > since[j]) & (cr <= offer_day[j])], minlength=m)
+    ap = np.concatenate(sim.af_pol) if sim.af_pol else np.zeros(0, dtype=int)
+    ar = np.concatenate(sim.af_report) if sim.af_report else np.zeros(0, dtype=int)
+    j = i_of[ap]
+    ar, j = ar[j >= 0], j[j >= 0]
+    prev_at_fault = np.bincount(j[(ar > since[j]) & (ar <= offer_day[j])], minlength=m)
+    after_claim = C.CLAIM_RETENTION
     homeowner = sim.home.at(pols, offer_day)[0]
     tmo = p["term_months"][pols]
     logit = (np.where(tmo == 6, C.RENEWAL_BASE_LOGIT[6], C.RENEWAL_BASE_LOGIT[12])
              + 0.12 * np.minimum(tenure_years, 6) + 0.4 * p["multi_policy"][pols] + 0.2 * homeowner
              + 0.015 * np.clip(ni_age - 45, -25, 25) - 0.5 * (p["tier"][pols] == 2)
-             - 0.2 * (prev_claims > 0) - C.PRICE_ELASTICITY * np.maximum(change - C.PRICE_TOLERANCE, 0)
+             # a customer who has just had a claim shops around, more so when it was their fault or the second
+             + after_claim["any"] * (prev_claims > 0) + after_claim["at_fault"] * (prev_at_fault > 0)
+             + after_claim["repeat"] * (prev_claims > 1)
+             - C.PRICE_ELASTICITY * np.maximum(change - C.PRICE_TOLERANCE, 0)
              + 2.0 * np.maximum(-change, 0)
              # what the insurer cannot see: the household's stability, its channel's and its agency's hold on it
-             + C.STABILITY_RETENTION * p["stab"][pols] + CHANNEL_RETENTION[p["channel"][pols]] + p["agency_retention"][pols])
+             + C.STABILITY_RETENTION * p["stab"][pols] + CHANNEL_RETENTION[p["channel"][pols]] + p["agency_retention"][pols]
+             # and what it can: a company dearer than the market that day loses more of its renewals
+             - C.MARKET_RETENTION * market.gap(cal, offer_day))
     cars = pd.DataFrame(dict(pol=pols[i], exp_term=exp_term[i], veh=V, tele_disc=tele_disc[V], premium=total))
     return dict(n_veh=np.bincount(i, minlength=m), expiring=expiring, premium=premium, change=change,
                 prev_claims=prev_claims, logit=logit), cars

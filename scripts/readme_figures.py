@@ -185,9 +185,9 @@ def operations(out: Path) -> None:
         p(col, show(col))
     g = j.groupby("agency_id").agg(prem=("earned_premium", "sum"), exp=("expected_loss_total", "sum"), cy=("earned_exposure", "sum"))
     elr = g.exp / g.prem
-    p("agencies", f"{len(g)}; expected loss ratio {elr.min():.1%} to {elr.max():.1%} (10th percentile {elr.quantile(.1):.1%}, "
-      f"90th {elr.quantile(.9):.1%}); car-years {g.cy.min():,.0f} to {g.cy.max():,.0f}; "
-      f"policies per agency {pol.groupby('agency_id').size().min():,} to {pol.groupby('agency_id').size().max():,}")
+    big = elr[g.cy >= 500]
+    p("agencies", f"{len(agency)}; the {len(big)} with 500+ car-years: expected loss ratio {big.min():.1%} to {big.max():.1%} "
+      f"(10th percentile {big.quantile(.1):.1%}, 90th {big.quantile(.9):.1%})")
     d = pol[pd.to_datetime(pol.first_effective_date) >= "2022-01-01"]
     c = clm.merge(d[["policy_id", "first_effective_date"]], on="policy_id")
     c["d"] = (pd.to_datetime(c.loss_date) - pd.to_datetime(c.first_effective_date)).dt.days
@@ -259,7 +259,98 @@ def operations(out: Path) -> None:
     p("vendors", f"{len(vend)} on file, {used.vendor_id.nunique()} paid; the ten busiest body shops take {shops.head(10).sum() / shops.sum():.0%} of body-shop payments")
 
 
+def market_and_ledger(out: Path) -> None:
+    """Figures on agencies, the market cycle, retention after a claim, physical damage and the general ledger."""
+    p = lambda label, value: print(f"  {label}: {value}")
+    pol, term, ex, clm, feat = read(out, "policy"), read(out, "policy_term"), read(out, "exposure"), read(out, "claim"), read(out, "claim_feature")
+    agency, quote, tx, stmt = read(out, "agency"), read(out, "quote"), read(out, "premium_transaction"), read(out, "agency_statement")
+    gl, acct, offers = read(out, "gl_journal"), read(out, "gl_account"), read(out, "renewal_offer")
+    val = pd.Timestamp(json.loads((out / "run_summary.json").read_text())["valuation"])
+    eff, end = pd.to_datetime(term.effective_date), pd.to_datetime(term.cancel_date.fillna(term.expiration_date))
+
+    print("AGENCIES")
+    live = term[(eff <= val) & (end > val)].merge(pol[["policy_id", "agency_id"]], on="policy_id")
+    n = live.groupby("agency_id").size().reindex(agency.agency_id).fillna(0)
+    year = str(val.year)
+    wp = tx[tx.effective_date.str[:4] == year].merge(pol[["policy_id", "agency_id"]], on="policy_id").groupby("agency_id").written_premium.sum()
+    wp = wp.reindex(agency.agency_id).fillna(0)
+    for ch in ("Independent Agent", "Exclusive Agent", "Direct"):
+        k = (agency.channel == ch).to_numpy()
+        a, w = n[k].sort_values(ascending=False), wp[k].sort_values(ascending=False)
+        top = max(len(a) // 10, 1)
+        p(ch, f"{k.sum()} agencies, {int(a.sum()):,} policies in force (mean {a.mean():.0f}, median {a.median():.0f}, largest {a.max():.0f}, "
+              f"{int((a < 25).sum())} under 25); {year} written premium ${w.sum() / 1e6:.1f}M (mean ${w.mean() / 1e3:,.0f}K, median "
+              f"${w.median() / 1e3:,.0f}K); the largest tenth write {w.head(top).sum() / w.sum():.0%}")
+    p("names", "; ".join(agency.agency_name.sample(8, random_state=5)))
+    p("commission statements", f"{len(stmt):,}; {(stmt.commission_amount < 0).sum()} negative; unpaid at valuation ${stmt[stmt.payment_date.isna()].commission_amount.sum():,.0f}")
+
+    print("MARKET")
+    q = quote.assign(y=quote.quote_date.str[:4], m=quote.quote_date.str[5:7].astype(int), b=quote.bound == "Y")
+    by = q.groupby("y").agg(quotes=("b", "size"), bound=("b", "sum"))
+    p("quotes, bound and conversion by year", "; ".join(f"{y}: {r.quotes:,} / {r.bound:,} / {r.bound / r.quotes:.1%}" for y, r in by.iterrows()))
+    mo = q.groupby("m").size()
+    p("quotes by month, relative to the average month", [round(v, 2) for v in (mo / mo.mean())])
+    ym = q.groupby(q.quote_date.str[:7]).b.mean()
+    p("conversion by month, lowest and highest", f"{ym.idxmin()} {ym.min():.1%}; {ym.idxmax()} {ym.max():.1%}")
+    ia = q[q.distribution_channel == "Independent Agent"]
+    p("independent-agent quotes, median premium relative to the best competitor, by year",
+      (ia.quoted_annual_premium / ia.competitor_annual_premium).groupby(ia.y).median().round(3).to_dict())
+    dates = [f"{y}-12-31" for y in range(int(eff.dt.year.min()), val.year + 1)]
+    p("policies in force", "; ".join(f"{d[:4]}: {int(((eff <= d) & (end > d)).sum()):,}" for d in dates))
+    done = term[end <= val]
+    lost = done.cancel_date.notna() | done.nonrenewal_reason.notna()
+    yrs = (end[done.index] - eff[done.index]).dt.days / 365.25
+    had = done.policy_term_id.isin(clm.policy_term_id)
+    ann = lambda m: 1 - np.exp(-lost[m].sum() / yrs[m].sum())
+    p("policies lost per year", f"{ann(had):.1%} of terms with a claim, {ann(~had):.1%} without ({ann(had) / ann(~had):.2f} times)")
+    p("non-renewals", term.nonrenewal_reason.value_counts().to_dict())
+    o = offers[(offers.underwriting_decision == "Renew") & offers.outcome.isin(["Renewed", "Insured Did Not Renew"])]
+    af = clm[clm.at_fault == "Y"].policy_term_id
+    kept = lambda m: (o[m].outcome == "Renewed").mean()
+    with_claim, at_fault = o.expiring_policy_term_id.isin(clm.policy_term_id), o.expiring_policy_term_id.isin(af)
+    p("renewal rate of offers", f"no claim in the expiring term {kept(~with_claim):.1%}; a claim {kept(with_claim):.1%}; an at-fault claim {kept(at_fault):.1%}")
+
+    print("PHYSICAL DAMAGE")
+    ex = ex.assign(y=ex.coverage_start_date.str[:4].astype(int), age=ex.coverage_start_date.str[:4].astype(int) - ex.model_year)
+    for y in (2022, 2024, 2026):
+        g = ex[ex.y == y]
+        w = g.earned_exposure
+        p(f"{y} vehicles", f"mean value ${np.average(g.vehicle_value, weights=w):,.0f} (with collision ${np.average(g.vehicle_value[g.collision_premium > 0], weights=w[g.collision_premium > 0]):,.0f}); "
+                           f"collision on {w[g.collision_premium > 0].sum() / w.sum():.1%}, comprehensive on {w[g.comprehensive_premium > 0].sum() / w.sum():.1%}")
+    g = ex[ex.y == 2024]
+    bands = pd.cut(g.age, [-2, 2, 5, 8, 11, 15, 40], labels=["0-2", "3-5", "6-8", "9-11", "12-15", "16+"])
+    p("2024 by vehicle age: mean value, collision take-up", "; ".join(
+        f"{k} ${np.average(d.vehicle_value, weights=d.earned_exposure):,.0f} {d.earned_exposure[d.collision_premium > 0].sum() / d.earned_exposure.sum():.0%}"
+        for k, d in g.groupby(bands, observed=True)))
+    f = feat.merge(clm[["claim_id", "loss_date"]], on="claim_id")
+    for cov in ("COLL", "COMP"):
+        d = f[(f.coverage_code == cov) & (f.paid_loss > 0) & (f.loss_date < f"{val.year}-01-01")]
+        tl = d[d.total_loss == "Y"]
+        p(cov, f"paid claims {len(d):,}; average ${d.paid_loss.mean():,.0f}; total losses {len(tl) / len(d):.1%} averaging ${tl.paid_loss.mean():,.0f}, "
+               f"others ${d[d.total_loss != 'Y'].paid_loss.mean():,.0f}; salvage {d.salvage_recovery.sum() / d.paid_loss.sum():.1%} and subrogation "
+               f"{d.subrogation_recovery.sum() / d.paid_loss.sum():.1%} of payments")
+
+    print("GENERAL LEDGER")
+    p("size", f"{len(acct)} accounts, {gl.journal_number.nunique():,} journals, {len(gl):,} lines; {gl.journal_type.value_counts().to_dict()}")
+    name = acct.set_index("account_number").account_name
+    bal = (gl.debit - gl.credit).groupby(gl.account_number).sum()
+    p("balances at the valuation date (debit positive)", "; ".join(f"{a} {name[a]} {v:,.0f}" for a, v in bal.items()))
+    ob = gl[gl.journal_type == "Opening balances"]
+    p("opening entry", "; ".join(f"{a} {v:,.0f}" for a, v in (ob.debit - ob.credit).groupby(ob.account_number).sum().items()))
+    act = gl[gl.journal_type != "Opening balances"].assign(y=lambda d: d.accounting_period.str[:4])
+    net = (act.credit - act.debit).groupby([act.y, act.account_number]).sum().unstack(fill_value=0)
+    for y, r in net.iterrows():
+        earned = r[4000] + r[4010]
+        incurred = -(r[5000] + r[5010] + r[5020] + r[5200])
+        lae = -(r[5100] + r[5110] + r[5210])
+        p(y, f"written ${r[4000] / 1e6:.1f}M, earned ${earned / 1e6:.1f}M, fees ${r[4200] / 1e6:.2f}M, losses incurred ${incurred / 1e6:.1f}M "
+             f"({incurred / earned:.1%}), adjustment expenses ${lae / 1e6:.1f}M ({lae / earned:.1%}), commission ${-r[6100] / 1e6:.1f}M "
+             f"({-r[6100] / earned:.1%}), written off ${-r[6300] / 1e6:.2f}M")
+
+
 if __name__ == "__main__":
     main()
     import sys
-    operations(Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else Path("output"))
+    folder = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else Path("output")
+    operations(folder)
+    market_and_ledger(folder)

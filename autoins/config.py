@@ -59,7 +59,10 @@ CHANNEL_RETENTION = {"Independent Agent": 0.0, "Exclusive Agent": 0.15, "Direct"
 AGENCY_QUALITY_SIGMA = 0.11           # spread of agencies' book quality (log at-fault propensity)
 AGENCY_RETENTION_SIGMA = 0.18         # spread of agencies' retention effect (renewal logit)
 AGENCY_QUALITY_RETENTION_CORR = -0.5
-N_AGENCIES = {"Independent Agent": 44, "Exclusive Agent": 14}
+# Agencies appointed in the area (ASSUMED). A carrier this size places its independent business through many
+# small appointments: about 120 agencies averaging some $150,000 of premium a year each, near the volume
+# regional carriers commonly ask of an appointed agency, with a few large ones writing a multiple of that.
+N_AGENCIES = {"Independent Agent": 120, "Exclusive Agent": 14}
 MULTI_CAR_FREQ = 0.90                 # at-fault and not-at-fault crash frequency of each car on a multi-car policy
 # New customers claim more (ASSUMED shape; sized to the new-business penalty real books show: a CAS study of 25
 # books, Wu and Lin 2009, found new business loss ratios 13 points above renewal, improving for three to five
@@ -138,7 +141,12 @@ LOAN_YEARS = 5.75                                    # average auto loan ~69 mon
 # Owned vehicles dropping collision as they age, per year (shape ASSUMED). Overall about 2% of vehicles a
 # year, near the 1.9% of drivers who dropped collision or comprehensive in a 2026 consumer survey.
 DROP_PD_AGE_KNOTS = [0, 6, 10, 15, 20]
-DROP_PD_RATE = [0.005, 0.02, 0.06, 0.10, 0.12]
+DROP_PD_RATE = [0.003, 0.01, 0.03, 0.06, 0.08]
+# Collision on a car the owner is free to insure as they like (financed and leased cars must carry it): the
+# log-odds fall with the car's age and rise with income and insurance score (ASSUMED shape; TUNED with
+# P_COMP_ONLY to Illinois' take-up: collision on 82.6% and comprehensive on 87.5% of insured cars, NAIC Auto
+# Insurance Database 2023).
+FULL_COVERAGE = dict(base=4.55, per_year=-0.26, income=0.5, score=0.3, non_standard=-0.6)
 KEEP_COMP_WHEN_DROPPING_COLL_P = 0.35                # (ASSUMED)
 RAISE_DEDUCTIBLE = dict(base=0.02, per_increase=0.40, cap=0.25)   # after a renewal increase above 10%
 LIMIT_CHANGE = dict(up=0.03, down=0.01, down_per_increase=0.15)  # liability limit changes at renewal, per year (ASSUMED)
@@ -249,15 +257,15 @@ BASE_RATE = {
     "AF_SV": 0.0134,        # insured at fault, single vehicle
     "NAF": 0.0379,          # insured not at fault
     "PARKED": 0.0166,       # hit while parked / unoccupied
-    "GLASS": 0.0360,
+    "GLASS": 0.0400,
     "THEFT_TOTAL": 0.0011,
-    "THEFT_PARTIAL": 0.0050,
-    "VANDALISM": 0.0040,
-    "ANIMAL": 0.0044,
-    "WEATHER": 0.0052,      # non-catastrophe hail, wind, falling limbs
+    "THEFT_PARTIAL": 0.0060,
+    "VANDALISM": 0.0048,
+    "ANIMAL": 0.0046,
+    "WEATHER": 0.0062,      # non-catastrophe hail, wind, falling limbs
     "FLOOD": 0.0004,
     "FIRE": 0.0004,
-    "OTHER_COMP": 0.0044,
+    "OTHER_COMP": 0.0050,
 }
 SEGMENT_FREQ = {"economy": 1.05, "mainstream": 1.00, "luxury": 1.00, "truck": 0.97, "sports": 1.25,
                 "ev": 1.05, "minivan": 0.88}
@@ -289,22 +297,35 @@ SEVERITY_TREND = {
     "COLL": {2021: 0.85, 2022: 0.96, 2023: 0.99, 2024: 1.00, 2025: 1.03, 2026: 1.06},
     "COMP": {2021: 0.82, 2022: 0.90, 2023: 0.97, 2024: 1.00, 2025: 1.03, 2026: 1.06},
 }
-USED_CAR_VALUE_INDEX = {2021: 1.10, 2022: 1.20, 2023: 1.15, 2024: 1.10, 2025: 1.10, 2026: 1.11}   # ASSUMED shape
+# What a car is worth. RESIDUAL_VALUE is its value as a share of the model year's base price at each age, at
+# pre-pandemic used-car prices (ASSUMED shape: buyers pay about a tenth over the base price for trim and
+# options, and a car kept roughly half its price at five years and three tenths at ten). USED_CAR_VALUE_INDEX
+# lifts it to each year's used-car market: the Manheim Used Vehicle Value Index (Cox Automotive, January 1997
+# = 100) stood in the low 150s before the pandemic, 257.7 at the end of 2021, 219.3 at the end of 2022, 204.0
+# at the end of 2023, 204.8 at the end of 2024 and 205.5 at the end of 2025; the mid-year levels here are read
+# off that path (2026 ASSUMED flat). A used car is never worth more than NEW_VALUE_CAP times the base price.
+# Together they put a ten-year-old car at about 40% of its base price in 2024, in line with the vehicles
+# insurers wrote off (CCC Crash Course: average total-loss vehicle value $13,400 to $13,700 in 2024-25).
+RESIDUAL_VALUE_AGE = [0, 1, 3, 5, 10, 15, 20, 30]
+RESIDUAL_VALUE = [1.10, 0.92, 0.71, 0.54, 0.30, 0.17, 0.11, 0.07]
+NEW_VALUE_CAP = 1.15
+MIN_VEHICLE_VALUE = 1_500.0
+USED_CAR_VALUE_INDEX = {2021: 1.39, 2022: 1.52, 2023: 1.42, 2024: 1.31, 2025: 1.34, 2026: 1.34}
 
 # Severity medians/sigmas at the 2024 level (lognormal; TUNED to the severity targets, compared with the
 # national figures on their own definitions: see BENCHMARK in validate.py)
 PD_SEV = dict(median=4_450, sigma=0.95)
-BI_SEV = dict(median=20_000, sigma=1.40)
+BI_SEV = dict(median=21_000, sigma=1.40)
 UM_SEV = dict(median=9_500, sigma=1.35)
 MED_SEV = dict(median=1_900, sigma=0.95)
-COLL_SEV = dict(median=5_000, sigma=0.95)          # ground-up repair cost for a reference vehicle
+COLL_SEV = dict(median=6_900, sigma=0.90)          # ground-up repair cost for a reference vehicle
 COLL_PERIL_SEV = {"AF_MV": 1.00, "AF_SV": 1.30, "NAF": 0.95, "PARKED": 0.55}
-TOTAL_LOSS_THRESHOLD = 0.72                         # repair cost / actual cash value
+TOTAL_LOSS_THRESHOLD = 0.75                         # repair cost / actual cash value
 SALVAGE_RANGE = (0.12, 0.32)                        # share of actual cash value recovered on a total loss
 COMP_SEV = {                                        # lognormal (median, sigma) unless noted
-    "GLASS": (740, 0.60), "THEFT_PARTIAL": (2_800, 0.90), "VANDALISM": (2_250, 0.90),
-    "ANIMAL": (5_850, 0.70), "WEATHER": (2_700, 0.90), "OTHER_COMP": (1_950, 0.90),
-    "HAIL_CAT": (3_900, 0.75), "WIND_CAT": (2_300, 0.85),
+    "GLASS": (800, 0.60), "THEFT_PARTIAL": (3_100, 0.90), "VANDALISM": (2_500, 0.90),
+    "ANIMAL": (6_400, 0.70), "WEATHER": (3_000, 0.90), "OTHER_COMP": (2_150, 0.90),
+    "HAIL_CAT": (4_300, 0.75), "WIND_CAT": (2_500, 0.85),
 }
 GLASS_ADAS_FACTOR = 1.7                             # windshield camera recalibration
 SEGMENT_PD_SEV = {"truck": 1.15}                    # heavier striking vehicle does more damage
@@ -327,7 +348,7 @@ BI_CLAIMANTS_P = [0.72, 0.20, 0.06, 0.02]
 P_MED = {"AF_MV": 0.12, "AF_SV": 0.15, "NAF": 0.06}
 P_UNINSURED_BASE = 0.16             # other driver uninsured or fled; Chicago hit-and-run share is ~31% of crashes
 P_UM_INJURY = 0.20
-P_FILE_COLL = {"AF_MV": 0.90, "AF_SV": 0.90, "NAF": 0.42, "NAF_UNINSURED": 0.90, "PARKED": 0.75}
+P_FILE_COLL = {"AF_MV": 0.86, "AF_SV": 0.86, "NAF": 0.48, "NAF_UNINSURED": 0.90, "PARKED": 0.70}
 P_SUBROGATION = {"NAF": 0.85, "PARKED": 0.10}
 SUBROGATION_SHARE = (0.75, 1.00)
 P_FILE_BELOW_DEDUCTIBLE = 0.75      # claims opened then closed without payment
@@ -407,7 +428,12 @@ RATE_CHANGES = [("2022-04-01", 0.04), ("2022-10-01", 0.08), ("2023-03-01", 0.10)
 # --------------------------------------------------------------------------
 # Retention and cancellation (ASSUMED)
 # --------------------------------------------------------------------------
-RENEWAL_BASE_LOGIT = {6: 2.42, 12: 1.75}
+RENEWAL_BASE_LOGIT = {6: 2.57, 12: 1.90}
+# A customer who had a claim since the last renewal offer is likelier to leave: any claim, more if it was
+# at fault (a surcharge is coming, on top of the price effect below), more again after a second (renewal
+# logit; ASSUMED, sized to a real motor portfolio in which a contract with a claim in the period was 1.45
+# times as likely to end as one without: docs/real_data_comparison.md).
+CLAIM_RETENTION = dict(any=-0.55, at_fault=-0.45, repeat=-0.30)
 PRICE_ELASTICITY = 6.0              # logit points per 100% premium increase above the tolerance
 PRICE_TOLERANCE = 0.03
 MIDTERM_INSURED_REQUEST_RATE = 0.030   # per year
@@ -425,10 +451,29 @@ UW_CANCEL_NEW_BUSINESS_P = 0.008
 # Quotes (ASSUMED). Conversion at the market price by channel, how strongly it falls as our price rises
 # above the best competing quote, and how widely our price varies around that quote.
 # --------------------------------------------------------------------------
-QUOTE_CONVERSION = {"Independent Agent": 0.22, "Exclusive Agent": 0.38, "Direct": 0.12}
+QUOTE_CONVERSION = {"Independent Agent": 0.22, "Exclusive Agent": 0.38, "Direct": 0.12}   # at the market's price level
 QUOTE_PRICE_ELASTICITY = 5.0         # logit points per unit of log(our price / best competing price)
 COMPETITOR_PRICE_SIGMA = 0.18
 COMPARATIVE_RATER_CHANNELS = ["Independent Agent"]   # competing quotes are seen only through agents' comparative raters
+# The market (see market.py). Its rate level: US private auto rates rose 12.1% in 2022, 16.5% in 2023 and 7.6% in
+# 2024 (S&P Global RateWatch) and approved increases slowed to 3.7% in 2025 (AM Best); 2026 is ASSUMED. Each
+# year's change is spread evenly over the year, while the company's own filed changes (RATE_CHANGES) land on
+# their effective dates, so the company is dearer than the market after each increase until the market catches up.
+MARKET_RATE_CHANGE = {2021: 0.0, 2022: 0.121, 2023: 0.165, 2024: 0.076, 2025: 0.037, 2026: -0.005}
+MARKET_REFERENCE_DATE = "2022-01-01"     # the day the company's rate level and the market's are level
+MARKET_RETENTION = 1.5                   # renewal logit per unit of log(own rate level / market's) on the offer day
+# How many households shop (ASSUMED shapes). By month: most in late winter and spring, when tax refunds arrive
+# and cars are bought, fewest around the year-end holidays. By year: shopping rose as premiums did, to record
+# levels in 2024 (as LexisNexis' Insurance Demand Meter reported), and eased afterwards.
+SHOPPING_SEASONALITY = [0.98, 1.06, 1.14, 1.08, 1.03, 1.01, 1.00, 1.02, 0.97, 0.95, 0.91, 0.85]
+SHOPPING_YEAR = {2021: 0.90, 2022: 0.92, 2023: 1.00, 2024: 1.12, 2025: 1.08, 2026: 1.02}
+
+# --------------------------------------------------------------------------
+# General ledger (ledger.py). The books open the day before the extract begins with surplus of this share of the
+# annual premium then in force (ASSUMED; US personal auto carriers write roughly two dollars of premium per
+# dollar of surplus), held as cash.
+# --------------------------------------------------------------------------
+OPENING_SURPLUS_SHARE = 0.50
 
 # --------------------------------------------------------------------------
 # Catastrophes: FICTIONAL events with realistic seasonality for northern Illinois.

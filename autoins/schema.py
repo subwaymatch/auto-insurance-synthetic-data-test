@@ -33,6 +33,10 @@ PRIMARY_KEYS = {
     "customer_contact": "contact_id",
     "billing_invoice": "invoice_id",
     "billing_receipt": "receipt_id",
+    "agency_statement": "statement_id",
+    # general ledger
+    "gl_account": "account_number",
+    "gl_journal": "journal_line_id",
     # claims
     "claim": "claim_id",
     "claim_feature": "claim_feature_id",
@@ -57,6 +61,8 @@ FOREIGN_KEYS = {
     "zip_demographics": {"zip_code": ("location", "zip_code")},
     "agency": {"zip_code": ("location", "zip_code")},
     "producer": {"agency_id": ("agency", "agency_id")},
+    "agency_statement": {"agency_id": ("agency", "agency_id")},
+    "gl_journal": {"company_id": ("underwriting_company", "company_id"), "account_number": ("gl_account", "account_number")},
     "employee": {"claim_office_id": ("claim_office", "claim_office_id"), "supervisor_employee_id": ("employee", "employee_id")},
     "vendor": {"zip_code": ("location", "zip_code")},
     "billing_invoice": {"policy_id": ("policy", "policy_id"), "policy_term_id": ("policy_term", "policy_term_id")},

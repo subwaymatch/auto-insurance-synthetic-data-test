@@ -70,6 +70,7 @@ class Calendar:
     sev_trend: dict = field(repr=False, default_factory=dict)  # daily severity index by coverage group
     used_car: np.ndarray = field(repr=False, default=None)
     rate_level: np.ndarray = field(repr=False, default=None)
+    market_level: np.ndarray = field(repr=False, default=None)   # the market's rate level, same indexing
     hours: dict = field(repr=False, default_factory=dict)      # group -> [weekday, hour] share of losses
 
     def date(self, day) -> np.ndarray:
@@ -320,6 +321,15 @@ def load(cfg: C.Config) -> Reference:
     for d, chg in C.RATE_CHANGES:
         level[max((np.datetime64(d) - start).astype(int), 0):] *= 1 + chg
     cal.rate_level = level
+    # the market's level: each calendar year's change spread evenly over its days, equal to the company's on the
+    # reference date
+    origin = np.datetime64("2021-01-01")
+    span = np.arange((start - origin).astype(int) + len(level) + 1)
+    yr = (origin + span.astype("timedelta64[D]")).astype("M8[Y]").astype(int) + 1970
+    cum = np.concatenate([[0.0], np.cumsum(np.log1p(C.year_series(C.MARKET_RATE_CHANGE, yr)) / 365.25)])
+    ref_day = (np.datetime64(C.MARKET_REFERENCE_DATE) - origin).astype(int)
+    off = (start - origin).astype(int)
+    cal.market_level = np.exp(cum[off:off + len(level)] - cum[ref_day])
 
     from .names import NameSampler
     from .truth import SEGMENTS

@@ -2,11 +2,13 @@
 
 Every new-business policy began as a quote that bound; many more quotes never bound. Each quote has a
 competitive position, our premium relative to the best competing quote, and the chance of binding falls
-as that ratio rises (config.QUOTE_PRICE_ELASTICITY), from a level that depends on the channel. Policies in
-the book are the quotes that bound, so their competitive position is drawn given that they bound. Quotes
-that did not bind come from a separate population of prospects, drawn and rated exactly like new business
-with the same rating plan, keeping those that did not bind. Competing premiums are visible only on
-independent-agent quotes, through the agent's comparative rater, as in practice.
+as that ratio rises (config.QUOTE_PRICE_ELASTICITY), from a level that depends on the channel. Positions
+are spread around the gap between the company's rate level and the market's on the day of the quote
+(market.py), so quotes win less often in the months after a rate increase. Policies in the book are the
+quotes that bound, so their competitive position is drawn given that they bound. Quotes that did not bind
+come from a separate population of prospects, drawn and rated exactly like new business with the same
+rating plan and arriving as shoppers do through the year, keeping those that did not bind. Competing
+premiums are visible only on independent-agent quotes, through the agent's comparative rater, as in practice.
 
 Every quote offers the telematics programme. A prospect who opts in is quoted with the participation
 discount, bound or not: bound quotes show what the policy was written with, and prospects opt in at the
@@ -21,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import population, rating, telematics, truth
+from . import market, population, rating, telematics, truth
 from .refdata import day_weight, stream
 from .simulate import Records
 
@@ -48,10 +50,13 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
         young=young.reindex(nb.pol).to_numpy(), prior=pol.prior_insurance.to_numpy(), score=pol.insurance_score.to_numpy(),
         bi_opt=at_quote("bi_opt"), telematics=first["tele_on"].any().reindex(nb.pol).fillna(False).to_numpy().astype(bool),
         term_months=pol.term_months.to_numpy(), premium=annual, bound=True))
-    bound["log_ratio"] = _position(R, bound.channel.to_numpy(), bind=True)
+    bound["log_ratio"] = _position(R, bound.channel.to_numpy(), market.gap(cal, bound.quote_day.to_numpy()))
 
-    # a channel converting a share c of its quotes needs 1/c quotes per policy it writes
-    conv = np.array([C.QUOTE_CONVERSION[c] for c in C.CHANNELS])
+    # a channel converting a share c of its quotes needs 1/c quotes per policy it writes; c is its conversion
+    # averaged over the months as shoppers arrive
+    months = np.arange((cal.date(cal.valuation_day).astype("M8[M]") - cal.start.astype("M8[M]")).astype(int) + 1)
+    shop = market.shopping(cal, months)
+    conv = (market.conversion(cal, months) * shop).sum(axis=1) / shop.sum()
     need = np.bincount(bound.channel.to_numpy(), minlength=len(C.CHANNELS)) / conv
     lost = _prospects(cfg, ref, res.plan, int(need.sum()), need / need.sum(), R)
     q = pd.concat([bound, lost], ignore_index=True)
@@ -76,23 +81,14 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
         "policy_id": pd.Series(1_000_000 + q.pol.to_numpy() + 1).astype("Int64").where(q.bound.to_numpy())})
 
 
-def _base_logit(channel: np.ndarray) -> np.ndarray:
-    p = np.array([C.QUOTE_CONVERSION[c] for c in C.CHANNELS])[channel]
-    return np.log(p / (1 - p))
-
-
-def _bind_p(channel, log_ratio):
-    return 1 / (1 + np.exp(-(_base_logit(channel) - C.QUOTE_PRICE_ELASTICITY * log_ratio)))
-
-
-def _position(R: np.random.Generator, channel: np.ndarray, bind: bool) -> np.ndarray:
-    """log(our premium / best competing premium), drawn given whether the quote bound (rejection sampling)."""
+def _position(R: np.random.Generator, channel: np.ndarray, centre: np.ndarray) -> np.ndarray:
+    """log(our premium / best competing premium) of quotes that bound: spread around `centre` (the market gap on
+    the quote day), drawn given that the quote bound (rejection sampling)."""
     out = np.empty(len(channel))
     todo = np.arange(len(channel))
     while len(todo):
-        x = R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(todo))
-        p = _bind_p(channel[todo], x)
-        ok = R.random(len(todo)) < (p if bind else 1 - p)
+        x = centre[todo] + R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(todo))
+        ok = R.random(len(todo)) < market.bind_p(channel[todo], x)
         out[todo[ok]] = x[ok]
         todo = todo[~ok]
     return out
@@ -102,7 +98,7 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generat
     """Households who asked for a quote and did not buy: drawn like new business, rated with the same plan."""
     cal = ref.cal
     pp = population.build(replace(cfg, n_policies=max(n, 1), initial_book_share=0.0), ref, tag="/prospects",
-                          channel_p=channel_p)
+                          channel_p=channel_p, shoppers=True)
     st = truth.Static.build(pp, ref)
     p, v = st.p, st.v
     first = p["first_day"]
@@ -127,8 +123,8 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generat
     for c in telematics.DISCOUNTED_COVERAGES:
         prem[c] = np.round(prem[c] * np.where(opt_in[vp], 1 - telematics.PARTICIPATION_DISCOUNT, 1.0), 2)
     annual = np.bincount(vp, sum(prem.values()), len(first)) / ty
-    log_ratio = R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(first))
-    lost = R.random(len(first)) >= _bind_p(channel, log_ratio)
+    log_ratio = market.gap(cal, quote_day) + R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(first))
+    lost = R.random(len(first)) >= market.bind_p(channel, log_ratio)
     young = pp.drv.assign(age=(first[d_pol] - pp.drv.dob_day.to_numpy()) / 365.25).groupby("pol").age.min().to_numpy()
     out = pd.DataFrame(dict(
         quote_day=quote_day, eff=first, pol=-1, channel=channel, agency=p["agency_id"], zi=p["zi"], ni_age=p["ni_age"],

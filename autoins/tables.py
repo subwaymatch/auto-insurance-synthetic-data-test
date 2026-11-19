@@ -616,7 +616,7 @@ def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.
     R = stream(cfg.seed, "producers")
     count = pol.groupby("agency_id").size().reindex(agencies.agency_id).fillna(0).to_numpy()
     agent = (agencies.channel != "Direct").to_numpy()
-    n = np.where(agent, 1 + np.minimum(count // 300, 11), 0).astype(int)
+    n = np.where(agent, 1 + np.minimum(count // 200, 11), 0).astype(int)
     a = np.repeat(np.arange(len(agencies)), n)
     zi = agencies.zi.to_numpy()[a].clip(0)
     ns = ref.names
@@ -625,9 +625,12 @@ def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.
     appointed = -agencies.appointed_days_before_start.to_numpy()[a]
     first_of_agency = np.r_[True, a[1:] != a[:-1]]
     start = np.where(first_of_agency, appointed, np.minimum(appointed + R.integers(0, 6_000, len(a)), -30))
+    # an agency's first producer is its principal, whose name the agency often carries
     prod = pd.DataFrame(dict(producer=np.arange(len(a)), agency_id=agencies.agency_id.to_numpy()[a],
-                             first_name=ns.first_name(R, group, male, 1960 + R.integers(0, 35, len(a))),
-                             last_name=ns.surname(R, group), start=start, weight=np.exp(R.normal(0, 0.8, len(a)))))
+                             first_name=np.where(first_of_agency, agencies.principal_first.to_numpy()[a],
+                                                 ns.first_name(R, group, male, 1960 + R.integers(0, 35, len(a)))),
+                             last_name=np.where(first_of_agency, agencies.principal_last.to_numpy()[a], ns.surname(R, group)),
+                             start=start, weight=np.exp(R.normal(0, 0.8, len(a)))))
     out = np.full(len(pol), -1)
     by_agency = pol.agency_id.to_numpy()
     for aid, g in prod.groupby("agency_id"):

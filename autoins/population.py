@@ -12,6 +12,7 @@ import pandas as pd
 
 from . import config as C
 from . import names, truth
+from . import market
 from .refdata import Reference, day_weight, stream
 
 
@@ -42,28 +43,64 @@ AGENCY_WORDS = ["Lakeshore", "Prairie", "Fox Valley", "North Shore", "Midway", "
                 "Red Oak", "Cardinal", "Monarch", "Sentinel", "Frontier", "Compass", "Anchor", "Bridgeview", "Heritage",
                 "Homestead", "Millennium", "Skyline", "Lighthouse", "Old Mill", "Goldfinch", "Bluestem"]
 AGENCY_SUFFIXES = ["Insurance Agency", "Insurance Group", "Insurance Services", "Insurance Brokers", "Agency"]
+# How independent agencies are named (ASSUMED): after the owner, two partners, the town, or a trade name.
+AGENCY_NAME_STYLE_P = dict(owner=0.42, partners=0.08, town=0.12, trade=0.38)
+AGENCY_SIZE_SIGMA = {"Independent Agent": 1.10, "Exclusive Agent": 0.50}   # lognormal spread of agency size (ASSUMED)
 # Commission schedules (ASSUMED, typical of personal auto): share of written premium paid to the agency
 COMMISSION = {"Independent Agent": dict(new=[0.12, 0.13, 0.15], new_p=[0.35, 0.40, 0.25], renewal_cut=0.02),
               "Exclusive Agent": dict(new=[0.10, 0.11, 0.12], new_p=[0.30, 0.40, 0.30], renewal_cut=0.03)}
 
 
+def _agency_names(rng: np.random.Generator, exclusive: np.ndarray, city: np.ndarray, first: np.ndarray,
+                  last: np.ndarray, partner: np.ndarray) -> list[str]:
+    """A name for each agency, no two alike. An exclusive agent's office carries the agent's own name; an
+    independent agency is named after its owner, two partners, its town or a trade name."""
+    styles = list(AGENCY_NAME_STYLE_P)
+    trade = list(rng.permutation(AGENCY_WORDS))
+    seen, out = set(), []
+    for i in range(len(city)):
+        suffix = AGENCY_SUFFIXES[rng.integers(len(AGENCY_SUFFIXES))]
+        style = styles[rng.choice(len(styles), p=list(AGENCY_NAME_STYLE_P.values()))]
+        options = []
+        if exclusive[i]:
+            options = [f"{first[i]} {last[i]} Agency", f"{first[i]} {last[i]} Insurance Agency"]
+        elif style == "partners" and partner[i] != last[i]:
+            options = [f"{last[i]} & {partner[i]} Insurance"]
+        elif style == "town":
+            options = [f"{city[i]} {suffix}"]
+        elif style == "trade" and trade:
+            options = [f"{trade.pop()} {suffix}"]
+        options += [f"{last[i]} {suffix}", f"{last[i]} & Associates Insurance", f"{last[i]} Insurance of {city[i]}",
+                    f"{first[i]} {last[i]} Insurance Agency of {city[i]}"]
+        name = next((o for o in options if o not in seen), f"{options[-1]} ({i + 1})")
+        seen.add(name)
+        out.append(name)
+    return out
+
+
 def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
-    """The agencies and the two direct units. Each agency has a size, a home ZIP, a commission schedule and two
-    hidden traits the insurer does not record: the quality of the book it writes (a multiplier on its customers'
-    at-fault propensity) and how well it keeps its customers (a shift in their renewal odds)."""
-    z = ref.zips
+    """The agencies and the two direct units. Each agency has a size, a home ZIP, a principal (its owner, who is
+    its first producer), a commission schedule and two hidden traits the insurer does not record: the quality
+    of the book it writes (a multiplier on its customers' at-fault propensity) and how well it keeps its
+    customers (a shift in their renewal odds). Sizes are long-tailed: a carrier's independent agencies are
+    mostly small appointments, with a few large ones writing much of the premium."""
+    z, ns = ref.zips, ref.names
     n_ind, n_exc = C.N_AGENCIES["Independent Agent"], C.N_AGENCIES["Exclusive Agent"]
     m = n_ind + n_exc
-    assert m <= len(AGENCY_WORDS), "add names to AGENCY_WORDS for more agencies"
-    homes = rng.choice(len(z), m, replace=False, p=(z.population / z.population.sum()).to_numpy())
-    rows = []
-    for i, h in enumerate(homes):
-        rows.append(dict(agency_id=i + 1, name=f"{AGENCY_WORDS[i]} {AGENCY_SUFFIXES[rng.integers(len(AGENCY_SUFFIXES))]}",
-                         channel=C.CHANNELS[0] if i < n_ind else C.CHANNELS[1], zi=int(h),
-                         size=float(rng.lognormal(0, 0.8))))
-    rows.append(dict(agency_id=len(rows) + 1, name="Direct - Online", channel="Direct", zi=-1, size=0.7))
-    rows.append(dict(agency_id=len(rows) + 1, name="Direct - Contact Center", channel="Direct", zi=-1, size=0.3))
-    ag = pd.DataFrame(rows)
+    exclusive = np.arange(m) >= n_ind
+    homes = rng.choice(len(z), m, replace=m > len(z), p=(z.population / z.population.sum()).to_numpy())
+    group = ns.draw_group(rng, ns.zip_mix(z.iloc[homes]))
+    male = rng.random(m) < 0.6
+    first = ns.first_name(rng, group, male, 1955 + rng.integers(0, 30, m))
+    last, partner = ns.surname(rng, group), ns.surname(rng, group)
+    size = np.exp(rng.normal(0, np.where(exclusive, AGENCY_SIZE_SIGMA["Exclusive Agent"], AGENCY_SIZE_SIGMA["Independent Agent"])))
+    ag = pd.DataFrame(dict(agency_id=np.arange(1, m + 1),
+                           name=_agency_names(rng, exclusive, z.city.to_numpy()[homes], first, last, partner),
+                           channel=np.where(exclusive, C.CHANNELS[1], C.CHANNELS[0]), zi=homes.astype(int), size=size,
+                           principal_first=first, principal_last=last))
+    direct = pd.DataFrame(dict(agency_id=[m + 1, m + 2], name=["Direct - Online", "Direct - Contact Center"], channel="Direct",
+                               zi=-1, size=[0.7, 0.3], principal_first="", principal_last=""))
+    ag = pd.concat([ag, direct], ignore_index=True)
     rho = C.AGENCY_QUALITY_RETENTION_CORR
     e1, e2 = rng.standard_normal(len(ag)), rng.standard_normal(len(ag))
     agent = (ag.channel != "Direct").to_numpy()
@@ -80,9 +117,10 @@ def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
     return ag
 
 
-def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Population:
+def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers: bool = False) -> Population:
     """The insured population. `tag` draws different households (for quotes that never bound) while keeping
-    the same ZIP hazards and agencies; `channel_p` overrides the distribution channel mix."""
+    the same ZIP hazards and agencies; `channel_p` overrides the distribution channel mix; `shoppers` spreads
+    the households over the months as everyone who asks for a quote, not only those who buy (market.py)."""
     z, cal = ref.zips, ref.cal
     n = cfg.n_policies
     Z = len(z)
@@ -112,7 +150,7 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     # enters with the term that spans that date (it began up to one term earlier, and only the part
     # after the start is earned); new business enters with its first term.
     renew_month = r.integers(0, 12, n) % term_months
-    first_month = np.where(is_init, renew_month - term_months, r.integers(0, n_months, n))
+    month_u = r.random(n)          # the month a new customer arrives, as a position in its channel's months
     dom_u = r.random(n)            # anniversary day, as a position within the month the policy was written
 
     bands = list(C.AGE_BAND_BOUNDS)
@@ -128,6 +166,10 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None) -> Popul
     # been selected by years of renewals, new customers arrive less settled, and the channels differ.
     channel = r.choice(3, n, p=C.CHANNEL_P if channel_p is None else channel_p)
     channel = np.where((ni_age < 35) & (r.random(n) < 0.25), 2, channel)
+    # new business arrives when households shop and the company's prices win them (market.month_weights)
+    mw = np.cumsum(market.month_weights(cal, n_months, shoppers), axis=1)
+    arrive = np.minimum((month_u[:, None] * mw[channel, -1:] > mw[channel]).sum(axis=1), n_months - 1)
+    first_month = np.where(is_init, renew_month - term_months, arrive)
     S = C.STABILITY_ON
     stab = r.normal(0, 1, n) + np.where(is_init, C.STABILITY_SHIFT["opening"], C.STABILITY_SHIFT["new"]) \
         + np.array([C.STABILITY_CHANNEL[c] for c in C.CHANNELS])[channel]
@@ -489,7 +531,9 @@ def draw_ownership(r: np.random.Generator, vehicle_age) -> np.ndarray:
 
 
 def full_coverage_probability(vehicle_age, inc_rel, score_z, tier) -> np.ndarray:
-    return 1 / (1 + np.exp(-(4.1 - 0.36 * vehicle_age + 0.5 * np.log(inc_rel) + 0.3 * score_z - 0.6 * (tier == 2))))
+    f = C.FULL_COVERAGE
+    return 1 / (1 + np.exp(-(f["base"] + f["per_year"] * vehicle_age + f["income"] * np.log(inc_rel) + f["score"] * score_z
+                             + f["non_standard"] * (tier == 2))))
 
 
 def usage_table(veh_id, veh_pol, veh_primary, veh_extra, drv_id, drv_pol) -> tuple[pd.DataFrame, np.ndarray]:

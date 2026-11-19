@@ -38,7 +38,10 @@ otherwise.
    are now filed and only roughly right, new customers and some agencies cost more than they are charged,
    staff work business days and losses follow Chicago's real days, records carry policy numbers, claim
    numbers and VINs, and every premium is billed and collected and every claim payment has a payee, a cheque
-   number and an approver.
+   number and an approver. A second round closed what the audit had left: quotes and new business follow the
+   season and the company's prices against the market's, customers leave after claims, cars are worth what
+   they fetched in 2022 to 2024 so that collision and comprehensive premiums reach Illinois' averages, the
+   independent agencies become 120 of very unequal size, and a general ledger adds the subledgers up.
 
 ## Unreleased (in progress)
 
@@ -337,6 +340,99 @@ insurance, employs people and pays its bills. Measured on the data, they did not
 physical damage premiums and take-up are still below Illinois' averages (collision and comprehensive about a
 third lower per covered car; collision carried on 67% of cars against 83% statewide); claims still barely
 drive customers away; there is no general ledger and no planted error or fraud. All are in
+[docs/limitations.md](docs/limitations.md). (The next subsection takes up all of these but planted errors.)
+
+### After the audit: a market, Illinois-level physical damage, claims that cost customers, a ledger, 120 agencies
+
+**Why.** The audit above left four things undone, and a question about the agencies followed it: would a
+carrier of this size really place its independent business through 44 agencies of similar size? It would
+not. A regional carrier appoints many small agencies and gets most of its premium from a few.
+
+| Finding | Before | After |
+|---|---|---|
+| Independent agencies few and alike | 44, averaging 224 policies in force and about $400,000 of premium a year each | 120: a median of 45 policies in force, the largest 483; in 2026 a mean of $193,000 and a median of $115,000 of premium; the largest tenth write 36% |
+| Quotes level through the year and from year to year | The same every month | March a third above December; 21,277 quotes in 2022, 25,184 in 2024, 23,076 in 2026 |
+| Conversion constant | 18.8% throughout | 21.9% in 2022, 17.5% in 2024, 21.2% in 2026; 21.5% in the two months before a rate increase of 5% or more, 17.0% in the two months after |
+| The book grew evenly | | 20,385 policies in force at the end of 2022, 19,968 a year later, 22,650 at the end of 2026 |
+| Claims barely drove customers away (policies lost per year: terms with a claim against terms without) | 19.0% against 17.9%: 1.06 times (a real portfolio: 1.45) | 25.2% against 17.9%: 1.41 times; renewal offers taken up 94.4% of the time with no claim, 87.2% with one, 79.0% with an at-fault one |
+| The company almost never refused a renewal | 165 of 10,958 non-renewals | 965 of 11,462 |
+| Collision premium per insured car against Illinois (2022, 2023, 2024) | About a third below | 0.87, 0.86 and 0.94 times ($332, $378, $445 against $384, $440, $473) |
+| Comprehensive premium per insured car against Illinois | About a third below | 0.98, 0.87 and 0.86 times ($167, $191, $223 against $172, $219, $261) |
+| Collision and comprehensive carried on fewer cars than in Illinois (82.6% and 87.5%) | 67% to 71% and 77% to 80% | 83.0% and 88.0% of 2023 car-years |
+| Cars worth about half what they fetched | Average insured car $9,900 in 2024; a 2015 car with a $23,400 base price $5,700 | $14,600; that car $9,100 |
+| Paid collision claims small | $4,937 on average; total losses $7,800 | $6,762; total losses $10,530, repairs $4,951 |
+| Premium per car-year | $1,007 | $1,251 ($988 in 2022, $1,121 in 2023, $1,314 in 2024; Illinois' average expenditure $993, $1,153, $1,264) |
+| No general ledger | Subledgers only | `gl_account` (19 accounts), `gl_journal` (4,182 lines in 1,603 monthly journals) and `agency_statement` (7,841) |
+
+**What changed.**
+
+- **Agencies** (`config.N_AGENCIES`, `population._agencies`). 120 independent agencies and 14 exclusive
+  agents' offices, with long-tailed sizes (lognormal, wider for independents). An independent agency is
+  named after its owner, two partners, its town or a trade name; an exclusive agent's office carries the
+  agent's name; the owner is the agency's first producer. No two agencies share a name.
+- **A market** (`autoins/market.py`, `config.MARKET_*`, `SHOPPING_*`). The number of households asking
+  for a quote follows the month and the year. The market's rate level rises smoothly by the industry's
+  yearly changes while the company's increases land on their effective dates, so each increase leaves the
+  company dearer than its competitors until they catch up. Every quote's competitive position is spread
+  around that gap, new business arrives in each month in proportion to shoppers times conversion (by
+  channel), prospects who did not buy arrive as shoppers do, and the gap also nudges renewals.
+- **Claims and renewals** (`config.CLAIM_RETENTION`, `simulate.evaluate_offers`). A claim reported since
+  the last offer lowers the chance of renewing; an at-fault claim and a second claim lower it further. The
+  underwriting review now flags two at-fault accidents, two major violations, or one of each, in three
+  years (was three accidents or two majors), and half of those flagged are not renewed (was 60%). Renewal
+  base odds were raised to keep overall retention where it was.
+- **What a car is worth** (`config.RESIDUAL_VALUE`, `USED_CAR_VALUE_INDEX`, `truth.actual_cash_value`).
+  The depreciation curve is now a table by age, flatter for older cars, and the used-car index follows the
+  Manheim Used Vehicle Value Index (half as high again as before the pandemic in 2022, a third higher from
+  2024) in place of an assumed 10% to 20%. A used car is never worth more than 1.15 times its base price.
+- **Physical damage** (`config.COLL_SEV`, `COMP_SEV`, `BASE_RATE`, `FULL_COVERAGE`, `DROP_PD_RATE`). Collision
+  repair costs up (median $6,900 for a reference car, was $5,000) with a slightly narrower spread and a total-loss
+  threshold of 75% of value (was 72%); comprehensive severities up 8% to 11% and glass, theft of parts,
+  vandalism, weather and other comprehensive frequencies up 5% to 20%; fewer at-fault and parked-car
+  collision claims filed (86% and 70%, were 90% and 75%) and more not-at-fault ones (48%, was 42%), which
+  brings subrogation to 13% of collision payments (Verisk: 14.0%; salvage 10.9% against 10.1%). Take-up of
+  collision now falls more slowly with the car's age, and older cars drop it less often. Bodily injury
+  severity median $21,000 (was $20,000).
+- **The national comparison takes salvage and subrogation off physical damage payments**
+  (`validate.BENCHMARK`). The published table does not say whether it does. Insurers report recoveries
+  to statistical agents as negative paid losses, and Verisk's own report on the same data shows collision
+  severity before recoveries a quarter higher than the table, with recoveries of that size. Compared before
+  recoveries, as it was until now, the book had to pay too little on collision to sit on the table, which
+  is why its premiums were a third below Illinois'. The reading is an assumption and is documented as one.
+- **The general ledger** (`autoins/ledger.py`). Built from the published tables after everything else:
+  premiums written and the change in unearned premium, cash receipts split into premium and fees through
+  the bill each receipt pays, write-offs, commission expense and payment, claim payments, recoveries and
+  case reserve changes, by month and underwriting company, with an opening entry the day before the extract.
+  A premium transaction is booked on the later of its effective and processed dates. `agency_statement`
+  is each agency's monthly commission and the day it was paid.
+- **Checks.** `validate.py` gains the ledger checks (every journal balances; written and earned premium,
+  cash, case reserves, commissions payable, premiums receivable, fees and write-offs tie to their
+  subledgers), premiums by coverage and take-up against Illinois, and bands on seasonal quote volume,
+  conversion after a rate increase, policies lost after a claim and the company's share of non-renewals.
+  The agency spread is measured on agencies with 500 or more car-years. Six new tests (62 in all).
+  `scripts/readme_figures.py` prints the agency, market, physical damage and ledger figures quoted here.
+- **The default run after these changes** (content hash `a64d95db973613fa`): 197,979 policy terms, 441,637
+  exposure rows, 176,381 earned car-years, $220.6 million earned premium, 22,313 claims. Frequency 1.08 to
+  1.34 times national and severity 0.94 to 1.05 times; expected loss ratios (plus catastrophes) of 80.3%,
+  78.0%, 66.6% and 64.0% for 2022 to 2025; an overall loss ratio of 68.7%; annualised retention 81.8%. Two
+  other builds (seed 7; 20,000 policies with seed 99) pass every check. Generation still takes about 85
+  seconds, and the files are 419 MB (were 435 MB): the three new tables add 1 MB.
+
+**File sizes.** The data had grown to a size that is awkward in a spreadsheet. Nothing was cut. The README
+now says what the sizes are, how to build a 10,000-policy book for the classroom (97 MB of CSV, no table
+over 209,000 rows, every integrity check passing) and what Parquet would save (74 MB against 419 MB for
+the full build, measured); Parquet is not yet a release format.
+
+**Side effects worth knowing.** Customers who stay after a claim are a selected group, so a claim one year
+now predicts a claim the next less well overall (1.16 times, was 1.42), though an at-fault claim still
+predicts another (1.48 times). Comprehensive claims are a larger share of all claims, which lowers the
+ranking power of any frequency model that counts every claim (Gini of the premium on claim counts 0.192,
+was 0.213). Collision frequency on the national comparison rose to 1.34 times national (was 1.24), near the
+top of its band, because more claims clear the deductible and more old cars carry collision.
+
+**Left as it is.** No planted errors or fraud; one market rate level for every competitor; no agency
+appointments or terminations during the extract; the ledger is monthly totals without investments, other
+expenses, taxes, reinsurance or a reserve for unreported claims. All are in
 [docs/limitations.md](docs/limitations.md).
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))

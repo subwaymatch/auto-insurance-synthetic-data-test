@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import release_formats  # noqa: E402
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import identifiers, names, population, refdata, schema, simulate, telematics, truth  # noqa: E402
+from autoins import identifiers, ledger, market, names, population, refdata, schema, simulate, telematics, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -296,7 +296,9 @@ class GeneratorTest(unittest.TestCase):
         self.assertEqual(rep.failures, 0, out.getvalue())
         declined = o[o["outcome"].isin(["Insured Did Not Renew", "Company Non-Renewal"])]
         self.assertTrue({"Renewed", "Insured Did Not Renew", "Cancelled Before Renewal", "Pending"} <= set(o["outcome"]))
-        self.assertTrue((declined["renewal_premium"] > 0).all() and declined["offer_date"].notna().all())
+        # (a household whose only car was written off, its replacement not yet bought, has nothing to price)
+        self.assertTrue(((declined["renewal_premium"] > 0) | (declined["vehicles_offered"] == 0)).all()
+                        and declined["offer_date"].notna().all())
         contact = self.read("customer_contact")
         self.assertIn("Notice of Non-Renewal", set(contact["purpose"])) if (o["outcome"] == "Company Non-Renewal").any() else None
         truth_ = pd.read_csv(self.root / "a" / "answer_key" / "renewal_offer_truth.csv")
@@ -324,6 +326,42 @@ class GeneratorTest(unittest.TestCase):
             validate.integrity_payments(rep, t["claim_payment"], t["claim"], t["claim_feature"], t["employee"], t["vendor"],
                                         t["premium_transaction"], agency, t["policy"], t["policy_term"])
         self.assertEqual(rep.failures, 0, out.getvalue())
+
+    def test_general_ledger_balances_and_ties_to_the_subledgers(self) -> None:
+        """Every journal balances; written and earned premium, cash, reserves, commissions and receivables in the
+        ledger are the subledgers' own totals; the trial balance sums to zero."""
+        t = {n: self.read(n) for n in ("gl_journal", "gl_account", "agency_statement", "premium_transaction", "policy",
+                                       "policy_term", "billing_invoice", "billing_receipt", "claim_payment", "claim",
+                                       "claim_feature", "claim_reserve_transaction")}
+        agency = pd.read_csv(self.root / "a" / "agency.csv", dtype={"zip_code": str})
+        rep, out = validate.Report(), io.StringIO()
+        with contextlib.redirect_stdout(out):
+            validate.integrity_ledger(rep, t["gl_journal"], t["gl_account"], t["agency_statement"], t["premium_transaction"],
+                                      t["policy"], t["policy_term"], t["billing_invoice"], t["billing_receipt"], t["claim_payment"],
+                                      t["claim"], t["claim_feature"], t["claim_reserve_transaction"], agency,
+                                      np.datetime64(self.a["start"]), np.datetime64(self.a["valuation"]))
+        self.assertEqual(rep.failures, 0, out.getvalue())
+        gl = t["gl_journal"]
+        self.assertAlmostEqual(float((gl["debit"] - gl["credit"]).sum()), 0.0, places=2)
+        self.assertEqual(set(gl["journal_type"]), set(ledger.JOURNALS))
+        self.assertEqual(sorted(gl["company_id"].unique()), [1, 2, 3])
+        # the books open the day before the extract with an entry that balances for each company
+        ob = gl[gl["journal_type"] == "Opening balances"]
+        self.assertTrue((ob["posting_date"] == "2021-12-31").all() and len(ob) >= 12)
+
+    def test_agencies_are_many_small_and_a_few_large(self) -> None:
+        """About 120 independent agencies, most of them small; no two share a name; an agency named after its
+        owner has that owner as its first producer."""
+        ag, prod, pol = self.read("agency"), self.read("producer"), self.read("policy")
+        n = ag["channel"].value_counts()
+        self.assertEqual((n["Independent Agent"], n["Exclusive Agent"], n["Direct"]), (120, 14, 2))
+        self.assertTrue(ag["agency_name"].is_unique and ag["agency_code"].is_unique)
+        size = pol.groupby("agency_id").size().reindex(ag.loc[ag["channel"] == "Independent Agent", "agency_id"]).fillna(0)
+        self.assertGreater(size.sort_values().tail(12).sum() / size.sum(), 0.25)        # the largest tenth write over a quarter
+        first = prod.drop_duplicates("agency_id").set_index("agency_id")
+        named = ag[ag["channel"] == "Exclusive Agent"].set_index("agency_id")
+        full = (first["first_name"] + " " + first["last_name"]).reindex(named.index)
+        self.assertTrue(all(name.startswith(owner) for name, owner in zip(named["agency_name"], full)))
 
     def test_no_work_is_dated_on_a_weekend(self) -> None:
         pay, clm = self.read("claim_payment"), self.read("claim")
@@ -496,6 +534,64 @@ class SettlementAndNewCustomerTest(unittest.TestCase):
         self.assertGreater((days < 90).mean(), 0.33)                        # the extra claims come early (a quarter would be even)
 
 
+class MarketAndLedgerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.cal = refdata.load(C.Config()).cal
+
+    def test_a_rate_increase_opens_a_gap_that_the_market_closes(self) -> None:
+        cal = self.cal
+        day = lambda d: int((np.datetime64(d) - cal.start).astype(int))
+        ref = day(C.MARKET_REFERENCE_DATE)
+        self.assertAlmostEqual(float(market.gap(cal, ref)), 0.0, places=6)
+        for d, change in C.RATE_CHANGES:
+            if change >= 0.05:      # dearer than the market the day an increase lands, less so three months on
+                before, on, later = (float(market.gap(cal, day(d) + k)) for k in (-1, 0, 90))
+                self.assertAlmostEqual(on - before, np.log(1 + change), places=2)
+                self.assertLess(later, on)
+        # the market's level compounds each year's change
+        year_end = cal.market_level[day("2023-01-01")] / cal.market_level[day("2022-01-01")]
+        self.assertAlmostEqual(float(year_end), 1 + C.MARKET_RATE_CHANGE[2022], places=3)
+
+    def test_conversion_falls_as_the_gap_widens_and_new_business_follows(self) -> None:
+        cal = self.cal
+        months = np.arange(60)
+        conv, shop = market.conversion(cal, months), market.shopping(cal, months)
+        gap = market.gap(cal, cal.day_of(months, 15))
+        self.assertTrue((np.corrcoef(gap, conv[0])[0, 1] < -0.95) and (conv > 0).all() and (conv < 1).all())
+        self.assertTrue((conv[1] > conv[0]).all() and (conv[0] > conv[2]).all())      # exclusive > independent > direct
+        w = market.month_weights(cal, 60, shoppers=False)
+        np.testing.assert_allclose(w, shop[None, :] * conv)
+        np.testing.assert_allclose(market.month_weights(cal, 60, shoppers=True), np.tile(shop, (3, 1)))
+        march, december = shop[2::12].mean(), shop[11::12].mean()
+        self.assertGreater(march / december, 1.2)
+        self.assertAlmostEqual(float(market.bind_p(np.array([0]), np.array([0.0]))[0]), C.QUOTE_CONVERSION["Independent Agent"], places=9)
+
+    def test_unearned_premium_runs_off_evenly(self) -> None:
+        amount, eff, exp, booked = (np.array(v) for v in ([36_500, 36_500, -7_300], [0, 0, 292], [365, 365, 365], [0, 400, 300]))
+        self.assertEqual(ledger.unearned(amount, eff, exp, booked, -1).tolist(), [0, 0, 0])            # not yet booked
+        self.assertEqual(ledger.unearned(amount, eff, exp, booked, 0).tolist(), [36_400, 0, 0])        # one day earned
+        self.assertEqual(ledger.unearned(amount, eff, exp, booked, 299).tolist(), [6_500, 0, 0])
+        self.assertEqual(ledger.unearned(amount, eff, exp, booked, 300).tolist(), [6_400, 0, -6_400])  # a return booked late
+        self.assertEqual(ledger.unearned(amount, eff, exp, booked, 364).tolist(), [0, 0, 0])
+        self.assertEqual(ledger.unearned(amount, eff, exp, booked, 400).tolist(), [0, 0, 0])           # booked after it expired
+        self.assertEqual(int(ledger.accounting_day(np.array([10]), np.array([3]))[0]), 10)
+
+    def test_a_car_loses_value_with_age_and_never_tops_a_new_one(self) -> None:
+        cal = self.cal
+        day = int((np.datetime64("2024-07-01") - cal.start).astype(int))
+        years = np.arange(2025, 1995, -1)
+        value = truth.actual_cash_value(np.full(len(years), 30_000.0), years, np.full(len(years), day), cal)
+        self.assertTrue((np.diff(value) <= 0).all())
+        self.assertLessEqual(value.max(), 30_000 * C.NEW_VALUE_CAP + 1e-6)
+        ten = value[years == 2014][0]
+        self.assertTrue(0.30 * 30_000 < ten < 0.50 * 30_000)                 # about 40% of the base price at ten years
+        self.assertGreaterEqual(value.min(), C.MIN_VEHICLE_VALUE)
+        dearer = truth.actual_cash_value(np.array([30_000.0]), np.array([2014]), np.array([day]), cal,
+                                         level_day=np.array([int((np.datetime64("2022-07-01") - cal.start).astype(int))]))
+        self.assertGreater(dearer[0], ten)                                   # used cars were dearer in 2022
+
+
 class LitigationTimelineTest(unittest.TestCase):
     def test_a_short_claim_runs_longer_instead_of_suing_before_the_attorney(self) -> None:
         """Seed 7 produced a bodily injury feature opened on its loss date and drawn to close 171 days later,
@@ -651,7 +747,7 @@ class RenewalTimelineTest(unittest.TestCase):
         sim, off = self.sim, self.res.offers.sample(frac=1, random_state=1).drop_duplicates("pol").sort_values("exp_term")
         p, v, drv = sim.st.p, sim.st.v, sim.pop.drv
         saved = (list(sim.clm_pol), list(sim.clm_report), list(sim.recs.parts), sim.recs._frame, p["homeowner"].copy(),
-                 v["primary_drv"].copy(), drv["marital"].copy())
+                 v["primary_drv"].copy(), drv["marital"].copy(), list(sim.af_pol), list(sim.af_report))
         try:
             pol, o = off.pol.to_numpy(), off.offer_day.to_numpy()
             # a claim reported the day after each offer, and a serious record known the day after it
@@ -676,13 +772,21 @@ class RenewalTimelineTest(unittest.TestCase):
             sim.clm_report.append(fresh.offer_day.to_numpy())
             again = self.evaluate(fresh)
             self.assertTrue((again.prev_claims.to_numpy() == 1).all() and (again.p_accept.to_numpy() < fresh.p_accept.to_numpy()).all())
+            # and an at-fault one lowers it further
+            sim.af_pol.append(fresh.pol.to_numpy())
+            sim.af_report.append(fresh.offer_day.to_numpy())
+            worse = self.evaluate(fresh)
+            self.assertTrue((worse.p_accept.to_numpy() < again.p_accept.to_numpy()).all())
         finally:
             sim.clm_pol[:], sim.clm_report[:], sim.recs.parts[:] = saved[0], saved[1], saved[2]
+            sim.af_pol[:], sim.af_report[:] = saved[7], saved[8]
             sim.recs._frame, p["homeowner"][:], v["primary_drv"][:], drv["marital"] = saved[3], saved[4], saved[5], saved[6]
 
     def test_records_count_from_the_day_they_become_known(self) -> None:
         sim = self.sim
-        off = self.res.offers[~self.res.offers.company].iloc[:200]
+        off = self.res.offers.drop_duplicates("pol")                # the review takes one offer per policy
+        clean = ~simulate.underwriting_review(sim, off.pol.to_numpy(), off.offer_day.to_numpy(), off.eff.to_numpy())
+        off = off[clean].iloc[:200]                                 # offers it does not flag as things stand
         pol, o, eff = off.pol.to_numpy(), off.offer_day.to_numpy(), off.eff.to_numpy()
         drv = sim.pop.drv
         dp, rem = drv.pol.to_numpy(), drv.removed_day.to_numpy()
@@ -697,7 +801,7 @@ class RenewalTimelineTest(unittest.TestCase):
             for known, flagged in ((when + 1, False), (when, True)):
                 sim.recs.parts[:] = saved[0]
                 sim.recs._frame = None
-                for _ in range(3):     # three at-fault accidents in the year before the renewal
+                for _ in range(2):     # two at-fault accidents in the year before the renewal
                     sim.recs.add(d.drv, when - 200, np.full(len(d), simulate.KIND["accident"]), known)
                 got = simulate.underwriting_review(sim, pol, o, eff)[i_of[d.pol].to_numpy()]
                 self.assertEqual(bool(got.all()), flagged)

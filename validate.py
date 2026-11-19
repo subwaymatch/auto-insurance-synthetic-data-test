@@ -22,8 +22,8 @@ import pandas as pd
 TARGETS = {
     "BI":   dict(freq=(0.70, 1.15), sev=(20_000, 30_000)),
     "PD":   dict(freq=(2.40, 3.40), sev=(5_800, 7_400)),
-    "COLL": dict(freq=(4.00, 5.80), sev=(4_700, 6_300)),
-    "COMP": dict(freq=(4.20, 6.20), sev=(2_000, 3_100)),
+    "COLL": dict(freq=(4.00, 6.20), sev=(5_400, 7_400)),
+    "COMP": dict(freq=(4.60, 6.80), sev=(2_200, 3_400)),
 }
 # Triple-I / ISO "Private Passenger Auto Insurance Losses, 2015-2024" (national; source: ISO, a Verisk
 # business): (claims per 100 earned car years, claim severity) by calendar year. Its footnotes define the
@@ -31,6 +31,13 @@ TARGETS = {
 # adjustment expenses; collision and comprehensive are for coverage with a $500 deductible; comprehensive
 # excludes wind and water losses and includes glass; some states are excluded (Massachusetts throughout,
 # most no-fault states for bodily injury, Michigan and New Jersey for property damage).
+# The table does not say whether salvage and subrogation come off physical damage payments. They are taken
+# off here (ASSUMED), for two reasons. Insurers report recoveries to statistical agents as negative paid
+# losses. And Verisk's own report on the same data (2024 Executive Insights: Personal Auto) puts collision
+# severity at a $500 deductible at $6,951 for the year to March 2024 with salvage and subrogation offsetting
+# 24% of collision payments (10.1% and 14.0%), which leaves about the $5,500 this table shows; that report's
+# figures are developed accident-year ones, so the match is not exact. On this reading payments before
+# recoveries, loss ratios and Illinois' average premiums (ILLINOIS below) are consistent with each other.
 BENCHMARK = {
     "BI":   {2022: (0.70, 24_681), 2023: (0.78, 26_178), 2024: (0.80, 28_278)},
     "PD":   {2022: (2.54, 6_024), 2023: (2.59, 6_554), 2024: (2.50, 6_770)},
@@ -38,6 +45,14 @@ BENCHMARK = {
     "COMP": {2022: (3.78, 2_175), 2023: (4.08, 2_305), 2024: (3.95, 2_306)},
 }
 BENCHMARK_DEDUCTIBLE = 500
+# NAIC Auto Insurance Database, average premium supplement (2024 edition), Illinois: average premium per
+# insured car-year of each coverage, and (2023) the share of liability car-years that carry collision and
+# comprehensive. The book is the Chicago area, not the state, and one carrier, so the bands are wide.
+ILLINOIS = {"liability": {2022: 524.36, 2023: 597.70, 2024: 649.14}, "collision": {2022: 384.29, 2023: 440.06, 2024: 473.00},
+            "comprehensive": {2022: 171.50, 2023: 218.89, 2024: 260.75}}
+ILLINOIS_TAKE_UP = {"collision": 0.826, "comprehensive": 0.875}
+ILLINOIS_PREMIUM_BAND = {"liability": (0.90, 1.30), "collision": (0.80, 1.20), "comprehensive": (0.75, 1.20)}
+ILLINOIS_TAKE_UP_BAND = (-0.04, 0.04)     # difference from the state's share
 WIND_AND_WATER = ["WEATHER", "FLOOD", "HAIL_CAT", "WIND_CAT", "FLOOD_CAT"]
 # Bands for the like-for-like comparison, as a ratio to the national figure. Frequency is allowed to run
 # above national because the book is urban; severity should sit near it. The first calendar year is shown
@@ -635,8 +650,9 @@ def benchmark(rep, risk, f, pay, s, e, last_full_year: int) -> None:
 
     A claim is counted in the year of its first loss payment, and severity is the year's payments over
     the claims counted in it (paid claims on a calendar-year basis). Liability payments include loss
-    adjustment expense. Collision and comprehensive are restricted to risk rows with a $500 deductible, and
-    comprehensive leaves out wind and water losses. What still differs is printed with the table."""
+    adjustment expense. Collision and comprehensive are restricted to risk rows with a $500 deductible, are net
+    of the year's salvage and subrogation recoveries (see BENCHMARK), and comprehensive leaves out wind and water
+    losses. What still differs is printed with the table."""
     pay = pay.assign(year=pd.to_datetime(pay["payment_date"]).dt.year)
     loss = pay[pay["payment_type"] == "Loss"]
     first_paid = loss[loss.amount > 0].groupby("claim_feature_id").year.min()
@@ -653,7 +669,7 @@ def benchmark(rep, risk, f, pay, s, e, last_full_year: int) -> None:
         if k == "COMP":
             g = g[~g["cause_of_loss"].isin(WIND_AND_WATER)]
         g = g[g["exposure_id"].isin(risk.loc[rows, "exposure_id"])]
-        kinds = ["Loss", "Expense"] if k in ("BI", "PD") else ["Loss"]
+        kinds = ["Loss", "Expense"] if k in ("BI", "PD") else ["Loss", "Salvage Recovery", "Subrogation Recovery"]
         dollars = pay[pay["claim_feature_id"].isin(g["claim_feature_id"]) & pay["payment_type"].isin(kinds)].groupby("year").amount.sum()
         n = first_paid.reindex(g["claim_feature_id"]).dropna().astype(int).value_counts()
         # totals over the years held to a band: what the national figures would give on this book's exposure and claims
@@ -682,10 +698,142 @@ def benchmark(rep, risk, f, pay, s, e, last_full_year: int) -> None:
     print("  one metropolitan area, so frequency is expected above it; national figures are not a Chicago or a")
     print("  single-carrier benchmark. The first calendar year has no payments on accidents from before the extract,")
     print("  which matters for bodily injury. Glass claims under full glass cover carry no deductible here. The table's")
-    print("  claim-counting rules (per claimant or per accident, and when a claim counts as paid) are not published.")
+    print("  claim-counting rules (per claimant or per accident, and when a claim counts as paid) are not published, nor")
+    print("  is its treatment of salvage and subrogation: they are taken off collision and comprehensive payments here.")
+
+
+def illinois(rep, risk, s, e) -> None:
+    """Average premium per insured car-year by coverage and physical damage take-up, against Illinois (NAIC)."""
+    cols = {"liability": ["bi_premium", "pd_premium", "um_premium", "med_pay_premium"], "collision": ["collision_premium"],
+            "comprehensive": ["comprehensive_premium"]}
+    days = np.maximum((e - s).astype("timedelta64[D]").astype(int), 0)
+    earned_share = (risk["earned_premium"] / risk["total_premium"].where(risk["total_premium"] > 0)).fillna(0).to_numpy()
+    print("  average premium per insured car-year against Illinois (NAIC Auto Insurance Database):")
+    for k, c in cols.items():
+        prem, has = risk[c].sum(axis=1).to_numpy() * earned_share, (risk[c].sum(axis=1) > 0).to_numpy()
+        rate = np.divide(prem, days, out=np.zeros(len(risk)), where=days > 0)
+        ours, theirs = 0.0, 0.0
+        for y, state in ILLINOIS[k].items():
+            a, b = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
+            overlap = (np.minimum(e, b) - np.maximum(s, a)).astype("timedelta64[D]").astype(int).clip(0)
+            cy = (overlap * has).sum() / 365.25
+            if cy == 0:
+                continue
+            ours, theirs = ours + (overlap * rate).sum(), theirs + state * cy
+            print(f"    {k:14s}{y}: ${(overlap * rate).sum() / cy:7,.0f}   Illinois ${state:7,.0f}   ratio {(overlap * rate).sum() / cy / state:.2f}")
+        if theirs:
+            rep.band(f"{k} premium per insured car-year relative to Illinois, {min(ILLINOIS[k])}-{max(ILLINOIS[k])}", ours / theirs,
+                     ILLINOIS_PREMIUM_BAND[k])
+    a, b = np.datetime64("2023-01-01"), np.datetime64("2024-01-01")
+    overlap = (np.minimum(e, b) - np.maximum(s, a)).astype("timedelta64[D]").astype(int).clip(0)
+    if overlap.sum():
+        for k, state in ILLINOIS_TAKE_UP.items():
+            share = (overlap * (risk[cols[k][0]] > 0)).sum() / overlap.sum()
+            rep.check(f"share of 2023 car-years carrying {k} ({share:.1%}) against Illinois ({state:.1%})",
+                      ILLINOIS_TAKE_UP_BAND[0] <= share - state <= ILLINOIS_TAKE_UP_BAND[1], statistical=True)
+
+
+def market_cycle(rep, quotes, term, clm, offers, plan_changes, valuation) -> None:
+    """What the market model leaves in the data: seasonal shopping, conversion that dips after the company's own
+    rate increases, customers who leave after a claim, and the company's own non-renewals."""
+    q = quotes.assign(month=quotes["quote_date"].str[5:7].astype(int), bound=quotes["bound"] == "Y")
+    full = q[q["quote_date"].str[:4].isin(q["quote_date"].str[:4].value_counts().loc[lambda n: n > 0].index)]
+    by_month = full.groupby("month").size()
+    if len(by_month) == 12:
+        rep.band("quotes in February to April relative to October to December", by_month[[2, 3, 4]].sum() / by_month[[10, 11, 12]].sum(),
+                 (1.08, 1.40))
+    qd = pd.to_datetime(q["quote_date"])
+    before = after = n_before = n_after = 0
+    for d, chg in plan_changes:
+        d = pd.Timestamp(d)
+        if chg < 5 or d - pd.Timedelta(days=75) < qd.min() or d + pd.Timedelta(days=75) > pd.Timestamp(valuation):
+            continue
+        b, a = q[(qd >= d - pd.Timedelta(days=75)) & (qd < d - pd.Timedelta(days=15))], q[(qd >= d) & (qd < d + pd.Timedelta(days=60))]
+        before, n_before, after, n_after = before + b["bound"].sum(), n_before + len(b), after + a["bound"].sum(), n_after + len(a)
+    if n_before and n_after:
+        print(f"  quote conversion in the two months before a rate increase of 5% or more {before / n_before:.1%}, in the two months after {after / n_after:.1%}")
+        rep.band("conversion after a rate increase relative to before it", (after / n_after) / (before / n_before), (0.60, 0.92))
+    ended = term[pd.to_datetime(term["cancel_date"].fillna(term["expiration_date"])) <= pd.Timestamp(valuation)]
+    lost = ended["cancel_date"].notna() | ended["nonrenewal_reason"].notna()
+    years = (pd.to_datetime(ended["cancel_date"].fillna(ended["expiration_date"])) - pd.to_datetime(ended["effective_date"])).dt.days / 365.25
+    had = ended["policy_term_id"].isin(clm["policy_term_id"])
+    ann = lambda m: 1 - np.exp(-lost[m].sum() / years[m].sum())
+    print(f"  policies lost per year: {ann(had):.1%} of terms with a claim, {ann(~had):.1%} of terms without")
+    # a real motor portfolio lost contracts with a claim 1.45 times as often (docs/real_data_comparison.md)
+    rep.band("terms with a claim end the policy more often than terms without (ratio)", ann(had) / ann(~had), (1.20, 1.70))
+    out = offers["outcome"].value_counts()
+    share = out.get("Company Non-Renewal", 0) / max(out.get("Company Non-Renewal", 0) + out.get("Insured Did Not Renew", 0), 1)
+    rep.band("share of non-renewals that are the company's decision", share, (0.03, 0.15), "{:.1%}")
+
+
+def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation) -> None:
+    """The general ledger balances and ties to the subledgers it summarises."""
+    j = gl.groupby("journal_number")[["debit", "credit"]].sum()
+    rep.check("every journal entry balances, uses the chart of accounts and posts on one side of each line",
+              ((j["debit"] - j["credit"]).abs() < 0.005).all() and gl["account_number"].isin(acct["account_number"]).all()
+              and ((gl["debit"] >= 0) & (gl["credit"] >= 0) & ((gl["debit"] == 0) | (gl["credit"] == 0))).all()
+              and gl["journal_number"].str.count("-").ge(4).all(), f"{len(j):,} journals, {len(gl):,} lines")
+    opening = gl["journal_type"] == "Opening balances"
+    net = lambda rows: (rows["debit"] - rows["credit"]).groupby(rows["account_number"]).sum()
+    activity, balance = net(gl[~opening]), net(gl)
+    get = lambda s_, a: float(s_.get(a, 0.0))
+    booked = np.maximum(pd.to_datetime(ledger["effective_date"]).to_numpy(), pd.to_datetime(ledger["processed_date"]).to_numpy())
+    inside = (booked >= start) & (booked <= valuation)
+    close = lambda a, b, tol=0.05: abs(a - b) <= tol + 2e-9 * abs(b)
+    rep.check("premiums written and commission expense in the ledger are the premium transactions booked in the extract "
+              "(on the later of their effective and processed dates)",
+              close(-get(activity, 4000), ledger.loc[inside, "written_premium"].sum(), 1.0)
+              and close(get(activity, 6100), ledger.loc[inside, "commission_amount"].sum(), 1.0),
+              f"written ${-get(activity, 4000):,.0f}, commission ${get(activity, 6100):,.0f}")
+    earned = -(get(activity, 4000) + get(activity, 4010))
+    rep.check("earned premium in the ledger (written less the change in unearned) is the earned premium of the policy terms",
+              abs(earned - term["earned_premium"].sum()) <= 2e-5 * term["earned_premium"].sum(),
+              f"${earned:,.0f} against ${term['earned_premium'].sum():,.0f}; unearned at the valuation date ${-get(balance, 2100):,.0f}")
+    r_in = (pd.to_datetime(rec["receipt_date"]).to_numpy() >= start)
+    p_ = pay.assign(day=pd.to_datetime(pay["payment_date"]))
+    kinds = p_.groupby("payment_type")["amount"].sum()
+    paid_stmt = stmt[stmt["payment_date"].notna()]
+    cash = rec.loc[r_in, "amount"].sum() - kinds.get("Loss", 0) - kinds.get("Expense", 0) \
+        - kinds.get("Salvage Recovery", 0) - kinds.get("Subrogation Recovery", 0) - paid_stmt["commission_amount"].sum()
+    rep.check("cash in the ledger moves with the receipts, claim payments, recoveries and commission payments",
+              close(get(activity, 1000), cash, 1.0) and close(get(activity, 5000), kinds.get("Loss", 0), 1.0)
+              and close(get(activity, 5100) + get(activity, 5110), kinds.get("Expense", 0), 1.0)
+              and close(get(activity, 5010) + get(activity, 5020), kinds.get("Salvage Recovery", 0) + kinds.get("Subrogation Recovery", 0), 1.0),
+              f"net cash flow ${get(activity, 1000):,.0f}")
+    rep.check("case reserves in the ledger are the reserves outstanding on the claim features",
+              close(-get(balance, 2500), feat["case_reserve"].sum(), 1.0) and close(-get(balance, 2510), feat["expense_reserve"].sum(), 1.0),
+              f"loss ${-get(balance, 2500):,.0f}, expense ${-get(balance, 2510):,.0f}")
+    unpaid = stmt[stmt["payment_date"].isna()]
+    agent = agency.loc[agency["channel"] != "Direct", "agency_id"]
+    by_pol = pol.set_index("policy_id")["agency_id"].reindex(ledger["policy_id"]).to_numpy()
+    first_month = (start.astype("M8[M]") - np.timedelta64(1, "M")).astype("M8[D]")
+    in_stmt = (booked >= first_month) & (booked <= valuation) & np.isin(by_pol, agent)
+    rep.check("commission statements hold every agent's commission from the month before the extract; those not yet paid "
+              "are the ledger's commissions payable",
+              close(stmt["commission_amount"].sum(), ledger.loc[in_stmt, "commission_amount"].sum(), 1.0)
+              and close(-get(balance, 2200), unpaid["commission_amount"].sum(), 1.0) and stmt["agency_id"].isin(agent).all()
+              and not stmt.duplicated(["agency_id", "statement_month"]).any()
+              and (paid_stmt["payment_date"] > paid_stmt["statement_month"] + "-31").all(),
+              f"{len(stmt):,} statements, ${-get(balance, 2200):,.0f} payable")
+    # premiums receivable: written by the valuation date, less premium collected (through the bill each receipt pays),
+    # plus refunds, less write-offs
+    bill = inv.set_index("invoice_id")["premium_amount"]
+    on_bill = bill.reindex(rec["invoice_id"]).fillna(0).to_numpy()
+    kind = rec["receipt_type"].to_numpy()
+    collected = np.where(kind == "Refund", rec["amount"], np.where(kind == "Returned Payment", -on_bill, on_bill)).sum()
+    owed = ledger.loc[booked <= valuation, "written_premium"].sum() - collected - inv.loc[inv["write_off_date"].notna(), "amount_due"].sum()
+    fees = rec.loc[r_in, "amount"].sum() - np.where(kind == "Refund", rec["amount"], np.where(kind == "Returned Payment", -on_bill, on_bill))[r_in].sum()
+    rep.check("premiums receivable in the ledger is premium written less premium collected, refunded and written off; "
+              "fee income is the fees collected", close(get(balance, 1200), owed, 1.0) and close(-get(activity, 4200), fees, 1.0)
+              and close(get(activity, 6300), inv.loc[pd.to_datetime(inv["write_off_date"]).to_numpy() >= start, "amount_due"].sum(), 1.0),
+              f"receivable ${get(balance, 1200):,.0f}, fees ${-get(activity, 4200):,.0f}, written off ${get(activity, 6300):,.0f}")
+    rep.check("the ledger's periods run month by month from the start to the valuation date",
+              sorted(gl.loc[~opening, "accounting_period"].unique()) == [str(m) for m in np.arange(start.astype("M8[M]"), valuation.astype("M8[M]") + np.timedelta64(1, "M"))]
+              and (gl["posting_date"].str[:7] == gl["accounting_period"]).all())
 
 
 MIN_POLICIES_FOR_CALIBRATION = 20_000   # smaller books have too few claims for the calibration bands
+MIN_AGENCY_CAR_YEARS = 500              # agencies compared with each other on their expected loss ratio
 
 
 class Report:
@@ -721,6 +869,7 @@ def main() -> None:
     offers = read("renewal_offer")
     inv, rec, emp, vend = read("billing_invoice"), read("billing_receipt"), read("employee"), read("vendor")
     agency, contact = read("agency", dtype={"zip_code": str}), read("customer_contact")
+    gl, acct, stmt, rates = read("gl_journal"), read("gl_account"), read("agency_statement"), read("rate_change")
     truth = pd.read_csv(out / "answer_key" / "exposure_truth.csv")
     plan = json.loads((out / "answer_key" / "rating_plan.json").read_text())
     summary = json.loads((out / "run_summary.json").read_text())
@@ -779,6 +928,7 @@ def main() -> None:
     integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy)
     integrity_billing(rep, inv, rec, term, ledger, pol, valuation)
     integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term)
+    integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation)
     filed = plan["filed_discounts"]
     rep.check("the rating plan charges the filed discounts and surcharges, on the coverages they are filed for",
               all(list(plan["relativities"][cov][k].values()) == (list(d["factors"].values()) if cov in d["coverages"]
@@ -822,8 +972,9 @@ def main() -> None:
     rep.band("non-catastrophe incurred vs answer-key expected (all coverages)", noncat_all / exp_total, (0.93, 1.07), "{:.3f}")
 
     print("\nBENCHMARK COMPARISON (Triple-I / ISO definitions: paid claims by calendar year, liability with LAE, "
-          f"physical damage at a ${BENCHMARK_DEDUCTIBLE} deductible, comprehensive without wind and water)")
+          f"physical damage at a ${BENCHMARK_DEDUCTIBLE} deductible net of salvage and subrogation, comprehensive without wind and water)")
     benchmark(rep, risk, f, pay, r_start, r_end, pd.Timestamp(valuation).year - 1)
+    illinois(rep, risk, r_start, r_end)
 
     print("\nLOSS RATIO BY ACCIDENT YEAR (net incurred as of the valuation date / earned premium; losses exclude LAE,\n"
           "which is shown beside it; add the two for a loss-and-LAE ratio; neither is a combined ratio)")
@@ -915,9 +1066,12 @@ def main() -> None:
           + ", ".join(f"{k} {elr(g):.1%}" for k, g in r.groupby("distribution_channel"))
           + "; by payment plan " + ", ".join(f"{k} {elr(g):.1%}" for k, g in r.groupby("payment_plan")))
     rep.band("new business expected loss ratio above renewals (points)", (elr(new_b) - elr(ren_b)) * 100, (5.0, 16.0), "{:.1f}")
-    by_agency = r.groupby("agency_id").apply(elr, include_groups=False)
-    rep.band("spread of expected loss ratio across agencies (90th less 10th percentile, points)",
-             (by_agency.quantile(0.9) - by_agency.quantile(0.1)) * 100, (6.0, 25.0), "{:.1f}")
+    # agencies with enough business for their own mix not to dominate (most independent agencies are small)
+    big = r.groupby("agency_id")["earned_exposure"].sum().loc[lambda x: x >= MIN_AGENCY_CAR_YEARS].index
+    by_agency = r[r["agency_id"].isin(big)].groupby("agency_id").apply(elr, include_groups=False)
+    rep.band(f"spread of expected loss ratio across the {len(by_agency)} agencies with {MIN_AGENCY_CAR_YEARS:,}+ car-years "
+             "(90th less 10th percentile, points)", (by_agency.quantile(0.9) - by_agency.quantile(0.1)) * 100, (6.0, 25.0), "{:.1f}")
+    market_cycle(rep, quotes, term, clm, offers, list(zip(rates.iloc[:, 0], rates.iloc[:, 1])), valuation)
     decided = offers[(offers["underwriting_decision"] == "Renew") & offers["outcome"].isin(["Renewed", "Insured Did Not Renew"])]
     kept_by = (decided["outcome"] == "Renewed").groupby(pol.set_index("policy_id")["distribution_channel"].reindex(decided["policy_id"]).to_numpy()).mean()
     rep.band("renewal rate of exclusive-agent customers above direct customers (points)",

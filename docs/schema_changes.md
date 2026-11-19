@@ -588,3 +588,17 @@ Integer keys kept their names but were renumbered in the order records were crea
 | `customer_contact` | `purpose` | "Payment Reminder" is gone; "Past Due Notice" and "Notice of Cancellation" now follow an unpaid bill (most are followed by payment, not cancellation); "Returned Payment Notice" and "Cancellation for Non-Payment" are new |
 | `agency` | | 58 agencies and two direct units (were 24 and two) |
 
+## Added with the market and the general ledger
+
+Nothing was renamed or removed, and no column was added to an existing table (see CHANGELOG.md, "After the
+audit"). A premium transaction's accounting date is the later of its `effective_date` and `processed_date`;
+it is not stored.
+
+| Table | One row per | Columns |
+|---|---|---|
+| `gl_account` | General ledger account | `account_number`, `account_name`, `account_type`, `normal_balance`, `financial_statement` |
+| `gl_journal` | Journal line | `journal_line_id`, `journal_number`, `accounting_period`, `posting_date`, `company_id`, `journal_type`, `source_table`, `account_number`, `debit`, `credit` |
+| `agency_statement` | Agency and month | `statement_id`, `agency_id`, `statement_month`, `written_premium`, `commission_amount`, `payment_date`, `payment_method` |
+
+The agency table has 136 rows (was 60): 120 independent agencies, 14 exclusive agents' offices and the two
+direct units. Agency names changed with them.

@@ -69,10 +69,13 @@ def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
     return f * drv.latent.to_numpy()
 
 
-def actual_cash_value(msrp, model_year, day, cal: Calendar) -> np.ndarray:
+def actual_cash_value(msrp, model_year, day, cal: Calendar, level_day=None) -> np.ndarray:
+    """What a car is worth on `day` (config.RESIDUAL_VALUE), at the used-car prices of `level_day` (default: the
+    same day)."""
     age = (cal.year_frac(day) - np.asarray(model_year) + 0.5).clip(0)
-    dep = np.maximum(0.95 * np.exp(-0.145 * age), 0.07)
-    return np.maximum(np.asarray(msrp) * dep * cal.used_car[np.clip(day, 0, cal.horizon)], 1200.0)
+    resid = np.exp(np.interp(age, C.RESIDUAL_VALUE_AGE, np.log(C.RESIDUAL_VALUE)))
+    level = cal.used_car[np.clip(day if level_day is None else level_day, 0, cal.horizon)]
+    return np.maximum(np.asarray(msrp) * np.minimum(resid * level, C.NEW_VALUE_CAP), C.MIN_VEHICLE_VALUE)
 
 
 # ---------------------------------------------------------------------------- severity kernels
@@ -401,7 +404,7 @@ def context(st: Static, cal: Calendar, V: np.ndarray, s: np.ndarray, x: np.ndarr
     c["comp_ded"] = np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]]
     c["glass_ded"] = np.where(v["full_glass"][V], 0, c["comp_ded"])
     c["has_rent"], c["rent_opt"], c["has_tow"] = v["has_rent"][V], v["rent_opt"][V], v["has_tow"][V]
-    c["acv"] = actual_cash_value(v["msrp"][V], v["model_year"][V], mid, cal) * cal.used_car[cost] / cal.used_car[mid]
+    c["acv"] = actual_cash_value(v["msrp"][V], v["model_year"][V], mid, cal, level_day=cost)
     age = (cal.year_frac(mid) - v["model_year"][V] + 0.5).clip(0)
     c["repair"] = (v["msrp"][V] / 32_000) ** 0.5 * np.where(adas, 1.12, 1.0) * np.where(v["segment"][V] == "ev", 1.15, 1.0) \
         * np.clip(1.05 - 0.012 * age, 0.80, 1.05)
