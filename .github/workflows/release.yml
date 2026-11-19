@@ -42,7 +42,7 @@ on:
       formats:
         description: "File formats, comma-separated (see scripts/release_formats.py)"
         required: false
-        default: "csv,sqlite"
+        default: "csv,sqlite,parquet"
         type: string
       prerelease:
         description: "Mark as a pre-release"
@@ -68,7 +68,7 @@ env:
   TAG: ${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.tag, 'v') && inputs.tag || format('v{0}', inputs.tag)) || (github.ref_type == 'tag' && github.ref_name || 'latest') }}
   SEED: ${{ inputs.seed || '20250101' }}
   POLICIES: ${{ inputs.policies || '43368' }}
-  FORMATS: ${{ inputs.formats || 'csv,sqlite' }}
+  FORMATS: ${{ inputs.formats || 'csv,sqlite,parquet' }}
   PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
 
 jobs:

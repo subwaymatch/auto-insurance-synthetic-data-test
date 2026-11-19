@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the synthetic Chicago-area auto insurance dataset.
 
-    python generate.py                      # default seed, 30,000 policies, writes ./output
+    python generate.py                      # default seed and size, writes ./output
     python generate.py --seed 7 --policies 5000 --out /tmp/small
 
 The same seed and options always produce byte-identical files.

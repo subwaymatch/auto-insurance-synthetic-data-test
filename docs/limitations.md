@@ -13,12 +13,14 @@ Figures are for the default run: seed 20250101, 43,368 policies, 1 January 2022 
 ## In brief
 
 The data is a realistic teaching dataset, checked for internal consistency: a regional insurer's Chicago-area auto
-book with policies, drivers, vehicles, premiums, claims, reserves, quotes and telematics, calibrated to
-national frequency and severity and to the industry's loss ratios. Its people, policies and claims are
-simulated, and its rating plan is fitted to the simulator's own truth, so it is cleaner and more
-predictable than real data. Compared with a real insurer's portfolio, its risk relationships and cost
-distributions look realistic, but claims barely drive customers away, payment plan carries no risk, its
-largest claims are smaller, and it has none of the errors and gaps of a real extract. Use it to learn
+book with policies, drivers, vehicles, premiums, bills and cash, claims, payments, reserves, quotes,
+telematics and a general ledger, calibrated to national frequency and severity, to the industry's loss
+ratios and to Illinois' average premiums by coverage. Its people, policies and claims are simulated, and
+most of its rating plan is fitted to the simulator's own truth, so it is cleaner and more predictable than
+real data. Compared with a real insurer's portfolio, its risk relationships and cost distributions look
+realistic and claims cost it customers at a similar rate, but payment plan, tenure and channel carry less
+risk than in the real book, its largest claims are smaller, and it has none of the errors and gaps of a real
+extract. Use it to learn
 methods, not to draw conclusions about real insurers, real people or real neighbourhoods.
 
 ## 1. What is real and what is simulated
@@ -26,13 +28,16 @@ methods, not to draw conclusions about real insurers, real people or real neighb
 | Real | Simulated |
 |---|---|
 | ZIP codes, counties and Census demographics (ACS 2020-2024) | Every person, household, policy, premium, claim and payment |
-| Chicago police crash and vehicle-theft counts behind the hazard indices | The insurer ("Lakefront"), its agencies, offices and catastrophes |
+| Chicago police crash and vehicle-theft counts behind the hazard indices, and by day behind the loss calendar | The insurer ("Lakefront"), its agencies, producers, offices, staff, vendors and catastrophes |
 | Vehicle makes, models and model years (EPA), and how common each is (Chicago crash records) | Which household owns which vehicle, its use, mileage and coverages |
 | Name frequencies (Census 2010 surnames, Social Security first names) | Which name each driver has, and each household's race and ethnicity group |
-| Calibration targets: national frequency and severity (Triple-I / ISO), US and Illinois loss ratios, published rates for moves, marriage, divorce, mortality, licensing, report lags | Everything those targets are applied to |
+| Calibration targets: national frequency and severity (Triple-I / ISO), US and Illinois loss ratios, Illinois' average premiums and physical damage take-up (NAIC), used-car prices (Manheim), the market's rate changes, published rates for moves, marriage, divorce, mortality, licensing, report lags | Everything those targets are applied to |
 
-No record describes a real person, policy or claim. Identifiers (policy numbers, VIN prefixes, vehicle
-symbols) are fictional and cannot be matched to anything real.
+No record describes a real person, policy or claim. Identifiers are fictional and cannot be matched to
+anything real: policy, claim, quote, invoice and cheque numbers follow this dataset's own formats; VINs carry
+a valid check digit but begin with `0`, which no manufacturer uses; licence numbers are masked and are not
+computed as Illinois computes real ones; vendor and agency names are made up, and any resemblance to a real
+business is accidental; vehicle symbols are this dataset's own scales.
 
 ## 2. What the dataset leaves out
 
@@ -40,11 +45,17 @@ symbols) are fictional and cannot be matched to anything real.
 |---|---|---|
 | Claims open on the start date, and payments on accidents before 2022 | Calendar-year paid and incurred figures for the whole company are too low in 2022; bodily injury in 2022 is not held to the national benchmark | Claim systems |
 | Third-party claimants as people who can be followed across claims | No claimant-level fraud or repeat-claimant analysis | Claim systems |
-| Billing and instalment events, reinstatements after a lapse | Non-payment cancellations appear, but not the billing trail behind them | Billing systems |
+| Reinstatements after a lapse; billing accounts spanning several policies | A cancelled policy never comes back; each term is billed on its own | Billing systems |
+| Bills and receipts from before 2022, except for terms in the data | Receivables cannot be aged for the whole company before the start date | Billing systems |
+| A journal entry for each transaction; investments, expenses other than commission, taxes, reinsurance and a reserve for unreported claims | The general ledger is monthly totals of the premium, cash, commission and claim subledgers, with assumed opening cash and surplus; it supports reconciliation and roll-forwards, not a full set of financial statements or journal-entry testing | Accounting systems |
+| Agency appointments and terminations; agency statements netted from month to month | All 134 agencies are there throughout; a statement with more return commission than commission is repaid by the agency | Agency management systems |
+| Licence plates | Vehicles are identified by VIN and unit number, as policies are written; plates would appear in claim files | Claim systems |
+| Planted errors, irregularities or fraud | Audit tests (duplicate payments, payments over authority, gaps in cheque numbers) all come back clean | Real data has them |
+| Named competitors, advertising and marketing spend | Quotes and new business follow an assumed season and one market rate level; nothing explains them further | Marketing systems |
 | Excluded drivers; separate mailing and garaging addresses | Every listed driver is rated; the garaging ZIP is the only address | Policy systems |
 | Uninsured motorist property damage; custom equipment and loan or lease gap cover | The coverage menu is narrower than Illinois' | Policy systems |
 | Medical diagnosis codes, recovery reserves, fraud outcomes | Only referrals to the special investigations unit, not proven fraud | Claim systems; Medicare reporting |
-| Claim handling history: adjuster assignments, status changes, and who each payment went to | No adjuster workload or payee analysis; status changes show only as open, close and reopen dates | Claim systems |
+| Claim handling history: reassignments and status changes | Each claim shows its current adjuster only; status changes show only as open, close and reopen dates | Claim systems |
 | Quote revisions, underwriting referrals and declines | One quote per prospect, bound or not; a renewal has one offer (`renewal_offer`) and at most one revision after a household change | Rating and policy systems |
 | Trip-level telematics data | Only per-period summaries and scores | Telematics vendors |
 | Reinsurance | No ceded premium or recoveries | Ceded statistical data |
@@ -55,23 +66,26 @@ symbols) are fictional and cannot be matched to anything real.
 `docs/real_data_comparison.md` compares the book with a real motor portfolio (Lledó and Pavía, Mendeley
 Data 2024, CC BY 4.0; almost certainly a Spanish insurer, 2015 to 2018). The two markets, currencies and
 products differ, so only shapes are compared, not levels. Where a fair comparison is possible the synthetic
-data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.28 times
-in the synthetic, newly licensed drivers 1.37 and 1.36 times, urban vehicles 1.14 and 1.11 times, and
+data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.23 times
+in the synthetic, newly licensed drivers 1.37 and 1.33 times, urban vehicles 1.14 and 1.15 times, and
 claim costs and premiums spread alike. These differences remain:
 
-1. **Claims barely drive customers away.** A real contract with a claim is 1.45 times as likely to end as
-   one without; a synthetic one 1.12 times. Few synthetic non-renewals are the company's decision (134 of
-   12,113), so long-standing customers are not safer than new ones, as they are in real books (0.69 times
-   the claim frequency after ten years in the real data, 1.00 in the synthetic).
-2. **Payment plan carries no risk.** Real half-yearly payers claim 1.61 times as often as annual payers,
-   other things equal; synthetic instalment payers 1.04 times.
+1. **Tenure protects less.** Long-standing customers are safer than new ones, but less than in the real book
+   (0.69 times the claim frequency after ten years in the real data, 0.85 in the synthetic, other things
+   equal). Claims do now cost customers as in the real book: a real contract with a claim is 1.45 times as
+   likely to end as one without, a synthetic one 1.41 times, and 965 of 11,462 synthetic non-renewals are the
+   company's decision.
+2. **Payment plan carries less risk.** Real half-yearly payers claim 1.61 times as often as annual payers,
+   other things equal; synthetic instalment payers 1.12 times.
 3. **The largest claims are smaller.** The costliest 1% of claim-years make up 24% of real claim cost and
    16% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
    checked against US data.
-4. **Channel makes no difference.** Real broker business runs 12% above average frequency; synthetic
-   business is the same in every channel.
+4. **Channel makes less difference.** Real broker business runs 12% above average frequency; synthetic
+   independent-agent business runs 2% above, and 5% above exclusive-agent business with other things equal.
 5. **Shared factors carry less predictive signal.** A simple model on the factors both books record ranks
-   held-out real claims better (Gini 0.22) than synthetic ones (0.15), largely because of points 1, 2 and 4.
+   held-out real claims better (Gini 0.22) than synthetic ones (0.12), because of points 1, 2 and 4 and
+   because 29% of synthetic claims are comprehensive (glass, theft, weather), which the driver's
+   characteristics barely predict.
 
 The real portfolio has defects of its own (its claim counts do not change from one year to the next as
 they should), so it cannot benchmark claim-count dispersion, claim persistence or the frequency level.
@@ -90,11 +104,26 @@ Those synthetic figures are plausible but unverified.
 
 **Pricing**
 
-- The rating plan is fitted directly to the simulator's true expected losses, then distorted on purpose
-  (young drivers under-priced, mileage under-used). A real carrier estimates costs from noisy past losses
-  with filing and implementation lags, so this plan is cleaner and more adequate than a real one.
+- The plan's discounts and surcharges (multi-car, multi-policy, homeowner, paid in full, prior insurance,
+  tenure, good student, married) are filed as round percentages typical of filed plans, not taken from any
+  carrier's. Everything else is fitted directly to the simulator's true expected losses, then distorted on
+  purpose (young drivers under-priced, mileage under-used). A real carrier estimates costs from noisy past
+  losses with filing and implementation lags, so this plan is cleaner and more adequate than a real one.
+- What the insurer cannot see is assumed: each household's stability (which lowers claims, raises retention
+  and drives homeownership, bundling, prior insurance, the payment plan and tenure), a higher claim rate for
+  new customers that fades over two or three years, and each channel's and agency's book quality. The
+  new-customer effect is sized to a published gap between new and renewal loss ratios (13 points across 25
+  books; Wu and Lin, CAS 2009); the rest is judgement.
 - The rate schedule is stylised: +48% cumulative between April 2022 and March 2025, then a 2% cut in
   June 2026.
+- The market is one number: a single rate level stands for every competitor (rising smoothly by the
+  industry's published yearly changes), every quote's competitive position is spread around the gap
+  between it and the company's own level, and shopping follows an assumed season and year. How strongly
+  conversion and renewals respond to that gap is assumed.
+- What a claim does to a renewal is assumed and sized to one real portfolio from another market: a claim
+  since the last offer lowers the chance of renewing, an at-fault or second claim more. The underwriting
+  rule for company non-renewals (two at-fault accidents, two major violations, or one of each, in three
+  years; half of those flagged) is assumed.
 - Telematics discounts are not offset in the base rates, so later years run a little above the industry
   loss ratio path.
 - Income, insurance score, payment plan and multi-policy status stay fixed for a policy's life; liability
@@ -118,6 +147,29 @@ Those synthetic figures are plausible but unverified.
   (`autoins/truth.py`, `reserve_caps`), which a real adjuster does not know. Reserves therefore never
   breach a limit and never need cutting back for that reason; real reserve development is noisier.
 
+**Operations**
+
+- Loss days follow Chicago's daily crash and vehicle-theft counts: police reports for the city, not
+  insurance claims for the metro area. Hold-over of weekend notices, the weekday mix of quotes and
+  effective dates, and loss times for causes other than crashes and thefts are assumed. Losses from other
+  causes follow monthly seasonality only, and nothing bunches at month or quarter ends.
+- Billing is stylised: two monthly plans and paid in full, fixed fees, late payment and returned drafts at
+  assumed rates that depend on household stability, balances after cancellation collected or written off at
+  assumed rates. A cancellation for non-payment follows a missed instalment by three to four weeks; in a
+  handful of terms the instalment that would have been missed had been reduced to nothing by a return
+  premium, and no unpaid bill exists.
+- Agencies are stylised: 120 independent and 14 exclusive, with assumed long-tailed sizes, commission
+  schedules, hidden book quality and hold on customers, and names built from the area's surnames and towns
+  (any resemblance to a real agency is accidental).
+- The general ledger is a monthly summary built from the published tables. Its opening cash and surplus
+  are assumed, it has no investments, expenses other than commission, taxes, reinsurance or reserve for
+  unreported claims, acquisition costs are expensed as written, and fees are income when collected. One
+  receivable account nets premium not yet collected against premium paid ahead and refunds on their way.
+- Claim payment detail is stylised: who is paid (shop, person, lienholder, other insurer), by cheque or
+  electronically, how fast it clears, staffing, turnover and payment authority are assumed. Vendors are
+  fictional and their shares of the work are assumed. None of this changes an amount or a date.
+- Injury settlements are rounded to negotiated-looking figures by an assumed rule.
+
 **Policies and households**
 
 - Mover, divorce, marriage, mortality, licensing and vehicle-ownership rates come from public data; how
@@ -133,8 +185,15 @@ Those synthetic figures are plausible but unverified.
 - Prices are approximate base prices in 2024 dollars (about 900 curated, the rest estimated from class,
   make and engine), used only to scale repair and total-loss costs and to set rating bands and symbols. A
   model year's engine, drive and body are its most common configuration.
-- Vehicle ages are tuned to Chicago's roads (about ten years in force); the US fleet average is a little
-  older (about 12.6 years in 2024).
+- Vehicle ages are tuned to Chicago's roads (about nine years in force); the US fleet average is older
+  (about 12.6 years in 2024).
+- What a car is worth is modelled: its model year's base price, a depreciation curve of assumed shape, and
+  the Manheim used-vehicle index by year. Trim, mileage and condition are not modelled, so two cars of one
+  model and year are worth the same. Values were raised by about half after the realism audit (they had
+  been about half what such cars fetched in 2022 to 2024), which is what brought physical damage premiums
+  up to Illinois' level.
+- Collision and comprehensive take-up is tuned to Illinois' (83% and 88% of insured cars); how it falls
+  with the car's age and varies with income and score is assumed.
 - Vehicle symbols are this dataset's own scales, not ISO's licensed ones.
 
 **Telematics**
@@ -158,25 +217,47 @@ Those synthetic figures are plausible but unverified.
 
 ## 5. How far to trust the numbers
 
-- **Calibration is national.** Frequency and severity are held to Triple-I / ISO national figures,
-  approximately on their published definitions (paid claims, a $500 deductible for physical damage, wind and
-  water excluded from comprehensive; the source does not publish how it counts claims with several
-  payments), and loss ratios to the US and Illinois path. Nothing is checked against a Chicago
-  benchmark or a single carrier's experience, and results by subgroup, how variables depend on each other,
-  large-loss tails and local geography are assumed or tuned, not validated.
+- **Calibration is national and statewide.** Frequency and severity are held to Triple-I / ISO national
+  figures, approximately on their published definitions (paid claims, a $500 deductible for physical damage,
+  wind and water excluded from comprehensive; the source does not publish how it counts claims with several
+  payments), loss ratios to the US and Illinois path, and premiums by coverage and physical damage take-up
+  to Illinois' averages. Nothing is checked against a Chicago benchmark or a single carrier's experience,
+  and results by subgroup, how variables depend on each other, large-loss tails and local geography are
+  assumed or tuned, not validated.
+- **Physical damage rests on one reading of the benchmark.** The national table does not say whether
+  salvage and subrogation come off collision and comprehensive payments. They are taken off here, because
+  insurers report recoveries as negative paid losses and because Verisk's own report on the same data shows
+  collision severity before recoveries about a quarter higher, with recoveries of that size (see the
+  README). On that reading collision severity is 0.94 times national in the default run (0.92 and 0.93 on
+  two other builds), frequency 1.34 times, and premiums per insured car 11% below Illinois' for collision
+  and comprehensive and 7% above for liability. If the table is in fact before recoveries, physical damage
+  payments here are about a quarter too high against it, and Illinois' premiums could not then be matched
+  at industry loss ratios. The sources do not settle it.
+- **Collision claims are frequent and often total losses.** Collision frequency runs a third above
+  national on the like-for-like comparison (an urban book), near the top of the band `validate.py` allows.
+  Thirty per cent of paid collision claims are total losses, against 22% to 23% of all appraisals
+  nationally (CCC), because the fleet is older and cheaper than the insured fleet at large.
 - **Claim luck is real.** A year of this book has about 250 paid bodily injury claims, and one standard
-  deviation of their total is 1.4 to 2.8 loss-ratio points. In the default run 2022 comes in below its
-  expected loss ratio (77.5% against 78.8%, both without catastrophes) and 2023 above it (76.6% against
-  75.4%). Other seeds and sizes give other years their luck; `validate.py` holds each year's actual,
+  deviation of their total is 1.4 to 2.4 loss-ratio points. In the default run every full year comes in at or
+  just below its expected loss ratio (2022: 79.0% against 79.8%, both without catastrophes; 2023: 74.3%
+  against 75.4%). Other seeds and sizes give other years their luck; `validate.py` holds each year's actual,
   without catastrophes, to 0.85 to 1.15 times its expected.
 - **The last year is immature.** 2026 is the least developed year: young injury claims are reserved low,
   and claims not yet reported are missing (they are in the answer key).
-- **Single-year severities move.** About 300 paid bodily injury claims and 600 comprehensive claims a year
+- **Single-year severities move.** About 300 paid bodily injury claims and 700 comprehensive claims a year
   fall in the national comparison, so single-year severities move by 10% or more by chance.
-- **Physical damage severity runs low.** Like-for-like comprehensive severity has come in at 0.81 to 0.88
-  times national across recent runs, and collision at 0.86 to 0.92 (an older city fleet, whose claims are
-  capped by modest vehicle values). In the default run they are 0.87 and 0.92, in the lower part of
-  `validate.py`'s 0.85 to 1.15 band, and a different seed or size can fall just outside it.
+- **Segment differences are expected values.** New business against renewals, channels, payment plans and
+  agencies differ in their expected loss ratios (from the answer key). Actual loss ratios of small segments
+  move far more with claim luck than with book quality, and most agencies are small: half of the 120
+  independent agencies have 45 or fewer policies in force, and only 63 agencies have 500 car-years in the
+  whole extract.
+- **A claim predicts the next one weakly overall.** Vehicles with a claim one year have 1.16 times the
+  claim frequency the next, because many claims are comprehensive and because customers with claims,
+  at-fault ones most of all, are the likeliest to leave. A car with an at-fault claim is 1.48 times as
+  likely to have another.
+- **Smaller builds are noisier.** A 10,000-policy build passes every integrity check and its ledger ties,
+  but has about 5,000 claims: loss ratios, small segments and single-year figures move more, some agencies
+  have no customers, and `validate.py` reports calibration misses as warnings below 20,000 policies.
 - **Seed and size matter.** The same seed and size give byte-identical files, but a different seed or
   policy count changes every random draw: compare methods across seeds before reading much into one
   figure.
@@ -194,6 +275,11 @@ review found several that the checks then missed (see [review_response.md](revie
 now has a check of its own. The tables teach analysis, not data cleaning; pair them with the real
 portfolio, or degrade a copy, for cleaning exercises.
 
+The same holds for audit analytics. Bills reconcile with the premium ledger and the cash to the cent, cheque
+numbers run without a gap, every payment is approved within authority by someone employed that day, no
+vendor is paid twice for one thing, and every journal balances and ties to its subledger. The data supports the tests, and every test comes back clean; to teach
+exception finding, plant exceptions in a copy.
+
 ## 7. Appropriate and inappropriate uses
 
 **Good uses**
@@ -201,6 +287,14 @@ portfolio, or degrade a copy, for cleaning exercises.
 - Teaching and practising ratemaking (exposure, earned premium, relativities, GLMs, rate adequacy),
   reserving (paid and incurred triangles, IBNR, reserve development), claims analytics, retention and
   quote conversion, telematics pricing and the separation of selection from behaviour.
+- Accounting and audit analytics: written, earned and unearned premium; billed premium, cash, receivables
+  by age, refunds and write-offs; commission and agency statements; paid and incurred losses and reserve
+  roll-forwards; reconciling each subledger to the general ledger by month and company, and calendar-year
+  against accident-year results; and tests on claim payments (cheque sequence, outstanding and voided
+  cheques, approval against authority, vendor concentration, Benford's law).
+- Business analytics: profitability and retention by channel, agency, payment plan and tenure; quote
+  volumes and conversion through the season and after rate changes; retention after a claim; what each
+  discount is worth; how concentrated the agency force is.
 - SQL and data-modelling exercises on a realistic, multi-table insurance schema.
 - Fairness auditing: estimating race and ethnicity from surname and address (BISG) and testing prices
   for disparate impact, checked against the answer key.

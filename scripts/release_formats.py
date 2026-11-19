@@ -6,34 +6,25 @@ returning its path. scripts/package_release.py calls it twice per release: once 
 the instructor answer key.
 
 Formats:
-  csv     a zip of one CSV file per table, exactly as generate.py wrote them
-  sqlite  a zip holding one SQLite database with every table, its primary and foreign keys declared and checked
+  csv      a zip of one CSV file per table, exactly as generate.py wrote them
+  sqlite   a zip holding one SQLite database with every table, its primary and foreign keys declared and checked
+  parquet  a zip of one Parquet file per table, with typed columns (needs pyarrow)
 
 To add a format:
 
-1. Write the exporter below, e.g.
-
-       @register("parquet", extension="zip", label="Parquet")
-       def parquet_zip(bundle: Bundle, dest: Path) -> Path:
-           out = dest / f"{bundle.stem}.zip"
-           files = []
-           for name, df in bundle.frames():
-               buf = io.BytesIO()
-               df.to_parquet(buf, index=False)          # needs pyarrow
-               files.append((buf.getvalue(), f"{name}.parquet"))
-           write_zip(out, files + bundle.extra_bytes())
-           return out
-
-   Excel (one workbook with a sheet per table, via openpyxl; sheets hold at most 1,048,576 rows) follows the same
-   pattern.
-2. Add any library it needs to requirements-release.txt (the release workflow installs it).
-3. Publish with it: `python scripts/package_release.py ... --formats csv,parquet`, or enter "csv,parquet" as the
-   formats input when running the "Release dataset" workflow.
+1. Write the exporter below, as parquet_zip does: a function registered with @register that turns a Bundle into
+   one file in `dest`, built with write_zip. Excel (one workbook with a sheet per table, via openpyxl; sheets hold
+   at most 1,048,576 rows) would follow the same pattern.
+2. Add any library it needs to requirements-release.txt (the release workflow installs it), and import it inside
+   the exporter, so the other formats work without it.
+3. Publish with it: `python scripts/package_release.py ... --formats csv,excel`, or add it to the formats input
+   when running the "Release dataset" workflow (and to the workflow's default, to publish it with every build).
 
 Keep exporters deterministic (fixed timestamps, sorted entries) so the same data gives the same bytes.
 """
 from __future__ import annotations
 
+import io
 import math
 import sqlite3
 import sys
@@ -73,7 +64,10 @@ class Bundle:
 
 
 def read_table(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, keep_default_na=False, na_values=[""], low_memory=False)
+    """A table as written, with labels that look like numbers (ZIP codes) kept as text even where some are blank."""
+    cols = pd.read_csv(path, nrows=0).columns
+    return pd.read_csv(path, keep_default_na=False, na_values=[""], low_memory=False,
+                       dtype={c: str for c in cols if c in schema.TEXT_COLUMNS})
 
 
 def register(name: str, extension: str, label: str | None = None) -> Callable:
@@ -117,6 +111,65 @@ def sqlite_zip(bundle: Bundle, dest: Path) -> Path:
         # deflate level 6: a 340 MB database compresses five times faster than at level 9, for 2% more bytes
         write_zip(out, [(db.read_bytes(), name)] + bundle.extra_bytes(), level=6)
     return out
+
+
+@register("parquet", extension="zip", label="Parquet")
+def parquet_zip(bundle: Bundle, dest: Path) -> Path:
+    """One Parquet file per table (a Parquet file holds one table), zipped with the extra files. A quarter of the
+    size of the CSV files and far quicker to load, with the column types already set (see parquet_table)."""
+    out = dest / f"{bundle.stem}.zip"
+    files = [(parquet_bytes(path), f"{name}.parquet") for name, path in sorted(bundle.tables.items())]
+    # the files are already compressed, so a light deflate is enough
+    write_zip(out, files + bundle.extra_bytes(), level=6)
+    return out
+
+
+# ----------------------------------------------------------------------------------------------- Parquet
+def _pyarrow():
+    try:
+        import pyarrow
+        import pyarrow.parquet
+    except ImportError as e:
+        raise SystemExit("the parquet format needs pyarrow: pip install -r requirements-release.txt") from e
+    return pyarrow
+
+
+def is_date_column(name: str) -> bool:
+    """Every column holding a calendar date is named ..._date or date_...; they are written as YYYY-MM-DD."""
+    return name.endswith("_date") or name.startswith("date_")
+
+
+def parquet_table(path: Path):
+    """A table as an Arrow table, typed as the CSV implies: whole numbers are 64-bit integers (null where blank, so
+    a key with blanks stays an integer), other numbers doubles, dates (is_date_column) dates, and everything else
+    text, ZIP codes included. Parquet cannot declare keys; autoins/schema.py and the README list them."""
+    pa = _pyarrow()
+    df = read_table(path)
+    types = _column_types(path, df)
+    cols = {}
+    for c in df.columns:
+        s = df[c]
+        if is_date_column(c):
+            cols[c] = pa.array(pd.to_datetime(s, format="%Y-%m-%d"), type=pa.timestamp("ns")).cast(pa.date32())
+        elif pd.api.types.is_bool_dtype(s):
+            cols[c] = pa.array(s, type=pa.bool_())
+        elif types[c] == "INTEGER":
+            cols[c] = pa.array(s.astype("Int64"), type=pa.int64(), from_pandas=True)
+        elif types[c] == "REAL":
+            cols[c] = pa.array(s.astype("float64"), type=pa.float64(), from_pandas=True)
+        else:
+            cols[c] = pa.array([None if m else str(v) for v, m in zip(s.to_numpy().tolist(), s.isna().to_numpy().tolist())],
+                               type=pa.string())
+    return pa.table(cols)
+
+
+def parquet_bytes(path: Path) -> bytes:
+    """The table as a Parquet file. Snappy compression, the format's default, which every reader supports. The same
+    data and pyarrow version give the same bytes (nothing in the file records when or where it was written)."""
+    pa = _pyarrow()
+    buf = io.BytesIO()
+    pa.parquet.write_table(parquet_table(path), buf, compression="snappy")
+    return buf.getvalue()
 
 
 # ----------------------------------------------------------------------------------------------- SQLite

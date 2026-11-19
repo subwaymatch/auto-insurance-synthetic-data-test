@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
-from . import names, rating, telematics, truth
+from . import billing, names, payments, rating, telematics, truth
 from .refdata import stream
 from .simulate import DRIVER_REMOVAL_REASONS, END_ENDORSED, END_GONE, REMOVAL_REASONS
 
@@ -69,7 +69,14 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["agency"] = pd.DataFrame({
         "agency_id": ag.agency_id, "agency_name": ag.name, "channel": ag.channel,
         "city": np.where(ag.zi >= 0, az.city.to_numpy(), "Chicago"), "state": "IL",
-        "zip_code": np.where(ag.zi >= 0, az.zip.to_numpy(), "60606")})
+        "zip_code": np.where(ag.zi >= 0, az.zip.to_numpy(), "60606"),
+        "appointment_date": D(-ag.appointed_days_before_start.to_numpy()),
+        "new_business_commission_pct": (ag.commission_new * 100).round(1),
+        "renewal_commission_pct": (ag.commission_renewal * 100).round(1)})
+    producers, policy_producer = _producers(cfg, ref, ag, pol)
+    T["producer"] = pd.DataFrame({
+        "producer_id": producers.producer + 1, "agency_id": producers.agency_id, "first_name": producers.first_name,
+        "last_name": producers.last_name, "start_date": D(producers.start.to_numpy())})
     T["underwriting_company"] = pd.DataFrame(C.COMPANIES, columns=["company_id", "company_name",
                                                                 "tier", "city"]).assign(**{"state": "IL"})
     T["claim_office"] = pd.DataFrame(C.BRANCHES, columns=["claim_office_id", "office_name", "city"])
@@ -131,7 +138,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     score = pol.insurance_score
     T["policy"] = pd.DataFrame({
         "policy_id": polno(pol["pol"]), "location_id": z.location_id.to_numpy()[pol.zi],
-        "agency_id": pol.agency_id, "company_id": pol.tier + 1,
+        "agency_id": pol.agency_id, "producer_id": pd.array(np.where(policy_producer >= 0, policy_producer + 1, pd.NA), dtype="Int64"),
+        "company_id": pol.tier + 1,
         "distribution_channel": np.array(C.CHANNELS)[pol.channel],
         "original_inception_date": pd.Series(cal.start + inception.astype("timedelta64[D]")).dt.strftime("%Y-%m-%d").to_numpy(),
         "first_effective_date": D(pol.first_day), "latest_expiration_date": D(end_day),
@@ -162,7 +170,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "added_date": D(drv.added_day), "removed_date": np.where(removed_d >= 0, D(removed_d.clip(0)), ""),
         "removal_reason": np.where(removed_d >= 0, np.array(DRIVER_REMOVAL_REASONS)[drv.removal_reason], ""),
         "good_student": YN[good_student.astype(int)], "miles_to_work": drv.commute_miles.astype(int),
-        "prior_violations": n_viol, "prior_accidents": n_acc, **_sr22(cfg, inc, drv, V, D)})
+        "prior_violations": n_viol, "prior_accidents": n_acc, **_sr22(cfg, cal, inc, drv, V, D)})
 
     # Each incident carries the day the insurer learned of it: a violation when the conviction posts to the
     # driving record, an earlier accident when it appears on a claims-history report, and the company's own
@@ -183,7 +191,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     records = records[(records.day <= V) & (records.known <= V)].sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
     T["driver_incident"] = pd.DataFrame({
         "incident_id": np.arange(1, len(records) + 1), "driver_id": records.drv + 1, "incident_date": D(records.day),
-        "known_date": D(records.known), "conviction_date": _conviction_dates(cfg, records, D),
+        "known_date": D(records.known), "conviction_date": _conviction_dates(cfg, cal, records, D),
         "incident_type": records["incident_type"], "description": records.description,
         "source": records.source, "claim_id": records["claim_id"]})
 
@@ -292,10 +300,18 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                         peril == "GLASS", city], [6, 3, 5, 4, 1], default=2)
     claimant = np.where(claims.drv >= 0, claims.drv, ni_drv[claims.pol]) + 1
     cat_id = np.where(claims.cat >= 0, np.array([e[0] for e in C.CAT_EVENTS])[claims.cat.clip(0)], "")
+    # who handles each claim and who each payment goes to (payments.py)
+    emp, desks = payments.employees(cfg, cal, ref, pd.Series(branch).value_counts())
+    vend = payments.vendors(cfg, ref)
+    insured = (drv.first_name.astype(str) + " " + drv.last_name.astype(str)).to_numpy()[ni_drv[claims.pol.to_numpy()]]
+    detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured,
+                                        np.where(cg.open.to_numpy(), cal.horizon + 1, cg.close_day.to_numpy()), emp, desks, vend)
+    T["employee"], T["vendor"] = _employee_table(emp, desks, V, D), _vendor_table(vend)
     T["claim"] = pd.DataFrame({
         "claim_id": claims.claim_id, "policy_id": polno(claims.pol), "policy_term_id": claims.term + 1,
         "exposure_id": claims.row + 1, "involved_driver_id": claimant, "insured_vehicle_id": claims.veh + 1,
-        "vehicle_model_year_id": vid[claims.veh], "loss_date": D(claims.day), "report_date": D(claims.report_day),
+        "vehicle_model_year_id": vid[claims.veh], "loss_date": D(claims.day), "loss_time": _loss_times(cfg, cal, claims),
+        "report_date": D(claims.report_day),
         "close_date": np.where(cg.open.to_numpy(), "", D(cg.close_day.clip(upper=V))),
         "claim_status": np.where(cg.open.to_numpy(), "Open", "Closed"), "cause_of_loss": claims.peril,
         "claim_description": claims.peril.map(C.PERIL_DESCRIPTION), "at_fault": YN[claims.at_fault.astype(int)],
@@ -303,14 +319,20 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "case_reserve": cg.reserve.round(2).to_numpy(), "recoveries": cg.recovery.round(2).to_numpy(),
         "net_incurred_loss": cg.net.round(2).to_numpy(), "paid_expense": cg.expense.round(2).to_numpy(),
         "expense_reserve": cg.exp_reserve.round(2).to_numpy(),
-        "litigation": YN[cg.lit.to_numpy().astype(int)], "claim_office_id": branch,
+        "litigation": YN[cg.lit.to_numpy().astype(int)], "claim_office_id": branch, "adjuster_id": adjuster + 1,
         "police_report": YN[claims.police_report.astype(int)],
         "insured_fault_pct": pd.array(np.where(claims.fault_pct >= 0, claims.fault_pct, 0), dtype="Int64"),
         "siu_referral": YN[(claims.siu_day >= 0).astype(int)], "siu_referral_date": opt_date(claims.siu_day)})
     T["claim"].loc[claims.fault_pct.to_numpy() < 0, "insured_fault_pct"] = pd.NA
     T["claim_payment"] = pd.DataFrame({
         "payment_id": pays.payment_id, "claim_feature_id": pays.feature_id, "claim_id": pays.claim_id,
-        "payment_date": D(pays.day), "payment_type": pays.kind, "transaction_type": pays.txn, "amount": pays.amount})
+        "payment_date": D(pays.day), "payment_type": pays.kind, "transaction_type": pays.txn, "amount": pays.amount,
+        "payee_type": detail["payee_type"], "payee_name": detail["payee_name"],
+        "vendor_id": pd.array(np.where(detail["vendor"] >= 0, detail["vendor"] + 1, pd.NA), dtype="Int64"),
+        "payment_method": detail["method"],
+        "check_number": pd.array(np.where(detail["check"] >= 0, detail["check"], pd.NA), dtype="Int64"),
+        "payment_status": detail["status"], "cleared_date": opt_date(detail["cleared"]),
+        "approved_by_employee_id": detail["approver"] + 1})
     rs = dev["reserves"]
     T["claim_reserve_transaction"] = pd.DataFrame({
         "reserve_transaction_id": rs.reserve_id, "claim_feature_id": rs.feature_id, "claim_id": rs.claim_id,
@@ -321,8 +343,10 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     of = res.offers.sort_values(["offer_day", "pol"], kind="stable").reset_index(drop=True)
     T["renewal_offer"], K["renewal_offer_truth"] = _renewal_offers(of, D, polno)
     known_veh = veh.assign(removal_reason=reason_v)
-    T["premium_transaction"] = _transactions(cfg, cal, terms, rows, known_veh, D, polno)
-    T["customer_contact"] = _communications(cfg, cal, pol, terms, rows, claims, cg, known_veh, of, D, polno)
+    T["premium_transaction"], ledger = _transactions(cfg, cal, pol, ag, terms, rows, known_veh, D, polno)
+    inv, rec, notices = billing.build(cfg, cal, pol, terms, ledger)
+    T["billing_invoice"], T["billing_receipt"] = _billing_tables(inv, rec, terms, D, polno)
+    T["customer_contact"] = _communications(cfg, cal, pol, terms, rows, claims, cg, known_veh, of, notices, D, polno)
 
     # ---- answer key ---------------------------------------------------------------------------------
     exp_cols = [f"exp_{c}" for c in C.COVERAGES]
@@ -332,6 +356,10 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                                       "race_ethnicity": np.array(names.GROUP_LABELS)[drv.race_group.to_numpy().astype(int)]})
     K["insured_vehicle_truth"] = pd.DataFrame({"insured_vehicle_id": veh.veh + 1, "true_annual_mileage": veh.true_miles.round(0).astype(int),
                                        "kia_hyundai_theft_exposure": YN[veh.kia_hyundai.astype(int)]})
+    K["policy_truth"] = pd.DataFrame({"policy_id": polno(pol["pol"]), "stability": pol.stab.round(4),
+                                      "household_risk_factor": pol.household_factor.round(4)})
+    K["agency_truth"] = pd.DataFrame({"agency_id": ag.agency_id, "book_quality_factor": np.exp(ag.quality).round(4),
+                                      "retention_effect": ag.retention.round(4)})
     zt = pop.zip_truth
     K["location_truth"] = pd.DataFrame({
         "location_id": zt.location_id, "zip_code": zt.zip, "hazard_basis": z.hazard_basis,
@@ -350,6 +378,30 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "eventual_reopen_date": np.where(fu.reopen_day >= 0, D(fu.reopen_day.clip(0)), ""),
         "eventual_close_date": D(fu.final_close_day)})
     return T, K
+
+
+HOUR_GROUP = {"AF_MV": "crash", "AF_SV": "crash", "NAF": "crash", "PARKED": "parked", "GLASS": "glass",
+              "THEFT_TOTAL": "theft", "THEFT_PARTIAL": "theft", "VANDALISM": "night", "FIRE": "night", "ANIMAL": "animal",
+              "WEATHER": "weather", "FLOOD": "weather", "HAIL_CAT": "weather", "WIND_CAT": "weather", "FLOOD_CAT": "weather",
+              "OTHER_COMP": "day"}
+
+
+def _loss_times(cfg, cal, claims: pd.DataFrame) -> np.ndarray:
+    """Time of day of each loss as the insured reported it (HH:MM). The hour follows the peril's profile for
+    that weekday (crashes and thefts from Chicago's records, refdata._hour_profiles); the minute bunches on the
+    hour and the half hour, as reported times do. A descriptive attribute: nothing else depends on it."""
+    R = stream(cfg.seed, "loss time")
+    day, n = claims.day.to_numpy(), len(claims)
+    group = claims.peril.map(HOUR_GROUP).to_numpy()
+    hour, u = np.zeros(n, dtype=int), R.random(n)
+    for g in np.unique(group):
+        m = group == g
+        hour[m] = cal.loss_hour(g, day[m], u[m])
+    heaps = list(C.LOSS_MINUTE_HEAPING)
+    p = np.array(list(C.LOSS_MINUTE_HEAPING.values()))
+    k = R.choice(len(heaps) + 1, n, p=np.r_[p, 1 - p.sum()])
+    minute = np.where(k < len(heaps), np.array(heaps + [0])[k], R.integers(0, 60, n))
+    return np.char.add(np.char.add(np.char.zfill(hour.astype(str), 2), ":"), np.char.zfill(minute.astype(str), 2))
 
 
 def _vehicle_codes(mdl: pd.DataFrame) -> dict:
@@ -424,31 +476,34 @@ def _renewal_offers(of: pd.DataFrame, D, polno) -> tuple[pd.DataFrame, pd.DataFr
     return table, truth_
 
 
-def _sr22(cfg, inc: pd.DataFrame, drv: pd.DataFrame, V: int, D) -> dict:
+def _sr22(cfg, cal, inc: pd.DataFrame, drv: pd.DataFrame, V: int, D) -> dict:
     """SR-22 filings: after a conviction for driving under the influence, driving while suspended or leaving
     the scene, the insurer files proof of insurance with the state for three years (the latest filing shown)."""
     q = inc[inc.description.isin(SR22_VIOLATIONS) & (inc.known_day <= V)]
     latest = q.groupby("drv").known_day.max().reindex(drv.drv).to_numpy()
     R = stream(cfg.seed, "sr22")
     filed = np.maximum(np.nan_to_num(latest, nan=-10 ** 6), drv.added_day.to_numpy()) + R.integers(0, 8, len(drv))
+    filed = np.where(np.isnan(latest), filed, cal.spread_business(np.where(np.isnan(latest), 0, filed), R.random(len(drv))))    # filed with the state on a business day
     end = np.nan_to_num(latest, nan=-10 ** 6) + int(SR22_YEARS * 365.25)
     on = ~np.isnan(latest) & (end > filed) & (filed <= V) & ((drv.removed_day.to_numpy() < 0) | (drv.removed_day.to_numpy() > filed))
     # dates before the start are real dates (day numbers count back from it), so they are written as they are
     return {"sr22_filed_date": np.where(on, D(np.where(on, filed, 0)), ""), "sr22_end_date": np.where(on, D(np.where(on, end, 0)), "")}
 
 
-def _conviction_dates(cfg, records: pd.DataFrame, D) -> np.ndarray:
-    """Court conviction date for violations: a few days to two weeks before it posts to the driving record."""
+def _conviction_dates(cfg, cal, records: pd.DataFrame, D) -> np.ndarray:
+    """Court conviction date for violations: a few days to two weeks before it posts to the driving record, on a
+    day the courts sit."""
     R = stream(cfg.seed, "convictions")
     mvr = records.source.to_numpy() == "Motor Vehicle Record"
     day, known = records.day.to_numpy(), records.known.to_numpy()
     # on or after the day after the incident, and before the record posts (a conviction before the start keeps
     # its own date: clipping it to the start would put it after the day it became known)
     conv = np.minimum(np.maximum(known - R.integers(3, 15, len(records)), day + 1), known)
+    conv = cal.business_between(conv, day + 1, known, R.random(len(records)))
     return np.where(mvr, D(conv), "")
 
 
-def _transactions(cfg, cal, terms, rows, veh, D, polno) -> pd.DataFrame:
+def _transactions(cfg, cal, policies, agencies, terms, rows, veh, D, polno) -> tuple[pd.DataFrame, pd.DataFrame]:
     """The premium ledger: one row per policy transaction, as a policy system books it. New business and
     renewals write the premium for the vehicles on the policy at the start; each mid-term change is an
     endorsement adding or returning premium pro rata to the end of the term; a cancellation returns the
@@ -472,25 +527,40 @@ def _transactions(cfg, cal, terms, rows, veh, D, polno) -> pd.DataFrame:
     endorse = endorse.groupby(["term", "day"], sort=True).agg(
         amount=("amount", "sum"), reason=("reason", lambda r: "; ".join(dict.fromkeys(x_ for x_ in r if x_)))).reset_index()
     endorse["kind"] = "Endorsement"
-    endorse["processed"] = endorse.day + np.floor(R.exponential(5.0, len(endorse))).astype(int)
+    # most changes are keyed the day they take effect (the next business day, for a weekend); the rest a few
+    # days later, backdated to the day of the change
+    lag = np.where(R.random(len(endorse)) < C.ENDORSEMENT_SAME_DAY_P, 0, 1 + np.floor(R.exponential(4.0, len(endorse)))).astype(int)
+    endorse["processed"] = cal.spread_business(endorse.day.to_numpy() + lag, R.random(len(endorse)))
     start = pd.DataFrame({"term": terms.term, "day": terms.s, "amount": terms.written, "reason": "",
                           "kind": np.where(terms.new_business, "New Business", "Renewal"), "processed": terms.rate_day})
     c = terms[terms.cancel_day >= 0]
+    # a cancellation for non-payment is booked by the billing system on the day it takes effect; the others
+    # are keyed by staff, on a business day
+    keyed = cal.spread_business(c.cancel_day.to_numpy() + np.floor(R.exponential(2.0, len(c))).astype(int), R.random(len(c)))
     cancel = pd.DataFrame({"term": c.term, "day": c.cancel_day, "amount": -c.returned, "reason": c.cancel_reason,
-                           "kind": "Cancellation", "processed": c.cancel_day + np.floor(R.exponential(3.0, len(c))).astype(int)})
+                           "kind": "Cancellation",
+                           "processed": np.where(c.cancel_reason == "Non-Payment", c.cancel_day, keyed)})
     tx = pd.concat([start, endorse, cancel], ignore_index=True)
     tx = tx[tx.processed <= cal.valuation_day]
     tx["order"] = tx.kind.map({"New Business": 0, "Renewal": 0, "Endorsement": 1, "Cancellation": 2})
     tx = tx.sort_values(["processed", "term", "day", "order"], kind="stable").reset_index(drop=True)
     pol = t.pol.reindex(tx.term).to_numpy()
-    return pd.DataFrame({
+    tx["amount"] = tx.amount.round(2) + 0.0
+    # commission: the agency's rate for new business on a policy's first term and its renewal rate afterwards,
+    # on every transaction of the term (so a return premium takes its commission back); direct business pays none
+    ag = agencies.set_index("agency_id").reindex(policies.agency_id.to_numpy()[pol])
+    rate = np.where(t.new_business.reindex(tx.term).to_numpy(), ag.commission_new.to_numpy(), ag.commission_renewal.to_numpy())
+    table = pd.DataFrame({
         "transaction_id": np.arange(1, len(tx) + 1), "policy_id": polno(pol), "policy_term_id": tx.term + 1,
         "transaction_type": tx.kind, "effective_date": D(tx.day), "processed_date": D(tx.processed),
-        "change_reason": tx.reason, "written_premium": tx.amount.round(2) + 0.0})
+        "change_reason": tx.reason, "written_premium": tx.amount,
+        "commission_rate_pct": np.round(rate * 100, 1), "commission_amount": np.round(tx.amount * rate, 2) + 0.0})
+    return table, tx[["term", "kind", "day", "processed", "amount"]]
 
 
-def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, D, polno) -> pd.DataFrame:
-    """Customer contacts tied to real events in the data (welcome kits, renewals, billing, claims)."""
+def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, notices, D, polno) -> pd.DataFrame:
+    """Customer contacts tied to real events in the data (welcome kits, renewals, billing, claims). `notices` are
+    the notices billing sent (billing._notices: term, day, purpose)."""
     R = stream(cfg.seed, "communications")
     V = cal.valuation_day
     paperless = R.random(len(pol)) < 0.62
@@ -511,11 +581,13 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, D, poln
     add(nr.pol, nr.offer_day, "Notice of Non-Renewal", digital_ok=False)
     rr = offers[offers.revised_day >= 0]
     add(rr.pol, rr.revised_day, "Revised Renewal Offer")
-    bill = terms[(pol.pay_plan.to_numpy()[terms.pol] == 2) & (R.random(len(terms)) < 0.45)]
-    add(bill.pol, bill.s + R.integers(25, 150, len(bill)), "Payment Reminder", phone=0.10)
+    term_pol = terms.set_index("term").pol
+    for purpose, kw in (("Past Due Notice", dict(phone=0.15)), ("Notice of Cancellation", dict(digital_ok=False)),
+                        ("Returned Payment Notice", {})):
+        g = notices[notices.purpose == purpose]
+        add(term_pol.reindex(g.term).to_numpy(), g.day.to_numpy(), purpose, **kw)
     npay = terms[terms.cancel_reason == "Non-Payment"]
-    add(npay.pol, npay.cancel_day - 21, "Past Due Notice", phone=0.25)
-    add(npay.pol, npay.cancel_day - 10, "Notice of Cancellation", digital_ok=False)
+    add(npay.pol, npay.cancel_day, "Cancellation for Non-Payment", digital_ok=False)
     other = terms[(terms.cancel_day >= 0) & (terms.cancel_reason != "Non-Payment")]
     add(other.pol, other.cancel_day, "Cancellation Confirmation")
     # every endorsement (a mid-term change re-rating the policy) and every car taken off after a loss
@@ -529,9 +601,94 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, D, poln
     add(claims.pol[closed], cg.close_day.to_numpy()[closed], "Claim Closure Notice", phone=0.10)
 
     c = pd.concat(parts, ignore_index=True)
+    # letters go out, and staff call, on business days (calls on Saturdays too); email is sent any day
+    day, wd = c.day.to_numpy(), cal.weekday(c.day.to_numpy())
+    c["day"] = np.where(c.kind == "Written Letter", cal.next_business(day),
+                        np.where((c.kind == "Phone Call") & (wd != 5), cal.next_business(day), day))
     c = c[(c.day >= 0) & (c.day <= V)].sort_values(["day", "pol", "purpose"], kind="stable").reset_index(drop=True)
     return pd.DataFrame({"contact_id": [f"CM{i:07d}" for i in range(1, len(c) + 1)], "contact_method": c.kind,
                          "policy_id": polno(c.pol), "contact_date": D(c.day), "purpose": c.purpose})
+
+
+def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
+    """The producers (licensed agents) who work at each agency, and the one who services each policy (-1 for
+    direct business, which has none). Bigger agencies have more; a few write most of an agency's business."""
+    R = stream(cfg.seed, "producers")
+    count = pol.groupby("agency_id").size().reindex(agencies.agency_id).fillna(0).to_numpy()
+    agent = (agencies.channel != "Direct").to_numpy()
+    n = np.where(agent, 1 + np.minimum(count // 200, 11), 0).astype(int)
+    a = np.repeat(np.arange(len(agencies)), n)
+    zi = agencies.zi.to_numpy()[a].clip(0)
+    ns = ref.names
+    group = ns.draw_group(R, ns.zip_mix(ref.zips.iloc[zi]))
+    male = R.random(len(a)) < 0.5
+    appointed = -agencies.appointed_days_before_start.to_numpy()[a]
+    first_of_agency = np.r_[True, a[1:] != a[:-1]]
+    start = np.where(first_of_agency, appointed, np.minimum(appointed + R.integers(0, 6_000, len(a)), -30))
+    # an agency's first producer is its principal, whose name the agency often carries
+    prod = pd.DataFrame(dict(producer=np.arange(len(a)), agency_id=agencies.agency_id.to_numpy()[a],
+                             first_name=np.where(first_of_agency, agencies.principal_first.to_numpy()[a],
+                                                 ns.first_name(R, group, male, 1960 + R.integers(0, 35, len(a)))),
+                             last_name=np.where(first_of_agency, agencies.principal_last.to_numpy()[a], ns.surname(R, group)),
+                             start=start, weight=np.exp(R.normal(0, 0.8, len(a)))))
+    out = np.full(len(pol), -1)
+    by_agency = pol.agency_id.to_numpy()
+    for aid, g in prod.groupby("agency_id"):
+        m = np.flatnonzero(by_agency == aid)
+        out[m] = R.choice(g.producer.to_numpy(), len(m), p=(g.weight / g.weight.sum()).to_numpy())
+    return prod, out
+
+
+def _employee_table(emp: pd.DataFrame, desks: pd.DataFrame, V: int, D) -> pd.DataFrame:
+    """Claims staff as the personnel file shows them: people hired by the valuation date, with their desk's office,
+    title and payment authority, and the supervisor they report (or last reported) to."""
+    e = emp[emp.start <= V].reset_index(drop=True)
+    roster = payments.Roster(emp, desks)
+    last = np.where(e.end >= 0, np.minimum(e.end - 1, V), V)
+    sup_desk = roster.supervisor.reindex(e.office.where(e.office > 0, 1)).to_numpy()
+    sup = roster.holder(sup_desk, last)
+    mgr = roster.holder(np.full(len(e), roster.manager), last)
+    boss = np.where(e.title.str.contains("Adjuster") & (sup >= 0), sup, mgr)
+    boss = np.where(e.title == "Claims Manager", -1, boss)
+    ended = (e.end >= 0) & (e.end <= V)
+    return pd.DataFrame({
+        "employee_id": e.emp + 1, "employee_number": e.number, "first_name": e.first_name, "last_name": e.last_name,
+        "job_title": e.title, "claim_office_id": pd.array(np.where(e.office > 0, e.office, pd.NA), dtype="Int64"),
+        "hire_date": D(e.start.to_numpy()), "termination_date": np.where(ended, D(e.end.clip(0).to_numpy()), ""),
+        "payment_authority": e.authority.astype(int),
+        "supervisor_employee_id": pd.array(np.where(boss >= 0, boss + 1, pd.NA), dtype="Int64")})
+
+
+def _vendor_table(v: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame({"vendor_id": v.vendor + 1, "vendor_number": v.number, "vendor_name": v.name, "vendor_type": v.vendor_type,
+                         "city": v.city, "state": v.state, "zip_code": v.zip, "in_network": YN[v.network.astype(int)]})
+
+
+def _billing_tables(inv: pd.DataFrame, rec: pd.DataFrame, terms: pd.DataFrame, D, polno) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The bills and the cash as tables (billing.build)."""
+    pol = terms.set_index("term").pol
+    money = lambda cents: np.round(np.asarray(cents) / 100, 2)
+    invoice = pd.DataFrame({
+        "invoice_id": inv.invoice + 1, "invoice_number": inv.number, "policy_id": polno(pol.reindex(inv.term).to_numpy()),
+        "policy_term_id": inv.term + 1, "invoice_type": inv.kind,
+        "installment_number": pd.array(np.where(inv.inst > 0, inv.inst, pd.NA), dtype="Int64"),
+        "issue_date": D(inv.issue.to_numpy()), "due_date": D(inv.due.to_numpy()), "premium_amount": money(inv.prem),
+        "installment_fee": money(inv.fee), "late_fee": money(inv.late_fee), "amount_due": money(inv.total),
+        "invoice_status": inv.status, "paid_date": _any_date(inv.paid_day.to_numpy(), D),
+        "write_off_date": _any_date(inv.write_off.to_numpy(), D)})
+    receipt = pd.DataFrame({
+        "receipt_id": rec.receipt + 1, "policy_id": polno(pol.reindex(rec.term).to_numpy()), "policy_term_id": rec.term + 1,
+        "invoice_id": pd.array(np.where(rec.invoice >= 0, rec.invoice + 1, pd.NA), dtype="Int64"),
+        "receipt_date": D(rec.day.to_numpy()), "receipt_type": rec.kind, "payment_method": rec.method, "amount": money(rec.cents)})
+    return invoice, receipt
+
+
+def _any_date(day: np.ndarray, D, none: int = billing.NO_DAY) -> np.ndarray:
+    """Dates for day numbers that may fall before the start (negative); `none` marks no date."""
+    out = np.full(len(day), "", dtype=object)
+    m = day != none
+    out[m] = D(day[m])
+    return out
 
 
 def write(tables: dict, key: dict, plan, cfg: C.Config, summary: dict) -> None:

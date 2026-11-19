@@ -103,7 +103,9 @@ class Development:
         occ = occ.copy()
         lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
         lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
-        notice = occ.day.to_numpy() + lag.astype(int)
+        # first notice comes in every day (app, website, call centre), but much of a weekend's or a holiday's
+        # is held over to the next business day
+        notice = self.cal.intake_day(occ.day.to_numpy() + lag.astype(int), R.random(len(occ)))
 
         f = feat.merge(occ[["occ", "day", "peril", "cat", "at_fault"]].assign(notice=notice), on="occ", how="left")
         n = len(f)
@@ -114,7 +116,10 @@ class Development:
         paid = f.paid.to_numpy()
         injury = np.isin(cvg, ["BI", "UM"])
         cap = f.day.to_numpy() + np.array([OPEN_LAG_CAP.get(c, 3650) for c in cvg])
-        f["open_day"] = np.minimum(f.notice.to_numpy() + _open_lag(cvg, R), np.maximum(cap, f.notice.to_numpy()))
+        # a coverage claimed after the first notice is set up by staff, on a business day
+        later = _open_lag(cvg, R)
+        opened = np.where(later > 0, self.cal.spread_business(f.notice.to_numpy() + later, R.random(n)), f.notice.to_numpy())
+        f["open_day"] = np.minimum(opened, np.maximum(cap, f.notice.to_numpy()))
 
         # litigation and loss adjustment expense
         lit = injury & (paid > 0) & (R.random(n) < 0.07 + 0.10 * (paid > 15_000) + 0.22 * (paid > 50_000))
@@ -139,15 +144,15 @@ class Development:
         dur = np.where(injury, np.where(paid > 0, inj_dur, 110 * np.exp(0.7 * ln)), dur)
         dur = np.where(~injury & f.cwp.to_numpy(), 14 * g, dur)
         dur = np.maximum(dur, 1).astype(int)
-        f["close_day"] = f.open_day.to_numpy() + dur
+        f["close_day"] = self.cal.spread_business(f.open_day.to_numpy() + dur, R.random(n))      # files are closed on business days
 
         f = _injury_detail(f, self.cal, self.R2)          # may move a litigated feature's close later
-        pays, f = _schedule(f, R)
+        pays, f = _schedule(f, R, self.cal)
         occ["report_day"] = occ.occ.map(f.groupby("occ").open_day.min()).to_numpy()
         # a claim goes on the driver's record the day after the payment that makes it chargeable is booked
         posted = _chargeable(f, pays) + C.CHARGEABLE_POSTING_DAYS
         occ["chargeable_day"] = occ.occ.map(posted).fillna(-1).astype(int).to_numpy()
-        occ = _claim_detail(occ, f, self.R2)
+        occ = _claim_detail(occ, f, self.R2, self.cal)
         self.reserves.append(_reserve_history(f, pays, self.cal, self.R2))
         self.occs.append(occ)
         self.feats.append(f.drop(columns=["notice", "at_fault"]))
@@ -192,6 +197,11 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     lag = np.where(u < p1, R.integers(a1, b1, n), np.where(u < p1 + p2, R.integers(a2, b2, n), R.integers(a3, b3, n)))
     run = SUIT_TO_CLOSE["min_days"] + np.floor(R.exponential(SUIT_TO_CLOSE["mean_extra"], n)).astype(int)
     att_lit, suit, cd_lit = litigation_timeline(day, od, cd, lag, R.integers(*SUIT_LAG_DAYS, n), run)
+    # courts sit on business days: the suit is filed on one, still inside the statute and after the attorney and
+    # the claim; the feature then closes (on a business day) no sooner than `run` days after the suit
+    ready = np.maximum(att_lit, od)
+    suit = cal.business_between(suit, ready, day + SUIT_LIMIT_DAYS, R.random(n))
+    cd_lit = cal.spread_business(np.maximum(cd, suit + run), R.random(n))
     cd = np.where(lit, cd_lit, cd)
     # without a suit the attorney is simply retained before the feature closes
     att = np.where(lit, att_lit, np.minimum(day + lag, np.maximum(cd - 1, day)))
@@ -202,7 +212,7 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     return f
 
 
-def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator) -> pd.DataFrame:
+def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, cal) -> pd.DataFrame:
     """Police report, the insured's share of fault, and referral to the special investigations unit."""
     n = len(occ)
     peril = occ.peril.to_numpy()
@@ -215,7 +225,7 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator) ->
     big_attorney = occ.occ.isin(f.occ[f.attorney.to_numpy() & (f.paid.to_numpy() > 50_000)]).to_numpy()
     p_siu = SIU_REFERRAL_P + 0.07 * (peril == "THEFT_TOTAL") + 0.06 * (occ.report_day.to_numpy() - occ.day.to_numpy() > 30) \
         + 0.04 * big_attorney
-    occ["siu_day"] = np.where(R.random(n) < p_siu, occ.report_day.to_numpy() + R.integers(5, 46, n), -1)
+    occ["siu_day"] = np.where(R.random(n) < p_siu, cal.spread_business(occ.report_day.to_numpy() + R.integers(5, 46, n), R.random(n)), -1)
     return occ
 
 
@@ -242,6 +252,7 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     k = np.arange(len(i)) - np.repeat(np.cumsum(m) - m, m)
     day = np.where(k == 0, od[i], np.minimum(od[i] + np.floor(k * interval[i] * R.uniform(0.8, 1.2, len(i))).astype(int),
                                               cd[i] - 1))
+    day = np.where(k == 0, day, cal.business_between(day, od[i], cd[i] - 1, R.random(len(i))))      # reviews are done on business days
     eta = R.standard_normal(len(i))
     z = eta.copy()
     rho = RESERVE_PERSISTENCE
@@ -322,13 +333,18 @@ def chargeable_days(loss_pays: pd.DataFrame, fid_occ: pd.DataFrame, threshold: f
     return p[cum.to_numpy() >= threshold - 0.005].groupby("occ").day.min()
 
 
-def _legs(f_idx, day, cents, txn) -> pd.DataFrame:
-    return pd.DataFrame(dict(i=f_idx, day=np.asarray(day).astype(int), cents=np.asarray(cents).astype(np.int64), txn=txn))
+def _legs(f_idx, day, cents, txn, role="", ref=-1) -> pd.DataFrame:
+    """Payment legs of features f_idx. role marks who a leg is for when that differs from the feature's usual
+    payee (a lienholder); ref numbers an interim payment within its batch so a void and its reissue can point
+    back to the payment they replace."""
+    return pd.DataFrame(dict(i=f_idx, day=np.asarray(day).astype(int), cents=np.asarray(cents).astype(np.int64), txn=txn,
+                             role=role, ref=ref))
 
 
-def _schedule(f: pd.DataFrame, R: np.random.Generator):
+def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     """Every loss payment, expense payment and recovery of each feature, through to its final close.
-    Adds reopen_day and final_close_day to f. Returns (payments, f)."""
+    Adds reopen_day and final_close_day to f. Returns (payments, f). Payments are issued, files reopened and
+    closed, and recoveries banked on business days (cal.business_between keeps each inside its feature's dates)."""
     n = len(f)
     cvg, peril = f.cvg.to_numpy(), f.peril.to_numpy()
     total = f.total.to_numpy().astype(bool)
@@ -340,10 +356,11 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
 
     # ---- reopening: a closed feature reopens for a supplement carved out of the ultimate
     reopen = has & (R.random(n) < pd.Series(cvg).map(REOPEN_P).to_numpy())
-    reopen_day = cd + 20 + np.floor(R.exponential(75, n)).astype(int)
-    supp_day = reopen_day + 3 + np.floor(R.exponential(20, n)).astype(int)
-    final_close = supp_day + np.where(R.random(n) < 0.5, 0, 1 + np.floor(R.exponential(7, n))).astype(int)
+    reopen_day = cal.spread_business(cd + 20 + np.floor(R.exponential(75, n)).astype(int), R.random(n))
+    supp_day = cal.spread_business(reopen_day + 3 + np.floor(R.exponential(20, n)).astype(int), R.random(n))
+    final_close = cal.spread_business(supp_day + np.where(R.random(n) < 0.5, 0, 1 + np.floor(R.exponential(7, n))).astype(int), R.random(n))
     supp = np.where(reopen, np.maximum(np.round(P * R.uniform(0.05, 0.25, n)), 100), 0).astype(np.int64)
+    supp = np.where(injury, np.maximum(supp // 10_000, 1) * 10_000, supp)       # injury supplements are round amounts
     reopen &= supp < P
     supp = np.where(reopen, supp, 0)
     main = P - supp                                                  # paid before the first close
@@ -352,6 +369,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     lag_long = np.where(injury, 12, 6)
     final_day = cd - np.where(R.random(n) < np.where(injury, 0.5, 0.55), 0,
                               np.minimum(1 + np.floor(R.exponential(lag_long)), dur)).astype(int)
+    final_day = cal.business_between(final_day, od, cd, R.random(n))
     u1, u2 = R.random(n), R.random(n)
     p1 = pd.Series(cvg).map(lambda c: INTERIM_P.get(c, (0.0, 0.0))[0]).to_numpy()
     p2 = pd.Series(cvg).map(lambda c: INTERIM_P.get(c, (0.0, 0.0))[1]).to_numpy()
@@ -372,9 +390,10 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     order = np.lexsort((t, i))
     t = t[order]                                                     # times ascend within each feature
     settle_day = np.where(fees, final_day - R.integers(7, 31, n).clip(max=np.maximum(final_day - od, 1)), final_day)
+    settle_day = cal.business_between(settle_day, od, final_day, R.random(n))
     span = np.maximum(settle_day - od, 0)
     inspect = np.where(np.isin(c_i, ["PD", "COLL", "COMP"]), np.minimum(3, span[i]), 0)   # paid after an appraisal
-    interim_day = od[i] + inspect + np.floor(t * (span[i] - inspect)).astype(int)
+    interim_day = cal.business_between(od[i] + inspect + np.floor(t * (span[i] - inspect)).astype(int), od[i], settle_day[i], R.random(len(i)))
     w_int = np.select([np.isin(c_i, ["COLL", "COMP"]) & (pos == 0), np.isin(c_i, ["COLL", "COMP"]), c_i == "PD",
                        np.isin(c_i, ["BI", "UM"])], [4.0, 1.0, 0.5, 0.6], default=1.5)
     w_fin = np.select([np.isin(cvg, ["COLL", "COMP"]), cvg == "PD", injury], [1.0, 3.0, 3.0], default=1.5)
@@ -383,14 +402,15 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     g_fee = np.where(fees, R.uniform(0.02, 0.06, n), 0.0)
     tot_g = np.bincount(i, g_int, n) + g_fin                          # shares are Dirichlet; the final payment takes the rounding
     int_cents = np.floor(main[i] * g_int / tot_g[i] * (1 - g_fee[i])).astype(np.int64)
+    int_cents = np.where(injury[i], int_cents // 10_000 * 10_000, int_cents)    # an injury advance is a round amount
     fee_cents = np.where(fees, np.floor(main * g_fee), 0).astype(np.int64)
     fin_cents = main - np.bincount(i, int_cents, n).astype(np.int64) - fee_cents
     # a lienholder payoff and the owner's balance go out on the settlement day
     lien = np.where(split, np.floor(fin_cents * R.uniform(0.4, 0.9, n)), 0).astype(np.int64)
 
     legs = [
-        _legs(i, interim_day, int_cents, "Partial Payment"),
-        _legs(np.flatnonzero(split), settle_day[split], lien[split], "Partial Payment"),
+        _legs(i, interim_day, int_cents, "Partial Payment", ref=np.arange(len(i))),
+        _legs(np.flatnonzero(split), settle_day[split], lien[split], "Partial Payment", role="lien"),
         _legs(np.flatnonzero(has), settle_day[has], (fin_cents - lien)[has],
               np.where(fees[has], "Partial Payment", "Final Payment")),
         _legs(np.flatnonzero(fees), final_day[fees], fee_cents[fees], "Final Payment"),
@@ -399,7 +419,9 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     # voided and reissued interim payments (net zero)
     vd = R.random(len(i)) < VOID_P
     void_day = np.minimum(interim_day + 2 + np.floor(R.exponential(5, len(i))).astype(int), settle_day[i])
-    legs += [_legs(i[vd], void_day[vd], -int_cents[vd], "Void"), _legs(i[vd], void_day[vd], int_cents[vd], "Reissue")]
+    void_day = cal.business_between(void_day, interim_day, settle_day[i], R.random(len(i)))
+    legs += [_legs(i[vd], void_day[vd], -int_cents[vd], "Void", ref=np.flatnonzero(vd)),
+             _legs(i[vd], void_day[vd], int_cents[vd], "Reissue", ref=np.flatnonzero(vd))]
     loss = pd.concat(legs, ignore_index=True)
     loss = loss[loss.cents != 0]
     loss["kind"] = "Loss"
@@ -408,7 +430,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     exp_c = np.round(f.expense.to_numpy() * 100).astype(np.int64)
     lit = f.suit_day.to_numpy() >= 0
     early = np.isin(cvg, ["PD", "COLL", "COMP"])
-    e_day = np.where(early, od + np.floor(R.uniform(0.05, 0.6, n) * dur).astype(int), cd)
+    e_day = cal.business_between(np.where(early, od + np.floor(R.uniform(0.05, 0.6, n) * dur).astype(int), cd), od, cd, R.random(n))
     e_legs = [_legs(np.flatnonzero((exp_c > 0) & ~lit), e_day[(exp_c > 0) & ~lit], exp_c[(exp_c > 0) & ~lit], "")]
     li = np.flatnonzero(lit & (exp_c > 0))
     done = np.zeros(len(li), dtype=np.int64)
@@ -416,7 +438,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     for j, (share, when) in enumerate(((0.25, 0.15), (0.35, 0.55), (0.40, 1.0))):      # legal bills as the suit runs
         amt = np.round(exp_c[li] * share).astype(np.int64) if j < 2 else exp_c[li] - done
         done += amt
-        e_legs.append(_legs(li, suit + ((cd[li] - suit) * when).astype(int), amt, ""))
+        e_legs.append(_legs(li, cal.business_between(suit + ((cd[li] - suit) * when).astype(int), suit, cd[li], R.random(len(li))), amt, ""))
     expense = pd.concat(e_legs, ignore_index=True)
     expense["txn"] = np.where(np.isin(cvg[expense.i.to_numpy()], list(DCC_COVERAGES)), "DCC Expense", "A&O Expense")
     expense["kind"] = "Expense"
@@ -424,8 +446,8 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     salv = np.round(f.salvage.to_numpy() * 100).astype(np.int64)
     subro = np.round(f.subro.to_numpy() * 100).astype(np.int64)
     rec = pd.concat([
-        _legs(np.flatnonzero(salv > 0), (cd + R.integers(20, 70, n))[salv > 0], -salv[salv > 0], "Recovery").assign(kind="Salvage Recovery"),
-        _legs(np.flatnonzero(subro > 0), (cd + np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int))[subro > 0],
+        _legs(np.flatnonzero(salv > 0), cal.spread_business(cd + R.integers(20, 70, n), R.random(n))[salv > 0], -salv[salv > 0], "Recovery").assign(kind="Salvage Recovery"),
+        _legs(np.flatnonzero(subro > 0), cal.spread_business(cd + np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int), R.random(n))[subro > 0],
               -subro[subro > 0], "Recovery").assign(kind="Subrogation Recovery")], ignore_index=True)
 
     pays = pd.concat([loss, expense, rec], ignore_index=True)
@@ -435,7 +457,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator):
     pays["seq"] = np.arange(len(pays))
     f = f.assign(paid=P / 100, reopen_day=np.where(reopen, reopen_day, -1), final_close_day=np.where(reopen, final_close, cd),
                  supp=supp / 100)
-    return pays[["fid", "day", "kind", "txn", "amount", "seq"]], f
+    return pays[["fid", "day", "kind", "txn", "amount", "seq", "role", "ref"]], f
 
 
 def develop(cfg: C.Config, ref, res) -> dict:

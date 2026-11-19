@@ -34,7 +34,14 @@ otherwise.
    telematics programme, realistic names and a consistent table layout are added; two external reviews'
    findings are fixed, the second by deciding renewals and telematics scores only on what was known at the
    time and keeping every renewal offer; the default book becomes 43,368 policies over five full years
-   (2022 to 2026).
+   (2022 to 2026). A realism audit then asked whether the data looks like an operating company's: discounts
+   are now filed and only roughly right, new customers and some agencies cost more than they are charged,
+   staff work business days and losses follow Chicago's real days, records carry policy numbers, claim
+   numbers and VINs, and every premium is billed and collected and every claim payment has a payee, a cheque
+   number and an approver. A second round closed what the audit had left: quotes and new business follow the
+   season and the company's prices against the market's, customers leave after claims, cars are worth what
+   they fetched in 2022 to 2024 so that collision and comprehensive premiums reach Illinois' averages, the
+   independent agencies become 120 of very unequal size, and a general ledger adds the subledgers up.
 
 ## Unreleased (in progress)
 
@@ -243,6 +250,198 @@ and a controlled counterfactual.
   enrolments and 59,553 scores. Every calibration band holds: frequency 1.05 to 1.34 times national and
   severity 0.87 to 1.03 times; expected loss ratios (plus catastrophes) of 79.3%, 77.6%, 67.9% and 64.7%
   for 2022 to 2025; an overall loss ratio of 66.9%; annualised retention 83.4% (was 83.3%).
+
+### A realism audit: an operating company's data
+
+**Why.** An audit of the default run (at `ee55aa1`) asked a different question from the earlier reviews:
+not whether the records are consistent, but whether they look like the data of a company that sells
+insurance, employs people and pays its bills. Measured on the data, they did not:
+
+| Finding | Before | After |
+|---|---|---|
+| Discounts ran backwards or were nil (effect on bodily injury premium) | Homeowner +13.7%, prior insurance +7.3%, good student +3.7%, six years' tenure +3.9%, multi-car +0.4%, multi-policy +0.7%, paid in full -2.0% | Filed: homeowner -5%, no prior insurance +8%, good student -10%, tenure -2% to -6%, multi-car -10%, multi-policy -8%, paid in full -6% |
+| New business cost the same as renewals (expected loss ratio) | 69.2% against 68.8% | 77.9% against 68.0% |
+| Claims no likelier early in a policy's life (per 100 policy-years) | 18.6 in the first 30 days, 18.9 after a year | 24.7 in the first 30 days, 18.2 after two years |
+| Channels alike (expected loss ratio: direct, exclusive, independent) | 68.1%, 69.3%, 69.2% | 69.8%, 64.0%, 72.6% |
+| Agencies alike | 24 agencies, expected loss ratios 65% to 73% | 58 agencies and two direct units, 56% to 91% (10th to 90th percentile 64% to 80%) |
+| No week: claim payments dated on a Saturday or Sunday | 28.6% ($36.6 million) | None |
+| Suits and convictions dated at a weekend | 28.5% and 28.8% | None |
+| Winter crash claims a day no more varied than chance | Variance 5.25 against a mean of 5.29 | 6.09 against 4.99; 18 on the busiest day |
+| Identifiers were counters that showed how the data was built | Policy IDs up to 1019949 were exactly the opening book; every policy's first term ID was its policy ID less 1,000,000; no business keys | IDs follow creation dates; policy, quote, claim and feature numbers, full VINs with check digits, unit and driver numbers |
+| Injury settlements paid to the cent | About 1% of settlements below a limit were whole dollars | 86% of paid bodily injury features are whole dollars, 72% multiples of $250 |
+| Non-payment cancellations spread evenly over the term from day 35 | | Three to four weeks after an instalment that was never paid |
+| No cash, payees or people | 24 tables | 29: bills, receipts, employees, vendors and producers, and payee, cheque and approver on every claim payment |
+
+**What changed.**
+
+- **Hidden household stability** (`autoins/population.py`, `config.STABILITY_*`). Each household has a
+  hidden trait, how settled it is, that lowers claim frequency and missed payments, raises retention, and
+  makes it likelier to own its home, bundle, have had prior insurance, pay in full and have been a customer
+  for longer. The book in force at the start is more stable than new business. The insurance score no longer
+  uses homeownership (which made homeowners look worse at a given score) and reflects stability instead.
+- **Filed discounts** (`config.FILED_DISCOUNTS`, `autoins/rating.py`). The eight discounts and surcharges
+  are filed as round percentages; every other relativity is fitted around them. The answer key's
+  `rating_plan.json` adds `filed_discounts` and `relativities_indicated` (each factor fitted freely), so each
+  discount can be compared with what the risk justifies: multi-car and multi-policy are about right,
+  the loyalty discount is a third of what tenure is worth, and the good-student and married discounts have
+  no support once class and record are rated. Company placement no longer depends on homeownership or
+  tenure, and a customer without prior insurance goes to the non-standard company only if the score or
+  record is weak too; the companies now hold 30%, 58% and 12% of policies (were 25%, 66% and 9%).
+- **New customers claim more** (`config.NEW_CUSTOMER`, `autoins/truth.py`): a burst in the first weeks and a
+  fade over two or three years, on at-fault, parked, theft and vandalism losses, sized to the 13-point gap
+  between new and renewal loss ratios a CAS study found across 25 books. Car on a multi-car policy: 10% fewer
+  crashes each. Good students: 20% fewer (was 8%).
+- **Channels and agencies** (`config.CHANNEL_*`, `AGENCY_*`). 44 independent and 14 exclusive agencies
+  (were 16 and 8), each with a hidden book quality and hold on its customers; independent-agent business is
+  a little worse, exclusive-agent customers stay longer, direct customers shop more.
+- **The working calendar** (`autoins/refdata.py`, `reference/daily_index.csv`, `reference/hour_of_day.csv`).
+  Crash and theft intensity follows Chicago's daily counts from 2021 to September 2026 (new downloads in
+  `scripts/fetch_public_data.py --only calendar`, built by `scripts/build_calendar_reference.py`), so
+  weekdays, holidays and storm days are real. A business-day calendar (federal holidays and the day after
+  Thanksgiving) governs payments and their clearing, closes, reserve reviews, suits, fraud referrals,
+  convictions and their posting, SR-22 filings, renewal offers, keyed policy changes and letters; weekend
+  work is spread over the next week. About half of weekend first notices are held over. Agents quote on
+  weekdays; 8.9% of new policies start on the 1st. `claim.loss_time` is new.
+- **Round settlements** (`config.SETTLEMENT_STEPS`). Agreed bodily injury and uninsured motorist damages
+  are rounded to steps that grow with size ($50 to $5,000); advances and supplements are round too.
+- **Identifiers** (`autoins/identifiers.py`). `policy.policy_number` (serial, company code, two MOD 97-10
+  check digits), `quote.quote_number`, `claim.claim_number`, `claim_feature.feature_number`,
+  `insured_vehicle.vin` (17 characters, valid check digit, still beginning with `0`) and `unit_number`,
+  `driver.driver_number`, `license_state` and `license_number_masked`, `agency.agency_code`,
+  `underwriting_company.company_code` and `naic_style_code`. Integer keys are renumbered in creation order
+  through the key map in `autoins/schema.py`.
+- **Billing** (`autoins/billing.py`): `billing_invoice` (906,326 bills) and `billing_receipt` (917,096
+  receipts): instalments, fees, late and returned payments, endorsements spread over the remaining
+  instalments, cancellation settlements, refunds and write-offs. Non-payment cancellations follow a missed
+  instalment (`simulate._missed_installment`), and billing notices in `customer_contact` come from the bills.
+- **Commission.** `premium_transaction.commission_rate_pct` and `commission_amount`; each agency's rates and
+  appointment date in `agency`; a `producer` table and `policy.producer_id`.
+- **Claim payments** (`autoins/payments.py`): `employee` (desks, turnover, payment authority) and `vendor`
+  (684 fictional organisations); `claim.adjuster_id`; and on `claim_payment` the payee type and name,
+  vendor, method, cheque number, status, cleared date and approver.
+- **Answer key.** `policy_truth` (stability, household risk factor) and `agency_truth` (book quality,
+  retention effect).
+- **Calibration.** Crash base rates up 9%, the target loss ratio at day-one cost levels 82.5% (was 77.5%:
+  the fit now includes new customers' first-year claims), renewal base odds up a little, comprehensive
+  severities up about 7% (like-for-like comprehensive severity had been at the bottom of its band).
+- **Checks.** `validate.py` gains checks on the calendar, identifiers and their check digits, creation
+  order, billing against the ledger and the cash, non-payment timing, cheque sequence, approval and
+  employment, payees and vendors, commission and the filed discounts, and bands on the new-business gap,
+  the spread across agencies, retention by channel, round settlements and the weekday pattern of crashes.
+  14 new tests (56 in all). The SQLite loader keeps ZIP codes as text where a table has blanks.
+- **The default run after these changes** (content hash `ee6e59c038858485`): 202,389 policy terms, 451,997
+  exposure rows, 179,915 earned car-years, $181.2 million earned premium ($1,007 per car-year, was $1,028),
+  19,784 claims. Frequency 1.03 to 1.24 times national and severity 0.88 to 1.03 times; expected loss ratios
+  (plus catastrophes) of 80.4%, 78.2%, 68.1% and 65.4% for 2022 to 2025; an overall loss ratio of 68.6%;
+  annualised retention 82.6%. Two other builds (seed 7; 20,000 policies with seed 99) pass every check.
+  Generation takes about 85 seconds (was 60) and the files are 435 MB (were 245 MB), a third of it billing.
+
+**Left as it was.** New business and quote volumes are still level through the year and across years;
+physical damage premiums and take-up are still below Illinois' averages (collision and comprehensive about a
+third lower per covered car; collision carried on 67% of cars against 83% statewide); claims still barely
+drive customers away; there is no general ledger and no planted error or fraud. All are in
+[docs/limitations.md](docs/limitations.md). (The next subsection takes up all of these but planted errors.)
+
+### After the audit: a market, Illinois-level physical damage, claims that cost customers, a ledger, 120 agencies
+
+**Why.** The audit above left four things undone, and a question about the agencies followed it: would a
+carrier of this size really place its independent business through 44 agencies of similar size? It would
+not. A regional carrier appoints many small agencies and gets most of its premium from a few.
+
+| Finding | Before | After |
+|---|---|---|
+| Independent agencies few and alike | 44, averaging 224 policies in force and about $400,000 of premium a year each | 120: a median of 45 policies in force, the largest 483; in 2026 a mean of $193,000 and a median of $115,000 of premium; the largest tenth write 36% |
+| Quotes level through the year and from year to year | The same every month | March a third above December; 21,277 quotes in 2022, 25,184 in 2024, 23,076 in 2026 |
+| Conversion constant | 18.8% throughout | 21.9% in 2022, 17.5% in 2024, 21.2% in 2026; 21.5% in the two months before a rate increase of 5% or more, 17.0% in the two months after |
+| The book grew evenly | | 20,385 policies in force at the end of 2022, 19,968 a year later, 22,650 at the end of 2026 |
+| Claims barely drove customers away (policies lost per year: terms with a claim against terms without) | 19.0% against 17.9%: 1.06 times (a real portfolio: 1.45) | 25.2% against 17.9%: 1.41 times; renewal offers taken up 94.4% of the time with no claim, 87.2% with one, 79.0% with an at-fault one |
+| The company almost never refused a renewal | 165 of 10,958 non-renewals | 965 of 11,462 |
+| Collision premium per insured car against Illinois (2022, 2023, 2024) | About a third below | 0.87, 0.86 and 0.94 times ($332, $378, $445 against $384, $440, $473) |
+| Comprehensive premium per insured car against Illinois | About a third below | 0.98, 0.87 and 0.86 times ($167, $191, $223 against $172, $219, $261) |
+| Collision and comprehensive carried on fewer cars than in Illinois (82.6% and 87.5%) | 67% to 71% and 77% to 80% | 83.0% and 88.0% of 2023 car-years |
+| Cars worth about half what they fetched | Average insured car $9,900 in 2024; a 2015 car with a $23,400 base price $5,700 | $14,600; that car $9,100 |
+| Paid collision claims small | $4,937 on average; total losses $7,800 | $6,762; total losses $10,530, repairs $4,951 |
+| Premium per car-year | $1,007 | $1,251 ($988 in 2022, $1,121 in 2023, $1,314 in 2024; Illinois' average expenditure $993, $1,153, $1,264) |
+| No general ledger | Subledgers only | `gl_account` (19 accounts), `gl_journal` (4,182 lines in 1,603 monthly journals) and `agency_statement` (7,841) |
+
+**What changed.**
+
+- **Agencies** (`config.N_AGENCIES`, `population._agencies`). 120 independent agencies and 14 exclusive
+  agents' offices, with long-tailed sizes (lognormal, wider for independents). An independent agency is
+  named after its owner, two partners, its town or a trade name; an exclusive agent's office carries the
+  agent's name; the owner is the agency's first producer. No two agencies share a name.
+- **A market** (`autoins/market.py`, `config.MARKET_*`, `SHOPPING_*`). The number of households asking
+  for a quote follows the month and the year. The market's rate level rises smoothly by the industry's
+  yearly changes while the company's increases land on their effective dates, so each increase leaves the
+  company dearer than its competitors until they catch up. Every quote's competitive position is spread
+  around that gap, new business arrives in each month in proportion to shoppers times conversion (by
+  channel), prospects who did not buy arrive as shoppers do, and the gap also nudges renewals.
+- **Claims and renewals** (`config.CLAIM_RETENTION`, `simulate.evaluate_offers`). A claim reported since
+  the last offer lowers the chance of renewing; an at-fault claim and a second claim lower it further. The
+  underwriting review now flags two at-fault accidents, two major violations, or one of each, in three
+  years (was three accidents or two majors), and half of those flagged are not renewed (was 60%). Renewal
+  base odds were raised to keep overall retention where it was.
+- **What a car is worth** (`config.RESIDUAL_VALUE`, `USED_CAR_VALUE_INDEX`, `truth.actual_cash_value`).
+  The depreciation curve is now a table by age, flatter for older cars, and the used-car index follows the
+  Manheim Used Vehicle Value Index (half as high again as before the pandemic in 2022, a third higher from
+  2024) in place of an assumed 10% to 20%. A used car is never worth more than 1.15 times its base price.
+- **Physical damage** (`config.COLL_SEV`, `COMP_SEV`, `BASE_RATE`, `FULL_COVERAGE`, `DROP_PD_RATE`). Collision
+  repair costs up (median $6,900 for a reference car, was $5,000) with a slightly narrower spread and a total-loss
+  threshold of 75% of value (was 72%); comprehensive severities up 8% to 11% and glass, theft of parts,
+  vandalism, weather and other comprehensive frequencies up 5% to 20%; fewer at-fault and parked-car
+  collision claims filed (86% and 70%, were 90% and 75%) and more not-at-fault ones (48%, was 42%), which
+  brings subrogation to 13% of collision payments (Verisk: 14.0%; salvage 10.9% against 10.1%). Take-up of
+  collision now falls more slowly with the car's age, and older cars drop it less often. Bodily injury
+  severity median $21,000 (was $20,000).
+- **The national comparison takes salvage and subrogation off physical damage payments**
+  (`validate.BENCHMARK`). The published table does not say whether it does. Insurers report recoveries
+  to statistical agents as negative paid losses, and Verisk's own report on the same data shows collision
+  severity before recoveries a quarter higher than the table, with recoveries of that size. Compared before
+  recoveries, as it was until now, the book had to pay too little on collision to sit on the table, which
+  is why its premiums were a third below Illinois'. The reading is an assumption and is documented as one.
+- **The general ledger** (`autoins/ledger.py`). Built from the published tables after everything else:
+  premiums written and the change in unearned premium, cash receipts split into premium and fees through
+  the bill each receipt pays, write-offs, commission expense and payment, claim payments, recoveries and
+  case reserve changes, by month and underwriting company, with an opening entry the day before the extract.
+  A premium transaction is booked on the later of its effective and processed dates. `agency_statement`
+  is each agency's monthly commission and the day it was paid.
+- **Checks.** `validate.py` gains the ledger checks (every journal balances; written and earned premium,
+  cash, case reserves, commissions payable, premiums receivable, fees and write-offs tie to their
+  subledgers), premiums by coverage and take-up against Illinois, and bands on seasonal quote volume,
+  conversion after a rate increase, policies lost after a claim and the company's share of non-renewals.
+  The agency spread is measured on agencies with 500 or more car-years. Six new tests (62 in all).
+  `scripts/readme_figures.py` prints the agency, market, physical damage and ledger figures quoted here.
+- **The default run after these changes** (content hash `a64d95db973613fa`): 197,979 policy terms, 441,637
+  exposure rows, 176,381 earned car-years, $220.6 million earned premium, 22,313 claims. Frequency 1.08 to
+  1.34 times national and severity 0.94 to 1.05 times; expected loss ratios (plus catastrophes) of 80.3%,
+  78.0%, 66.6% and 64.0% for 2022 to 2025; an overall loss ratio of 68.7%; annualised retention 81.8%. Two
+  other builds (seed 7; 20,000 policies with seed 99) pass every check. Generation still takes about 85
+  seconds, and the files are 419 MB (were 435 MB): the three new tables add 1 MB.
+
+**File sizes, and a Parquet release.** The data had grown to a size that is awkward to work with. Nothing
+was cut. Two things make it lighter:
+
+- **Parquet is a release format** (`scripts/release_formats.py`, `parquet_zip`; `pyarrow` pinned in
+  `requirements-release.txt`), published with CSV and SQLite by the release workflow. One file per table,
+  103 MB unzipped against 419 MB of CSV (70 MB to download), loading every table in half a second against
+  eight. Columns are typed: whole numbers are integers even where some are blank, every `..._date` column is
+  a date, ZIP codes are text. Parquet cannot declare keys, so the SQLite database remains the format that
+  enforces them. The same data gives the same bytes. One new test (63 in all; it is skipped where `pyarrow`
+  is not installed).
+- **A smaller book for the classroom.** The README documents a 10,000-policy build (97 MB of CSV, 27 MB as
+  Parquet, no table over 209,000 rows, every integrity check passing) and what it costs in noise.
+
+**Side effects worth knowing.** Customers who stay after a claim are a selected group, so a claim one year
+now predicts a claim the next less well overall (1.16 times, was 1.42), though an at-fault claim still
+predicts another (1.48 times). Comprehensive claims are a larger share of all claims, which lowers the
+ranking power of any frequency model that counts every claim (Gini of the premium on claim counts 0.192,
+was 0.213). Collision frequency on the national comparison rose to 1.34 times national (was 1.24), near the
+top of its band, because more claims clear the deductible and more old cars carry collision.
+
+**Left as it is.** No planted errors or fraud; one market rate level for every competitor; no agency
+appointments or terminations during the extract; the ledger is monthly totals without investments, other
+expenses, taxes, reinsurance or a reserve for unreported claims. All are in
+[docs/limitations.md](docs/limitations.md).
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 
