@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import io
 import sqlite3
 import sys
 import tempfile
 import unittest
+import zipfile
 from dataclasses import replace
 from pathlib import Path
 
@@ -127,6 +129,40 @@ class GeneratorTest(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             con.execute("INSERT INTO claim (claim_id, policy_id) VALUES (-1, -1)")
         con.close()
+
+    @unittest.skipUnless(importlib.util.find_spec("pyarrow"), "needs pyarrow (pip install -r requirements-release.txt)")
+    def test_parquet_release_keeps_every_row_and_types_the_columns(self) -> None:
+        """The Parquet release format writes one file per table with the CSV's rows and columns; whole numbers are
+        integers even where some are blank, dates are dates, ZIP codes are text; the same data gives the same bytes."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        out = self.root / "a"
+        tables = {p.stem: p for p in sorted(out.glob("*.csv"))}
+        bundle = release_formats.Bundle("students-parquet", tables, extras=[(out / "run_summary.json", "run_summary.json")])
+        dest = self.root / "parquet"
+        dest.mkdir(exist_ok=True)
+        asset = release_formats.parquet_zip(bundle, dest)
+        first = asset.read_bytes()
+        self.assertEqual(release_formats.parquet_zip(bundle, dest).read_bytes(), first)
+        with zipfile.ZipFile(asset) as z:
+            self.assertEqual(sorted(z.namelist()), sorted([f"{t}.parquet" for t in tables] + ["run_summary.json"]))
+            read = lambda name: pq.read_table(io.BytesIO(z.read(f"{name}.parquet")))
+            for name, path in tables.items():
+                t, csv = read(name), pd.read_csv(path, low_memory=False)
+                self.assertEqual((t.num_rows, t.column_names), (len(csv), list(csv.columns)), name)
+                for f in t.schema:      # every date column is a date, and nothing else is
+                    self.assertEqual(pa.types.is_date32(f.type), release_formats.is_date_column(f.name), f"{name}.{f.name}")
+            quote, risk, loc, pol = read("quote"), read("exposure"), read("location"), read("policy")
+        q = pd.read_csv(tables["quote"])
+        self.assertTrue(pa.types.is_int64(quote.schema.field("policy_id").type))          # blank on unbound quotes
+        self.assertEqual(quote.column("policy_id").null_count, int(q["policy_id"].isna().sum()))
+        self.assertGreater(quote.column("policy_id").null_count, 0)
+        self.assertTrue(pa.types.is_string(loc.schema.field("zip_code").type))
+        self.assertTrue(pa.types.is_string(pol.schema.field("policy_number").type))
+        self.assertTrue(pa.types.is_float64(risk.schema.field("earned_premium").type))
+        e = pd.read_csv(tables["exposure"])
+        self.assertAlmostEqual(risk.column("earned_premium").to_pandas().sum(), e["earned_premium"].sum(), places=6)
+        self.assertEqual(risk.column("coverage_start_date").to_pandas().astype(str).tolist(), e["coverage_start_date"].tolist())
 
     def test_policy_counts_are_as_at_the_latest_status(self) -> None:
         """Number of Vehicles is the cars on the policy now (or on its last day of cover), not at the term start."""

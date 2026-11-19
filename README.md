@@ -36,14 +36,15 @@ can find".
 The data is published as GitHub releases, not committed to the repository. The `latest`
 release is rebuilt automatically whenever the generator changes on `main`:
 
-| | CSV files | SQLite database |
-|---|---|---|
-| Student data | [chicago-auto-insurance-data-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-csv.zip) | [chicago-auto-insurance-data-latest-sqlite.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-sqlite.zip) |
-| Instructor answer key | [chicago-auto-insurance-answer-key-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-csv.zip) | [chicago-auto-insurance-answer-key-latest-sqlite.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-sqlite.zip) |
+| | CSV files | SQLite database | Parquet files |
+|---|---|---|---|
+| Student data | [chicago-auto-insurance-data-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-csv.zip) | [chicago-auto-insurance-data-latest-sqlite.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-sqlite.zip) | [chicago-auto-insurance-data-latest-parquet.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-data-latest-parquet.zip) |
+| Instructor answer key | [chicago-auto-insurance-answer-key-latest-csv.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-csv.zip) | [chicago-auto-insurance-answer-key-latest-sqlite.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-sqlite.zip) | [chicago-auto-insurance-answer-key-latest-parquet.zip](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/download/latest/chicago-auto-insurance-answer-key-latest-parquet.zip) |
 
-Both formats hold the same data. The SQLite database is one file with every table, its primary and
+All three formats hold the same data. The SQLite database is one file with every table, its primary and
 foreign keys declared (see "SQLite database" below); the instructor's database also holds every data
-table, linked to the answer key. Every zip also carries this README, the changelog and `docs/`; read
+table, linked to the answer key. The Parquet release is one file per table, a quarter of the size of the
+CSV files and much quicker to load, with column types already set (see "Parquet files" below). Every zip also carries this README, the changelog and `docs/`; read
 [docs/limitations.md](docs/limitations.md) before drawing conclusions from the data.
 
 Versioned releases (`v1.0.0` and so on) are listed on the [releases page](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases).
@@ -110,7 +111,7 @@ git push origin v1.0.0
 
 - **By hand**, for another seed, size or set of file formats: open the Actions tab, choose
   "Release dataset", then "Run workflow", and enter a tag (`v1.1.0`, or `1.1.0`: the `v` is added),
-  seed, policy count and formats (default `csv,sqlite`). Re-running for an existing tag replaces
+  seed, policy count and formats (default `csv,sqlite,parquet`). Re-running for an existing tag replaces
   that release's files.
 
 Each release carries, for each format:
@@ -120,10 +121,11 @@ Each release carries, for each format:
 | `chicago-auto-insurance-data-<tag>-<format>.zip` | The tables, `run_summary.json`, this README, the changelog and `docs/`. Give this to students. |
 | `chicago-auto-insurance-answer-key-<tag>-<format>.zip` | The answer key, `rating_plan.json` and the same documents. Instructors only. In the SQLite format the database also holds every data table, linked to the answer key. |
 
-The formats are `csv` (one CSV file per table, about 97 MB zipped and 419 MB unzipped) and `sqlite`
+The formats are `csv` (one CSV file per table, about 97 MB zipped and 419 MB unzipped), `sqlite`
 (one database with every table, about 164 MB zipped and 536 MB unzipped for students; 183 MB
-and 589 MB for instructors). The two billing tables are about a third of each. See "File
-sizes, and a smaller build for the classroom" below.
+and 589 MB for instructors) and `parquet` (one Parquet file per table, about 70 MB zipped and 103 MB
+unzipped; 10 MB and 15 MB for the answer key). The two billing tables are about a third of each. See
+"File sizes, and a smaller build for the classroom" below.
 
 and once:
 
@@ -135,13 +137,15 @@ and once:
 To package the same files locally:
 
 ```bash
-python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv,sqlite
+python scripts/package_release.py --data output --tag v1.0.0 --validation report.txt --dist dist --formats csv,sqlite,parquet
 ```
 
-**Adding a format** (Parquet, Excel and so on) takes one function in
+(The Parquet format needs `pip install -r requirements-release.txt`.)
+
+**Adding a format** (Excel and so on) takes one function in
 `scripts/release_formats.py`, registered under the format's name, plus its library in
-`requirements-release.txt`; the file explains the pattern with examples. The workflow then
-publishes it when its name is listed in the formats input.
+`requirements-release.txt`; the file explains the pattern, and the Parquet exporter is an example. The
+workflow then publishes it when its name is listed in the formats input.
 
 The release fails if a test or an integrity check fails. Calibration bands only count for books of
 20,000 policies or more; on smaller books they are reported as warnings, because a few hundred
@@ -163,7 +167,11 @@ python scripts/make_samples.py --rows 100 --out samples synthetic=output real_da
 The default build is 419 MB of CSV. That is small for Python, R, SQL or Power BI, and awkward for
 Excel: `exposure` (442,000 rows, 104 MB), `billing_invoice` (887,000 rows, 100 MB) and
 `billing_receipt` (896,000 rows, 55 MB) are most of it, and although no table passes Excel's 1,048,576
-rows, the billing tables come close. Two ways to make it lighter without leaving anything out:
+rows, the billing tables come close. Three ways to make it lighter without leaving anything out:
+
+- **Parquet, for anyone working in code.** The Parquet release is 103 MB unzipped (70 MB to download)
+  and loads every table in half a second, against eight seconds for the CSV files; pandas, R's `arrow`,
+  Polars, DuckDB and Power BI read it. Excel does not (see "Parquet files").
 
 - **A smaller book.** `--policies` scales everything together, and a smaller book is still one
   consistent company: the ledger ties, every key resolves, the same findings are there.
@@ -179,15 +187,10 @@ python generate.py --policies 10000 --out classroom
   workflow builds any size from the Actions tab (see above).
 - **A shorter window.** `--valuation 2024-12-31` keeps three years instead of five, at full size.
 
-Measured on the default build, the same tables written as Parquet take 74 MB uncompressed and load
-in half a second instead of eight (pandas, R's `arrow`, Power BI and DuckDB read it; Excel does not).
-Parquet is not a release format yet; it is the first one to add if students work in code (see "Adding
-a format").
-
-| Build | CSV | Zipped CSV | Largest table | Claims |
-|---|---|---|---|---|
-| Default (43,368 policies) | 419 MB | 97 MB | 896,000 rows | 22,313 |
-| `--policies 10000` | 97 MB | 23 MB | 209,000 rows | about 5,200 |
+| Build | CSV | Zipped CSV | Parquet | Zipped Parquet | Largest table | Claims |
+|---|---|---|---|---|---|---|
+| Default (43,368 policies) | 419 MB | 97 MB | 103 MB | 70 MB | 896,000 rows | 22,313 |
+| `--policies 10000` | 97 MB | 23 MB | 27 MB | 19 MB | 209,000 rows | about 5,200 |
 
 ## What the default run produces
 
@@ -423,6 +426,33 @@ Each record has two kinds of identifier, as in an insurer's warehouse:
 | `agency.agency_code`, `producer.producer_code` | `IL-04417`, `IL-04417-02` | |
 | `claim_payment.check_number` | `3418207` | One unbroken sequence in the order cheques were cut |
 | `billing_invoice.invoice_number` | `INV-24-000512345` | Year and a sequence |
+
+### Parquet files
+
+The `parquet` release format is a zip of one Parquet file per table, named as the CSV files are
+(`policy.parquet`, `exposure.parquet`, `claim.parquet` and so on; a Parquet file holds one table). The
+data is the same; what differs is that the columns arrive typed:
+
+- **Whole numbers** are 64-bit integers, null where blank, so a key that is sometimes blank
+  (`quote.policy_id`, `policy.producer_id`) stays an integer.
+- **Dates** (every column named `..._date` or `date_...`) are dates, not text. `claim.loss_time` and the
+  ledger's `accounting_period` and `agency_statement.statement_month` stay text.
+- **Amounts and rates** are doubles; **flags, codes and ZIP codes** are text.
+- **Keys are not declared**: Parquet has no way to. The key list under "Tables" and `autoins/schema.py`
+  say how the tables join; the SQLite database is the format that enforces it.
+
+In Python, ask pandas to keep those types (by default it turns dates into plain objects and integers
+with blanks into decimals):
+
+```python
+import pandas as pd
+claim = pd.read_parquet("claim.parquet", dtype_backend="pyarrow")
+claim.loss_date.dt.year.value_counts()
+```
+
+In R, `arrow::read_parquet("claim.parquet")` gives dates as `Date`. DuckDB and Polars read the files as
+they are (`SELECT * FROM 'claim.parquet'`). The files use Snappy compression, which every Parquet
+reader supports.
 
 ### SQLite database
 
@@ -1219,7 +1249,7 @@ reference/               ZIP reference data, vehicle catalogue and its curation,
 real_data/               a real motor insurance portfolio, for comparison (CC BY 4.0)
 docs/                    limitations; comparison with the real portfolio; old-to-new schema map; review response
 scripts/                 build reference/ from public sources (ZIPs, vehicles, names, calendar); package releases (CSV,
-                         SQLite); samples; real-data comparison; readme_figures.py prints the run figures the
+                         SQLite, Parquet); samples; real-data comparison; readme_figures.py prints the run figures the
                          documentation quotes
 .github/workflows/       release and samples workflows
 tests/                   python -m unittest discover tests

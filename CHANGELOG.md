@@ -418,10 +418,18 @@ not. A regional carrier appoints many small agencies and gets most of its premiu
   other builds (seed 7; 20,000 policies with seed 99) pass every check. Generation still takes about 85
   seconds, and the files are 419 MB (were 435 MB): the three new tables add 1 MB.
 
-**File sizes.** The data had grown to a size that is awkward in a spreadsheet. Nothing was cut. The README
-now says what the sizes are, how to build a 10,000-policy book for the classroom (97 MB of CSV, no table
-over 209,000 rows, every integrity check passing) and what Parquet would save (74 MB against 419 MB for
-the full build, measured); Parquet is not yet a release format.
+**File sizes, and a Parquet release.** The data had grown to a size that is awkward to work with. Nothing
+was cut. Two things make it lighter:
+
+- **Parquet is a release format** (`scripts/release_formats.py`, `parquet_zip`; `pyarrow` pinned in
+  `requirements-release.txt`), published with CSV and SQLite by the release workflow. One file per table,
+  103 MB unzipped against 419 MB of CSV (70 MB to download), loading every table in half a second against
+  eight. Columns are typed: whole numbers are integers even where some are blank, every `..._date` column is
+  a date, ZIP codes are text. Parquet cannot declare keys, so the SQLite database remains the format that
+  enforces them. The same data gives the same bytes. One new test (63 in all; it is skipped where `pyarrow`
+  is not installed).
+- **A smaller book for the classroom.** The README documents a 10,000-policy build (97 MB of CSV, 27 MB as
+  Parquet, no table over 209,000 rows, every integrity check passing) and what it costs in noise.
 
 **Side effects worth knowing.** Customers who stay after a claim are a selected group, so a claim one year
 now predicts a claim the next less well overall (1.16 times, was 1.42), though an at-fault claim still
