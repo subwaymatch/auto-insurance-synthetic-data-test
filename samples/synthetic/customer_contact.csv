@@ -1,101 +1,101 @@
 contact_id,contact_method,policy_id,contact_date,purpose
-CM0000001,Email,1000205,2022-01-01,Payment Reminder
-CM0000002,Email,1000258,2022-01-01,Renewal Offer
-CM0000003,Email,1000441,2022-01-01,Renewal Offer
-CM0000004,Phone Call,1000459,2022-01-01,Payment Reminder
-CM0000005,Email,1000698,2022-01-01,Renewal Offer
-CM0000006,Email,1001044,2022-01-01,Renewal Offer
-CM0000007,Written Letter,1001118,2022-01-01,Renewal Offer
-CM0000008,Email,1001728,2022-01-01,Renewal Offer
-CM0000009,Email,1002006,2022-01-01,Payment Reminder
-CM0000010,Written Letter,1002157,2022-01-01,Payment Reminder
-CM0000011,Written Letter,1002517,2022-01-01,Renewal Offer
-CM0000012,Email,1003024,2022-01-01,Payment Reminder
-CM0000013,Email,1003340,2022-01-01,Renewal Offer
-CM0000014,Written Letter,1003467,2022-01-01,Renewal Offer
-CM0000015,Email,1003596,2022-01-01,Renewal Offer
-CM0000016,Email,1003871,2022-01-01,Renewal Offer
-CM0000017,Email,1003939,2022-01-01,Renewal Offer
-CM0000018,Email,1003975,2022-01-01,Payment Reminder
-CM0000019,Email,1004019,2022-01-01,Payment Reminder
-CM0000020,Email,1004110,2022-01-01,Renewal Offer
-CM0000021,Email,1004143,2022-01-01,Renewal Offer
-CM0000022,Email,1004453,2022-01-01,Payment Reminder
-CM0000023,Email,1004626,2022-01-01,Renewal Offer
-CM0000024,Written Letter,1005063,2022-01-01,Renewal Offer
-CM0000025,Email,1005126,2022-01-01,Payment Reminder
-CM0000026,Email,1005178,2022-01-01,Renewal Offer
-CM0000027,Written Letter,1005407,2022-01-01,Renewal Offer
-CM0000028,Email,1006172,2022-01-01,Renewal Offer
-CM0000029,Email,1006507,2022-01-01,Renewal Offer
-CM0000030,Written Letter,1006528,2022-01-01,Renewal Offer
-CM0000031,Email,1006854,2022-01-01,Renewal Offer
-CM0000032,Written Letter,1006963,2022-01-01,Renewal Offer
-CM0000033,Written Letter,1007083,2022-01-01,Renewal Offer
-CM0000034,Email,1007478,2022-01-01,Renewal Offer
-CM0000035,Written Letter,1007517,2022-01-01,Renewal Offer
-CM0000036,Email,1007532,2022-01-01,Claim Acknowledgement
-CM0000037,Written Letter,1008076,2022-01-01,Payment Reminder
-CM0000038,Email,1008102,2022-01-01,Renewal Offer
-CM0000039,Email,1008163,2022-01-01,Renewal Offer
-CM0000040,Email,1008179,2022-01-01,Renewal Offer
-CM0000041,Email,1008625,2022-01-01,Renewal Offer
-CM0000042,Email,1008750,2022-01-01,Renewal Offer
-CM0000043,Email,1009030,2022-01-01,Renewal Offer
-CM0000044,Written Letter,1009102,2022-01-01,Renewal Offer
-CM0000045,Email,1009290,2022-01-01,Renewal Offer
-CM0000046,Email,1009339,2022-01-01,Renewal Offer
-CM0000047,Email,1009562,2022-01-01,Renewal Offer
-CM0000048,Written Letter,1010300,2022-01-01,Renewal Offer
-CM0000049,Email,1010334,2022-01-01,Renewal Offer
-CM0000050,Email,1011295,2022-01-01,Renewal Offer
-CM0000051,Written Letter,1011444,2022-01-01,Renewal Offer
-CM0000052,Email,1011489,2022-01-01,Renewal Offer
-CM0000053,Email,1011662,2022-01-01,Renewal Offer
-CM0000054,Email,1011685,2022-01-01,Renewal Offer
-CM0000055,Written Letter,1011742,2022-01-01,Renewal Offer
-CM0000056,Email,1011955,2022-01-01,Renewal Offer
-CM0000057,Email,1012012,2022-01-01,Renewal Offer
-CM0000058,Email,1012787,2022-01-01,Renewal Offer
-CM0000059,Email,1013032,2022-01-01,Renewal Offer
-CM0000060,Email,1013173,2022-01-01,Past Due Notice
-CM0000061,Written Letter,1013185,2022-01-01,Renewal Offer
-CM0000062,Email,1013402,2022-01-01,Renewal Offer
-CM0000063,Written Letter,1013930,2022-01-01,Renewal Offer
-CM0000064,Email,1014100,2022-01-01,Renewal Offer
-CM0000065,Email,1014202,2022-01-01,Payment Reminder
-CM0000066,Written Letter,1014433,2022-01-01,Payment Reminder
-CM0000067,Email,1014737,2022-01-01,Renewal Offer
-CM0000068,Email,1014817,2022-01-01,Renewal Offer
-CM0000069,Email,1015660,2022-01-01,Renewal Offer
-CM0000070,Email,1015758,2022-01-01,Renewal Offer
-CM0000071,Written Letter,1016078,2022-01-01,Renewal Offer
-CM0000072,Written Letter,1016154,2022-01-01,Claim Acknowledgement
-CM0000073,Email,1016222,2022-01-01,Payment Reminder
-CM0000074,Written Letter,1016334,2022-01-01,Renewal Offer
-CM0000075,Email,1016765,2022-01-01,Past Due Notice
-CM0000076,Email,1016895,2022-01-01,Renewal Offer
-CM0000077,Email,1017030,2022-01-01,Payment Reminder
-CM0000078,Written Letter,1017455,2022-01-01,Renewal Offer
-CM0000079,Email,1017514,2022-01-01,Renewal Offer
-CM0000080,Email,1017593,2022-01-01,Cancellation Confirmation
-CM0000081,Email,1017751,2022-01-01,Renewal Offer
-CM0000082,Email,1017814,2022-01-01,Payment Reminder
-CM0000083,Email,1017940,2022-01-01,Payment Reminder
-CM0000084,Email,1017966,2022-01-01,Renewal Offer
-CM0000085,Written Letter,1018091,2022-01-01,Payment Reminder
-CM0000086,Email,1018133,2022-01-01,Renewal Offer
-CM0000087,Email,1018361,2022-01-01,Renewal Offer
-CM0000088,Email,1018613,2022-01-01,Renewal Offer
-CM0000089,Written Letter,1019168,2022-01-01,Renewal Offer
-CM0000090,Email,1019538,2022-01-01,Renewal Offer
-CM0000091,Email,1019652,2022-01-01,Renewal Offer
-CM0000092,Email,1019676,2022-01-01,Renewal Offer
-CM0000093,Email,1019842,2022-01-01,Renewal Offer
-CM0000094,Email,1020429,2022-01-01,New Business Welcome
-CM0000095,Email,1021312,2022-01-01,New Business Welcome
-CM0000096,Email,1021343,2022-01-01,New Business Welcome
-CM0000097,Email,1023023,2022-01-01,New Business Welcome
-CM0000098,Email,1023140,2022-01-01,New Business Welcome
-CM0000099,Email,1023437,2022-01-01,New Business Welcome
-CM0000100,Email,1025216,2022-01-01,New Business Welcome
+CM0000001,Email,1019104,2022-01-01,Past Due Notice
+CM0000002,Email,1015340,2022-01-01,Past Due Notice
+CM0000003,Email,1008551,2022-01-01,Claim Acknowledgement
+CM0000004,Email,1011359,2022-01-01,Past Due Notice
+CM0000005,Phone Call,1008963,2022-01-01,Past Due Notice
+CM0000006,Phone Call,1019010,2022-01-01,Past Due Notice
+CM0000007,Email,1015231,2022-01-01,Cancellation Confirmation
+CM0000008,Email,1016819,2022-01-01,Past Due Notice
+CM0000009,Email,1019015,2022-01-01,Past Due Notice
+CM0000010,Email,1020038,2022-01-01,New Business Welcome
+CM0000011,Email,1019898,2022-01-01,New Business Welcome
+CM0000012,Email,1019899,2022-01-01,New Business Welcome
+CM0000013,Email,1019986,2022-01-01,New Business Welcome
+CM0000014,Email,1019988,2022-01-01,New Business Welcome
+CM0000015,Email,1019937,2022-01-01,New Business Welcome
+CM0000016,Email,1020029,2022-01-01,New Business Welcome
+CM0000017,Email,1019954,2022-01-01,New Business Welcome
+CM0000018,Email,1019972,2022-01-01,New Business Welcome
+CM0000019,Email,1019940,2022-01-01,New Business Welcome
+CM0000020,Email,1019923,2022-01-01,New Business Welcome
+CM0000021,Email,1020011,2022-01-01,New Business Welcome
+CM0000022,Email,1019958,2022-01-01,New Business Welcome
+CM0000023,Email,1020054,2022-01-01,New Business Welcome
+CM0000024,Email,1019995,2022-01-01,New Business Welcome
+CM0000025,Email,1019961,2022-01-01,New Business Welcome
+CM0000026,Email,1015694,2022-01-02,Past Due Notice
+CM0000027,Email,1007503,2022-01-02,Past Due Notice
+CM0000028,Email,1014072,2022-01-02,Claim Acknowledgement
+CM0000029,Email,1008124,2022-01-02,Policy Change Confirmation
+CM0000030,Email,1012270,2022-01-02,Past Due Notice
+CM0000031,Email,1012667,2022-01-02,Policy Change Confirmation
+CM0000032,Email,1013367,2022-01-02,Policy Change Confirmation
+CM0000033,Email,1013261,2022-01-02,Policy Change Confirmation
+CM0000034,Email,1017316,2022-01-02,Policy Change Confirmation
+CM0000035,Email,1019267,2022-01-02,Policy Change Confirmation
+CM0000036,Email,1001762,2022-01-02,Policy Change Confirmation
+CM0000037,Email,1011450,2022-01-02,Policy Change Confirmation
+CM0000038,Email,1011590,2022-01-02,Past Due Notice
+CM0000039,Email,1008551,2022-01-02,Cancellation Confirmation
+CM0000040,Email,1008551,2022-01-02,Policy Change Confirmation
+CM0000041,Email,1000765,2022-01-02,Policy Change Confirmation
+CM0000042,Email,1008846,2022-01-02,Policy Change Confirmation
+CM0000043,Email,1013613,2022-01-02,Past Due Notice
+CM0000044,Email,1017955,2022-01-02,Past Due Notice
+CM0000045,Email,1015895,2022-01-02,Policy Change Confirmation
+CM0000046,Email,1009351,2022-01-02,Policy Change Confirmation
+CM0000047,Email,1000286,2022-01-02,Cancellation Confirmation
+CM0000048,Email,1002811,2022-01-02,Policy Change Confirmation
+CM0000049,Email,1011818,2022-01-02,Past Due Notice
+CM0000050,Email,1000396,2022-01-02,Policy Change Confirmation
+CM0000051,Email,1015381,2022-01-02,Claim Acknowledgement
+CM0000052,Email,1016125,2022-01-02,Policy Change Confirmation
+CM0000053,Email,1019948,2022-01-02,New Business Welcome
+CM0000054,Email,1020001,2022-01-02,New Business Welcome
+CM0000055,Email,1020026,2022-01-02,New Business Welcome
+CM0000056,Email,1019938,2022-01-02,New Business Welcome
+CM0000057,Email,1020007,2022-01-02,New Business Welcome
+CM0000058,Email,1019922,2022-01-02,New Business Welcome
+CM0000059,Email,1019924,2022-01-02,New Business Welcome
+CM0000060,Written Letter,1017993,2022-01-03,Renewal Offer
+CM0000061,Email,1006136,2022-01-03,Renewal Offer
+CM0000062,Written Letter,1005569,2022-01-03,Policy Change Confirmation
+CM0000063,Email,1014088,2022-01-03,Cancellation Confirmation
+CM0000064,Email,1003992,2022-01-03,Renewal Offer
+CM0000065,Written Letter,1014294,2022-01-03,Policy Change Confirmation
+CM0000066,Email,1004931,2022-01-03,Renewal Offer
+CM0000067,Written Letter,1001883,2022-01-03,Past Due Notice
+CM0000068,Email,1015804,2022-01-03,Renewal Offer
+CM0000069,Email,1006140,2022-01-03,Renewal Offer
+CM0000070,Email,1006155,2022-01-03,Renewal Offer
+CM0000071,Written Letter,1005750,2022-01-03,Returned Payment Notice
+CM0000072,Written Letter,1015707,2022-01-03,Renewal Offer
+CM0000073,Email,1009749,2022-01-03,Renewal Offer
+CM0000074,Email,1000729,2022-01-03,Renewal Offer
+CM0000075,Written Letter,1014760,2022-01-03,Past Due Notice
+CM0000076,Phone Call,1014239,2022-01-03,Claim Acknowledgement
+CM0000077,Written Letter,1018730,2022-01-03,Past Due Notice
+CM0000078,Email,1001557,2022-01-03,Renewal Offer
+CM0000079,Written Letter,1019047,2022-01-03,Past Due Notice
+CM0000080,Written Letter,1001017,2022-01-03,Notice of Cancellation
+CM0000081,Written Letter,1016411,2022-01-03,Notice of Cancellation
+CM0000082,Written Letter,1016411,2022-01-03,Past Due Notice
+CM0000083,Email,1004895,2022-01-03,Renewal Offer
+CM0000084,Written Letter,1008967,2022-01-03,Past Due Notice
+CM0000085,Email,1001069,2022-01-03,Renewal Offer
+CM0000086,Written Letter,1018323,2022-01-03,Notice of Cancellation
+CM0000087,Written Letter,1015677,2022-01-03,Notice of Cancellation
+CM0000088,Email,1009718,2022-01-03,Renewal Offer
+CM0000089,Phone Call,1017561,2022-01-03,Past Due Notice
+CM0000090,Written Letter,1012765,2022-01-03,Notice of Cancellation
+CM0000091,Written Letter,1017140,2022-01-03,Notice of Cancellation
+CM0000092,Written Letter,1009110,2022-01-03,Notice of Cancellation
+CM0000093,Written Letter,1007201,2022-01-03,Notice of Cancellation
+CM0000094,Email,1012445,2022-01-03,Renewal Offer
+CM0000095,Email,1005653,2022-01-03,Past Due Notice
+CM0000096,Email,1008704,2022-01-03,Renewal Offer
+CM0000097,Written Letter,1007683,2022-01-03,Renewal Offer
+CM0000098,Written Letter,1016539,2022-01-03,Cancellation for Non-Payment
+CM0000099,Written Letter,1008612,2022-01-03,Notice of Cancellation
+CM0000100,Written Letter,1018980,2022-01-03,Cancellation for Non-Payment

@@ -1,101 +1,101 @@
 reserve_transaction_id,claim_feature_id,claim_id,transaction_date,reserve_type,transaction_type,change_amount,outstanding_reserve
-1,1,1,2022-01-01,Loss,Initial Reserve,500.0,500.0
-2,2,2,2022-01-01,Loss,Initial Reserve,950.0,950.0
-3,3,3,2022-01-02,Loss,Initial Reserve,1900.0,1900.0
-4,4,4,2022-01-02,Loss,Initial Reserve,1150.0,1150.0
-5,5,5,2022-01-03,Loss,Initial Reserve,4250.0,4250.0
-6,7,6,2022-01-03,Loss,Initial Reserve,8800.0,8800.0
-7,8,6,2022-01-03,Loss,Initial Reserve,1800.0,1800.0
-8,9,6,2022-01-03,Loss,Initial Reserve,1700.0,1700.0
-9,9,6,2022-01-03,Loss,Payment,-150.0,1550.0
-10,9,6,2022-01-03,Loss,Payment,-850.0,700.0
-11,10,7,2022-01-03,Loss,Initial Reserve,1550.0,1550.0
-12,11,7,2022-01-03,Loss,Initial Reserve,2300.0,2300.0
-13,12,7,2022-01-03,Loss,Initial Reserve,1750.0,1750.0
-14,13,8,2022-01-03,Loss,Initial Reserve,1943.75,1943.75
-15,14,9,2022-01-03,Loss,Initial Reserve,3600.0,3600.0
-16,15,10,2022-01-03,Loss,Initial Reserve,900.0,900.0
-17,16,11,2022-01-03,Loss,Initial Reserve,1000.0,1000.0
-18,17,12,2022-01-04,Loss,Initial Reserve,3800.0,3800.0
-19,19,13,2022-01-04,Loss,Initial Reserve,3250.0,3250.0
-20,20,13,2022-01-04,Loss,Initial Reserve,2050.0,2050.0
-21,21,14,2022-01-04,Loss,Initial Reserve,3550.0,3550.0
-22,22,15,2022-01-04,Loss,Initial Reserve,2000.0,2000.0
-23,23,15,2022-01-04,Loss,Initial Reserve,2000.0,2000.0
-24,24,16,2022-01-04,Loss,Initial Reserve,1650.0,1650.0
-25,25,16,2022-01-04,Loss,Initial Reserve,2600.0,2600.0
-26,26,17,2022-01-04,Loss,Initial Reserve,450.0,450.0
-27,27,18,2022-01-04,Loss,Initial Reserve,850.0,850.0
-28,28,18,2022-01-04,Loss,Initial Reserve,2728.53,2728.53
-29,29,19,2022-01-04,Loss,Initial Reserve,800.0,800.0
-30,29,19,2022-01-04,Loss,Payment,-550.0,250.0
-31,15,10,2022-01-05,Loss,Payment,-550.0,350.0
-32,15,10,2022-01-05,Loss,Close,-350.0,0.0
-33,30,20,2022-01-05,Loss,Initial Reserve,1900.0,1900.0
-34,31,20,2022-01-05,Loss,Initial Reserve,1700.0,1700.0
-35,32,20,2022-01-05,Loss,Initial Reserve,100.0,100.0
-36,32,20,2022-01-05,Loss,Payment,-100.0,0.0
-37,33,21,2022-01-05,Loss,Initial Reserve,2000.0,2000.0
-38,34,21,2022-01-05,Loss,Initial Reserve,2100.0,2100.0
-39,35,21,2022-01-05,Loss,Initial Reserve,1197.37,1197.37
-40,36,22,2022-01-05,Loss,Initial Reserve,1450.0,1450.0
-41,37,22,2022-01-05,Loss,Initial Reserve,1450.0,1450.0
-42,38,22,2022-01-05,Loss,Initial Reserve,2600.0,2600.0
-43,39,23,2022-01-05,Loss,Initial Reserve,1700.0,1700.0
-44,40,23,2022-01-05,Loss,Initial Reserve,3400.0,3400.0
-45,41,23,2022-01-05,Loss,Initial Reserve,2200.0,2200.0
-46,42,24,2022-01-05,Loss,Initial Reserve,2400.0,2400.0
-47,43,24,2022-01-05,Loss,Initial Reserve,600.0,600.0
-48,44,25,2022-01-05,Loss,Initial Reserve,1700.0,1700.0
-49,45,25,2022-01-05,Loss,Initial Reserve,100.0,100.0
-50,46,26,2022-01-05,Loss,Initial Reserve,650.0,650.0
-51,47,27,2022-01-05,Loss,Initial Reserve,500.0,500.0
-52,48,28,2022-01-05,Loss,Initial Reserve,750.0,750.0
-53,49,29,2022-01-05,Loss,Initial Reserve,950.0,950.0
-54,48,28,2022-01-06,Loss,Close,-750.0,0.0
-55,51,30,2022-01-06,Loss,Initial Reserve,2200.0,2200.0
-56,52,30,2022-01-06,Loss,Initial Reserve,1550.0,1550.0
-57,53,31,2022-01-06,Loss,Initial Reserve,2150.0,2150.0
-58,54,31,2022-01-06,Loss,Initial Reserve,2700.0,2700.0
-59,55,32,2022-01-06,Loss,Initial Reserve,2650.0,2650.0
-60,56,32,2022-01-06,Loss,Initial Reserve,3050.0,3050.0
-61,57,33,2022-01-06,Loss,Initial Reserve,1950.0,1950.0
-62,58,34,2022-01-06,Loss,Initial Reserve,1950.0,1950.0
-63,59,34,2022-01-06,Loss,Initial Reserve,100.0,100.0
-64,60,35,2022-01-06,Loss,Initial Reserve,2850.0,2850.0
-65,61,35,2022-01-06,Loss,Initial Reserve,100.0,100.0
-66,62,36,2022-01-06,Loss,Initial Reserve,650.0,650.0
-67,63,37,2022-01-06,Loss,Initial Reserve,850.0,850.0
-68,28,18,2022-01-07,Loss,Close,-2728.53,0.0
-69,34,21,2022-01-07,Loss,Payment,-1850.0,250.0
-70,62,36,2022-01-07,Loss,Payment,-400.0,250.0
-71,62,36,2022-01-07,Loss,Close,-250.0,0.0
-72,64,38,2022-01-07,Loss,Initial Reserve,10450.0,10450.0
-73,65,38,2022-01-07,Loss,Initial Reserve,2900.0,2900.0
-74,66,38,2022-01-07,Loss,Initial Reserve,2000.0,2000.0
-75,67,39,2022-01-07,Loss,Initial Reserve,850.0,850.0
-76,68,39,2022-01-07,Loss,Initial Reserve,2100.0,2100.0
-77,69,40,2022-01-07,Loss,Initial Reserve,1500.0,1500.0
-78,70,41,2022-01-07,Loss,Initial Reserve,1450.0,1450.0
-79,71,42,2022-01-07,Loss,Initial Reserve,350.0,350.0
-80,72,43,2022-01-07,Loss,Initial Reserve,1450.0,1450.0
-81,73,44,2022-01-07,Loss,Initial Reserve,900.0,900.0
-82,74,45,2022-01-07,Loss,Initial Reserve,800.0,800.0
-83,74,45,2022-01-07,Loss,Payment,-800.0,0.0
-84,75,45,2022-01-07,Loss,Initial Reserve,500.0,500.0
-85,2,2,2022-01-08,Loss,Payment,-700.0,250.0
-86,17,12,2022-01-08,Loss,Payment,-250.0,3550.0
-87,18,13,2022-01-08,Loss,Initial Reserve,5050.0,5050.0
-88,61,35,2022-01-08,Loss,Payment,-100.0,0.0
-89,67,39,2022-01-08,Loss,Close,-850.0,0.0
-90,76,46,2022-01-08,Loss,Initial Reserve,4050.0,4050.0
-91,77,46,2022-01-08,Loss,Initial Reserve,2450.0,2450.0
-92,78,47,2022-01-08,Loss,Initial Reserve,3350.0,3350.0
-93,79,48,2022-01-08,Loss,Initial Reserve,750.0,750.0
-94,80,49,2022-01-08,Loss,Initial Reserve,750.0,750.0
-95,81,50,2022-01-08,Loss,Initial Reserve,700.0,700.0
-96,82,51,2022-01-08,Loss,Initial Reserve,1000.0,1000.0
-97,3,3,2022-01-09,Loss,Payment,-700.0,1200.0
-98,3,3,2022-01-09,Loss,Payment,-1037.57,162.43
-99,3,3,2022-01-09,Loss,Close,-162.43,0.0
-100,9,6,2022-01-09,Loss,Close,-700.0,0.0
+1,1,1,2022-01-01,Loss,Initial Reserve,6100.0,6100.0
+2,2,1,2022-01-01,Loss,Initial Reserve,3350.0,3350.0
+3,3,2,2022-01-02,Loss,Initial Reserve,3350.0,3350.0
+4,4,3,2022-01-02,Loss,Initial Reserve,1900.0,1900.0
+5,5,4,2022-01-02,Loss,Initial Reserve,650.0,650.0
+6,6,4,2022-01-02,Loss,Initial Reserve,400.0,400.0
+7,7,5,2022-01-03,Loss,Initial Reserve,1850.0,1850.0
+8,8,5,2022-01-03,Loss,Initial Reserve,2200.0,2200.0
+9,9,5,2022-01-03,Loss,Initial Reserve,3250.0,3250.0
+10,10,6,2022-01-03,Loss,Initial Reserve,2150.0,2150.0
+11,11,6,2022-01-03,Loss,Initial Reserve,2650.0,2650.0
+12,12,6,2022-01-03,Loss,Initial Reserve,2150.0,2150.0
+13,13,6,2022-01-03,Loss,Initial Reserve,450.0,450.0
+14,14,7,2022-01-03,Loss,Initial Reserve,2100.0,2100.0
+15,15,8,2022-01-03,Loss,Initial Reserve,650.0,650.0
+16,16,8,2022-01-03,Loss,Initial Reserve,1650.0,1650.0
+17,17,9,2022-01-03,Loss,Initial Reserve,3150.0,3150.0
+18,18,9,2022-01-03,Loss,Initial Reserve,450.0,450.0
+19,19,10,2022-01-03,Loss,Initial Reserve,3850.0,3850.0
+20,20,11,2022-01-03,Loss,Initial Reserve,950.0,950.0
+21,21,12,2022-01-03,Loss,Initial Reserve,1000.0,1000.0
+22,22,13,2022-01-03,Loss,Initial Reserve,1100.0,1100.0
+23,23,14,2022-01-03,Loss,Initial Reserve,850.0,850.0
+24,24,15,2022-01-04,Loss,Initial Reserve,2000.0,2000.0
+25,25,15,2022-01-04,Loss,Initial Reserve,2450.0,2450.0
+26,26,16,2022-01-04,Loss,Initial Reserve,1700.0,1700.0
+27,27,16,2022-01-04,Loss,Initial Reserve,1550.0,1550.0
+28,28,16,2022-01-04,Loss,Initial Reserve,3000.0,3000.0
+29,29,17,2022-01-04,Loss,Initial Reserve,1650.0,1650.0
+30,30,17,2022-01-04,Loss,Initial Reserve,100.0,100.0
+31,31,18,2022-01-04,Loss,Initial Reserve,1750.0,1750.0
+32,32,18,2022-01-04,Loss,Initial Reserve,100.0,100.0
+33,33,19,2022-01-04,Loss,Initial Reserve,2700.0,2700.0
+34,34,19,2022-01-04,Loss,Initial Reserve,2800.0,2800.0
+35,35,19,2022-01-04,Loss,Initial Reserve,100.0,100.0
+36,36,20,2022-01-04,Loss,Initial Reserve,3000.0,3000.0
+37,37,21,2022-01-04,Loss,Initial Reserve,650.0,650.0
+38,37,21,2022-01-04,Loss,Payment,-400.0,250.0
+39,38,21,2022-01-04,Loss,Initial Reserve,250.0,250.0
+40,39,22,2022-01-04,Loss,Initial Reserve,950.0,950.0
+41,22,13,2022-01-05,Loss,Payment,-850.0,250.0
+42,31,18,2022-01-05,Loss,Payment,-900.0,850.0
+43,31,18,2022-01-05,Loss,Close,-850.0,0.0
+44,40,23,2022-01-05,Loss,Initial Reserve,2900.0,2900.0
+45,41,23,2022-01-05,Loss,Initial Reserve,1950.0,1950.0
+46,42,23,2022-01-05,Loss,Initial Reserve,450.0,450.0
+47,43,24,2022-01-05,Loss,Initial Reserve,2700.0,2700.0
+48,44,24,2022-01-05,Loss,Initial Reserve,2200.0,2200.0
+49,45,24,2022-01-05,Loss,Initial Reserve,100.0,100.0
+50,46,25,2022-01-05,Loss,Initial Reserve,1700.0,1700.0
+51,47,25,2022-01-05,Loss,Initial Reserve,1450.0,1450.0
+52,48,26,2022-01-05,Loss,Initial Reserve,2600.0,2600.0
+53,49,27,2022-01-05,Loss,Initial Reserve,2200.0,2200.0
+54,50,27,2022-01-05,Loss,Initial Reserve,700.0,700.0
+55,51,27,2022-01-05,Loss,Initial Reserve,100.0,100.0
+56,51,27,2022-01-05,Loss,Payment,-100.0,0.0
+57,52,28,2022-01-05,Loss,Initial Reserve,2350.0,2350.0
+58,53,28,2022-01-05,Loss,Initial Reserve,300.0,300.0
+59,54,28,2022-01-05,Loss,Initial Reserve,100.0,100.0
+60,54,28,2022-01-05,Loss,Payment,-100.0,0.0
+61,55,29,2022-01-05,Loss,Initial Reserve,1800.0,1800.0
+62,56,30,2022-01-05,Loss,Initial Reserve,1200.0,1200.0
+63,57,31,2022-01-05,Loss,Initial Reserve,750.0,750.0
+64,58,32,2022-01-05,Loss,Initial Reserve,1000.0,1000.0
+65,59,33,2022-01-05,Loss,Initial Reserve,800.0,800.0
+66,60,34,2022-01-05,Loss,Initial Reserve,850.0,850.0
+67,12,6,2022-01-06,Loss,Payment,-100.0,2050.0
+68,22,13,2022-01-06,Loss,Close,-250.0,0.0
+69,24,15,2022-01-06,Loss,Close,-2000.0,0.0
+70,58,32,2022-01-06,Loss,Payment,-400.0,600.0
+71,61,35,2022-01-06,Loss,Initial Reserve,8200.0,8200.0
+72,62,35,2022-01-06,Loss,Initial Reserve,1900.0,1900.0
+73,63,35,2022-01-06,Loss,Initial Reserve,2600.0,2600.0
+74,63,35,2022-01-06,Loss,Payment,-2350.0,250.0
+75,64,35,2022-01-06,Loss,Initial Reserve,650.0,650.0
+76,65,35,2022-01-06,Loss,Initial Reserve,100.0,100.0
+77,65,35,2022-01-06,Loss,Payment,-87.89,12.11
+78,66,36,2022-01-06,Loss,Initial Reserve,1950.0,1950.0
+79,67,36,2022-01-06,Loss,Initial Reserve,1450.0,1450.0
+80,68,37,2022-01-06,Loss,Initial Reserve,2200.0,2200.0
+81,69,37,2022-01-06,Loss,Initial Reserve,2450.0,2450.0
+82,70,37,2022-01-06,Loss,Initial Reserve,550.0,550.0
+83,71,38,2022-01-06,Loss,Initial Reserve,3800.0,3800.0
+84,72,38,2022-01-06,Loss,Initial Reserve,2200.0,2200.0
+85,73,39,2022-01-06,Loss,Initial Reserve,2700.0,2700.0
+86,74,39,2022-01-06,Loss,Initial Reserve,800.0,800.0
+87,75,40,2022-01-06,Loss,Initial Reserve,2350.0,2350.0
+88,76,41,2022-01-06,Loss,Initial Reserve,900.0,900.0
+89,77,42,2022-01-06,Loss,Initial Reserve,1200.0,1200.0
+90,78,43,2022-01-06,Loss,Initial Reserve,1100.0,1100.0
+91,79,44,2022-01-06,Loss,Initial Reserve,450.0,450.0
+92,80,44,2022-01-06,Loss,Initial Reserve,3400.0,3400.0
+93,15,8,2022-01-07,Loss,Close,-650.0,0.0
+94,43,24,2022-01-07,Loss,Payment,-2450.0,250.0
+95,56,30,2022-01-07,Loss,Payment,-550.0,650.0
+96,56,30,2022-01-07,Loss,Close,-650.0,0.0
+97,65,35,2022-01-07,Loss,Close,-12.11,0.0
+98,77,42,2022-01-07,Loss,Payment,-400.0,800.0
+99,79,44,2022-01-07,Loss,Close,-450.0,0.0
+100,81,45,2022-01-07,Loss,Initial Reserve,2550.0,2550.0

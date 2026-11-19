@@ -1,0 +1,20 @@
+account_number,account_name,account_type,normal_balance,financial_statement
+1000,Cash and short-term investments,Asset,Debit,Balance sheet
+1200,Premiums receivable,Asset,Debit,Balance sheet
+2100,Unearned premium reserve,Liability,Credit,Balance sheet
+2200,Commissions payable,Liability,Credit,Balance sheet
+2500,Case loss reserves,Liability,Credit,Balance sheet
+2510,Case loss adjustment expense reserves,Liability,Credit,Balance sheet
+3000,Policyholders' surplus,Equity,Credit,Balance sheet
+4000,Premiums written,Revenue,Credit,Income statement
+4010,Change in unearned premium,Revenue,Debit,Income statement
+4200,"Installment, late and returned-payment fees",Revenue,Credit,Income statement
+5000,Losses paid,Expense,Debit,Income statement
+5010,Salvage recoveries,Expense,Credit,Income statement
+5020,Subrogation recoveries,Expense,Credit,Income statement
+5100,Defense and cost containment expenses paid,Expense,Debit,Income statement
+5110,Adjusting and other expenses paid,Expense,Debit,Income statement
+5200,Change in case loss reserves,Expense,Debit,Income statement
+5210,Change in case loss adjustment expense reserves,Expense,Debit,Income statement
+6100,Commission expense,Expense,Debit,Income statement
+6300,Premiums written off,Expense,Debit,Income statement

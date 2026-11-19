@@ -1,101 +1,101 @@
-payment_id,claim_feature_id,claim_id,payment_date,payment_type,transaction_type,amount
-1,3,3,2022-01-02,Expense,A&O Expense,466.24
-2,9,6,2022-01-03,Loss,Final Payment,163.45
-3,9,6,2022-01-03,Loss,Partial Payment,823.1
-4,9,6,2022-01-03,Expense,A&O Expense,536.16
-5,5,5,2022-01-04,Expense,A&O Expense,272.04
-6,13,8,2022-01-04,Expense,A&O Expense,173.68
-7,26,17,2022-01-04,Expense,A&O Expense,394.75
-8,29,19,2022-01-04,Loss,Partial Payment,1036.1
-9,29,19,2022-01-04,Loss,Final Payment,1501.73
-10,15,10,2022-01-05,Loss,Final Payment,519.5
-11,23,15,2022-01-05,Expense,A&O Expense,331.98
-12,28,18,2022-01-05,Expense,A&O Expense,665.61
-13,32,20,2022-01-05,Loss,Final Payment,100.0
-14,20,13,2022-01-06,Expense,A&O Expense,198.56
-15,29,19,2022-01-07,Expense,A&O Expense,170.37
-16,34,21,2022-01-07,Loss,Partial Payment,2.46
-17,34,21,2022-01-07,Loss,Final Payment,2623.98
-18,57,33,2022-01-07,Expense,A&O Expense,599.02
-19,62,36,2022-01-07,Loss,Final Payment,1430.28
-20,67,39,2022-01-07,Expense,A&O Expense,153.23
-21,74,45,2022-01-07,Loss,Final Payment,10406.04
-22,2,2,2022-01-08,Loss,Final Payment,829.13
-23,17,12,2022-01-08,Loss,Partial Payment,217.58
-24,54,31,2022-01-08,Expense,A&O Expense,220.64
-25,61,35,2022-01-08,Loss,Final Payment,100.0
-26,63,37,2022-01-08,Expense,A&O Expense,130.9
-27,70,41,2022-01-08,Expense,A&O Expense,118.41
-28,3,3,2022-01-09,Loss,Partial Payment,710.08
-29,3,3,2022-01-09,Loss,Final Payment,1049.89
-30,11,7,2022-01-09,Loss,Partial Payment,131.07
-31,46,26,2022-01-09,Loss,Final Payment,1054.06
-32,59,34,2022-01-09,Loss,Final Payment,52.98
-33,70,41,2022-01-09,Loss,Final Payment,2383.86
-34,82,51,2022-01-09,Loss,Final Payment,7356.37
-35,96,56,2022-01-09,Loss,Final Payment,2326.02
-36,96,56,2022-01-09,Expense,A&O Expense,213.28
-37,102,59,2022-01-09,Loss,Final Payment,78.72
-38,14,9,2022-01-10,Expense,A&O Expense,508.02
-39,23,15,2022-01-10,Loss,Final Payment,801.39
-40,55,32,2022-01-10,Expense,A&O Expense,156.32
-41,60,35,2022-01-10,Expense,A&O Expense,281.39
-42,71,42,2022-01-10,Loss,Final Payment,657.09
-43,79,48,2022-01-10,Expense,A&O Expense,93.31
-44,94,56,2022-01-10,Expense,A&O Expense,308.37
-45,103,60,2022-01-10,Expense,A&O Expense,95.54
-46,117,66,2022-01-10,Loss,Final Payment,100.0
-47,118,67,2022-01-10,Loss,Final Payment,611.0
-48,121,69,2022-01-10,Loss,Final Payment,300.0
-49,20,13,2022-01-11,Loss,Final Payment,89.43
-50,38,22,2022-01-11,Expense,A&O Expense,398.6
-51,45,25,2022-01-11,Loss,Final Payment,80.97
-52,63,37,2022-01-11,Loss,Final Payment,692.67
-53,79,48,2022-01-11,Loss,Final Payment,997.48
-54,100,58,2022-01-11,Expense,A&O Expense,348.46
-55,11,7,2022-01-12,Expense,A&O Expense,437.95
-56,16,11,2022-01-12,Loss,Final Payment,4376.59
-57,47,27,2022-01-12,Loss,Final Payment,807.08
-58,49,29,2022-01-12,Loss,Final Payment,8396.17
-59,65,38,2022-01-12,Expense,A&O Expense,74.81
-60,71,42,2022-01-12,Expense,A&O Expense,120.45
-61,77,46,2022-01-12,Loss,Partial Payment,3796.0
-62,78,47,2022-01-12,Expense,A&O Expense,172.59
-63,103,60,2022-01-12,Loss,Final Payment,2622.65
-64,150,83,2022-01-12,Expense,A&O Expense,138.34
-65,58,34,2022-01-13,Expense,A&O Expense,211.96
-66,66,38,2022-01-13,Expense,A&O Expense,184.29
-67,77,46,2022-01-13,Expense,A&O Expense,208.55
-68,112,64,2022-01-13,Expense,A&O Expense,365.26
-69,119,68,2022-01-13,Expense,A&O Expense,158.08
-70,137,77,2022-01-13,Loss,Final Payment,2860.81
-71,150,83,2022-01-13,Loss,Final Payment,1433.95
-72,150,83,2022-01-13,Loss,Partial Payment,1722.26
-73,19,13,2022-01-14,Expense,A&O Expense,411.35
-74,120,69,2022-01-14,Loss,Final Payment,174.78
-75,130,72,2022-01-14,Loss,Final Payment,1838.66
-76,133,74,2022-01-14,Loss,Final Payment,372.71
-77,151,84,2022-01-14,Expense,A&O Expense,302.71
-78,156,87,2022-01-14,Loss,Final Payment,703.13
-79,166,93,2022-01-14,Expense,A&O Expense,223.53
-80,174,96,2022-01-14,Loss,Final Payment,100.0
-81,44,25,2022-01-15,Expense,A&O Expense,207.84
-82,83,52,2022-01-15,Loss,Partial Payment,248.48
-83,107,62,2022-01-15,Loss,Final Payment,390.0
-84,172,95,2022-01-15,Expense,A&O Expense,204.99
-85,178,98,2022-01-15,Expense,A&O Expense,234.98
-86,179,99,2022-01-15,Expense,A&O Expense,228.59
-87,182,102,2022-01-15,Loss,Final Payment,205.67
-88,182,102,2022-01-15,Loss,Partial Payment,574.68
-89,185,104,2022-01-15,Expense,A&O Expense,235.77
-90,186,104,2022-01-15,Loss,Final Payment,72.79
-91,188,105,2022-01-15,Expense,A&O Expense,318.65
-92,189,106,2022-01-15,Expense,A&O Expense,198.1
-93,191,108,2022-01-15,Loss,Final Payment,294.89
-94,43,24,2022-01-16,Loss,Final Payment,840.0
-95,77,46,2022-01-16,Loss,Final Payment,375.57
-96,92,54,2022-01-16,Loss,Final Payment,5756.94
-97,143,80,2022-01-16,Expense,A&O Expense,133.83
-98,173,96,2022-01-17,Expense,A&O Expense,164.2
-99,183,103,2022-01-17,Loss,Final Payment,5762.54
-100,190,107,2022-01-17,Loss,Final Payment,58.99
+payment_id,claim_feature_id,claim_id,payment_date,payment_type,transaction_type,amount,payee_type,payee_name,vendor_id,payment_method,check_number,payment_status,cleared_date,approved_by_employee_id
+1,5,4,2022-01-03,Expense,A&O Expense,183.72,Vendor,Great Lakes Appraisal Service,453,EFT,,Cleared,2022-01-05,27
+2,14,7,2022-01-04,Expense,A&O Expense,269.68,Vendor,Keystone Claims Services,448,EFT,,Cleared,2022-01-05,33
+3,31,18,2022-01-04,Expense,A&O Expense,217.94,Vendor,Central Claims Services,447,Check,3418207,Cleared,2022-01-12,20
+4,37,21,2022-01-04,Loss,Final Payment,440.81,Insured,Monique Young,,Check,3418208,Cleared,2022-01-14,2
+5,17,9,2022-01-05,Expense,A&O Expense,144.06,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-06,15
+6,19,10,2022-01-05,Expense,A&O Expense,205.65,Vendor,Compass Appraisal Service,455,Check,3418209,Cleared,2022-01-11,13
+7,22,13,2022-01-05,Loss,Final Payment,1385.56,Vendor,Chicago Windshield Repair,155,Check,3418210,Cleared,2022-01-12,19
+8,28,16,2022-01-05,Expense,A&O Expense,237.44,Vendor,Parkside Claims Services,452,Check,3418211,Cleared,2022-01-11,18
+9,31,18,2022-01-05,Loss,Final Payment,909.17,Vendor,Melrose Park Collision Center,44,Check,3418212,Cleared,2022-01-10,20
+10,51,27,2022-01-05,Loss,Final Payment,100.0,Insured,Gary Beck,,Check,3418213,Cleared,2022-01-12,13
+11,54,28,2022-01-05,Loss,Final Payment,100.0,Insured,Jade Sexton,,Check,3418214,Cleared,2022-01-11,10
+12,56,30,2022-01-05,Expense,A&O Expense,91.09,Vendor,Keystone Claims Services,448,Check,3418215,Cleared,2022-01-12,23
+13,2,1,2022-01-06,Expense,A&O Expense,185.83,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-07,20
+14,12,6,2022-01-06,Loss,Partial Payment,104.43,Insured,Michelle Lebrun,,Check,3418216,Cleared,2022-01-12,9
+15,41,23,2022-01-06,Expense,A&O Expense,104.25,Vendor,Valencia Adjusting Company,454,EFT,,Cleared,2022-01-10,17
+16,46,25,2022-01-06,Expense,A&O Expense,246.53,Vendor,Silcott Adjusting Company,449,EFT,,Cleared,2022-01-10,13
+17,55,29,2022-01-06,Expense,A&O Expense,171.28,Vendor,Silcott Adjusting Company,449,EFT,,Cleared,2022-01-10,27
+18,58,32,2022-01-06,Loss,Final Payment,414.52,Vendor,Skokie Windshield Repair,156,EFT,,Cleared,2022-01-07,23
+19,58,32,2022-01-06,Expense,A&O Expense,80.8,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-07,23
+20,63,35,2022-01-06,Loss,Partial Payment,4861.31,Insured,Alberto Rodriguez,,EFT,,Cleared,2022-01-07,20
+21,65,35,2022-01-06,Loss,Final Payment,87.89,Vendor,Keystone Towing Service,182,EFT,,Cleared,2022-01-10,20
+22,72,38,2022-01-06,Expense,A&O Expense,262.42,Vendor,Central Claims Services,447,EFT,,Cleared,2022-01-07,10
+23,73,39,2022-01-06,Expense,A&O Expense,305.95,Vendor,Compass Appraisal Service,455,Check,3418217,Cleared,2022-01-19,10
+24,75,40,2022-01-06,Expense,A&O Expense,184.66,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-07,13
+25,79,44,2022-01-06,Expense,A&O Expense,242.0,Vendor,Keystone Claims Services,448,EFT,,Cleared,2022-01-10,22
+26,4,3,2022-01-07,Expense,A&O Expense,334.16,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-11,33
+27,8,5,2022-01-07,Expense,A&O Expense,294.03,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-10,9
+28,12,6,2022-01-07,Expense,A&O Expense,269.35,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-10,9
+29,21,12,2022-01-07,Expense,A&O Expense,192.64,Vendor,Great Lakes Appraisal Service,453,Check,3418218,Cleared,2022-01-13,19
+30,39,22,2022-01-07,Expense,A&O Expense,110.88,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-11,2
+31,43,24,2022-01-07,Loss,Final Payment,3530.89,Claimant,Larissa Yearout,,EFT,,Cleared,2022-01-10,9
+32,43,24,2022-01-07,Loss,Partial Payment,4752.47,Claimant,Larissa Yearout,,EFT,,Cleared,2022-01-10,9
+33,56,30,2022-01-07,Loss,Final Payment,560.41,Insured,David Parmer,,EFT,,Cleared,2022-01-11,23
+34,67,36,2022-01-07,Expense,A&O Expense,665.73,Vendor,Keystone Claims Services,448,EFT,,Cleared,2022-01-10,13
+35,77,42,2022-01-07,Loss,Final Payment,372.83,Insured,Joseph Wilmore,,Check,3418219,Cleared,2022-01-14,19
+36,99,57,2022-01-07,Expense,A&O Expense,55.79,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-10,2
+37,9,5,2022-01-10,Loss,Partial Payment,3478.54,Vendor,Crosstown Auto Rebuilders,119,EFT,,Cleared,2022-01-11,9
+38,35,19,2022-01-10,Loss,Final Payment,100.0,Insured,Jeffery Griffin,,EFT,,Cleared,2022-01-12,8
+39,77,42,2022-01-10,Expense,A&O Expense,199.56,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-12,19
+40,83,45,2022-01-10,Loss,Final Payment,100.0,Vendor,Heritage Towing Service,214,Check,3418220,Cleared,2022-01-20,22
+41,85,46,2022-01-10,Expense,A&O Expense,232.68,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-11,5
+42,92,51,2022-01-10,Loss,Final Payment,132.39,Vendor,Fox Valley Auto Rebuilders,105,EFT,,Cleared,2022-01-12,17
+43,92,51,2022-01-10,Loss,Partial Payment,1172.56,Vendor,Fox Valley Auto Rebuilders,105,EFT,,Cleared,2022-01-11,17
+44,95,54,2022-01-10,Expense,A&O Expense,119.87,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-12,19
+45,105,61,2022-01-10,Expense,A&O Expense,236.38,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-11,13
+46,135,79,2022-01-10,Loss,Final Payment,660.56,Vendor,Skokie Windshield Repair,156,EFT,,Cleared,2022-01-12,19
+47,12,6,2022-01-11,Loss,Final Payment,41.46,Insured,Michelle Lebrun,,Check,3418221,Cleared,2022-01-26,9
+48,29,17,2022-01-11,Expense,A&O Expense,260.67,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-12,16
+49,32,18,2022-01-11,Loss,Final Payment,100.0,Insured,Stephen Lam,,EFT,,Cleared,2022-01-12,20
+50,34,19,2022-01-11,Expense,A&O Expense,357.97,Vendor,Compass Appraisal Service,455,Check,3418222,Cleared,2022-01-14,8
+51,46,25,2022-01-11,Loss,Partial Payment,15.43,Claimant,Deborah Ballard,,EFT,,Cleared,2022-01-12,13
+52,47,25,2022-01-11,Expense,A&O Expense,193.42,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-13,13
+53,73,39,2022-01-11,Loss,Partial Payment,1237.84,Insured,Daniel Cervantes,,Check,3418223,Cleared,2022-02-08,10
+54,78,43,2022-01-11,Expense,A&O Expense,86.51,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-12,17
+55,88,47,2022-01-11,Expense,A&O Expense,202.09,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-12,30
+56,92,51,2022-01-11,Expense,A&O Expense,400.47,Vendor,Central Claims Services,447,EFT,,Cleared,2022-01-12,17
+57,94,53,2022-01-11,Expense,A&O Expense,263.69,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-13,23
+58,100,58,2022-01-11,Expense,A&O Expense,163.23,Vendor,Keystone Claims Services,448,EFT,,Cleared,2022-01-12,32
+59,131,77,2022-01-11,Expense,A&O Expense,334.85,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-12,22
+60,135,79,2022-01-11,Expense,A&O Expense,144.03,Vendor,Central Claims Services,447,EFT,,Cleared,2022-01-12,19
+61,144,84,2022-01-11,Loss,Final Payment,100.0,Vendor,Cornerstone Towing Service,195,EFT,,Cleared,2022-01-13,22
+62,165,93,2022-01-11,Loss,Final Payment,271.32,Vendor,Oak Lawn Windshield Repair,160,Check,3418224,Cleared,2022-01-14,19
+63,170,98,2022-01-11,Loss,Final Payment,955.36,Insured,David Hernandez,,EFT,,Cleared,2022-01-13,16
+64,170,98,2022-01-11,Loss,Partial Payment,1589.09,Lienholder,First Calumet Savings Bank,643,EFT,,Cleared,2022-01-12,16
+65,9,5,2022-01-12,Expense,A&O Expense,238.95,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-13,9
+66,14,7,2022-01-12,Loss,Partial Payment,8456.92,Insured,Gloria Serrano,,Check,3418225,Cleared,2022-01-20,33
+67,20,11,2022-01-12,Loss,Final Payment,1062.61,Vendor,Oak Lawn Windshield Repair,160,EFT,,Cleared,2022-01-14,23
+68,21,12,2022-01-12,Loss,Final Payment,337.66,Vendor,Pioneer Auto Glass,154,Check,3418226,Cleared,2022-01-18,19
+69,28,16,2022-01-12,Loss,Final Payment,2928.34,Insured,Candace Wood,,EFT,,Cleared,2022-01-14,18
+70,37,21,2022-01-12,Expense,A&O Expense,46.44,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-14,2
+71,41,23,2022-01-12,Loss,Partial Payment,1912.81,Insured,Tyrone Fitzpatrick,,EFT,,Cleared,2022-01-14,17
+72,81,45,2022-01-12,Expense,A&O Expense,221.98,Vendor,Evergreen Appraisal Service,451,EFT,,Cleared,2022-01-14,22
+73,110,64,2022-01-12,Loss,Final Payment,1957.61,Insured,Sydney Salmo,,Check,3418227,Cleared,2022-01-19,10
+74,115,69,2022-01-12,Expense,A&O Expense,346.76,Vendor,Valencia Adjusting Company,454,EFT,,Cleared,2022-01-14,22
+75,168,96,2022-01-12,Loss,Final Payment,2446.08,Insured,Teresa Hernandez,,Check,3418228,Cleared,2022-02-08,33
+76,174,101,2022-01-12,Loss,Final Payment,418.47,Vendor,Pioneer Auto Glass,154,EFT,,Cleared,2022-01-13,23
+77,9,5,2022-01-13,Loss,Final Payment,70.77,Vendor,Crosstown Auto Rebuilders,119,EFT,,Cleared,2022-01-14,9
+78,16,8,2022-01-13,Expense,A&O Expense,495.78,Vendor,Central Claims Services,447,EFT,,Cleared,2022-01-18,22
+79,48,26,2022-01-13,Expense,A&O Expense,39.61,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-14,15
+80,57,31,2022-01-13,Expense,A&O Expense,147.84,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-14,23
+81,73,39,2022-01-13,Loss,Final Payment,1170.54,Insured,Daniel Cervantes,,Check,3418229,Cleared,2022-02-04,10
+82,93,52,2022-01-13,Expense,A&O Expense,498.92,Vendor,Compass Appraisal Service,455,Check,3418230,Cleared,2022-01-19,32
+83,106,61,2022-01-13,Loss,Final Payment,360.0,Vendor,Union Car & Truck Rental,164,EFT,,Cleared,2022-01-14,13
+84,107,62,2022-01-13,Expense,A&O Expense,295.81,Vendor,Central Claims Services,447,EFT,,Cleared,2022-01-14,28
+85,119,71,2022-01-13,Expense,A&O Expense,356.44,Vendor,Great Lakes Appraisal Service,453,EFT,,Cleared,2022-01-14,6
+86,136,80,2022-01-13,Loss,Final Payment,1744.66,Vendor,Pioneer Auto Glass,154,EFT,,Cleared,2022-01-14,23
+87,156,89,2022-01-13,Expense,A&O Expense,274.85,Vendor,Compass Appraisal Service,455,Check,3418231,Cleared,2022-01-19,10
+88,197,111,2022-01-13,Expense,A&O Expense,65.65,Vendor,Compass Appraisal Service,455,EFT,,Cleared,2022-01-14,27
+89,202,113,2022-01-13,Expense,A&O Expense,203.92,Vendor,Valencia Adjusting Company,454,EFT,,Cleared,2022-01-14,17
+90,205,115,2022-01-13,Expense,A&O Expense,69.78,Vendor,Central Claims Services,447,EFT,,Cleared,2022-01-18,19
+91,8,5,2022-01-14,Loss,Partial Payment,1506.39,Other Insurer,Windy City Casualty Company,665,Check,3418232,Cleared,2022-01-27,9
+92,25,15,2022-01-14,Expense,A&O Expense,315.32,Vendor,Great Lakes Appraisal Service,453,EFT,,Cleared,2022-01-19,9
+93,69,37,2022-01-14,Loss,Partial Payment,1463.64,Insured,Carole Thrasher,,Check,3418233,Cleared,2022-01-24,9
+94,76,41,2022-01-14,Loss,Final Payment,727.89,Vendor,Skokie Windshield Repair,156,EFT,,Cleared,2022-01-18,19
+95,95,54,2022-01-14,Loss,Final Payment,283.27,Vendor,Pioneer Auto Glass,154,EFT,,Cleared,2022-01-18,19
+96,113,67,2022-01-14,Loss,Final Payment,35.52,Vendor,Skokie Windshield Repair,156,EFT,,Cleared,2022-01-19,19
+97,114,68,2022-01-14,Loss,Final Payment,623.22,Vendor,Taylor's Auto Body,146,EFT,,Cleared,2022-01-18,17
+98,121,72,2022-01-14,Loss,Partial Payment,139.62,Other Insurer,Windy City Casualty Company,665,EFT,,Cleared,2022-01-18,27
+99,131,77,2022-01-14,Loss,Final Payment,865.73,Vendor,Joliet Collision Center,8,EFT,,Cleared,2022-01-19,22
+100,133,77,2022-01-14,Loss,Final Payment,90.47,Insured,Melissa Downing,,EFT,,Cleared,2022-01-18,22
