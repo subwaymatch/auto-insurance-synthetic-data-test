@@ -10,8 +10,9 @@ Needs fonttools, uharfbuzz and the Inter 4 OTF files (https://rsms.me/inter/):
     pip install fonttools uharfbuzz
     python brand/make_logos.py --fonts /path/to/inter/otf
 
-Writes brand/candidates/, brand/type-study/ and brand/preview.html (every SVG inlined as a data
-URI, so the page works on its own).
+Writes brand/candidates/, brand/type-study/, brand/sunrise/ and the preview pages
+brand/preview.html and brand/sunrise/preview.html (every SVG inlined as a data URI, so each page
+works on its own).
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from pathlib import Path
 
 import uharfbuzz as hb
 from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.recordingPen import RecordingPen
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
@@ -56,6 +58,7 @@ class Glyph:
     name: str
     d: str
     bbox: tuple[float, float, float, float]  # x0, y0, x1, y1; y grows downwards
+    contours: list[tuple[str, tuple]]        # (path, bbox) of each closed contour
 
 
 @dataclass
@@ -96,11 +99,15 @@ def set_text(text: str, face: str, size: float, tracking: float = 0.0,
     for i, (info, pos) in enumerate(zip(infos, positions)):
         name = order[info.codepoint]
         affine = (scale, 0, 0, -scale, x + pos.x_offset * scale, -pos.y_offset * scale)
-        svg_pen = SVGPathPen(glyph_set, ntos=f)
-        glyph_set[name].draw(TransformPen(svg_pen, affine))
-        bounds_pen = BoundsPen(glyph_set)
-        glyph_set[name].draw(TransformPen(bounds_pen, affine))
-        glyphs.append(Glyph(name, svg_pen.getCommands(), bounds_pen.bounds or (x, 0, x, 0)))
+        recording = RecordingPen()
+        glyph_set[name].draw(TransformPen(recording, affine))
+        d, bounds = _outline(glyph_set, recording.value)
+        contours, start = [], 0
+        for k, (op, _) in enumerate(recording.value):
+            if op in ("closePath", "endPath"):
+                contours.append(_outline(glyph_set, recording.value[start:k + 1]))
+                start = k + 1
+        glyphs.append(Glyph(name, d, bounds or (x, 0, x, 0), contours))
         x += pos.x_advance * scale
         if i < len(infos) - 1:
             x += tracking * size
@@ -109,6 +116,15 @@ def set_text(text: str, face: str, size: float, tracking: float = 0.0,
             max(b[2] for b in inked), max(b[3] for b in inked))
     os2 = tt["OS/2"]
     return Line(glyphs, bbox, os2.sCapHeight * scale, os2.sxHeight * scale)
+
+
+def _outline(glyph_set, commands):
+    """SVG path and bounding box of recorded pen commands."""
+    svg_pen, bounds_pen = SVGPathPen(glyph_set, ntos=f), BoundsPen(glyph_set)
+    for op, args in commands:
+        getattr(svg_pen, op)(*args)
+        getattr(bounds_pen, op)(*args)
+    return svg_pen.getCommands(), bounds_pen.bounds
 
 
 # --------------------------------------------------------------------------- drawing helpers
@@ -312,6 +328,104 @@ def icon(mark_fn, uid, scale=0.72):
                f'<g transform="translate({f(off)} {f(off)}) scale({f(scale)})">{body}</g>', defs)
 
 
+# --------------------------------------------------------------------------- sunrise o variations
+
+
+@dataclass
+class Sunrise:
+    slug: str
+    name: str
+    note: str
+    shape: str   # "circle": a circle as tall as the o; "oval": Inter's outline of the o, filled;
+    #              "ring": Inter's o itself, counter and all
+    bands: list  # lake bands as (top, bottom) in 28ths of the o's half-height below the horizon;
+    #              28 is the bottom of the o
+
+
+THREE_BANDS = [(3, 10.5), (13.5, 20), (23, 28)]
+
+SUNRISE = [
+    Sunrise("a-circle-3-bands", "Circle, three bands",
+            "Only the first change: the bands are rebalanced so the last one runs to the bottom of "
+            "the circle, and the o sits on the baseline like the letters around it.",
+            "circle", THREE_BANDS),
+    Sunrise("b-oval-3-bands", "Inter's o, three bands",
+            "Both changes: Inter's own outline of the o, filled in, with the same three bands. It is "
+            "narrower than the circle and squarer at the shoulders, so it sits in the word like a letter.",
+            "oval", THREE_BANDS),
+    Sunrise("c-oval-4-bands", "Inter's o, four bands",
+            "Finer ripples, getting thinner towards the bottom. Best at large sizes: below about 24 px "
+            "the gaps close up.",
+            "oval", [(2.5, 8), (10.5, 15), (17.5, 21.5), (24, 28)]),
+    Sunrise("d-oval-2-bands", "Inter's o, two bands",
+            "Two broad bands and wider gaps. The boldest version, and the one that lasts down to "
+            "favicon size.",
+            "oval", [(3.5, 14.5), (18, 28)]),
+    Sunrise("e-ring-3-bands", "Inter's o with its counter, three bands",
+            "The letter itself, hole and all: ink above the horizon, cut into lake bands below. Reads "
+            "as an o first and a sun second.",
+            "ring", THREE_BANDS),
+    Sunrise("f-ring-horizon", "Inter's o with its counter, horizon only",
+            "The letter itself split at the horizon: ink above, lake below. The quietest version.",
+            "ring", [(3.5, 28)]),
+]
+
+# Candidate 05 as first drawn, in the same terms, for comparison.
+SUNRISE_BEFORE = Sunrise("before", "Before", "", "circle", [(3, 9), (12, 17), (20, 24)])
+
+
+def wordmark_o() -> tuple[Line, Glyph]:
+    line = set_text("Lakefront", WORD["face"], WORD["size"], WORD["tracking"])
+    return line, next(g for g in line.glyphs if g.name == "o")
+
+
+def sunrise_o(c, uid, o: Glyph, v: Sunrise):
+    """The o as a sun on the horizon, drawn in the o's own coordinates."""
+    x0, y0, x1, y1 = o.bbox
+    cx, cy, half = (x0 + x1) / 2, (y0 + y1) / 2, (y1 - y0) / 2
+    clip = f"{uid}-o"
+    if v.shape == "circle":
+        shape = f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(half)}"/>'
+        left, right = cx - half, cx + half
+    else:
+        d = o.d if v.shape == "ring" else max(
+            o.contours, key=lambda k: (k[1][2] - k[1][0]) * (k[1][3] - k[1][1]))[0]
+        shape = f'<path clip-rule="evenodd" d="{d}"/>'
+        left, right = x0, x1
+    width, unit = right - left + 2, half / 28
+    sky = rect(left - 1, y0 - 1, width, cy - y0 + 1)
+    lake = "".join(rect(left - 1, cy + a * unit, width, (b + (1 if b >= 28 else 0) - a) * unit)
+                   for a, b in v.bands)
+    return (f'<clipPath id="{clip}">{shape}</clipPath>',
+            f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{sky}"/>'
+            f'<path fill="{c["lake"]}" d="{lake}"/></g>')
+
+
+def sunrise_lockup(v: Sunrise, c, uid):
+    line, o = wordmark_o()
+    x0, y0, x1, y1 = line.bbox
+    defs, sun = sunrise_o(c, uid, o, v)
+    body = (wordmark_body(line, c["ink"], -x0, -y0, skip={"o"})
+            + f'<g transform="translate({f(-x0)} {f(-y0)})">{sun}</g>')
+    return svg(x1 - x0, y1 - y0, body, defs)
+
+
+def sunrise_mark(v: Sunrise, c, uid, height=56, overlay=False):
+    """The o alone, centred in the 64-unit box. `overlay` traces Inter's o over it (preview only)."""
+    _, o = wordmark_o()
+    x0, y0, x1, y1 = o.bbox
+    s = height / (y1 - y0)
+    defs, body = sunrise_o(c, uid, o, v)
+    if overlay:
+        body += (f'<path fill="none" stroke="{OVERLAY}" stroke-width="1.5" '
+                 f'vector-effect="non-scaling-stroke" d="{o.d}"/>')
+    move = f"translate({f(32 - (x0 + x1) / 2 * s)} {f(32 - (y0 + y1) / 2 * s)}) scale({f(s)})"
+    return defs, f'<g transform="{move}">{body}</g>'
+
+
+OVERLAY = "#E5484D"
+
+
 # --------------------------------------------------------------------------- the candidates
 
 CANDIDATES = [
@@ -396,6 +510,15 @@ def build(out: Path) -> dict:
     for i, (label, face, tracking, text, feats, _note) in enumerate(TYPE_STUDY, 1):
         name = f"{i:02d}-{face.lower()}{'-cv05' if feats else ''}-{abs(tracking):.3f}em".replace(".", "_")
         write(type_dir / f"{name}.svg", wordmark(face, tracking, INK, text=text, features=feats))
+
+    sun_dir = out / "sunrise"
+    sun_dir.mkdir(parents=True, exist_ok=True)
+    for v in SUNRISE:
+        write(sun_dir / f"{v.slug}-lockup.svg", sunrise_lockup(v, LIGHT, v.slug))
+        write(sun_dir / f"{v.slug}-lockup-dark.svg", sunrise_lockup(v, DARK, v.slug))
+        defs, body = sunrise_mark(v, LIGHT, v.slug)
+        write(sun_dir / f"{v.slug}-mark.svg", svg(64, 64, body, defs))
+        write(sun_dir / f"{v.slug}-icon.svg", icon(lambda c, uid, v=v: sunrise_mark(v, c, uid), v.slug))
     return files
 
 
@@ -406,47 +529,37 @@ def data_uri(svg_text: str) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(svg_text.encode()).decode()
 
 
-def preview(files: dict) -> str:
-    def img(key, height=None, width=None, alt="Lakefront"):
-        size = f' style="height:{height}px"' if height else f' style="width:{width}px"'
-        return f'<img src="{data_uri(files[key])}" alt="{html.escape(alt)}"{size}>'
+def img(svg_text: str, height: int, alt="Lakefront") -> str:
+    return f'<img src="{data_uri(svg_text)}" alt="{html.escape(alt)}" style="height:{height}px">'
 
-    type_rows = []
-    keys = sorted(k for k in files if k.startswith("type-study/"))
-    for key, (label, face, tracking, text, feats, note) in zip(keys, TYPE_STUDY):
-        type_rows.append(
-            f'<figure class="type">{img(key, height=48)}<figcaption><b>{label}</b>'
-            f"<span>letter-spacing {tracking:.2f}em</span>"
-            f'{f"<em>{note}</em>" if note else ""}</figcaption></figure>')
 
-    cand_rows = []
-    for cand in CANDIDATES:
-        s = cand["slug"]
-        icons = "".join(img(f"candidates/{s}-icon.svg", height=px) for px in (64, 32, 16))
-        cand_rows.append(f"""
+def section(num, name, concept, light, dark, icon_svg) -> str:
+    icons = "".join(img(icon_svg, px) for px in (64, 32, 16))
+    return f"""
 <section class="cand">
-  <header><span class="num">{s[:2]}</span><h2>{cand['name']}</h2><p>{cand['concept']}</p></header>
+  <header><span class="num">{num}</span><h2>{name}</h2><p>{concept}</p></header>
   <div class="tiles">
-    <div class="tile light">{img(f"candidates/{s}-lockup.svg", height=56)}</div>
-    <div class="tile dark">{img(f"candidates/{s}-lockup-dark.svg", height=56)}</div>
+    <div class="tile light">{img(light, 56)}</div>
+    <div class="tile dark">{img(dark, 56)}</div>
     <div class="tile icons">{icons}</div>
   </div>
   <div class="small">
-    <span class="light">{img(f"candidates/{s}-lockup.svg", height=22)}</span>
-    <span class="dark">{img(f"candidates/{s}-lockup-dark.svg", height=22)}</span>
+    <span class="light">{img(light, 22)}</span>
+    <span class="dark">{img(dark, 22)}</span>
     <span class="note">header size</span>
   </div>
-</section>""")
+</section>"""
 
+
+def page(title: str, lede: str, body: str) -> str:
     swatches = "".join(
         f'<span class="sw"><i style="background:{hexv}"></i>{name} <code>{hexv}</code></span>'
         for name, hexv in [("Ink", INK), ("Lake", LAKE), ("Ink on dark", INK_DARK),
                            ("Lake on dark", LAKE_DARK), ("Night", NIGHT)])
-
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lakefront logo candidates</title>
+<title>{title}</title>
 <style>
   :root {{ --ink: {INK}; --lake: {LAKE}; --night: {NIGHT}; --line: #E3E8EE; --muted: #5B6B7C; }}
   * {{ box-sizing: border-box; }}
@@ -466,6 +579,13 @@ def preview(files: dict) -> str:
   figcaption {{ font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 10px; color: var(--muted); }}
   figcaption b {{ color: var(--ink); font-weight: 600; }}
   figcaption em {{ flex-basis: 100%; font-style: normal; }}
+  .glance {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }}
+  figure.o {{ margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 10px 10px; text-align: center; }}
+  figure.o img {{ display: block; margin: 0 auto 10px; }}
+  figure.o figcaption {{ display: block; font-size: 12px; line-height: 1.35; }}
+  figure.o.before {{ background: #F1F4F7; }}
+  .key {{ font-size: 13px; color: var(--muted); margin: 10px 0 0; }}
+  .key i {{ display: inline-block; width: 18px; height: 0; border-top: 2px solid {OVERLAY}; vertical-align: middle; margin-right: 6px; }}
   section.cand {{ background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 14px; }}
   section.cand header {{ display: grid; grid-template-columns: 34px 1fr; column-gap: 8px; margin-bottom: 14px; }}
   section.cand header p {{ grid-column: 2; margin: 2px 0 0; color: var(--muted); max-width: 760px; }}
@@ -481,19 +601,61 @@ def preview(files: dict) -> str:
   .small .dark {{ background: var(--night); }}
   .small .note {{ font-size: 12px; color: var(--muted); padding: 0; }}
   img {{ max-width: 100%; }}
-  @media (max-width: 760px) {{ .tiles {{ grid-template-columns: 1fr; }} }}
+  @media (max-width: 760px) {{ .tiles {{ grid-template-columns: 1fr; }} .glance {{ grid-template-columns: repeat(3, 1fr); }} }}
 </style></head>
 <body><main>
-  <h1>Lakefront: logo candidates</h1>
-  <p class="lede">Every wordmark is Inter 4 converted to outlines, so the SVG files need no font.
-  Lockups use Inter Display SemiBold at -0.04em. Icons are shown at 64, 32 and 16 px.</p>
+  <h1>{title}</h1>
+  <p class="lede">{lede}</p>
   <div class="swatches">{swatches}</div>
-  <h3>Type study: Inter with tightened spacing</h3>
-  <div class="types">{''.join(type_rows)}</div>
-  <h3>Candidates</h3>
-  {''.join(cand_rows)}
+  {body}
 </main></body></html>
 """
+
+
+def preview(files: dict) -> str:
+    type_rows = []
+    keys = sorted(k for k in files if k.startswith("type-study/"))
+    for key, (label, face, tracking, text, feats, note) in zip(keys, TYPE_STUDY):
+        type_rows.append(
+            f'<figure class="type">{img(files[key], 48)}<figcaption><b>{label}</b>'
+            f"<span>letter-spacing {tracking:.2f}em</span>"
+            f'{f"<em>{note}</em>" if note else ""}</figcaption></figure>')
+    cands = "".join(
+        section(c["slug"][:2], c["name"], c["concept"], files[f"candidates/{c['slug']}-lockup.svg"],
+                files[f"candidates/{c['slug']}-lockup-dark.svg"],
+                files[f"candidates/{c['slug']}-icon.svg"])
+        for c in CANDIDATES)
+    return page(
+        "Lakefront: logo candidates",
+        "Every wordmark is Inter 4 converted to outlines, so the SVG files need no font. Lockups use "
+        "Inter Display SemiBold at -0.04em. Icons are shown at 64, 32 and 16 px.",
+        f"""<h3>Type study: Inter with tightened spacing</h3>
+  <div class="types">{''.join(type_rows)}</div>
+  <h3>Candidates</h3>
+  {cands}""")
+
+
+def sunrise_preview(files: dict) -> str:
+    glance = []
+    for v in [SUNRISE_BEFORE] + SUNRISE:
+        defs, body = sunrise_mark(v, LIGHT, v.slug, overlay=True)
+        label = "Before" if v is SUNRISE_BEFORE else f"{v.slug[0].upper()}. {v.name}"
+        cls = "o before" if v is SUNRISE_BEFORE else "o"
+        glance.append(f'<figure class="{cls}">{img(svg(64, 64, body, defs), 112)}'
+                      f"<figcaption>{label}</figcaption></figure>")
+    rows = "".join(
+        section(v.slug[0].upper(), v.name, v.note, files[f"sunrise/{v.slug}-lockup.svg"],
+                files[f"sunrise/{v.slug}-lockup-dark.svg"], files[f"sunrise/{v.slug}-icon.svg"])
+        for v in SUNRISE)
+    return page(
+        "Lakefront: sunrise o variations",
+        "Candidate 05, refined in two ways: the lake bands now run to the bottom of the o, so it sits "
+        "on the baseline, and B to F follow Inter's own o instead of a circle. Icons at 64, 32 and 16 px.",
+        f"""<h3>The o, close up</h3>
+  <div class="glance">{''.join(glance)}</div>
+  <p class="key"><i></i>Inter Display SemiBold's own o, traced over each version</p>
+  <h3>Variations</h3>
+  {rows}""")
 
 
 def main():
@@ -505,7 +667,8 @@ def main():
     FONT_DIR = args.fonts
     files = build(args.out)
     (args.out / "preview.html").write_text(preview(files))
-    print(f"wrote {len(files)} SVG files and preview.html to {args.out}")
+    (args.out / "sunrise" / "preview.html").write_text(sunrise_preview(files))
+    print(f"wrote {len(files)} SVG files, preview.html and sunrise/preview.html to {args.out}")
 
 
 if __name__ == "__main__":

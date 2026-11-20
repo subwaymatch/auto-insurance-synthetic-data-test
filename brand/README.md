@@ -15,6 +15,25 @@ icon sizes, or look at the picture below.
 | 05 | Sunrise o | The o becomes the sun rising over the lake, its lower half reflected in bands. |
 | 06 | Shield | An insurer's shield with a wave-cut horizon. The most literal. |
 
+## Sunrise o variations
+
+Candidate 05 was chosen. [`sunrise/`](sunrise/) refines it in two ways: the lake bands now run to the
+bottom of the o, so it sits on the baseline like the letters around it (the first drawing stopped
+short), and B to F follow Inter Display's own o, which is an oval about 51 x 54 units, not a 54-unit
+circle. Open [`sunrise/preview.html`](sunrise/preview.html), or look at the picture below. Its first
+row traces Inter's o over each version.
+
+![Sunrise o variations](sunrise/preview.png)
+
+| | Variation | The o |
+|---|---|---|
+| A | Circle, three bands | The original circle, with the bands rebalanced to reach the bottom |
+| B | Inter's o, three bands | Inter's outline of the o, filled in, with the same bands |
+| C | Inter's o, four bands | Finer ripples; best large, as the gaps close up below about 24 px |
+| D | Inter's o, two bands | Bolder; the one that still works as a favicon |
+| E | Inter's o with its counter, three bands | The letter itself, hole and all, with its lower half cut into bands |
+| F | Inter's o with its counter, horizon only | The letter itself, ink above the horizon and lake below |
+
 ## Files
 
 Each candidate in [`candidates/`](candidates/) has four SVG files:
@@ -26,6 +45,7 @@ Each candidate in [`candidates/`](candidates/) has four SVG files:
 | `NN-name-mark.svg` | The mark alone, 64 x 64 |
 | `NN-name-icon.svg` | The mark on a rounded tile, for a favicon or social card |
 
+[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `f-...`.
 [`type-study/`](type-study/) holds the six wordmark settings shown at the top of the preview.
 
 All text is converted to outlines, so the files need no font and render the same everywhere. The
@@ -67,5 +87,6 @@ python brand/make_logos.py --fonts /path/to/inter/otf
 
 `make_logos.py` needs the Inter 4 OTF files from [rsms.me/inter](https://rsms.me/inter/) (both
 `Inter-*.otf` and `InterDisplay-*.otf`). It sets the text with HarfBuzz so the font's kerning
-applies, then writes every SVG and `preview.html`. The wordmark used by the lockups, the palette and
-each mark's geometry are near the top of the script.
+applies, then writes every SVG and both preview pages. The wordmark used by the lockups, the palette and
+each mark's geometry are near the top of the script; the sunrise variations are the `SUNRISE`
+list, where each band is given in 28ths of the o's half-height below the horizon.
