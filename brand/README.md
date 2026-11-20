@@ -15,6 +15,7 @@ below). The favicon is a plain circle with variation D's two bands and no backgr
 | `favicon.svg` | Favicon for browsers that take SVG. Drawn on a 32-unit grid so its bands fall on whole pixels at 16, 32 and 48 px |
 | `favicon.ico` | The same at 16, 32 and 48 px, for everything else |
 | `apple-touch-icon.png` | 180 x 180 home-screen icon. iOS needs an opaque square, so this one has a white background |
+| `social-card.png` | 1200 x 630 image shown when a link to the website is shared |
 
 ```html
 <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">

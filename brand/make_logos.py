@@ -461,9 +461,27 @@ def apple_touch_svg(size=180, share=0.68) -> str:
                f'<g transform="translate({f(off)} {f(off)}) scale({f(s)})">{body}</g>', defs)
 
 
-def png(svg_text: str, size: int) -> bytes:
+def png(svg_text: str, size: int, height: int | None = None) -> bytes:
     import resvg_py  # only needed for the PNG and ICO files
-    return bytes(resvg_py.svg_to_bytes(svg_string=svg_text, width=size, height=size))
+    return bytes(resvg_py.svg_to_bytes(svg_string=svg_text, width=size, height=height or size))
+
+
+def social_card_svg(w=1200, h=630) -> str:
+    """The image shown when a link to the site is shared: logo, tagline and the sunrise."""
+    line, o = wordmark_o()
+    x0, y0, x1, y1 = line.bbox
+    scale = 104 / (y1 - y0)
+    defs, sun = sunrise_o(LIGHT, "card", o, LOGO)
+    logo = (wordmark_body(line, INK, -x0, -y0, skip={"o"}) + f'<g transform="translate({f(-x0)} {f(-y0)})">{sun}</g>')
+    tag = []
+    for i, text in enumerate(["Five years of a Chicago", "auto insurer’s data"]):
+        t = set_text(text, "InterDisplay-Medium", 46, -0.02)
+        tag.append(wordmark_body(t, "#3A4B5D", 84 - t.bbox[0], 348 + i * 62))
+    fav_defs, fav = favicon_body(LIGHT)
+    body = (f'<rect width="{w}" height="{h}" fill="#F5F7FA"/>'
+            f'<g transform="translate(980 315) scale(15.5) translate(-16 -16)">{fav}</g>'
+            f'<g transform="translate(84 150) scale({f(scale)})">{logo}</g>' + "".join(tag))
+    return svg(w, h, body, defs + fav_defs.replace('id="sun"', 'id="sun"'))
 
 
 def ico(images: list[tuple[int, bytes]]) -> bytes:
@@ -488,6 +506,7 @@ def build_logo(out: Path) -> list[str]:
     (logo_dir / "favicon.svg").write_text(fav)
     (logo_dir / "favicon.ico").write_bytes(ico([(n, png(fav, n)) for n in (16, 32, 48)]))
     (logo_dir / "apple-touch-icon.png").write_bytes(png(apple_touch_svg(), 180))
+    (logo_dir / "social-card.png").write_bytes(png(social_card_svg(), 1200, 630))
     return sorted(p.name for p in logo_dir.iterdir())
 
 
