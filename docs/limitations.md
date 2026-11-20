@@ -66,22 +66,22 @@ business is accidental; vehicle symbols are this dataset's own scales.
 `docs/real_data_comparison.md` compares the book with a real motor portfolio (Lledó and Pavía, Mendeley
 Data 2024, CC BY 4.0; almost certainly a Spanish insurer, 2015 to 2018). The two markets, currencies and
 products differ, so only shapes are compared, not levels. Where a fair comparison is possible the synthetic
-data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.23 times
-in the synthetic, newly licensed drivers 1.37 and 1.33 times, urban vehicles 1.14 and 1.15 times, and
+data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.28 times
+in the synthetic, newly licensed drivers 1.37 and 1.37 times, urban vehicles 1.14 and 1.15 times, and
 claim costs and premiums spread alike. These differences remain:
 
 1. **Tenure protects less.** Long-standing customers are safer than new ones, but less than in the real book
-   (0.69 times the claim frequency after ten years in the real data, 0.85 in the synthetic, other things
+   (0.69 times the claim frequency after ten years in the real data, 0.86 in the synthetic, other things
    equal). Claims do now cost customers as in the real book: a real contract with a claim is 1.45 times as
-   likely to end as one without, a synthetic one 1.41 times, and 965 of 11,462 synthetic non-renewals are the
+   likely to end as one without, a synthetic one 1.40 times, and 1,000 of 11,500 synthetic non-renewals are the
    company's decision.
 2. **Payment plan carries less risk.** Real half-yearly payers claim 1.61 times as often as annual payers,
-   other things equal; synthetic instalment payers 1.12 times.
+   other things equal; synthetic instalment payers 1.15 times.
 3. **The largest claims are smaller.** The costliest 1% of claim-years make up 24% of real claim cost and
-   16% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
+   15% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
    checked against US data.
 4. **Channel makes less difference.** Real broker business runs 12% above average frequency; synthetic
-   independent-agent business runs 2% above, and 5% above exclusive-agent business with other things equal.
+   independent-agent business runs 2% above, and 8% above exclusive-agent business with other things equal.
 5. **Shared factors carry less predictive signal.** A simple model on the factors both books record ranks
    held-out real claims better (Gini 0.22) than synthetic ones (0.12), because of points 1, 2 and 4 and
    because 29% of synthetic claims are comprehensive (glass, theft, weather), which the driver's
@@ -228,32 +228,32 @@ Those synthetic figures are plausible but unverified.
   salvage and subrogation come off collision and comprehensive payments. They are taken off here, because
   insurers report recoveries as negative paid losses and because Verisk's own report on the same data shows
   collision severity before recoveries about a quarter higher, with recoveries of that size (see the
-  README). On that reading collision severity is 0.94 times national in the default run (0.92 and 0.93 on
-  two other builds), frequency 1.34 times, and premiums per insured car 11% below Illinois' for collision
+  README). On that reading collision severity is 0.95 times national in the default run (0.92 and 0.93 on
+  two other builds), frequency 1.30 times, and premiums per insured car 11% below Illinois' for collision
   and comprehensive and 7% above for liability. If the table is in fact before recoveries, physical damage
   payments here are about a quarter too high against it, and Illinois' premiums could not then be matched
   at industry loss ratios. The sources do not settle it.
-- **Collision claims are frequent and often total losses.** Collision frequency runs a third above
-  national on the like-for-like comparison (an urban book), near the top of the band `validate.py` allows.
-  Thirty per cent of paid collision claims are total losses, against 22% to 23% of all appraisals
+- **Collision claims are frequent and often total losses.** Collision frequency runs 30% above
+  national on the like-for-like comparison (an urban book), in the upper part of the band `validate.py`
+  allows. Thirty per cent of paid collision claims are total losses, against 22% to 23% of all appraisals
   nationally (CCC), because the fleet is older and cheaper than the insured fleet at large.
-- **Claim luck is real.** A year of this book has about 250 paid bodily injury claims, and one standard
-  deviation of their total is 1.4 to 2.4 loss-ratio points. In the default run every full year comes in at or
-  just below its expected loss ratio (2022: 79.0% against 79.8%, both without catastrophes; 2023: 74.3%
-  against 75.4%). Other seeds and sizes give other years their luck; `validate.py` holds each year's actual,
+- **Claim luck is real.** A year of this book has about 230 paid bodily injury claims, and one standard
+  deviation of their total is 1.3 to 2.0 loss-ratio points. In the default run every full year comes in at or
+  below its expected loss ratio (2022: 79.5% against 79.8%, both without catastrophes; 2023: 70.0%
+  against 75.5%). Other seeds and sizes give other years their luck; `validate.py` holds each year's actual,
   without catastrophes, to 0.85 to 1.15 times its expected.
 - **The last year is immature.** 2026 is the least developed year: young injury claims are reserved low,
   and claims not yet reported are missing (they are in the answer key).
-- **Single-year severities move.** About 300 paid bodily injury claims and 700 comprehensive claims a year
-  fall in the national comparison, so single-year severities move by 10% or more by chance.
+- **Single-year severities move.** Between 240 and 300 paid bodily injury claims and 700 comprehensive
+  claims a year fall in the national comparison, so single-year severities move by 10% or more by chance.
 - **Segment differences are expected values.** New business against renewals, channels, payment plans and
   agencies differ in their expected loss ratios (from the answer key). Actual loss ratios of small segments
   move far more with claim luck than with book quality, and most agencies are small: half of the 120
-  independent agencies have 45 or fewer policies in force, and only 63 agencies have 500 car-years in the
+  independent agencies have 47 or fewer policies in force, and only 61 agencies have 500 car-years in the
   whole extract.
-- **A claim predicts the next one weakly overall.** Vehicles with a claim one year have 1.16 times the
+- **A claim predicts the next one weakly overall.** Vehicles with a claim one year have 1.29 times the
   claim frequency the next, because many claims are comprehensive and because customers with claims,
-  at-fault ones most of all, are the likeliest to leave. A car with an at-fault claim is 1.48 times as
+  at-fault ones most of all, are the likeliest to leave. A car with an at-fault claim is 1.6 times as
   likely to have another.
 - **Smaller builds are noisier.** A 10,000-policy build passes every integrity check and its ledger ties,
   but has about 5,000 claims: loss ratios, small segments and single-year figures move more, some agencies

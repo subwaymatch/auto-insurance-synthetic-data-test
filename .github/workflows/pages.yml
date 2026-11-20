@@ -1,0 +1,98 @@
+name: Website
+
+# Builds the website in site/ (python site/build.py) and publishes it to GitHub Pages.
+#
+#   * Runs on every push to main that changes the site, the sample CSVs it reads, the table keys or the logo.
+#   * Runs again whenever the "Sample CSVs" workflow finishes on main, so the data dictionary's row counts and
+#     example values follow the data. (That workflow pushes its commit with the built-in token, and such pushes
+#     do not start other workflows on their own.)
+#   * Or run it from the Actions tab ("Run workflow").
+#   * On a pull request it only builds the site, to check it, and publishes nothing.
+#
+# The build fails if a table or column in samples/ has no description in site/dictionary/, so a new column
+# must be documented before the site updates.
+#
+# One-time setup: in the repository's Settings > Pages, set "Source" to "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "samples/**"
+      - "autoins/schema.py"
+      - "brand/logo/**"
+      - ".github/workflows/pages.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "samples/**"
+      - "autoins/schema.py"
+      - "brand/logo/**"
+      - ".github/workflows/pages.yml"
+  workflow_run:
+    workflows: ["Sample CSVs"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time; let a running one finish rather than cancel it half-way.
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: site/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r site/requirements.txt
+
+      - name: Configure Pages
+        id: pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Build the site
+        env:
+          BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python site/build.py --out _site ${BASE_URL:+--base-url "$BASE_URL/"}
+
+      - name: Upload the site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

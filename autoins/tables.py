@@ -177,7 +177,12 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     # claim when its payments make it chargeable. Rating uses an incident only from that day on.
     own = claims[claims.chargeable & (claims.drv >= 0)]
     acc = (inc.kind == "accident").to_numpy()
-    with_us = acc & (inc.day.to_numpy() >= inception[inc.pol.to_numpy()])     # in-force book, before the extract
+    # An accident in a driver's history was a claim with this company only if it happened while the driver was on
+    # this policy and before the extract starts (later ones are simulated claims). Earlier ones, and the
+    # histories adults bring when they join a policy mid-term, came from a previous insurer.
+    inc_day = inc.day.to_numpy()
+    with_us = (acc & (inc_day >= inception[inc.pol.to_numpy()]) & (inc_day < 0)
+               & (inc_day >= drv.added_day.to_numpy()[inc.drv.to_numpy()]))
     records = pd.concat([
         pd.DataFrame({"drv": inc.drv, "day": inc.day, "known": inc.known_day,
                       "incident_type": inc.kind.map({"minor": "Minor Violation", "major": "Major Violation", "accident": "At-Fault Accident"}),

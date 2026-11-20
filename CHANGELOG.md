@@ -47,8 +47,8 @@ otherwise.
 
 Figures in this section were measured on the 51,391-policy default run (to 30 September 2026) unless
 stated otherwise; "Fixes from an external review" and "Size and dates" move the default to 43,368 policies to
-31 December 2026 and give that run's figures, and the last subsection gives the run after the third review's
-fixes.
+31 December 2026 and give that run's figures, and each later subsection gives the run after its changes; the
+last gives the current default run.
 
 ### Benchmarked against a real insurer's data
 
@@ -442,6 +442,35 @@ top of its band, because more claims clear the deductible and more old cars carr
 appointments or terminations during the extract; the ledger is monthly totals without investments, other
 expenses, taxes, reinsurance or a reserve for unreported claims. All are in
 [docs/limitations.md](docs/limitations.md).
+
+### Fixes found while writing the data dictionary
+
+Describing every table and column turned up two errors in the published data. Both are fixed, and a new
+test covers the first (64 in all).
+
+- **Where an accident in a driver's history came from.** `driver_incident.source` and `description` called
+  an at-fault accident "Company Claim (Before Extract)" whenever it fell on or after the policy's original
+  inception. That also caught accidents adults brought from a previous insurer when they joined a policy
+  mid-term, some of them dated 2022 or later, inside the extract, and opening-book drivers' accidents from
+  before they joined the policy. An accident is now a company claim before the extract only if it happened
+  while the driver was on the policy and before the start date; the rest are "Prior Carrier Report". In the
+  previous default run 100 of the 2,474 accidents so labelled were not company claims: 80 were dated 2022 or
+  later and 94 happened before the driver joined (most were both). Only the label changed; when each
+  accident became known, and so every rating, is as it was.
+- **Two SUVs in the wrong segment.** `reference/vehicle_curation.csv` had `truck` one column to the
+  right for the Chevrolet Avalanche and the Hummer H3, in the vehicle class instead of the segment. Their 17
+  model years in `vehicle_model_year` therefore had the vehicle class `truck`, in lower case and not one of
+  the catalogue's classes, and were rated in the mainstream (Avalanche) and luxury (H3) segments, although
+  the curation meant both to rate with trucks, as the Hummer H1 and H2 and full-size body-on-frame SUVs do.
+  Both now rate in the truck segment, with the class `Standard SUV` for the Avalanche (5.3 to 5.8 litres)
+  and `Small SUV` for the H3 (3.5 to 3.7 litres), by the catalogue builder's own rule for EPA's generic
+  pre-2011 SUV class (4.0 litres and up is Standard). `reference/vehicle_catalogue.csv` was corrected to
+  match.
+- **The default run's figures were refreshed.** Segment is a rating variable, so the rating plan was
+  refitted and the whole default run moved (content hash `b53e744195b60240`): 442,749 exposure rows (was
+  441,637), $220.8 million earned premium (was $220.6 million), 22,392 claims (was 22,313) and an overall
+  loss ratio of 67.4% (was 68.7%). Every integrity check and calibration band still holds. The README,
+  `docs/limitations.md`, `docs/real_data_comparison.md` and `samples/` now give the new run's figures.
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

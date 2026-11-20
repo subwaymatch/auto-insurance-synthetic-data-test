@@ -1,0 +1,310 @@
+[claim]
+grain = "Claim (one reported loss event)"
+summary = """One row for every loss reported to the company by the valuation date (December 31, 2026), with its cause, dates, handling office and adjuster, and amounts summed from its features in `claim_feature`. Amounts are cumulative to the valuation date, and `net_incurred_loss` excludes expense. Losses not yet reported are missing, so the latest accident months look light; the answer key's `unreported_claim` holds them."""
+
+[claim.columns]
+claim_id = "Primary key. Numbered in order of report date."
+claim_number = "The claim number printed on documents: two-digit report year and a seven-digit sequence, for example `24-0022944`. The sequence has gaps because the rest of the company draws from the same counter."
+policy_id = "The policy the loss falls under."
+policy_term_id = "The policy term in force on the loss date."
+exposure_id = "The exposure row (vehicle and endorsement period) in force at the loss: the rating and coverage terms the claim is paid under."
+involved_driver_id = "For crashes (`AF_MV`, `AF_SV`, `NAF`), the insured driver at the wheel. For parked-car and comprehensive losses no driver was involved and this is the policy's named insured, so do not charge those claims to that driver."
+insured_vehicle_id = "The insured vehicle involved."
+vehicle_model_year_id = "The make, model and model year of the vehicle, the same as on `insured_vehicle`."
+loss_date = "Date of the accident or loss, on or before the valuation date."
+loss_time = "Time of day of the loss as reported, `HH:MM` on a 24-hour clock. Reported times bunch on the hour and half hour. Descriptive only: nothing else in the data depends on it."
+report_date = "First notice of loss: the earliest `open_date` among the claim's features. Usually within days of the loss; notices on weekends and holidays are often held to the next business day."
+close_date = "Date the last feature closed. Blank while any feature is open or reopened. A closed claim can still reopen, or gain a late injury feature, after the valuation date."
+claim_status = "`Open` if any feature is open or reopened on the valuation date, otherwise `Closed`."
+cause_of_loss = "Cause code. Crashes: `AF_MV` (multi-vehicle, insured at fault), `AF_SV` (single vehicle, insured at fault), `NAF` (insured not at fault), `PARKED`. Comprehensive: `GLASS`, `THEFT_TOTAL`, `THEFT_PARTIAL`, `VANDALISM`, `ANIMAL`, `WEATHER`, `FLOOD`, `FIRE`, `OTHER_COMP`, and the catastrophe perils `HAIL_CAT`, `WIND_CAT`, `FLOOD_CAT`."
+claim_description = "Plain-English text for `cause_of_loss`, for example `Struck while parked or unoccupied` or `Hail (catastrophe)`."
+at_fault = "`Y` for at-fault crashes (`AF_MV`, `AF_SV`), otherwise `N`. An at-fault claim reaches the driver's record (`driver_incident`) the day after its liability and collision payments total $1,000."
+catastrophe_id = "The catastrophe event that caused the loss, for example `CAT-2023-01`. Blank for ordinary losses. The answer key's expected losses leave these claims out."
+feature_count = "Number of features on the claim at the valuation date: one per coverage, with each injured claimant counted separately."
+paid_loss = "Loss paid to the valuation date, in dollars, summed over the features: net of voided payments, before salvage and subrogation, and excluding expense."
+case_reserve = "Case reserve outstanding on the valuation date, in dollars: the adjusters' estimate of loss still to be paid on the known features. Zero on closed claims."
+recoveries = "Salvage and subrogation received to the valuation date, in dollars, as a positive number. Salvage is money from selling a total-loss wreck; subrogation is money recovered from the at-fault party's insurer."
+net_incurred_loss = "`paid_loss` plus `case_reserve` minus `recoveries`, in dollars, on the valuation date. Excludes expense and IBNR (losses incurred but not yet reported)."
+paid_expense = "Loss adjustment expense paid to the valuation date, in dollars: DCC (defense and cost containment) plus A&O (adjusting and other). Not part of `paid_loss` or `net_incurred_loss`."
+expense_reserve = "Outstanding DCC expense reserve on the valuation date, in dollars. Nonzero only while a feature with a lawsuit is open."
+litigation = "`Y` if a lawsuit had been filed on any feature by the valuation date, otherwise `N`."
+claim_office_id = "The handling office, by the first rule that applies: catastrophes to office 6, claims with a bodily injury or uninsured motorist feature to 3, vehicle thefts and total losses to 5, glass to 4, cars garaged in Chicago to 1, the rest to 2. Judged on features known at the valuation date."
+adjuster_id = "The employee holding the claim's desk: on the close date for a closed claim, on the valuation date for an open one. While the desk is vacant, the office supervisor or the claims manager. Earlier handlers are not recorded."
+police_report = "`Y` if a police report was filed. Nearly all vehicle thefts have one and few glass or hail claims do; claims with a paid injury are likelier to."
+insured_fault_pct = "The insured driver's share of fault for the accident, 0 to 100: at-fault multi-vehicle crashes 51 to 100, single-vehicle crashes 100, not-at-fault crashes mostly 0, otherwise 5 to 49. Blank for parked-car and comprehensive losses. Payments are not reduced by it."
+siu_referral = "`Y` if the claim was referred to the special investigations unit (SIU, which looks into possible fraud) by the valuation date. Referrals are likelier for vehicle thefts, late reports and large represented injury claims."
+siu_referral_date = "Date of the SIU referral, 5 to 45 days after the report and on a business day. Blank if not referred."
+
+[claim_feature]
+grain = "Coverage (and injured claimant) on a claim"
+summary = """One row for each coverage claimed on a claim, with a separate row for each injured person under bodily injury or uninsured motorist cover. Amounts are cumulative to the valuation date (December 31, 2026) and add up to the claim's; `paid_loss` matches the feature's `Loss` rows in `claim_payment` and `case_reserve` its latest `Loss` balance in `claim_reserve_transaction`. Many features close without payment, so a feature is not the same as a paid claim when counting frequency."""
+
+[claim_feature.columns]
+claim_feature_id = "Primary key. Numbered in the order features were opened."
+claim_id = "The claim the feature belongs to."
+feature_number = "The claim number plus a two-digit suffix in the order features were opened on the claim, for example `24-0022944-02`."
+coverage_code = "`BI` (bodily injury liability), `PD` (property damage liability), `UM` (uninsured/underinsured motorist bodily injury), `MED` (medical payments), `COLL` (collision), `COMP` (comprehensive), `RENT` (rental reimbursement) or `TOW` (towing and labor)."
+coverage = "The coverage name for `coverage_code`, for example `Bodily Injury Liability` or `Uninsured/Underinsured Motorist BI`."
+um_uim_type = "For `UM` features: `Uninsured` (the at-fault driver had no insurance or could not be identified) or `Underinsured` (their limit was too low). Blank for other coverages."
+claimant_number = "The injured person on a `BI` or `UM` feature, numbered from 1 within the claim; each claimant is a separate feature. Always 1 for other coverages. Numbers can skip a claimant who has no claim under this coverage or has not yet presented one."
+feature_status = "`Open`, `Closed`, or `Reopened` (closed once, reopened, and still open on the valuation date). A feature that reopened and closed again shows `Closed` with a `reopen_date`."
+open_date = "Date the coverage was set up: usually the claim's first notice, but injury claimants often present weeks or months later, up to the two-year statute of limitations."
+close_date = "Date the feature closed (its latest close if it reopened). Blank while open or reopened."
+reopen_date = "Date the feature reopened for a supplemental payment, if it did by the valuation date. Blank otherwise."
+paid_loss = "Loss paid to the valuation date, in dollars: net of voided payments, before salvage and subrogation, and excluding expense."
+case_reserve = "Case reserve outstanding on the valuation date, in dollars: the adjuster's estimate of loss still to be paid. Zero once closed."
+incurred_loss = "`paid_loss` plus `case_reserve`, in dollars: incurred loss before recoveries."
+salvage_recovery = "Salvage received to the valuation date, in dollars, as a positive number: the proceeds of selling a total-loss wreck at auction."
+subrogation_recovery = "Subrogation received to the valuation date, in dollars, as a positive number: money recovered from the at-fault party's insurer after the company paid its own customer. Occurs only on collision features."
+net_incurred_loss = "`incurred_loss` minus `salvage_recovery` and `subrogation_recovery`, in dollars. Excludes expense."
+other_insurer_payment = "For `Underinsured` features, what the at-fault driver's insurer paid this claimant, in dollars; the company pays the damages up to its own limit less this amount. Not a company payment. Blank for all other features."
+paid_expense = "Loss adjustment expense paid to the valuation date, in dollars: `paid_dcc_expense` plus `paid_ao_expense`."
+paid_dcc_expense = "Defense and cost containment (DCC) expense paid to the valuation date, in dollars: defense lawyers on litigated features, medical bill and records review otherwise. Only on `BI`, `UM` and `MED` features."
+paid_ao_expense = "Adjusting and other (A&O) expense paid to the valuation date, in dollars: independent appraisals. Only on `PD`, `COLL` and `COMP` features."
+expense_reserve = "Outstanding DCC expense reserve on the valuation date, in dollars. Set when a suit is filed, reduced as legal bills are paid and released at close; 0 on features without a suit."
+injury_type = "On `BI`, `UM` and `MED` features: `Soft Tissue`, `Laceration`, `Fracture`, `Head or Spinal Injury` or `Fatality`. Blank on other coverages. It is set from the feature's eventual cost, so on an open claim it signals how large the claim will become."
+attorney_represented = "`Y` if the injured claimant had hired an attorney by the valuation date, otherwise `N`. Only injury features (`BI`, `UM`, `MED`) can be `Y`."
+attorney_date = "Date the attorney was retained, often within days of the accident and so possibly before `open_date`. Blank if not represented."
+litigation = "`Y` if a lawsuit had been filed on this feature by the valuation date, otherwise `N`."
+suit_date = "Date the suit was filed: after the attorney was retained and the claim presented, and within Illinois' two-year limit. Blank if there is no suit."
+total_loss = "`Y` if the company pays the insured car as a total loss on this collision or comprehensive feature. Flagged from the start, even while the feature is open. `N` otherwise."
+closed_without_payment = "`Y` if the feature is closed with no loss paid (expense may still have been paid): liability denied, an injury claim never pursued, damage below the deductible, or a claim withdrawn. `N` for open features."
+owner_retained_salvage = "`Y` if the owner kept a car the company paid as a total loss: the salvage value came off the settlement, so there is no salvage recovery. Illinois allows this only for hail damage or cars nine or more model years old."
+
+[claim_payment]
+grain = "Payment, void or recovery on a claim feature"
+summary = """Every loss payment, expense payment, void and salvage or subrogation recovery dated on or before the valuation date (December 31, 2026), with its payee, method, check and bank detail and approver; it is the basis for paid development triangles. `amount` is signed (payments positive, voids and recoveries negative), so filter on `payment_type` before summing. A voided payment keeps its row and a separate `Void` row cancels it."""
+
+[claim_payment.columns]
+payment_id = "Primary key. Numbered in date order."
+claim_feature_id = "The feature the payment is made on."
+claim_id = "The claim the payment belongs to."
+payment_date = "Date the payment was issued or the recovery received, always a business day."
+payment_type = "`Loss`, `Expense`, `Salvage Recovery` (proceeds from selling a total-loss wreck) or `Subrogation Recovery` (money recovered from the at-fault party's insurer)."
+transaction_type = "For `Loss`: `Partial Payment` (interim payments, lienholder payoffs, and a total-loss settlement later topped up with fees), `Final Payment` (completes the settlement), `Supplemental Payment` (after a reopening), `Void` or `Reissue`. For `Expense`: `DCC Expense` (defense and cost containment) or `A&O Expense` (adjusting and other). For recoveries: `Recovery`."
+amount = "Dollars, signed. Positive for payments and reissues; negative for voids and recoveries (money coming in). A feature's `Loss` rows add up to `claim_feature.paid_loss`. Dropping only the `Void` rows double counts voided payments."
+payee_type = "Who is paid: `Insured`, `Claimant`, `Claimant and Attorney` (a joint check), `Vendor`, `Lienholder` or `Other Insurer`. On recoveries it is who paid the company: `Vendor` (a salvage auction) or `Other Insurer`."
+payee_name = "The name on the payment: the named insured, the claimant, the claimant and their law firm jointly, or the vendor."
+vendor_id = "The vendor paid or recovered from, including the law firm on a joint payment, the lienholder and the other insurer. Blank for payments to the insured or to a claimant alone."
+payment_method = "`Check`, `EFT` (electronic funds transfer) or `Deposit` (a recovery received). A voided payment, its void and its reissue are always checks."
+check_number = "Check number from one unbroken sequence, starting at 3418207, in the order checks were cut. A `Void` row repeats the number of the check it cancels. Blank for EFT payments and deposits."
+payment_status = "`Cleared`, `Outstanding` (not cashed by the valuation date; a few checks to people are never cashed), `Voided` (both the cancelled payment and its `Void` row) or `Deposited` (recoveries)."
+cleared_date = "Date the bank paid the check or transfer; for deposits, the payment date. Blank when outstanding or voided."
+approved_by_employee_id = "The employee who approved the payment: the claim's handler if the amount is within their payment authority, otherwise the office supervisor, otherwise the claims manager."
+
+[claim_reserve_transaction]
+grain = "Change to a feature's loss or expense reserve"
+summary = """Every change to a feature's case reserve (the adjuster's estimate of loss still to be paid) and, on litigated features, its expense reserve, on or before the valuation date (December 31, 2026), with the balance after the change. With `claim_payment` it rebuilds incurred loss as of any date for development triangles. A feature's reserve on a date is the `outstanding_reserve` of its latest row of that `reserve_type` on or before the date (0 if none), not a sum of balances."""
+
+[claim_reserve_transaction.columns]
+reserve_transaction_id = "Primary key. Numbered in date order."
+claim_feature_id = "The feature whose reserve changed."
+claim_id = "The claim the feature belongs to."
+transaction_date = "Date of the change."
+reserve_type = "`Loss` (the case loss reserve) or `Expense` (the DCC, defense and cost containment, expense reserve, kept only on features with a lawsuit)."
+transaction_type = "`Initial Reserve` (a formula or nominal reserve when the feature opens, or the expense reserve when suit is filed), `Reserve Review` (a re-estimate every 30 to 90 days), `Payment` (a payment using up reserve), `Reopen`, or `Close` (released to zero)."
+change_amount = "Signed change in the outstanding reserve, in dollars: positive raises it, negative lowers it. Changes of zero are not recorded, so the change amounts add up to the balance."
+outstanding_reserve = "The reserve balance after this change, in dollars. Reserves are rounded to $50, and an open feature carries a loss reserve of at least $250 unless less is left under the policy limit."
+
+[employee]
+grain = "Claims employee"
+summary = """The claims staff hired by the valuation date (December 31, 2026): adjusters and senior adjusters, a supervisor for each office, two SIU (special investigations unit) investigator positions and the claims manager, including people who have since left. A claim belongs to a desk, so when someone leaves, whoever takes the desk takes the files. The supervisor shown is the one at the employee's last day or the valuation date, not a history."""
+
+[employee.columns]
+employee_id = "Primary key. Numbered in order of hire."
+employee_number = "Personnel number: `E` and five digits, rising with hire date."
+first_name = "First name."
+last_name = "Last name."
+job_title = "`Claims Adjuster`, `Senior Claims Adjuster`, `Claims Supervisor` (one per office at a time), `SIU Investigator` or `Claims Manager` (one at a time)."
+claim_office_id = "The office of the employee's desk. Blank for the claims manager, who sits at head office. SIU investigators sit in office 3."
+hire_date = "Date the employee took the desk. For people already on staff when the extract begins, it can be years before January 1, 2022."
+termination_date = "Date the employee left: from this day they hold no files and approve no payments. Blank if still employed on the valuation date."
+payment_authority = "The largest single payment the employee may approve, in dollars: 10,000 for adjusters, 25,000 for senior adjusters, 2,500 for either at the Express and Glass Desk, 75,000 for supervisors, 1,000,000 for the claims manager, 0 for SIU investigators."
+supervisor_employee_id = "Who the employee reports to, on their last day or the valuation date: the office supervisor for adjusters (the claims manager while that desk is vacant), the claims manager for supervisors and SIU investigators. Blank for the claims manager."
+
+[vendor]
+grain = "Vendor (organization paid on claims or collected from)"
+summary = """The organizations the claim department pays or collects from: body shops, glass, rental and towing companies, medical providers, appraisers, medical review services, law firms, salvage auctions, lienholders and other insurers. Local trades are placed in the area's ZIP codes; the rest have a regional city and no ZIP. A few vendors in each trade take most of its business, and network shops get more of the work."""
+
+[vendor.columns]
+vendor_id = "Primary key."
+vendor_number = "Vendor number: `V` and six digits, a sequence with gaps."
+vendor_name = "Business name."
+vendor_type = "`Body Shop`, `Glass Vendor`, `Rental Company`, `Towing Company`, `Medical Provider`, `Independent Appraiser`, `Medical Review Service`, `Defense Law Firm`, `Plaintiff Law Firm`, `Salvage Auction`, `Lienholder` or `Other Insurer`."
+city = "The vendor's city. Body shops, glass vendors, towing companies and medical providers are local; the other types have a regional city such as Chicago, Springfield, Indianapolis, Milwaukee, Columbus, Des Moines or St. Louis."
+state = "Two-letter state: `IL` for local vendors; for the others the state of `city` (`IL`, `IN`, `WI`, `OH`, `IA` or `MO`)."
+zip_code = "ZIP code of a local vendor (body shops, glass vendors, towing companies, medical providers). Blank for the other types."
+in_network = "`Y` for body shops (about 35%) and glass vendors (about 60%) in the company's repair network, which receive about three times the work. Always `N` for other types."
+
+[claim_office]
+grain = "Claim office"
+summary = """The six claim offices. Each claim is routed to one office by its cause and features (see `claim.claim_office_id`), and each office has its own adjusters and supervisor in `employee`."""
+
+[claim_office.columns]
+claim_office_id = "Primary key."
+office_name = "Office name: `Chicago City Field Office`, `Suburban Auto Damage Center`, `Casualty and Injury Unit`, `Express and Glass Desk`, `Total Loss and Theft Unit` or `Catastrophe Response Team`."
+city = "City where the office is."
+
+[billing_invoice]
+grain = "Bill sent to a policyholder"
+summary = """Every bill issued on or before the valuation date (December 31, 2026): one paid-in-full bill or six or twelve monthly installments per term, separate endorsement bills, and a final balance after a cancellation. Terms in force when the extract begins carry their bills from before it. For a finished term, `premium_amount` on bills that are not `Cancelled`, less refunds in `billing_receipt`, equals the term's written, endorsement and return premium; fees come on top."""
+
+[billing_invoice.columns]
+invoice_id = "Primary key. Numbered in order of issue date."
+invoice_number = "The bill number: `INV-`, two-digit issue year and a nine-digit sequence, for example `INV-24-000512345`. The sequence has gaps because other regions' bills fall between."
+policy_id = "The policy billed."
+policy_term_id = "The term the bill is for."
+invoice_type = "`Paid in Full` (the single bill of the paid-in-full plan), `Down Payment` (the first monthly bill), `Installment`, `Endorsement` (extra premium from a mid-term change, billed on its own when no installments are left to spread it over) or `Final Balance` (premium still owed after a cancellation)."
+installment_number = "Position in the term's billing schedule: 1 for the paid-in-full or down-payment bill, then 2 up to 6 or 12 for installments. Blank for endorsement and final-balance bills."
+issue_date = "Date the bill was sent: the first bill on the term's offer date, installments 20 days before they fall due, an endorsement bill when the change is processed, a final balance the next business day after the cancellation is booked. Can be before January 1, 2022."
+due_date = "Date payment is due: the first bill on the term's effective date, installments monthly on the policy's anniversary day, endorsement bills 20 days and final balances 15 days after issue."
+premium_amount = "Premium billed, in dollars. A mid-term change is spread over the installments not yet issued, so installments in one term can differ."
+installment_fee = "Fee on installments after the first, in dollars: $2 on the Monthly EFT plan (bank draft), $5 on the Monthly Bill plan, 0 otherwise."
+late_fee = "Penalty in dollars: $10 when the bill was paid more than five days late, or $25 when a bank draft was returned unpaid. Charged only once the bill is paid, so 0 on open, cancelled and written-off bills."
+amount_due = "`premium_amount` plus `installment_fee` plus `late_fee`, in dollars. The payment that settles a bill equals this amount."
+invoice_status = "`Paid`, `Open` (unpaid on the valuation date, whether due yet or not), `Cancelled` (still unpaid when the term's cancellation was processed, and never collected) or `Written Off` (a final balance not collected within 120 days)."
+paid_date = "Date the bill was settled; for a returned draft, the date of the second, successful draft. Blank unless `invoice_status` is `Paid`."
+write_off_date = "Date an uncollected final balance was written off, 120 days after it was issued. Blank on all other bills."
+
+[billing_receipt]
+grain = "Payment received, draft returned or refund sent"
+summary = """Every movement of cash on a policy's billing account on or before the valuation date (December 31, 2026): payments received, bank drafts returned unpaid, and refunds. `amount` is signed: money in is positive, returned drafts and refunds are negative. Each payment is for one whole bill, so receivables aging, late payment and refunds can be built together with `billing_invoice`."""
+
+[billing_receipt.columns]
+receipt_id = "Primary key. Numbered in date order."
+policy_id = "The policy whose account the money moved on."
+policy_term_id = "The term the money applies to."
+invoice_id = "The bill paid, or the bill whose bank draft was returned. Blank for refunds, which are not tied to a bill."
+receipt_date = "Date the money was received, returned by the bank, or refunded. Can be before January 1, 2022 for terms already running then."
+receipt_type = "`Payment` (money received), `Returned Payment` (a bank draft returned unpaid, reversing an earlier payment) or `Refund` (premium paid ahead sent back to the customer)."
+payment_method = "For payments: `EFT` (automatic bank draft), `Credit Card`, `Online Bank Payment`, `Check` or `Agency` (paid through the agent). Returned payments are always `EFT`; refunds are sent by `Check`."
+amount = "Dollars, signed: positive for payments, negative for returned payments and refunds. A payment equals its bill's `amount_due`; a returned payment reverses the first draft (premium plus installment fee, without the returned-payment fee)."
+
+[gl_account]
+grain = "General ledger account"
+summary = """The chart of accounts for `gl_journal`: 19 accounts for cash, premium, fees, commission, claims, case reserves and surplus. The ledger holds only what the tables support, so there are no investments, general expenses, taxes, reinsurance or reserve for IBNR (claims incurred but not reported)."""
+
+[gl_account.columns]
+account_number = "Primary key. A four-digit account number: 1000s assets, 2000s liabilities, 3000 surplus, 4000s revenue, 5000s claims, 6000s commission and write-offs."
+account_name = "Account name, for example `Premiums receivable`, `Unearned premium reserve` or `Defense and cost containment expenses paid`."
+account_type = "`Asset`, `Liability`, `Equity`, `Revenue` or `Expense`."
+normal_balance = "`Debit` or `Credit`: the side on which the account grows. Watch the contra accounts: 4010 (change in unearned premium) is revenue with a debit balance, and 5010 and 5020 (recoveries) are expenses with a credit balance."
+financial_statement = "`Balance sheet` or `Income statement`."
+
+[gl_journal]
+grain = "Journal line: one account in one monthly journal entry"
+summary = """Monthly journal entries for each underwriting company and kind of activity, each summarizing a published subledger table, plus one opening entry on December 31, 2021 that sets the opening balances, cash and surplus included. All lines sharing a `journal_number` balance. There are no closing entries, so an account's balance is the running sum of `debit` minus `credit` from the opening entry, and income-statement accounts keep accumulating across years: filter on `accounting_period` for one year's results."""
+
+[gl_journal.columns]
+journal_line_id = "Primary key. Ordered by period, company and journal."
+journal_number = "Journal identifier `JE-YYYY-MM-CCC-XX`: period, company code (`LFP`, `LFM`, `PPC`) and journal code: `OB` opening balances, `PW` premiums written, `UP` change in unearned premium, `CR` premium cash receipts, `WO` premiums written off, `CE` commission expense, `CP` commissions paid, `LP` claim payments, `LR` claim recoveries, `RS` case reserve changes."
+accounting_period = "The month the entry belongs to, `YYYY-MM`. The opening entry is in `2021-12`, the month before the extract begins."
+posting_date = "The last day of the period (the valuation date if the extract ends mid-month). The opening entry is dated December 31, 2021."
+company_id = "The underwriting company whose books the line is in. Claim and billing activity follows the company of the policy."
+journal_type = "`Opening balances`, `Premiums written`, `Change in unearned premium`, `Premium cash receipts`, `Premiums written off`, `Commission expense`, `Commissions paid`, `Claim payments`, `Claim recoveries` or `Case reserve changes`."
+source_table = "The published table the entry summarizes: `premium_transaction`, `billing_receipt`, `billing_invoice`, `agency_statement`, `claim_payment` or `claim_reserve_transaction`; `premium_transaction, billing_receipt` for the opening entry."
+account_number = "The account debited or credited."
+debit = "Debit amount in dollars; 0 when the line is a credit. A month's net movement goes to one side, so a fall in case reserves debits account 2500 rather than crediting it with a negative amount."
+credit = "Credit amount in dollars; 0 when the line is a debit. Never negative."
+
+[agency_truth]
+grain = "Agency"
+summary = """Two hidden traits of each agency that the insurer never records. They describe how each agency's book compares with what its rating variables show, and how well it keeps its customers. The two direct units have neutral values."""
+
+[agency_truth.columns]
+agency_id = "Primary key, and the `agency` described."
+book_quality_factor = "Hidden multiplier on the at-fault crash frequency of every driver the agency places, around 1, typically within about 11% of it. Above 1 is a worse book than its rating variables show. Exactly 1 for the direct units."
+retention_effect = "Hidden shift in the renewal log-odds of the agency's customers, spread about 0.18; positive keeps customers better. Correlated with book quality (about -0.5 against its log), so agencies with worse books also tend to lose more customers. Exactly 0 for the direct units."
+
+[claim_feature_truth]
+grain = "Reported claim feature, at ultimate"
+summary = """Each feature in `claim_feature` as it finally develops, including payments, recoveries, reopenings and closes after the valuation date (December 31, 2026). Comparing it with `claim_feature` measures development on known claims. Losses not yet reported at the valuation date are in `unreported_claim` instead."""
+
+[claim_feature_truth.columns]
+claim_feature_id = "Primary key, and the `claim_feature` described."
+ultimate_paid_loss = "Total loss the feature will have paid once settled, in dollars, including payments after the valuation date; before salvage and subrogation, excluding expense. Equals `claim_feature.paid_loss` when nothing is left to pay."
+ultimate_recovery = "Total salvage and subrogation the feature will eventually recover, in dollars, as a positive number. Ultimate net loss is `ultimate_paid_loss` minus this."
+ultimate_expense = "Total DCC (defense and cost containment) plus A&O (adjusting and other) expense the feature will eventually pay, in dollars."
+eventual_reopen_date = "Date the feature reopens for a supplemental payment, even if after the valuation date. Blank if it never reopens. A date after the valuation date marks a closed feature that the data cannot yet show will reopen."
+eventual_close_date = "Date the feature finally closes, after any reopening. After the valuation date for features still open then, and for closed features that will reopen."
+
+[driver_truth]
+grain = "Driver"
+summary = """Each driver's hidden risk factor, and their race and ethnicity group, which the insurer never records. Rating variables and driving records capture the risk factor only in part; the group allows fairness testing, such as checking surname-and-address (BISG) race estimates against it."""
+
+[driver_truth.columns]
+driver_id = "Primary key, and the `driver` described."
+latent_risk_factor = "The driver's hidden multiplier on at-fault crash frequency, on top of the effects of age, sex, experience, marital status and good-student status; averages about 1, so 2 means twice the at-fault crashes. It is the driver's own factor times `policy_truth.household_risk_factor`. Violations and prior accidents depend on it, so records reveal it only in part."
+race_ethnicity = "The driver's race and ethnicity group. The insurer never records it, and no premium or claim depends on it. `White (non-Hispanic)`, `Black (non-Hispanic)`, `Hispanic`, `Asian or Pacific Islander (non-Hispanic)` or `Other or multiracial (non-Hispanic)`."
+
+[exposure_truth]
+grain = "Exposure row (policy term, vehicle and endorsement period)"
+summary = """The true expected loss of each `exposure` row by coverage, in dollars, over the part of its cover inside the extract (the same period as its `earned_exposure` and `earned_premium`). Figures are pure loss after limits and deductibles: no adjustment expense, no catastrophe events, and claims counted however late they are reported. Expected loss over earned premium gives a loss ratio free of claim luck, the cleanest test of where the rating plan over- or under-charges."""
+
+[exposure_truth.columns]
+exposure_id = "Primary key, and the `exposure` row described."
+expected_loss_bi = "Expected bodily injury liability loss, in dollars, after the per-person and per-accident limits."
+expected_loss_pd = "Expected property damage liability loss, in dollars, after the limit."
+expected_loss_um = "Expected uninsured and underinsured motorist bodily injury loss, in dollars, after the limits and, for underinsured claims, the at-fault driver's insurer's payment."
+expected_loss_med = "Expected medical payments loss, in dollars, after the limit. 0 without medical payments cover."
+expected_loss_coll = "Expected collision loss, in dollars, after the deductible and net of expected salvage and subrogation. 0 without collision cover."
+expected_loss_comp = "Expected comprehensive loss, in dollars, after the deductibles and net of expected salvage, leaving out catastrophe events. 0 without comprehensive cover."
+expected_loss_rent = "Expected rental reimbursement loss, in dollars, within the daily and per-claim limits. 0 without the cover."
+expected_loss_tow = "Expected towing and labor loss, in dollars, within the towing limit. 0 without the cover."
+expected_loss_total = "Sum of the eight coverages, rounded on its own, so it can differ from the sum of the rounded columns by a few cents. Coverage premiums in `exposure` are full-term rates: scale them by `earned_premium` over `total_premium` before comparing coverage by coverage."
+
+[insured_vehicle_truth]
+grain = "Insured vehicle"
+summary = """Each vehicle's true annual mileage and whether it belongs to the Kia and Hyundai theft-wave group."""
+
+[insured_vehicle_truth.columns]
+insured_vehicle_id = "Primary key, and the `insured_vehicle` described."
+true_annual_mileage = "Miles the vehicle is actually driven a year, which drives its true claim frequency. `insured_vehicle.annual_mileage` is the customer's report: this figure understated (by about 10% for the typical car), rounded to 500 and held between 1,000 and 30,000."
+kia_hyundai_theft_exposure = "`Y` for Kia and Hyundai model years 2011 to 2021 that are not electric, the key-start cars hit by the theft wave: their vehicle theft rate is multiplied by a yearly factor peaking at 6 in 2023. Students can rebuild the flag from `vehicle_model_year`."
+
+[location_truth]
+grain = "ZIP code"
+summary = """Each ZIP code's hidden true crash and theft hazards beside the public indices the rating territories are built from, and the chance that the other driver in a not-at-fault crash is uninsured."""
+
+[location_truth.columns]
+location_id = "Primary key, and the `location` described."
+zip_code = "Five-digit ZIP code, the same as `location.zip_code`."
+hazard_basis = "`observed` for City of Chicago ZIPs, whose public indices come from the city's police crash and vehicle theft records for 2021 to 2025; `modelled` for suburban ZIPs, estimated from the city's pattern because the city's records stop at its limits."
+public_crash_hazard_index = "Crash hazard index built from public data, relative to a vehicle-weighted average of 1. The rating plan uses it: `location.liability_territory` groups ZIP codes by it."
+true_crash_hazard = "The ZIP code's true crash hazard: the public index times a hidden ZIP effect, typically within about 12% of 1. Multi-vehicle crash rates scale with it, single-vehicle and parked-car rates with its square root, and injuries per crash rise with it."
+public_theft_hazard_index = "Vehicle theft hazard index built from public data, relative to a vehicle-weighted average of 1. `location.comprehensive_territory` groups ZIP codes by it."
+true_theft_hazard = "The ZIP code's true theft hazard: the public index times a hidden ZIP effect, typically within about 20% of 1. Vehicle theft rates scale with it, parts theft with its 0.8 power and vandalism with its square root."
+other_driver_uninsured_probability = "Probability, 0 to 1, that the other driver in a not-at-fault crash is uninsured or fled: 0.16 times the public crash index to the 0.9 power, held between 0.06 and 0.40. It decides uninsured versus underinsured motorist claims."
+
+[policy_truth]
+grain = "Policy (household)"
+summary = """Two hidden traits of each household: its stability, which affects claims, renewals and payment habits, and the risk factor its drivers share."""
+
+[policy_truth.columns]
+policy_id = "Primary key, and the `policy` described."
+stability = "How settled the household is: standard normal, shifted up 0.30 for the book in force when the extract begins and down 0.30 for new business, plus a small channel shift. Each unit lowers at-fault claim frequency about 26% and makes renewal, on-time payment, homeownership, bundling, prior insurance and paying in full likelier."
+household_risk_factor = "Hidden multiplier on at-fault crash frequency shared by every driver on the policy, averaging about 1: a household part, the effect of `stability`, the agency's `agency_truth.book_quality_factor` and a small channel factor. Each driver's `driver_truth.latent_risk_factor` is this times the driver's own factor."
+
+[renewal_offer_truth]
+grain = "Renewal evaluated"
+summary = """The customer's true chance of accepting each renewal in `renewal_offer`, fixed on the offer date. The observed `renewal_offer.outcome` is one outcome of this chance, so even a perfect model mispredicts some renewals."""
+
+[renewal_offer_truth.columns]
+renewal_offer_id = "Primary key, and the `renewal_offer` described."
+acceptance_probability = "True probability, 0 to 1, that the customer accepts the renewal, from, among other things, the premium change, tenure, recent claims, the household's hidden stability, channel, agency and the market. Blank when the company declined to renew. Also given for offers that ended `Cancelled Before Renewal` or are `Pending`."
+
+[unreported_claim]
+grain = "Coverage (and injured claimant) on a loss not yet reported"
+summary = """Features of losses that happened by the valuation date (December 31, 2026) but were not opened until after it: the true IBNR (incurred but not reported) that students estimate from development triangles. Most rows belong to claims entirely missing from `claim`; some are late coverages, often injury claimants, on claims already there. Several rows can share one loss, and there is no expense column."""
+
+[unreported_claim.columns]
+unreported_claim_id = "Primary key. A row number that does not link to `claim`."
+policy_id = "The policy the loss falls under."
+exposure_id = "The exposure row (vehicle and endorsement period) in force at the loss."
+insured_vehicle_id = "The insured vehicle involved."
+coverage_code = "The coverage claimed: `BI`, `PD`, `UM`, `MED`, `COLL`, `COMP`, `RENT` or `TOW`, as in `claim_feature.coverage_code`."
+cause_of_loss = "Cause code, as in `claim.cause_of_loss`, for example `AF_MV` or `GLASS`."
+loss_date = "Date of the loss, on or before the valuation date. Rows with the same `exposure_id`, `loss_date` and `cause_of_loss` are normally one loss, and may match a claim already in `claim`."
+eventual_report_date = "Date the feature is opened, after the valuation date; sometimes more than a year after the loss for injury claims. On a claim already in `claim`, it is later than that claim's `report_date`."
+ultimate_paid_loss = "Total loss the feature will pay, in dollars, before salvage and subrogation. 0 for features that will close without payment."
+ultimate_recovery = "Total salvage and subrogation the feature will eventually recover, in dollars, as a positive number."

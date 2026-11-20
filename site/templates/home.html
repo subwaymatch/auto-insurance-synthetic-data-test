@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block body_class %}home{% endblock %}
+{% block main %}
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-text">
+      <p class="eyebrow">Personal auto insurance, 2022 to 2026</p>
+      <h1>Five years inside a Chicago auto insurer</h1>
+      <p class="lede">Lakefront is a regional carrier writing personal auto insurance in Chicago and its suburbs. Its data holds every policy, driver, car, premium, bill and claim from 2022 to 2026, in {{ stats.tables }} linked tables.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="/data-dictionary/">Browse the Data Dictionary</a>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <svg viewBox="0 0 32 32">
+        <defs><clipPath id="hero-sun"><circle cx="16" cy="16" r="15"/></clipPath></defs>
+        <g clip-path="url(#hero-sun)">
+          <rect class="sun-top" width="32" height="16"/>
+          <rect class="sun-band" y="18" width="32" height="6"/>
+          <rect class="sun-band" y="26" width="32" height="6"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="stats" aria-label="The data in numbers">
+  <div class="wrap stats-grid">
+    <div><strong>{{ "{:,}".format(stats.policies) }}</strong><span>policies, 2022 to 2026</span></div>
+    <div><strong>{{ "{:,}".format(stats.drivers) }}</strong><span>drivers</span></div>
+    <div><strong>{{ "{:,}".format(stats.vehicles) }}</strong><span>insured vehicles</span></div>
+    <div><strong>{{ "{:,}".format(stats.claims) }}</strong><span>claims</span></div>
+    <div><strong>{{ "{:,}".format(stats.quotes) }}</strong><span>quotes</span></div>
+    <div><strong>{{ stats.tables }}</strong><span>linked tables, {{ stats.columns }} columns</span></div>
+  </div>
+</section>
+
+<section class="wrap explore">
+  <h2 class="section-title">Start here</h2>
+  <div class="cards">
+    <a class="card" href="/company/"><h3>The company</h3><p>Three underwriting companies, 134 agencies, six claim offices and a telematics program: who Lakefront is and how it runs.</p></a>
+    <a class="card" href="/auto-insurance/"><h3>How auto insurance works</h3><p>Policies, coverages, premiums, claims and reserves, each tied to the tables and columns that record it.</p></a>
+    <a class="card" href="/illinois/"><h3>Illinois and Chicago</h3><p>The state’s insurance laws and the city’s risks that shape the data, from minimum limits to the Kia and Hyundai theft wave.</p></a>
+    <a class="card" href="/data-model/"><h3>Data model</h3><p>How the {{ stats.tables }} tables fit together, which one holds history, and how to join them without double counting.</p></a>
+    <a class="card" href="/data-dictionary/"><h3>Data dictionary</h3><p>Every table and all {{ stats.columns }} columns: what they mean, their type, their keys and example values.</p></a>
+    <a class="card" href="/get-the-data/"><h3>Get the data</h3><p>CSV, SQLite and Parquet downloads with the same tables, the answer key, and code to load them in Python, R and SQL.</p></a>
+  </div>
+</section>
+
+<section class="wrap home-prose prose">
+{{ content|safe }}
+</section>
+{% endblock %}
