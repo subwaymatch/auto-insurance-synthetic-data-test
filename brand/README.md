@@ -19,9 +19,10 @@ icon sizes, or look at the picture below.
 
 Candidate 05 was chosen. [`sunrise/`](sunrise/) refines it in two ways: the lake bands now run to the
 bottom of the o, so it sits on the baseline like the letters around it (the first drawing stopped
-short), and B to F follow Inter Display's own o, which is an oval about 51 x 54 units, not a 54-unit
-circle. Open [`sunrise/preview.html`](sunrise/preview.html), or look at the picture below. Its first
-row traces Inter's o over each version.
+short), and B to E follow the outline of Inter Display's own o, which is an oval about 51 x 54
+units, not a 54-unit circle. Every o is solid, with no counter. Open
+[`sunrise/preview.html`](sunrise/preview.html), or look at the picture below. Its first row traces
+the outline of Inter's o over each version.
 
 ![Sunrise o variations](sunrise/preview.png)
 
@@ -30,9 +31,8 @@ row traces Inter's o over each version.
 | A | Circle, three bands | The original circle, with the bands rebalanced to reach the bottom |
 | B | Inter's o, three bands | Inter's outline of the o, filled in, with the same bands |
 | C | Inter's o, four bands | Finer ripples; best large, as the gaps close up below about 24 px |
-| D | Inter's o, two bands | Bolder; the one that still works as a favicon |
-| E | Inter's o with its counter, three bands | The letter itself, hole and all, with its lower half cut into bands |
-| F | Inter's o with its counter, horizon only | The letter itself, ink above the horizon and lake below |
+| D | Inter's o, two bands | Bolder; still works as a favicon |
+| E | Inter's o, horizon only | Ink above the horizon, lake below; the quietest, and the clearest at small sizes |
 
 ## Files
 
@@ -45,7 +45,7 @@ Each candidate in [`candidates/`](candidates/) has four SVG files:
 | `NN-name-mark.svg` | The mark alone, 64 x 64 |
 | `NN-name-icon.svg` | The mark on a rounded tile, for a favicon or social card |
 
-[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `f-...`.
+[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `e-...`.
 [`type-study/`](type-study/) holds the six wordmark settings shown at the top of the preview.
 
 All text is converted to outlines, so the files need no font and render the same everywhere. The

@@ -336,8 +336,8 @@ class Sunrise:
     slug: str
     name: str
     note: str
-    shape: str   # "circle": a circle as tall as the o; "oval": Inter's outline of the o, filled;
-    #              "ring": Inter's o itself, counter and all
+    shape: str   # "circle": a circle as tall as the o; "oval": Inter's outline of the o.
+    #              Both are solid: the o's counter is filled in.
     bands: list  # lake bands as (top, bottom) in 28ths of the o's half-height below the horizon;
     #              28 is the bottom of the o
 
@@ -361,13 +361,10 @@ SUNRISE = [
             "Two broad bands and wider gaps. The boldest version, and the one that lasts down to "
             "favicon size.",
             "oval", [(3.5, 14.5), (18, 28)]),
-    Sunrise("e-ring-3-bands", "Inter's o with its counter, three bands",
-            "The letter itself, hole and all: ink above the horizon, cut into lake bands below. Reads "
-            "as an o first and a sun second.",
-            "ring", THREE_BANDS),
-    Sunrise("f-ring-horizon", "Inter's o with its counter, horizon only",
-            "The letter itself split at the horizon: ink above, lake below. The quietest version.",
-            "ring", [(3.5, 28)]),
+    Sunrise("e-oval-horizon", "Inter's o, horizon only",
+            "No ripples: ink above the horizon, lake below. The quietest version, and the clearest "
+            "at the smallest sizes.",
+            "oval", [(3.5, 28)]),
 ]
 
 # Candidate 05 as first drawn, in the same terms, for comparison.
@@ -379,6 +376,11 @@ def wordmark_o() -> tuple[Line, Glyph]:
     return line, next(g for g in line.glyphs if g.name == "o")
 
 
+def outer_outline(o: Glyph) -> str:
+    """The o's outer contour alone: the letter with its counter filled in."""
+    return max(o.contours, key=lambda k: (k[1][2] - k[1][0]) * (k[1][3] - k[1][1]))[0]
+
+
 def sunrise_o(c, uid, o: Glyph, v: Sunrise):
     """The o as a sun on the horizon, drawn in the o's own coordinates."""
     x0, y0, x1, y1 = o.bbox
@@ -388,9 +390,7 @@ def sunrise_o(c, uid, o: Glyph, v: Sunrise):
         shape = f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(half)}"/>'
         left, right = cx - half, cx + half
     else:
-        d = o.d if v.shape == "ring" else max(
-            o.contours, key=lambda k: (k[1][2] - k[1][0]) * (k[1][3] - k[1][1]))[0]
-        shape = f'<path clip-rule="evenodd" d="{d}"/>'
+        shape = f'<path d="{outer_outline(o)}"/>'
         left, right = x0, x1
     width, unit = right - left + 2, half / 28
     sky = rect(left - 1, y0 - 1, width, cy - y0 + 1)
@@ -411,14 +411,15 @@ def sunrise_lockup(v: Sunrise, c, uid):
 
 
 def sunrise_mark(v: Sunrise, c, uid, height=56, overlay=False):
-    """The o alone, centred in the 64-unit box. `overlay` traces Inter's o over it (preview only)."""
+    """The o alone, centred in the 64-unit box. `overlay` traces the outline of Inter's o over it
+    (preview only)."""
     _, o = wordmark_o()
     x0, y0, x1, y1 = o.bbox
     s = height / (y1 - y0)
     defs, body = sunrise_o(c, uid, o, v)
     if overlay:
         body += (f'<path fill="none" stroke="{OVERLAY}" stroke-width="1.5" '
-                 f'vector-effect="non-scaling-stroke" d="{o.d}"/>')
+                 f'vector-effect="non-scaling-stroke" d="{outer_outline(o)}"/>')
     move = f"translate({f(32 - (x0 + x1) / 2 * s)} {f(32 - (y0 + y1) / 2 * s)}) scale({f(s)})"
     return defs, f'<g transform="{move}">{body}</g>'
 
@@ -579,7 +580,7 @@ def page(title: str, lede: str, body: str) -> str:
   figcaption {{ font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 10px; color: var(--muted); }}
   figcaption b {{ color: var(--ink); font-weight: 600; }}
   figcaption em {{ flex-basis: 100%; font-style: normal; }}
-  .glance {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }}
+  .glance {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }}
   figure.o {{ margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 10px 10px; text-align: center; }}
   figure.o img {{ display: block; margin: 0 auto 10px; }}
   figure.o figcaption {{ display: block; font-size: 12px; line-height: 1.35; }}
@@ -650,10 +651,10 @@ def sunrise_preview(files: dict) -> str:
     return page(
         "Lakefront: sunrise o variations",
         "Candidate 05, refined in two ways: the lake bands now run to the bottom of the o, so it sits "
-        "on the baseline, and B to F follow Inter's own o instead of a circle. Icons at 64, 32 and 16 px.",
+        "on the baseline, and B to E follow the outline of Inter's own o instead of a circle. Every o is solid. Icons at 64, 32 and 16 px.",
         f"""<h3>The o, close up</h3>
   <div class="glance">{''.join(glance)}</div>
-  <p class="key"><i></i>Inter Display SemiBold's own o, traced over each version</p>
+  <p class="key"><i></i>The outline of Inter Display SemiBold's own o, traced over each version</p>
   <h3>Variations</h3>
   {rows}""")
 
