@@ -153,7 +153,7 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
     inv["late_fee"] = np.where(settled, fee2, 0)
     inv["total"] = inv.prem + inv.fee + inv.late_fee
     inv["paid_day"] = np.where(settled, final, NO_DAY)
-    inv["status"] = np.where(settled, "Paid", np.where(pc[it] < 10 ** 9, "Cancelled", "Open"))
+    inv["status"] = np.where(settled, "Paid", np.where(pc[it] < 10 ** 9, "Canceled", "Open"))
     inv["method"] = method
     # a returned draft leaves its first attempt and the bank's reversal on the account, even if the term is
     # cancelled before it is collected again
@@ -201,7 +201,7 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
     rec = rec[rec.day <= V].sort_values(["day", "term", "invoice", "kind"], kind="stable").reset_index(drop=True)
     rec["receipt"] = np.arange(len(rec))
     # a draft taken by the valuation date whose return has not yet come back looks paid on that date
-    in_flight = (inv.try_day != NO_DAY) & (inv.try_day <= V) & (inv.bounce_day > V) & (inv.status != "Cancelled")
+    in_flight = (inv.try_day != NO_DAY) & (inv.try_day <= V) & (inv.bounce_day > V) & (inv.status != "Canceled")
     inv.loc[in_flight, "paid_day"] = inv.try_day[in_flight]
     inv.loc[in_flight, "total"] = inv.prem[in_flight] + inv.fee[in_flight]
     inv.loc[in_flight, "late_fee"], inv.loc[in_flight, "status"] = 0, "Paid"

@@ -198,12 +198,12 @@ def integrity_billing(rep, inv, rec, term, ledger, pol, valuation) -> None:
     val = pd.Timestamp(valuation)
     t = term.set_index("policy_term_id")
     net = ledger.groupby("policy_term_id")["written_premium"].sum()
-    kept = inv[inv["invoice_status"] != "Cancelled"].groupby("policy_term_id")["premium_amount"].sum()
+    kept = inv[inv["invoice_status"] != "Canceled"].groupby("policy_term_id")["premium_amount"].sum()
     refund = -rec[rec["receipt_type"] == "Refund"].groupby("policy_term_id")["amount"].sum()
     end = dt(t["cancel_date"].fillna(t["expiration_date"]))
     done = t.index[end < val - pd.Timedelta(days=150)]
     gap = kept.reindex(done).fillna(0) - refund.reindex(done).fillna(0) - net.reindex(done).fillna(0)
-    rep.check("for every finished term, premium billed (less cancelled bills) minus premium refunded equals the ledger's "
+    rep.check("for every finished term, premium billed (less canceled bills) minus premium refunded equals the ledger's "
               "written, endorsement and return premium", (gap.abs() <= 0.02).all(),
               f"{len(done):,} terms, largest difference ${gap.abs().max():.2f}; {len(inv):,} bills, {len(rec):,} receipts")
     by_bill = rec[rec["invoice_id"].notna()].groupby("invoice_id")["amount"].sum()
@@ -222,35 +222,35 @@ def integrity_billing(rep, inv, rec, term, ledger, pol, valuation) -> None:
     plan = pol.set_index("policy_id")["payment_plan"].reindex(inv["policy_id"]).to_numpy()
     regular = inv["installment_number"].notna()
     months = pol.set_index("policy_id")["term_months"].reindex(inv["policy_id"]).to_numpy()
-    rep.check("a paid-in-full term has one bill and a monthly term one instalment a month",
+    rep.check("a paid-in-full term has one bill and a monthly term one installment a month",
               (inv.loc[regular & (plan == "Paid in Full"), "installment_number"] == 1).all()
               and (inv.loc[regular, "installment_number"] <= months[regular]).all()
               and not inv[regular].duplicated(["policy_term_id", "installment_number"]).any())
     # a cancellation for non-payment follows an instalment that was never paid
     np_terms = term[term["cancel_reason"] == "Non-Payment"]
-    missed = inv[(inv["invoice_status"] == "Cancelled") & (inv["invoice_type"] == "Installment")].groupby("policy_term_id")["due_date"].min()
+    missed = inv[(inv["invoice_status"] == "Canceled") & (inv["invoice_type"] == "Installment")].groupby("policy_term_id")["due_date"].min()
     lag = (dt(np_terms["cancel_date"]) - dt(missed.reindex(np_terms["policy_term_id"]).to_numpy())).dt.days
     # (rarely the instalment that would have been missed was reduced to nothing by a return premium, and no bill exists)
-    rep.check("cancellations for non-payment follow an unpaid instalment by three to four weeks",
+    rep.check("cancellations for non-payment follow an unpaid installment by three to four weeks",
               lag.between(21, 28).mean() > 0.98,
               f"{len(np_terms):,} cancellations; median {lag.median():.0f} days after the missed due date; "
               f"{(~lag.between(21, 28)).sum():,} without a matching unpaid bill")
 
 
 def integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term) -> None:
-    """Claim payment detail (payee, cheque numbers, approval) and commissions."""
+    """Claim payment detail (payee, check numbers, approval) and commissions."""
     dt = lambda x: pd.to_datetime(x)
     cut = pay[pay["check_number"].notna() & (pay["transaction_type"] != "Void")]
     numbers = cut["check_number"].astype(int).sort_values()
     void = pay[pay["transaction_type"] == "Void"].merge(cut[["check_number", "amount", "payment_status", "claim_feature_id"]],
                                                          on="check_number", suffixes=("", "_cheque"))
-    rep.check("cheque numbers run in one unbroken sequence in the order cheques were cut; a void carries the number and "
-              "amount of the cheque it cancels",
+    rep.check("check numbers run in one unbroken sequence in the order checks were cut; a void carries the number and "
+              "amount of the check it cancels",
               numbers.is_unique and (numbers.diff().dropna() == 1).all() and cut["check_number"].is_monotonic_increasing
               and len(void) == (pay["transaction_type"] == "Void").sum() and np.allclose(void["amount"], -void["amount_cheque"])
               and (void["payment_status_cheque"] == "Voided").all() and (void["claim_feature_id"] == void["claim_feature_id_cheque"]).all()
               and (pay.loc[pay["payment_method"] != "Check", "check_number"].isna()).all(),
-              f"{len(cut):,} cheques from {numbers.min()} to {numbers.max()}; {pay['payment_method'].value_counts().to_dict()}")
+              f"{len(cut):,} checks from {numbers.min()} to {numbers.max()}; {pay['payment_method'].value_counts().to_dict()}")
     e = emp.set_index("employee_id")
     who = e.reindex(pay["approved_by_employee_id"])
     on = dt(pay["payment_date"]).to_numpy()
@@ -264,7 +264,7 @@ def integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term
                                                   | (adj["job_title"].to_numpy() == "Claims Manager")).all())
     kind = vend.set_index("vendor_id")["vendor_type"].reindex(pay["vendor_id"]).to_numpy()
     org = pay["payee_type"].isin(["Vendor", "Lienholder", "Other Insurer", "Claimant and Attorney"]).to_numpy()
-    rep.check("a payment to an organisation names a vendor of the right kind; a payment to a person names none",
+    rep.check("a payment to an organization names a vendor of the right kind; a payment to a person names none",
               (pay["vendor_id"].notna().to_numpy() == org).all() and pay["payee_name"].notna().all()
               and (kind[(pay["payee_type"] == "Lienholder").to_numpy()] == "Lienholder").all()
               and (kind[(pay["payee_type"] == "Other Insurer").to_numpy()] == "Other Insurer").all()
@@ -286,15 +286,15 @@ def integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term
 
 
 def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
-    """The make, model and model-year catalogue and the vehicles that point to it."""
-    rep.check("each make, model and model year appears once in the vehicle catalogue",
+    """The make, model and model-year catalog and the vehicles that point to it."""
+    rep.check("each make, model and model year appears once in the vehicle catalog",
               not vmy.duplicated(["make", "model", "model_year"]).any() and vmy["vehicle_model_year_id"].is_unique,
               f"{len(vmy):,} model years of {vmy.groupby(['make', 'model']).ngroups:,} models from {vmy['make'].nunique()} makes")
     known = vmy.set_index("vehicle_model_year_id")
-    rep.check("insured vehicles, exposure rows and claims point to catalogue rows",
+    rep.check("insured vehicles, exposure rows and claims point to catalog rows",
               veh["vehicle_model_year_id"].isin(known.index).all() and risk["vehicle_model_year_id"].isin(known.index).all()
               and clm["vehicle_model_year_id"].isin(known.index).all())
-    rep.check("each exposure row's model year is its catalogue row's",
+    rep.check("each exposure row's model year is its catalog row's",
               (known["model_year"].reindex(risk["vehicle_model_year_id"]).to_numpy() == risk["model_year"].to_numpy()).all())
     drawn = vmy[vmy["vehicle_model_year_id"].isin(veh["vehicle_model_year_id"])]
     print(f"  {drawn.groupby(['make', 'model']).ngroups:,} models from {drawn['make'].nunique()} makes are insured; "
@@ -302,7 +302,7 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
 
 
 def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, veh=None, drv=None) -> None:
-    """The telematics programme: enrolments, scores and the discounts rated on each exposure row."""
+    """The telematics program: enrollments, scores and the discounts rated on each exposure row."""
     dt = lambda x: pd.to_datetime(x)
     e = enrol.set_index("enrollment_id")
     if pol is not None:
@@ -310,20 +310,20 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
         added_v = dt(veh.set_index("insured_vehicle_id")["added_date"]).reindex(scores["insured_vehicle_id"]).to_numpy()
         added_d = dt(drv.set_index("driver_id")["added_date"]).reindex(scores["driver_id"]).to_numpy()
         start = dt(scores["period_start_date"]).to_numpy()
-        rep.check("a policy joins the programme after it was written, and a car is scored only while it and its "
+        rep.check("a policy joins the program after it was written, and a car is scored only while it and its "
                   "driver are on the policy",
                   (dt(enrol["enrollment_date"]).to_numpy() >= inception.reindex(enrol["policy_id"]).to_numpy()).all()
                   and (start >= added_v).all() and (start >= added_d).all())
-    rep.check("enrolments end after they start and by the valuation date",
+    rep.check("enrollments end after they start and by the valuation date",
               (e["end_date"].isna() | (dt(e["end_date"]) >= dt(e["enrollment_date"]))).all()
               and (dt(e["enrollment_date"]) <= valuation).all() and (dt(e["end_date"]).dropna() <= valuation).all(),
-              f"{len(enrol):,} enrolments; {enrol['device_type'].value_counts().to_dict()}; ended {enrol['end_reason'].value_counts().to_dict()}")
+              f"{len(enrol):,} enrollments; {enrol['device_type'].value_counts().to_dict()}; ended {enrol['end_reason'].value_counts().to_dict()}")
     s_ = scores
     within = (dt(s_["period_start_date"]) >= dt(e["enrollment_date"]).reindex(s_["enrollment_id"]).to_numpy()) \
         & (dt(s_["period_end_date"]) <= dt(e["end_date"]).reindex(s_["enrollment_id"]).fillna(pd.Timestamp.max).to_numpy())
     rule = np.round(np.clip((s_["driving_score"] - 45) / 50, 0, 1) * 30)
     scored = s_["driving_score"].notna()
-    rep.check("scores fall inside their enrolment, cover their stated days, and earn the published discount",
+    rep.check("scores fall inside their enrollment, cover their stated days, and earn the published discount",
               within.all() and ((dt(s_["period_end_date"]) - dt(s_["period_start_date"])).dt.days == s_["days_monitored"]).all()
               and s_.loc[scored, "driving_score"].between(1, 100).all()
               and ((s_.loc[scored, "earned_discount_pct"] == rule[scored]) | (s_.loc[scored, "earned_discount_pct"] == 0)).all(),
@@ -370,7 +370,7 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
         enrol[["policy_id", "enrollment_date", "end_date"]], on="policy_id")
     ok = (dt(j["enrollment_date"]) <= dt(j["coverage_start_date"])) \
         & (j["end_date"].isna() | (dt(j["end_date"]) >= dt(j["offer_date"])))
-    rep.check("rows rated in the programme belong to an enrolment that began by the row's start and was live when its term "
+    rep.check("rows rated in the program belong to an enrollment that began by the row's start and was live when its term "
               "was offered; other rows carry no telematics discount",
               on["exposure_id"].isin(j.loc[ok, "exposure_id"]).all() and (risk.loc[risk["telematics_enrolled"] == "N", "telematics_discount_pct"] == 0).all()
               and risk["telematics_discount_pct"].between(0, 30).all())
@@ -425,15 +425,15 @@ def integrity_renewals(rep, offers, term, risk, valuation) -> None:
               t["nonrenewal_reason"].reindex(nr["expiring_policy_term_id"]).tolist() == nr["outcome"].tolist()
               and set(nr["expiring_policy_term_id"]) == set(nr_terms["policy_term_id"]))
     cx = exp["cancel_date"].notna().to_numpy()
-    rep.check("an offer ends 'Cancelled Before Renewal' exactly when its expiring term was cancelled after the offer date",
-              ((o["outcome"] == "Cancelled Before Renewal").to_numpy() == cx).all()
+    rep.check("an offer ends 'Canceled Before Renewal' exactly when its expiring term was canceled after the offer date",
+              ((o["outcome"] == "Canceled Before Renewal").to_numpy() == cx).all()
               and (exp.loc[cx, "cancel_date"].to_numpy() > o.loc[cx, "offer_date"].to_numpy()).all())
     pending = o["outcome"] == "Pending"
     company = o["underwriting_decision"] == "Non-Renew"
     rep.check("a renewal is pending only when it takes effect after the valuation date; a company non-renewal is never "
               "sent a telematics offer or a revision",
               (o.loc[pending, "renewal_effective_date"] > val).all() and (ren["renewal_effective_date"] <= val).all()
-              and (company == (o["outcome"] == "Company Non-Renewal") | (company & (o["outcome"] == "Cancelled Before Renewal"))).all()
+              and (company == (o["outcome"] == "Company Non-Renewal") | (company & (o["outcome"] == "Canceled Before Renewal"))).all()
               and o.loc[company, "telematics_opt_in"].isna().all() and o.loc[company, "revised_offer_date"].isna().all(),
               f"{pending.sum():,} pending; telematics opt-in {o['telematics_opt_in'].value_counts().to_dict()}")
 
@@ -767,7 +767,7 @@ def market_cycle(rep, quotes, term, clm, offers, plan_changes, valuation) -> Non
 
 
 def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation) -> None:
-    """The general ledger balances and ties to the subledgers it summarises."""
+    """The general ledger balances and ties to the subledgers it summarizes."""
     j = gl.groupby("journal_number")[["debit", "credit"]].sum()
     rep.check("every journal entry balances, uses the chart of accounts and posts on one side of each line",
               ((j["debit"] - j["credit"]).abs() < 0.005).all() and gl["account_number"].isin(acct["account_number"]).all()
@@ -1035,7 +1035,7 @@ def main() -> None:
     lapsed = ended["cancel_date"].notna() | ended["nonrenewal_reason"].notna()
     months = (pd.to_datetime(ended["expiration_date"]) - pd.to_datetime(ended["effective_date"])).dt.days / 30.44
     annual_retention = float(np.exp(np.log(1 - lapsed.mean()) * 12 / months.mean()))
-    rep.band("annualised policy retention", annual_retention, (0.78, 0.90), "{:.1%}")
+    rep.band("annualized policy retention", annual_retention, (0.78, 0.90), "{:.1%}")
     print(f"  cancellations: {term['cancel_reason'].value_counts().to_dict()}; non-renewals: {term['nonrenewal_reason'].value_counts().to_dict()}")
     print(f"  claims: {(clm['claim_status'] == 'Open').mean():.1%} open at valuation; cause mix "
           f"{clm['cause_of_loss'].value_counts(normalize=True).round(3).head(8).to_dict()}")

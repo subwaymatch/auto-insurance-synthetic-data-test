@@ -48,9 +48,9 @@ with the driver, vehicle and policy, how claim costs and premiums spread, and ho
   it first was (0.211 against 0.247) because the plan now files round discounts and cannot see household
   stability, the new-customer effect or an agency's book quality. Both are lower than before the second round
   (0.213 and 0.255): comprehensive claims, which owe little to the driver, are now a larger share of all claims.
-- **Customers who pay in instalments, newer customers and independent-agent business now run worse**, as in
+- **Customers who pay in installments, newer customers and independent-agent business now run worse**, as in
   the real book, though less strongly (below).
-- **The fleet's age is now realistic for Chicago.** Vehicles are drawn from a catalogue of every make, model
+- **The fleet's age is now realistic for Chicago.** Vehicles are drawn from a catalog of every make, model
   and model year since 1997, weighted by Chicago crash records, and their ages are tuned to the same records:
   9.3 years on average across vehicle-terms, 39% ten or more years old (was 7.6 years and 29%). The real
   Spanish book's vehicles are older still (11.2 years, 65%), as Spain's fleet is; the US average is about 12.6
@@ -66,7 +66,7 @@ with the driver, vehicle and policy, how claim costs and premiums spread, and ho
    (glass, theft, weather), which the driver's characteristics barely predict. Three effects that are strong
    in the real data were absent from the synthetic and are now present, but weaker:
    - **Payment method.** Half-yearly payers claim 1.61 times as often as annual payers, other factors held
-     equal; synthetic instalment payers claim 1.15 times as often (was 1.04).
+     equal; synthetic installment payers claim 1.15 times as often (was 1.04).
    - **Tenure.** Customers of 10 or more years claim 0.69 times as often as those of under two years in the
      real data, other factors held equal, and 0.86 times as often in the synthetic (was 1.00).
    - **Channel.** Real broker business runs 12% above the book's average frequency and 20% above its average
@@ -108,7 +108,7 @@ times as likely to have another the following year.
 | # | Change | Why (evidence) | Status |
 |---|---|---|---|
 | 1 | Make attrition respond to claims: customers with a recent claim or surcharge shop more, and the company non-renews repeat at-fault drivers. Tenure then becomes protective through selection, as in real books. | Real: leaving after a claim is 1.45 times as likely, and 10+ year customers claim 0.69 times as often. Synthetic: was 1.06 times and 0.84 times, with only 165 company non-renewals (§6, §7, §8). | Done: a claim since the last offer lowers the chance of renewing, an at-fault or second claim more, and the underwriting review non-renews half the policies with two at-fault accidents (or two major violations, or one of each) in three years. Leaving after a claim is now 1.40 times as likely and there are 1,000 company non-renewals. Tenure is protective through hidden household stability (0.86 times) |
-| 2 | Let payment plan carry real risk, for example through the latent risk factor or financial stress beyond the insurance score. | Real half-yearly payers claim 1.61 times as often, other factors held equal; synthetic instalment payers claim 1.15 times as often (was 1.04; §7). | Partly done: household stability drives the payment plan, so the filed 6% paid-in-full discount now has risk behind it; the effect is weaker than in the real book |
+| 2 | Let payment plan carry real risk, for example through the latent risk factor or financial stress beyond the insurance score. | Real half-yearly payers claim 1.61 times as often, other factors held equal; synthetic installment payers claim 1.15 times as often (was 1.04; §7). | Partly done: household stability drives the payment plan, so the filed 6% paid-in-full discount now has risk behind it; the effect is weaker than in the real book |
 | 3 | Age the fleet, keeping physical damage take-up falling with age. | Was 7.6 years with 29% aged 10+ (§2). | Done: tuned to Chicago crash-involved personal vehicles (about 10 years in force, 41% aged 10+) |
 | 4 | Record renewal offers, including those declined: the offered premium, the change and the outcome. | The real data supports price-elasticity exercises (11% to 28.5% leaving across price changes); the synthetic `renewal_offer` table now does too, with a flatter response (4.5% to 14.0%; §8). | Done (`renewal_offer`) |
 | 5 | Add a modest channel effect, for example selection on independent-agent business. | Real broker business: 1.12 times the book's average frequency and 1.20 times its average loss cost. Synthetic independent-agent business: 1.02 times, and 1.08 times exclusive-agent business with other factors equal (§6, §7). | Done: channels differ in risk and retention, and each agency has its own book quality |
@@ -149,7 +149,7 @@ exposure).
 | Median years licensed | 23.0 | 34.0 |
 | Mean vehicle age / share 10+ years | 11.2 / 65% | 9.3 / 39% |
 | More than one driver | 14% | 70% |
-| Pays in instalments | 34% | 56% |
+| Pays in installments | 34% | 56% |
 | Median years with the company | 5 | 3 |
 
 Most differences are market differences. US households list every driver; Spanish contracts declare a second
@@ -207,7 +207,7 @@ other factors equal; they compare each level with the first level shown.
 | Vehicle value | lowest / highest fifth | 0.81 / 1.21 | 0.76 / 1.10 | 1 / 1.58 | 1 / 1.21 |
 | Urban | yes | 1.14 | 1.15 | 1.15 | 1.25 |
 | Vehicle age | 0-2 / 15+ years | 0.87 / 1.02 | 1.13 / 0.73 | 1 / 1.50 | 1 / 0.76 |
-| Pays in instalments | yes | 1.41 | 1.07 | 1.61 | 1.15 |
+| Pays in installments | yes | 1.41 | 1.07 | 1.61 | 1.15 |
 | Years with the company | 0-1 / 10+ | 1.03 / 0.70 | 1.13 / 0.88 | 1 / 0.69 | 1 / 0.86 |
 | Channel | broker (independent agent) | 1.12 | 1.02 | 1.02 | 1.08 |
 | More than one driver | yes | 1.22 | 1.01 | 1.28 | 1.01 |
@@ -256,7 +256,7 @@ differ, so this section explains why frequency levels cannot be compared; it doe
 | Non-renewal stub rows (lapse date equals the period start) | 14,432 |
 | Lapse date before the period start | 404 |
 | Contract start after the period start | 68 |
-| Licence issued after the period start | 31 |
+| License issued after the period start | 31 |
 | Policyholder aged 95 or more | 11 |
 | `Power` = 0 (all with `Type_fuel` = `NA`) | 1,764 |
 | `Length` = `NA` | 10,329 |

@@ -29,15 +29,15 @@ otherwise.
    A second review fixed coverage-limit, claim-timeline and policy-count errors, and claim rates are
    now compared with national figures on those figures' own definitions.
 5. **Unreleased, Real vehicles, real-data benchmark, telematics and a cleaner schema.** The data is
-   compared with a real insurer's portfolio; the 110 hand-picked car models become a catalogue of every
+   compared with a real insurer's portfolio; the 110 hand-picked car models become a catalog of every
    US make, model and model year since 1997, weighted by Chicago's roads; the fleet ages to match; a
-   telematics programme, realistic names and a consistent table layout are added; two external reviews'
+   telematics program, realistic names and a consistent table layout are added; two external reviews'
    findings are fixed, the second by deciding renewals and telematics scores only on what was known at the
    time and keeping every renewal offer; the default book becomes 43,368 policies over five full years
    (2022 to 2026). A realism audit then asked whether the data looks like an operating company's: discounts
    are now filed and only roughly right, new customers and some agencies cost more than they are charged,
    staff work business days and losses follow Chicago's real days, records carry policy numbers, claim
-   numbers and VINs, and every premium is billed and collected and every claim payment has a payee, a cheque
+   numbers and VINs, and every premium is billed and collected and every claim payment has a payee, a check
    number and an approver. A second round closed what the audit had left: quotes and new business follow the
    season and the company's prices against the market's, customers leave after claims, cars are worth what
    they fetched in 2022 to 2024 so that collision and comprehensive premiums reach Illinois' averages, the
@@ -54,7 +54,7 @@ last gives the current default run.
 
 - A real motor portfolio was added for comparison: "Dataset of an actual motor vehicle insurance
   portfolio" (Lledó and Pavía, Mendeley Data 2024, CC BY 4.0), 105,555 rows from what is almost
-  certainly a Spanish insurer, 2015 to 2018. It is kept unmodified in `real_data/` with its licence and a
+  certainly a Spanish insurer, 2015 to 2018. It is kept unmodified in `real_data/` with its license and a
   data dictionary.
 - `scripts/compare_real_data.py` compares the two books on what can fairly be compared (the shape of
   risk relationships, claim-cost and premium spread, retention, signal strength and data quality,
@@ -81,22 +81,22 @@ last gives the current default run.
   and 41% ten or more years old (was 7.6 years and 29%, which the real-data comparison flagged). Pickups
   are now commoner in the less dense suburbs than in the city.
 
-### Telematics: a voluntary usage-based programme
+### Telematics: a voluntary usage-based program
 
 - **Why.** Most large US insurers now offer a usage-based ("drive safe and save" style) discount, and its
-  data is among the most important new rating information. It was listed as not modelled.
+  data is among the most important new rating information. It was listed as not modeled.
 - **What.** Lakefront DriveCheck is offered at new business and renewal; about a fifth to 30% of new
   customers join, and enrolled cars grow from 13% of car-years in 2022 to 25% in 2026. Members get 5%
   for joining, then a discount of up to 30% earned by a 1-100 driving score built from miles, trips,
   hard braking, rapid acceleration, speeding, phone use and night driving. Scores never raise the premium.
   About one member in ten leaves each year, more after poor scores.
 - **What it teaches.** The device sees the driver's true risk and the car's true mileage, which the
-  rating plan cannot. Safer drivers join (favourable selection) and monitored drivers take more care (7%
+  rating plan cannot. Safer drivers join (favorable selection) and monitored drivers take more care (7%
   fewer at-fault crashes), so members run an expected loss ratio of 62% against 70.5% for everyone else,
   and the discount under-reacts to the score (48% for cars earning the top band). Telematics mileage is
   above reported mileage for two cars in three.
 - **New tables.** `telematics_enrollment` and `telematics_score`; each exposure row records whether it
-  was rated in the programme and the discount applied.
+  was rated in the program and the discount applied.
 
 ### Names that fit the place, and a fairness exercise
 
@@ -136,8 +136,8 @@ last gives the current default run.
   replacing an absolute band of 52% to 88%, which mixed calibration with claim luck. In the default run
   2022 is 88.6% against 78.9% expected (1.12), because bodily injury came in at 1.21 times its expected
   cost; calibration itself is still held by the expected loss ratio against industry.
-- New checks in `validate.py` cover the vehicle catalogue (one row per model year, every vehicle pointing
-  to one) and the telematics programme (scores inside their enrolment and earning the published
+- New checks in `validate.py` cover the vehicle catalog (one row per model year, every vehicle pointing
+  to one) and the telematics program (scores inside their enrollment and earning the published
   discount, discounts only on enrolled rows); three new tests cover them and the names.
 - **Fixed:** two replacement cars joining one policy on different days of the same term were rated at
   once, so the later one could miss a claim on the earlier one. Cars are now rated in date order.
@@ -161,7 +161,7 @@ last gives the current default run.
 - `.github/workflows/samples.yml` commits the first 100 rows of every table, the answer key and the real
   data to `samples/`, so the data can be browsed on GitHub; it reruns when the generator changes.
 - `scripts/fetch_public_data.py --only vehicles` and `scripts/build_vehicle_catalogue.py` rebuild the
-  vehicle catalogue from its sources; `scripts/build_name_reference.py` rebuilds the name tables
+  vehicle catalog from its sources; `scripts/build_name_reference.py` rebuilds the name tables
   (`reference/surnames.csv`, `reference/first_names.csv`).
 
 ### Fixes from an external review
@@ -185,9 +185,9 @@ has a new check in `validate.py` or a new test.
   an accident with several injured occupants leaves more to our cover (the reviewer's example: $70,000,
   not $45,000), in the claims and the answer key's expected losses.
 - **Telematics chronology.** Score windows start no earlier than the car and its driver joined the
-  policy (6,741 did), and enrolments from before the extract no earlier than the policy's inception.
-- **Quotes and telematics.** Every quote now offers the programme; prospects who did not bind opt in at the
-  same modelled rate and get the same discount. New column `quote.telematics_opt_in`.
+  policy (6,741 did), and enrollments from before the extract no earlier than the policy's inception.
+- **Quotes and telematics.** Every quote now offers the program; prospects who did not bind opt in at the
+  same modeled rate and get the same discount. New column `quote.telematics_opt_in`.
 - **Real-data comparison.** `scripts/compare_real_data.py` scaled the answer key's expected losses down
   twice for rows starting before 2022 (its "true expected loss" Gini moves from 0.247 to 0.251).
 - **Release contents.** Every release zip now carries `README.md`, `CHANGELOG.md` and `docs/`, which the
@@ -226,7 +226,7 @@ and a controlled counterfactual.
   policy's named insured and homeowner status), and a window in which the car's driver changed is split
   there and each part scored as that driver's (165 splits in the default run). A car's discount is the
   days-weighted average of what its parts earned. Cars on the policy on the scoring date are scored even if
-  they leave before the renewal. Fixed along the way: 4 scores of customers who had left the programme were
+  they leave before the renewal. Fixed along the way: 4 scores of customers who had left the program were
   linked to a term that began before them.
 - **Renewals decided on the offer date.** The underwriting review, the telematics offer, the renewal premium
   and the customer's decision now use only the policy as it stood on the offer date (the expiring term's
@@ -236,20 +236,20 @@ and a controlled counterfactual.
   174,487 decisions and the premium of 12,013 offers.
 - **New table `renewal_offer`** (179,620 rows): every renewal evaluated, renewed or not, with its offer
   date, vehicles, expiring and renewal premium, premium change, telematics opt-in, underwriting decision,
-  revised offer date and outcome (renewed, not renewed by the insured, company non-renewal, cancelled
+  revised offer date and outcome (renewed, not renewed by the insured, company non-renewal, canceled
   before renewal, or pending at the valuation date). The answer key's `renewal_offer_truth` has each
   offer's true acceptance probability. Customer contacts now include the offers that were declined and a
   notice for each company non-renewal. An opt-in to telematics at a renewal that was not taken is no
-  longer an enrolment ending the day it began (257 were).
+  longer an enrollment ending the day it began (257 were).
 - **Checks.** `validate.py` checks scores against the exposure rows' driver on every day scored, the
   discount rule, and each offer against the exposure in force on its offer date and the policy terms'
   outcomes. Seven new tests, including a counterfactual one: every offer evaluated again at the end of the
   run, with the whole later history present, is the same offer and decision.
 - **The default run after these fixes** (content hash `4b5bca69599df49e`): 205,742 policy terms, 460,831
   exposure rows, 184,833 earned car-years, $190.1 million earned premium, 20,343 claims, 12,298 telematics
-  enrolments and 59,553 scores. Every calibration band holds: frequency 1.05 to 1.34 times national and
+  enrollments and 59,553 scores. Every calibration band holds: frequency 1.05 to 1.34 times national and
   severity 0.87 to 1.03 times; expected loss ratios (plus catastrophes) of 79.3%, 77.6%, 67.9% and 64.7%
-  for 2022 to 2025; an overall loss ratio of 66.9%; annualised retention 83.4% (was 83.3%).
+  for 2022 to 2025; an overall loss ratio of 66.9%; annualized retention 83.4% (was 83.3%).
 
 ### A realism audit: an operating company's data
 
@@ -269,8 +269,8 @@ insurance, employs people and pays its bills. Measured on the data, they did not
 | Winter crash claims a day no more varied than chance | Variance 5.25 against a mean of 5.29 | 6.09 against 4.99; 18 on the busiest day |
 | Identifiers were counters that showed how the data was built | Policy IDs up to 1019949 were exactly the opening book; every policy's first term ID was its policy ID less 1,000,000; no business keys | IDs follow creation dates; policy, quote, claim and feature numbers, full VINs with check digits, unit and driver numbers |
 | Injury settlements paid to the cent | About 1% of settlements below a limit were whole dollars | 86% of paid bodily injury features are whole dollars, 72% multiples of $250 |
-| Non-payment cancellations spread evenly over the term from day 35 | | Three to four weeks after an instalment that was never paid |
-| No cash, payees or people | 24 tables | 29: bills, receipts, employees, vendors and producers, and payee, cheque and approver on every claim payment |
+| Non-payment cancellations spread evenly over the term from day 35 | | Three to four weeks after an installment that was never paid |
+| No cash, payees or people | 24 tables | 29: bills, receipts, employees, vendors and producers, and payee, check and approver on every claim payment |
 
 **What changed.**
 
@@ -311,21 +311,21 @@ insurance, employs people and pays its bills. Measured on the data, they did not
   `underwriting_company.company_code` and `naic_style_code`. Integer keys are renumbered in creation order
   through the key map in `autoins/schema.py`.
 - **Billing** (`autoins/billing.py`): `billing_invoice` (906,326 bills) and `billing_receipt` (917,096
-  receipts): instalments, fees, late and returned payments, endorsements spread over the remaining
-  instalments, cancellation settlements, refunds and write-offs. Non-payment cancellations follow a missed
-  instalment (`simulate._missed_installment`), and billing notices in `customer_contact` come from the bills.
+  receipts): installments, fees, late and returned payments, endorsements spread over the remaining
+  installments, cancellation settlements, refunds and write-offs. Non-payment cancellations follow a missed
+  installment (`simulate._missed_installment`), and billing notices in `customer_contact` come from the bills.
 - **Commission.** `premium_transaction.commission_rate_pct` and `commission_amount`; each agency's rates and
   appointment date in `agency`; a `producer` table and `policy.producer_id`.
 - **Claim payments** (`autoins/payments.py`): `employee` (desks, turnover, payment authority) and `vendor`
-  (684 fictional organisations); `claim.adjuster_id`; and on `claim_payment` the payee type and name,
-  vendor, method, cheque number, status, cleared date and approver.
+  (684 fictional organizations); `claim.adjuster_id`; and on `claim_payment` the payee type and name,
+  vendor, method, check number, status, cleared date and approver.
 - **Answer key.** `policy_truth` (stability, household risk factor) and `agency_truth` (book quality,
   retention effect).
 - **Calibration.** Crash base rates up 9%, the target loss ratio at day-one cost levels 82.5% (was 77.5%:
   the fit now includes new customers' first-year claims), renewal base odds up a little, comprehensive
   severities up about 7% (like-for-like comprehensive severity had been at the bottom of its band).
 - **Checks.** `validate.py` gains checks on the calendar, identifiers and their check digits, creation
-  order, billing against the ledger and the cash, non-payment timing, cheque sequence, approval and
+  order, billing against the ledger and the cash, non-payment timing, check sequence, approval and
   employment, payees and vendors, commission and the filed discounts, and bands on the new-business gap,
   the spread across agencies, retention by channel, round settlements and the weekday pattern of crashes.
   14 new tests (56 in all). The SQLite loader keeps ZIP codes as text where a table has blanks.
@@ -333,7 +333,7 @@ insurance, employs people and pays its bills. Measured on the data, they did not
   exposure rows, 179,915 earned car-years, $181.2 million earned premium ($1,007 per car-year, was $1,028),
   19,784 claims. Frequency 1.03 to 1.24 times national and severity 0.88 to 1.03 times; expected loss ratios
   (plus catastrophes) of 80.4%, 78.2%, 68.1% and 65.4% for 2022 to 2025; an overall loss ratio of 68.6%;
-  annualised retention 82.6%. Two other builds (seed 7; 20,000 policies with seed 99) pass every check.
+  annualized retention 82.6%. Two other builds (seed 7; 20,000 policies with seed 99) pass every check.
   Generation takes about 85 seconds (was 60) and the files are 435 MB (were 245 MB), a third of it billing.
 
 **Left as it was.** New business and quote volumes are still level through the year and across years;
@@ -414,7 +414,7 @@ not. A regional carrier appoints many small agencies and gets most of its premiu
 - **The default run after these changes** (content hash `a64d95db973613fa`): 197,979 policy terms, 441,637
   exposure rows, 176,381 earned car-years, $220.6 million earned premium, 22,313 claims. Frequency 1.08 to
   1.34 times national and severity 0.94 to 1.05 times; expected loss ratios (plus catastrophes) of 80.3%,
-  78.0%, 66.6% and 64.0% for 2022 to 2025; an overall loss ratio of 68.7%; annualised retention 81.8%. Two
+  78.0%, 66.6% and 64.0% for 2022 to 2025; an overall loss ratio of 68.7%; annualized retention 81.8%. Two
   other builds (seed 7; 20,000 policies with seed 99) pass every check. Generation still takes about 85
   seconds, and the files are 419 MB (were 435 MB): the three new tables add 1 MB.
 
@@ -454,23 +454,38 @@ test covers the first (64 in all).
   mid-term, some of them dated 2022 or later, inside the extract, and opening-book drivers' accidents from
   before they joined the policy. An accident is now a company claim before the extract only if it happened
   while the driver was on the policy and before the start date; the rest are "Prior Carrier Report". In the
-  previous default run 100 of the 2,474 accidents so labelled were not company claims: 80 were dated 2022 or
+  previous default run 100 of the 2,474 accidents so labeled were not company claims: 80 were dated 2022 or
   later and 94 happened before the driver joined (most were both). Only the label changed; when each
   accident became known, and so every rating, is as it was.
 - **Two SUVs in the wrong segment.** `reference/vehicle_curation.csv` had `truck` one column to the
   right for the Chevrolet Avalanche and the Hummer H3, in the vehicle class instead of the segment. Their 17
   model years in `vehicle_model_year` therefore had the vehicle class `truck`, in lower case and not one of
-  the catalogue's classes, and were rated in the mainstream (Avalanche) and luxury (H3) segments, although
+  the catalog's classes, and were rated in the mainstream (Avalanche) and luxury (H3) segments, although
   the curation meant both to rate with trucks, as the Hummer H1 and H2 and full-size body-on-frame SUVs do.
-  Both now rate in the truck segment, with the class `Standard SUV` for the Avalanche (5.3 to 5.8 litres)
-  and `Small SUV` for the H3 (3.5 to 3.7 litres), by the catalogue builder's own rule for EPA's generic
-  pre-2011 SUV class (4.0 litres and up is Standard). `reference/vehicle_catalogue.csv` was corrected to
+  Both now rate in the truck segment, with the class `Standard SUV` for the Avalanche (5.3 to 5.8 liters)
+  and `Small SUV` for the H3 (3.5 to 3.7 liters), by the catalog builder's own rule for EPA's generic
+  pre-2011 SUV class (4.0 liters and up is Standard). `reference/vehicle_catalogue.csv` was corrected to
   match.
 - **The default run's figures were refreshed.** Segment is a rating variable, so the rating plan was
   refitted and the whole default run moved (content hash `b53e744195b60240`): 442,749 exposure rows (was
   441,637), $220.8 million earned premium (was $220.6 million), 22,392 claims (was 22,313) and an overall
   loss ratio of 67.4% (was 68.7%). Every integrity check and calibration band still holds. The README,
   `docs/limitations.md`, `docs/real_data_comparison.md` and `samples/` now give the new run's figures.
+
+### American spelling
+
+The data and its documentation now use American spelling throughout, as its US setting and its column
+names (`installment_number`, `check_number`, `license_state`) already did.
+
+- **Values.** `Cancelled` is now `Canceled` in `policy.policy_status` and `billing_invoice.invoice_status`,
+  and in `Canceled Before Renewal` (`renewal_offer.outcome`) and `Policy Canceled`
+  (`telematics_enrollment.end_reason`); `Claim Acknowledgement` is `Claim Acknowledgment` in
+  `customer_contact.purpose`; and `location_truth.hazard_basis` is `observed` or `modeled` (was
+  `modelled`; `reference/zip_reference.csv` follows).
+- **One column renamed.** `telematics_enrollment.programme` is now `program`.
+- **Nothing else moved.** Only those labels changed: every number in the default run is as before (content
+  hash `7b4b15d1dcb53b95`). The README, this changelog, `docs/`, the messages `validate.py` writes to the
+  validation report and the real-data comparison's output use American spelling too.
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 
@@ -527,7 +542,7 @@ than built. Commit `5232739`.
   renewal), so a loss or payment on a rating date (the day a term is priced) is never part of that
   rating. The simulation and the validator apply the same rule.
 - **Nothing after the valuation date** (the "as of" date of the extract). A car lost on that date
-  had shown a removal dated the next day, and a removal was labelled "Total Loss" (written off by the
+  had shown a removal dated the next day, and a removal was labeled "Total Loss" (written off by the
   insurer) before the claim was reported, which revealed claims the insurer could not yet know about.
 
 ### Policies and drivers
@@ -565,7 +580,7 @@ than built. Commit `5232739`.
 ## 2026-11-14: Record-level realism, household changes and industry calibration ([PR #2](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/2))
 
 This stage began with a record-level realism audit of the [PR #1](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/1) data. It fixed the audit's
-findings, modelled what the audit had left to judgement, recalibrated loss ratios against sourced industry
+findings, modeled what the audit had left to judgment, recalibrated loss ratios against sourced industry
 figures, filled the main gaps against how insurers actually hold their data, and moved the data out
 of the repository into releases. Overall calibration and the teaching signals were kept, and the same
 seed still gives identical files. Commits `07718b1`, `2131252`, `145593f`, `821e1dd`, `2e471ae`.
@@ -581,7 +596,7 @@ seed still gives identical files. Commits `07718b1`, `2131252`, `145593f`, `821e
 | Terms starting on the 29th to 31st | 0 | about 7.6%, no anniversary drift |
 | Loss payments made on the close date | 86.6% | about 43% |
 | Good-student discount at age 25 or over | 312 risk rows | 0 |
-| Opening-book policies on term 1 but labelled "Renewal" | 1,946 | 0 |
+| Opening-book policies on term 1 but labeled "Renewal" | 1,946 | 0 |
 
 ### Policies and exposure
 
@@ -607,7 +622,7 @@ seed still gives identical files. Commits `07718b1`, `2131252`, `145593f`, `821e
 
 - A total loss (a car the insurer writes off) now ends the car's cover the day after the loss, and
   nothing later happens to it. Most households buy a replacement, which joins with a new vehicle ID
-  pointing back to the old one; a one-car policy with no replacement is cancelled.
+  pointing back to the old one; a one-car policy with no replacement is canceled.
 - Cars destroyed or stolen without the insurer paying (no collision cover, the other driver's insurer
   paid, or the claim not pursued) also leave the policy. An owner keeps a car the insurer paid as a
   total loss only where Illinois law allows it.
@@ -637,7 +652,7 @@ seed still gives identical files. Commits `07718b1`, `2131252`, `145593f`, `821e
   final cost, so bodily injury losses develop upward as claims mature while collision barely moves.
   Incurred losses (paid plus reserves) can be rebuilt as of any date, so development triangles, the
   basic reserving tool, can be built from the data.
-- **Claim expenses** are split into defence and cost containment (DCC, such as legal bills) and
+- **Claim expenses** are split into defense and cost containment (DCC, such as legal bills) and
   adjusting and other (A&O), with expense reserves on litigated claims.
 - **Claim detail:** attorney representation and dates (at Insurance Research Council levels), suits
   within Illinois' two-year limit, injury type, police reports, the insured's share of fault under
@@ -700,7 +715,7 @@ and release workflow).
 ### Geography and households
 
 - 290 real ZIP codes with Census demographics (ACS 2020-2024). Crash and theft hazard for city ZIPs
-  comes from City of Chicago police records; suburban hazard is modelled from income, because the city
+  comes from City of Chicago police records; suburban hazard is modeled from income, because the city
   data does not cover the suburbs.
 - Policies are placed in ZIPs in proportion to vehicle-owning households, and drivers, vehicles and
   coverages are drawn from each ZIP's age, income, vehicle and commuting profile.
@@ -735,10 +750,10 @@ and release workflow).
   entering 2022, then rate increases catching up.
 - Paid claim frequency and severity land close to Triple-I / ISO national figures for 2022 to 2024.
 - Every assumption sits in one file, marked ANCHORED (published figure), TUNED (set to hit one) or
-  ASSUMED (judgement).
+  ASSUMED (judgment).
 - `validate.py` reports calibration and integrity; it passed for the default seed and seeds 1, 2 and
   3, and 4 unit tests passed. The same seed gives byte-identical files.
-- Not yet modelled at this stage: mid-term endorsements, drivers leaving a policy, fraud and reopened
+- Not yet modeled at this stage: mid-term endorsements, drivers leaving a policy, fraud and reopened
   claims.
 
 | Default run | |

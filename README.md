@@ -24,10 +24,10 @@ carrier, not a national one.
 **Built to look like an operating company's data.** Policies, claims and vehicles carry business
 keys (a policy number with check digits, a claim number, a full VIN with a valid check digit).
 Staff, banks and courts work business days only. Discounts are filed as round percentages and are
-only roughly right. New customers, instalment payers and some agencies cost more than they are
+only roughly right. New customers, installment payers and some agencies cost more than they are
 charged. Quotes and new business follow the season and the company's prices against the market's, and
 customers who have had a claim leave more often. Every premium is billed and collected, every claim
-payment has a payee, a cheque number and an approver, and a general ledger adds the subledgers up
+payment has a payee, a check number and an approver, and a general ledger adds the subledgers up
 month by month. Premiums by coverage sit close to Illinois' published averages. See "What a case study
 can find".
 
@@ -69,9 +69,9 @@ python validate.py
 rating plan) to `output/answer_key/` in about a minute and a half. `output/` is ignored by git: the
 published copy of the data is the releases above. `validate.py` re-reads those files and checks them
 for record-level consistency (vehicle lifecycles, what was known when each term was rated, policy
-dates, premium accounting, payments, every coverage's limits and deductibles, the vehicle catalogue,
-the telematics programme, identifiers and their check digits, the working calendar, billing against
-the premium ledger and the cash, cheque numbers and payment approvals, and the general ledger against
+dates, premium accounting, payments, every coverage's limits and deductibles, the vehicle catalog,
+the telematics program, identifiers and their check digits, the working calendar, billing against
+the premium ledger and the cash, check numbers and payment approvals, and the general ledger against
 every subledger) and against the calibration targets, including an approximate comparison with
 national figures on their published definitions (the source does not publish every counting rule, so
 the match is close but not exact) and with Illinois' average premiums by coverage.
@@ -199,18 +199,18 @@ python generate.py --policies 10000 --out classroom
 | Policies / policy terms | 43,368 / 198,479 (19,745 of the terms were already in force on the start date) |
 | Policies in force at each year end | 19,745 at the start; 20,429 (2022), 20,089 (2023), 20,261 (2024), 21,475 (2025), 22,640 (2026) |
 | Drivers / vehicles | 76,787 / 110,309 (3,438 drivers left a policy; 24,123 vehicles traded in, 5,215 sold, 6,209 destroyed or stolen, 1,188 taken by a leaving driver) |
-| Vehicle models | 746 of the catalogue's 940 models (59 makes) are insured |
+| Vehicle models | 746 of the catalog's 940 models (59 makes) are insured |
 | Exposure rows / premium transactions | 442,749 (23.9% start at a mid-term change) / 269,766 (62,038 endorsements) |
 | Earned exposure | 176,758 car-years |
 | Earned premium | $220.8 million ($1,249 per car-year, $2,132 per policy-year) |
 | Claims / coverage features / reserve transactions | 22,392 / 39,173 / 125,378 (43% of closed liability and medical features and 16% of closed physical damage features paid nothing) |
-| Claim payments | 61,678 rows, 19,694 of them cheques in one unbroken number sequence; 684 vendors; 46 claims staff |
+| Claim payments | 61,678 rows, 19,694 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
 | Quotes | 117,297, of which 19.9% bound (21.9% in 2022, 17.5% in 2024, 21.2% in 2026) |
-| Renewal offers | 171,979 (155,111 renewed, 10,500 not renewed by the insured, 1,000 company non-renewals, 1,399 cancelled before the renewal date, 3,969 pending at the valuation date) |
-| Bills / receipts | 887,710 / 896,571 (865,656 bills paid, 11,350 cancelled, 3,441 written off, 7,263 open at the valuation date) |
+| Renewal offers | 171,979 (155,111 renewed, 10,500 not renewed by the insured, 1,000 company non-renewals, 1,399 canceled before the renewal date, 3,969 pending at the valuation date) |
+| Bills / receipts | 887,710 / 896,571 (865,656 bills paid, 11,350 canceled, 3,441 written off, 7,263 open at the valuation date) |
 | Commission | $17.4 million on $249.5 million of written premium (independent agents 11.4%, exclusive agents 8.4%, direct none); 7,885 monthly agency statements |
 | General ledger | 19 accounts; 1,605 monthly journals (4,193 lines) for the three companies |
-| Telematics | 12,412 enrolments and 61,537 driving scores; enrolled cars are 14% of car-years in 2022, rising to 26% in 2026 |
+| Telematics | 12,412 enrollments and 61,537 driving scores; enrolled cars are 14% of car-years in 2022, rising to 26% in 2026 |
 
 ### Frequency and severity against national figures, like for like
 
@@ -349,7 +349,7 @@ Insurance market share reports, S&P Global RateWatch, AM Best, Texas DOI Insuran
 portfolio (a Spanish insurer, 2015 to 2018, published on Mendeley Data under CC BY 4.0 and kept in
 [`real_data/`](real_data/mendeley_motor_portfolio/README.md)). Where the two can fairly be compared,
 the synthetic data looks realistic: young and newly licensed drivers, urban vehicles and vehicle value
-carry similar relativities, and claim costs and premiums spread in the same way. Instalment payers, newer
+carry similar relativities, and claim costs and premiums spread in the same way. Installment payers, newer
 customers and independent-agent business run worse in both books, more strongly in the real one, and a
 contract with a claim is more likely to end (1.45 times as likely in the real book, 1.40 in this one). It
 also lists what the synthetic data still lacks, most of all the messiness of a real extract. Rerun it on
@@ -370,20 +370,20 @@ column of the previous layout (`risk_fact`, `claims_fact`, "Policy Number" and s
 | `policy` | Policy | Policy number, location, agency and producer, company, limits, insurance score, status, and the drivers and vehicles on it at its latest status |
 | `policy_term` | Policy term (6 or 12 months) | Dates (including the rating date), cancellation, vehicles at the term start, written, endorsement, return and earned premium, rate level |
 | `premium_transaction` | Premium transaction | New business, renewal, endorsement or cancellation, with effective and processed dates (the later of the two is the accounting date), the written premium booked, and the commission rate and amount |
-| `billing_invoice` | Bill | Each bill sent: paid in full, down payment, instalment, endorsement or final balance; issue and due dates, premium, instalment and late fees, status (paid, open, cancelled, written off), paid and write-off dates |
+| `billing_invoice` | Bill | Each bill sent: paid in full, down payment, installment, endorsement or final balance; issue and due dates, premium, installment and late fees, status (paid, open, canceled, written off), paid and write-off dates |
 | `billing_receipt` | Cash movement | Each payment received (with its method), bank draft returned unpaid, and refund, tied to its bill |
 | `quote` | Quote | Every new-business quote, bound or not: quote number, prospect profile, quoted premium, the competing premium on independent-agent quotes, and the policy it became |
-| `driver` | Driver | Driver number on the policy, demographics, licence state and masked licence number; violations and accidents in the 3 years before joining; good-student status when added; removed date and reason; SR-22 filing |
+| `driver` | Driver | Driver number on the policy, demographics, license state and masked license number; violations and accidents in the 3 years before joining; good-student status when added; removed date and reason; SR-22 filing |
 | `driver_incident` | Violation or at-fault accident | Motor vehicle record, prior carrier, or the company's own claim, with the conviction date and the date the insurer learned of it |
 | `vehicle_model_year` | Make, model and model year | 8,750 model years of 940 models from 74 makes: body type, size class, segment, fuel, drive, engine, price new, VIN pattern and rating symbols |
 | `insured_vehicle` | Insured vehicle | Unit number on the policy, make, model and model year (`vehicle_model_year_id`), VIN, use, mileage, parking, current coverages (including rental and towing) and deductibles, added and removed dates, why it left, the vehicle it replaced |
 | `exposure` | Policy term, vehicle and endorsement period | Endorsement number and change reason, garaging location, rating date, rated characteristics and discounts (including telematics), the coverage terms in force (limits, deductibles, full glass, rental option, towing), premium by coverage, cover dates, earned exposure |
-| `telematics_enrollment` | Enrolment in the telematics programme | Device, enrolment date, participation discount, when and why it ended |
+| `telematics_enrollment` | Enrollment in the telematics program | Device, enrollment date, participation discount, when and why it ended |
 | `telematics_score` | Vehicle, driver and scoring period | Miles, trips, hard braking, rapid acceleration, speeding, phone use, night driving, the driving score and the discount it earned, and the term it applies to |
 | `renewal_offer` | Renewal evaluated (renewed or not) | Offer date, vehicles offered, expiring and renewal premium for a full term, premium change, telematics opt-in, underwriting decision, revised offer date, outcome, and the term it renewed into |
 | `claim` | Claim | Claim number, loss date and time, report and close dates, cause, police report, the insured's share of fault, fraud referral, paid, reserves, recoveries, expense, handling office and adjuster |
 | `claim_feature` | Coverage (and injured claimant) on a claim | Feature number, paid, case and expense reserves, salvage, subrogation, expense by type (DCC and A&O), uninsured or underinsured motorist type and the other insurer's payment, injury type, attorney and suit dates, reopen date, owner-retained salvage |
-| `claim_payment` | Payment or recovery | Payment type and transaction type; payee type and name, vendor, method (cheque, EFT or deposit), cheque number, status (cleared, outstanding, voided) and cleared date, and who approved it; supports paid development triangles |
+| `claim_payment` | Payment or recovery | Payment type and transaction type; payee type and name, vendor, method (check, EFT or deposit), check number, status (cleared, outstanding, voided) and cleared date, and who approved it; supports paid development triangles |
 | `claim_reserve_transaction` | Reserve change | Every change to a feature's loss or expense reserve, with the balance after it; with the payments, supports incurred development triangles |
 | `employee` | Claims employee | Adjusters, supervisors, the claims manager and investigators: office, title, hire and termination dates, payment authority, supervisor |
 | `vendor` | Vendor | Body shops, glass, rental and towing companies, medical providers, appraisers, law firms, salvage auctions, lienholders and other insurers (all fictional), with type, place and repair-network flag |
@@ -392,7 +392,7 @@ column of the previous layout (`risk_fact`, `claims_fact`, "Policy Number" and s
 | `agency`, `producer` | Agency; producer | Agency code, channel, place, appointment date and commission rates; the licensed agents at each agency, its owner first |
 | `agency_statement` | Agency and month | The written premium and commission an agency's business booked in the month, and the day the commission was paid |
 | `gl_account` | General ledger account | The chart of accounts: number, name, type, normal balance, financial statement |
-| `gl_journal` | Journal line | Monthly journal entries by underwriting company: accounting period, posting date, journal type, the subledger table it summarises, account, debit and credit |
+| `gl_journal` | Journal line | Monthly journal entries by underwriting company: accounting period, posting date, journal type, the subledger table it summarizes, account, debit and credit |
 | `underwriting_company`, `claim_office` | | Fictional names; each company's code and NAIC-style number |
 | `catastrophe` | Catastrophe | Fictional hail, wind and flood events |
 | `rate_change` | Rate change | Filed overall changes |
@@ -420,11 +420,11 @@ Each record has two kinds of identifier, as in an insurer's warehouse:
 | `policy.policy_number` | `0830512-LFM-47` | A seven-digit serial issued in the order policies were written (the company issues them at a steady rate, so numbers track dates, with gaps for business outside this book), the underwriting company's code (`LFP`, `LFM`, `PPC`) and two check digits: read the letters as A = 10 to Z = 35, and the whole number leaves 1 when divided by 97, as an IBAN does |
 | `quote.quote_number` | `Q24-0067681` | Year and a sequence |
 | `claim.claim_number`, `claim_feature.feature_number` | `24-0022944`, `24-0022944-02` | Report year and a sequence; a feature adds its number on the claim |
-| `insured_vehicle.vin` | `0B1PVGZY12M415986` | The catalogue's 10-character pattern, a plant letter and a serial, with the standard check digit in position 9 (49 CFR 565). Position 1 is `0`, which no real manufacturer uses, so no VIN is a real car's |
+| `insured_vehicle.vin` | `0B1PVGZY12M415986` | The catalog's 10-character pattern, a plant letter and a serial, with the standard check digit in position 9 (49 CFR 565). Position 1 is `0`, which no real manufacturer uses, so no VIN is a real car's |
 | `insured_vehicle.unit_number`, `driver.driver_number` | `1`, `2` | Order on the policy |
-| `driver.license_number_masked` | `M***-****-*725` | Masked, as analytic extracts hold it. It is not computed the way Illinois computes a real licence number (from name, birth date and sex), so no synthetic driver carries a real person's number |
+| `driver.license_number_masked` | `M***-****-*725` | Masked, as analytic extracts hold it. It is not computed the way Illinois computes a real license number (from name, birth date and sex), so no synthetic driver carries a real person's number |
 | `agency.agency_code`, `producer.producer_code` | `IL-04417`, `IL-04417-02` | |
-| `claim_payment.check_number` | `3418207` | One unbroken sequence in the order cheques were cut |
+| `claim_payment.check_number` | `3418207` | One unbroken sequence in the order checks were cut |
 | `billing_invoice.invoice_number` | `INV-24-000512345` | Year and a sequence |
 
 ### Parquet files
@@ -491,7 +491,7 @@ the loss date. `policy_term.vehicles_at_term_start` is the count when the term b
 rows); `policy.number_of_vehicles` is the count now. For a policy in force the two differ whenever a car
 was added or removed during the latest term.
 
-**Vehicles.** `vehicle_model_year` is a catalogue, like the vehicle tables insurers license: one row for
+**Vehicles.** `vehicle_model_year` is a catalog, like the vehicle tables insurers license: one row for
 every make, model and model year, whether or not this book insures one, including rare and exotic
 models. Price new (`msrp`), the VIN pattern and both rating symbols belong to the model year, so they
 live there; an insured vehicle points to its row. `exposure.model_year` repeats the model year as a
@@ -510,7 +510,7 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
 3. **Vehicles.** Each car's model year comes from a vehicle-age distribution tuned to the cars on
    Chicago's roads; its make and model are drawn among those sold that year, in proportion to how often
    they appear in Chicago crash records, with luxury and electric models commoner in richer households
-   and pickups commoner where it is less dense (see "The vehicle catalogue").
+   and pickups commoner where it is less dense (see "The vehicle catalog").
 4. **True risk.** Every driver has a hidden risk factor. Claim frequency depends on it and on
    age, experience, mileage, vehicle, parking and ZIP, on the household's stability, on the channel
    and agency the policy came through, and on how new the customer is. Prior violations and
@@ -526,7 +526,7 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
    trade cars, add newly licensed teenagers and new spouses, and lose drivers who move out,
    divorce or die; each change is an endorsement that re-rates the policy from that day. At
    renewal loans are paid off, older cars drop collision and some customers raise deductibles.
-7. **Telematics.** Customers are offered a usage-based programme, Lakefront DriveCheck, when a
+7. **Telematics.** Customers are offered a usage-based program, Lakefront DriveCheck, when a
    policy is written and at each renewal. Safer drivers are likelier to join; members are scored on
    their driving and earn renewal discounts (see "Telematics").
 8. **Claims.** Losses are simulated by cause, on days that follow Chicago's daily crash and theft
@@ -537,11 +537,11 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
    reviews, suits, convictions, renewal offers and letters never fall on a weekend or a holiday
    (see "The working calendar").
 10. **Billing and payments.** Every premium transaction is billed and collected (see "Billing and
-    commission"), and every claim payment gets a payee, a method, a cheque number and an approver
+    commission"), and every claim payment gets a payee, a method, a check number and an approver
     (see "Claim payments, vendors and staff").
 11. **Identifiers.** Business keys are issued and the integer keys numbered in creation order (see
     "Identifiers").
-12. **General ledger.** The premium, billing, commission and claim subledgers are summarised into
+12. **General ledger.** The premium, billing, commission and claim subledgers are summarized into
     monthly journal entries (see "The general ledger").
 13. **Valuation cut-off.** Payments after the valuation date have not happened, and claims not
     yet reported are left out, as in a real extract.
@@ -570,7 +570,7 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
   fitted around the filed discounts to the true expected loss cost by minimum bias, then the planted
   distortions are applied (young drivers and drivers over 75 under-priced, mileage relativities flattened).
 
-### The vehicle catalogue
+### The vehicle catalog
 
 `reference/vehicle_catalogue.csv` (published as `vehicle_model_year`) is built by
 `scripts/build_vehicle_catalogue.py` from public data:
@@ -585,9 +585,9 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
 - **How common each is.** The City of Chicago's Traffic Crashes - Vehicles records (2021 to 2025) give
   the make, model and model year of about 1.1 million vehicles in crashes. Only vehicles in personal
   use are counted (police cars, taxis, buses and delivery vans would otherwise inflate the Explorer,
-  the Crown Victoria and the Transit). Each record is matched to a catalogue model and year; records
+  the Crown Victoria and the Transit). Each record is matched to a catalog model and year; records
   naming a model the pick list lacks, or no model, are shared among the make's models the records never
-  name, in proportion to a sales prior. A model's share of its model year is smoothed over neighbouring
+  name, in proportion to a sales prior. A model's share of its model year is smoothed over neighboring
   years, and models the records never mention keep a small floor weight, so even a Ferrari can turn up.
 - **Prices and theft.** `reference/vehicle_curation.csv` holds approximate base prices (in 2024
   dollars) for about 900 models, theft factors shaped on published theft rankings, and corrections where
@@ -608,13 +608,13 @@ python scripts/build_vehicle_catalogue.py
 
 ### Telematics
 
-Lakefront DriveCheck (`autoins/telematics.py`) is a voluntary usage-based insurance programme of the
+Lakefront DriveCheck (`autoins/telematics.py`) is a voluntary usage-based insurance program of the
 kind most US insurers now run:
 
-- **Joining.** The programme is offered when a policy is written and at each renewal. About a fifth of
+- **Joining.** The program is offered when a policy is written and at each renewal. About a fifth of
   new customers join in 2022, rising to 30% by 2025; existing customers join at about 2% a renewal.
   Households with a lower true at-fault propensity, younger named insureds and direct customers are
-  likelier to join, so members are safer than average before any discount: favourable selection.
+  likelier to join, so members are safer than average before any discount: favorable selection.
   Every quote offers it too: `quote.telematics_opt_in` shows who said yes, bound or not, and those
   quotes carry the participation discount.
 - **Devices.** A phone app (most new members by 2026), a plug-in device or a windshield beacon, on
@@ -630,12 +630,12 @@ kind most US insurers now run:
   split there and each part scored as its own driver's (a part under 45 days earns no score); the car's
   discount is the average of the discounts its parts earned, weighted by days and rounded half up to a
   whole percent, or 5% if no part was monitored long enough.
-- **Leaving.** About one member in ten leaves the programme each year, more after poor scores; they keep
-  the rated discount until the next renewal and are not offered the programme again for two years.
+- **Leaving.** About one member in ten leaves the program each year, more after poor scores; they keep
+  the rated discount until the next renewal and are not offered the program again for two years.
 - **What the device sees.** The metrics are noisy readings of the assigned driver's true at-fault
   propensity at the time and of the car's true annual mileage, which the customer usually under-reports. So the
   score carries risk the rating plan cannot see.
-- **Behaviour.** Being monitored makes people drive a little more carefully: at-fault crash frequency
+- **Behavior.** Being monitored makes people drive a little more carefully: at-fault crash frequency
   is 7% lower while a car is enrolled. The answer key's expected losses include it.
 
 ### Hidden traits
@@ -682,22 +682,22 @@ Three things the insurer cannot see drive much of what a case study can find. Al
 `autoins/billing.py` turns the premium ledger into bills and cash.
 
 - **Plans.** Paid in full: one bill, due on the effective date. Monthly (by bank draft, "EFT", or by bill):
-  one instalment a month, six or twelve, the first due on the effective date and the rest on the anniversary
-  day of each month, each issued 20 days ahead. Instalments after the first carry a fee ($2 by draft, $5 by
+  one installment a month, six or twelve, the first due on the effective date and the rest on the anniversary
+  day of each month, each issued 20 days ahead. Installments after the first carry a fee ($2 by draft, $5 by
   bill).
-- **Changes.** An endorsement is spread over the instalments not yet issued. With none left, or on the
+- **Changes.** An endorsement is spread over the installments not yet issued. With none left, or on the
   paid-in-full plan, an additional premium is billed on its own and a return premium refunded.
 - **Paying.** Drafts are taken on the due date (the next business day at a weekend). Other customers pay by
-  card, online bank payment, cheque or through their agent, most a few days early; 3.2% of bills are paid
+  card, online bank payment, check or through their agent, most a few days early; 3.2% of bills are paid
   more than five days late and carry a $10 late fee. About 1% of drafts are returned unpaid and collected
   again with a $25 fee. Less stable households pay late more often.
-- **Non-payment.** A cancellation for non-payment is an instalment that was never paid: a past-due notice
+- **Non-payment.** A cancellation for non-payment is an installment that was never paid: a past-due notice
   four days after the due date, a notice of cancellation at seven, and cover ends three to four weeks after
-  the due date. New customers miss their early instalments most.
-- **Settling a cancelled account.** Unpaid bills are cancelled and the account is settled against the
+  the due date. New customers miss their early installments most.
+- **Settling a canceled account.** Unpaid bills are canceled and the account is settled against the
   premium earned: money paid ahead is refunded; a balance still owed is billed, and after a non-payment
   cancellation most of those balances are never collected and are written off 120 days later.
-- **What reconciles.** For every finished term, the premium on its bills (less cancelled bills) minus the
+- **What reconciles.** For every finished term, the premium on its bills (less canceled bills) minus the
   premium refunded equals its written, endorsement and return premium in `premium_transaction`. Cash received
   on a paid bill equals its amount due. `validate.py` checks both.
 - **Commission.** `premium_transaction` carries the agency's rate (new business 10% to 15%, renewals 2 or 3
@@ -769,7 +769,7 @@ every figure can be traced back to rows a student can see.
   million, to within a few hundred dollars of rounding). Case reserves are the reserves outstanding on
   the claim features ($13.3 million and $0.9 million of expense reserves). Commissions payable is the
   unpaid statements. Premiums receivable ($9.8 million) is premium written less premium collected,
-  refunded and written off: bills not yet paid, instalments not yet billed, less premium paid ahead.
+  refunded and written off: bills not yet paid, installments not yet billed, less premium paid ahead.
   Fees are income when collected. `validate.py` checks each of these and that every journal balances.
 - **Calendar-year results** from the ledger: losses incurred (paid, less recoveries, plus the change in
   case reserves) are 74.9% of earned premium in 2022, 74.8% in 2023, 63.2% in 2024, 63.2% in 2025 and
@@ -801,9 +801,9 @@ every figure can be traced back to rows a student can see.
   auctions and other insurers.
 - **Vendors** are fictional. Local trades are placed in the area's ZIP codes and used by nearby claimants;
   the company's repair network gets more of the work; a few vendors take most of each trade's business.
-- **Method and bank.** Vendors are mostly paid electronically, people mostly by cheque (insureds
-  increasingly electronically). Cheques are numbered in one unbroken sequence; a voided cheque keeps its
-  number and its void entry repeats it. `cleared_date` is when the bank paid it; cheques not yet cleared at
+- **Method and bank.** Vendors are mostly paid electronically, people mostly by check (insureds
+  increasingly electronically). Checks are numbered in one unbroken sequence; a voided check keeps its
+  number and its void entry repeats it. `cleared_date` is when the bank paid it; checks not yet cleared at
   the valuation date are "Outstanding", and a few sent to people are never cashed.
 
 ### Dates and timing
@@ -813,7 +813,7 @@ every figure can be traced back to rows a student can see.
   date: `earned_premium` is earned inside the extract, `earned_premium_before_extract` before it, and
   `exposure` gives each row's `coverage_start_date` (which can be before the start, as can
   `policy.first_effective_date`, the start of a policy's first term in the data). Policies already in
-  the telematics programme then carry an enrolment date and a first score from before the start.
+  the telematics program then carry an enrollment date and a first score from before the start.
 - **Anniversaries.** Policies can be written on any day, including the 29th to 31st. In a
   shorter month the term starts on the last day, and the next one returns to the original day
   (a policy written on 31 August renews on 28 or 29 February, then on 31 August).
@@ -831,7 +831,7 @@ every figure can be traced back to rows a student can see.
   date first counts at the next renewal.
 - **Renewal decisions.** Everything about a renewal is decided on its offer date, from the policy as it
   stood that day: the underwriting review (the drivers on the policy then and the records known
-  then), the telematics score and programme offer, the renewal premium, and the customer's decision on
+  then), the telematics score and program offer, the renewal premium, and the customer's decision on
   it (the premium change against what the same cars cost, and the claims reported since the last offer).
   `renewal_offer` keeps every renewal evaluated, renewed or not. Its snapshot is the expiring term's
   `exposure` rows in force on the offer date, and its `expiring_premium` and `renewal_premium` are for
@@ -839,7 +839,7 @@ every figure can be traced back to rows a student can see.
   before the effective date re-rates the renewal (`revised_offer_date`, the renewal term's
   `rating_date`), and the written premium can also differ from the offer when the customer changes
   deductibles or limits at renewal. A cancellation before the effective date ends the policy
-  (outcome "Cancelled Before Renewal"), and renewals taking effect after the valuation date are
+  (outcome "Canceled Before Renewal"), and renewals taking effect after the valuation date are
   "Pending". The answer key's `renewal_offer_truth` gives each offer's true chance of acceptance.
 - **Order of events on one day.** The data holds dates, not times, so the order within a day is fixed
   by one rule, used by the simulation and by `validate.py` alike: a rating dated D uses every record
@@ -860,7 +860,7 @@ every figure can be traced back to rows a student can see.
   without collision cover, a loss the other driver's insurer paid, or a claim not pursued). About
   four in five households buy a replacement, which joins with a new `insured_vehicle_id`
   (`replaces_insured_vehicle_id` points back) when it is bought, about five weeks later on average. A
-  one-car policy with no replacement is cancelled; one waiting for a replacement stays in force with
+  one-car policy with no replacement is canceled; one waiting for a replacement stays in force with
   no vehicle until it arrives. Claims on the old vehicle keep developing. The extract shows a
   removal as a total loss only once the company has that claim; until then the car is shown as
   destroyed or stolen, and a car lost on the valuation date itself is still on the policy.
@@ -926,8 +926,8 @@ every figure can be traced back to rows a student can see.
   level, about 12% direct, 22% through independent agents and 38% through exclusive agents) and falls
   as the quote rises above the best competing premium, which independent agents see on their
   comparative raters (see "The market").
-- **Cancellations.** For non-payment, cover ends three to four weeks after an instalment goes unpaid (see
-  "Billing and commission"); new customers miss early instalments most. Underwriting cancels new business in
+- **Cancellations.** For non-payment, cover ends three to four weeks after an installment goes unpaid (see
+  "Billing and commission"); new customers miss early installments most. Underwriting cancels new business in
   its first 60 days. Other cancellations are at the insured's request, on any day.
 - **Reporting lags.** Injury claims are often presented weeks or months after the accident, and a
   few near Illinois' two-year statute of limitations. Lags follow a US insurer's experience: 84% of
@@ -953,7 +953,7 @@ Deliberate and emergent findings in the default run:
 | Channels differ | Expected loss ratio 70.8% for independent-agent business, 67.1% direct, 65.6% exclusive agents; renewal rates 93.8%, 91.8% and 95.7% |
 | Some agencies write a worse book | Among the 61 agencies with 500 or more car-years (books of 108 to 1,446 policies), expected loss ratio runs from 57% to 90% (10th to 90th percentile: 63% to 79%); `agency_truth` says which differences are real and which are claim luck. The other 73 agencies are too small to judge on their own results: that is a finding too |
 | A few agencies write most of the premium | The largest tenth of the 120 independent agencies write 36% of their premium; half of them have 47 or fewer policies in force |
-| Billed instalment payers run worse | Expected loss ratio 70.0% on the monthly bill plan, 66.7% by bank draft, 68.9% paid in full; renewal rates 90.8%, 93.2% and 95.4%; non-payment cancellations and write-offs concentrate there |
+| Billed installment payers run worse | Expected loss ratio 70.0% on the monthly bill plan, 66.7% by bank draft, 68.9% paid in full; renewal rates 90.8%, 93.2% and 95.4%; non-payment cancellations and write-offs concentrate there |
 | Some discounts are not earned | The good-student and married discounts (10% and 5%) have no support once class and record are rated (good students run an expected loss ratio of 83%); the no-prior-insurance surcharge is more than those customers cost; the multi-car discount is more than those households save and the paid-in-full discount less (see "The rating plan") |
 | Rate increases cost new business | Conversion falls from 21.5% in the two months before an increase of 5% or more to 17.0% in the two months after, and recovers as the market's rates catch up; quotes rise 18% from 2022 to 2024 while new policies fall 6% (see "The market") |
 | Shopping is seasonal | March has a third more quotes than December |
@@ -962,9 +962,9 @@ Deliberate and emergent findings in the default run:
 | Mileage is under-used | Expected loss ratio rises from 63% under 5,000 reported miles to 83% at 16,000+ |
 | Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for affected models peak at 7.5 in 2023, against 0.7 to 1.7 for others; the counts are small, so the year of the peak moves from run to run |
 | Automatic emergency braking is unpriced | Expected loss ratio 65.7% with it, 70.0% without |
-| Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 62.3%, against 69.6% for the rest; selection and the 7% behaviour effect can be separated only with the answer key |
+| Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 62.3%, against 69.6% for the rest; selection and the 7% behavior effect can be separated only with the answer key |
 | The telematics discount under-reacts to the score | Expected loss ratio 66% for cars earning 10% or less, 52% for those earning 21% to 30% |
-| Telematics mileage exposes under-reporting | Annualised `telematics_score.miles_driven` is above the car's reported `insured_vehicle.annual_mileage` for two cars in three (10% above for the median car) |
+| Telematics mileage exposes under-reporting | Annualized `telematics_score.miles_driven` is above the car's reported `insured_vehicle.annual_mileage` for two cars in three (10% above for the median car) |
 | Rates lagged costs, then caught up | Expected loss ratio falls from 80% (2022) and 75% (2023) to 65% and 63% (2024, 2025), as the industry's did |
 | Case reserves develop | Bodily injury incurred grows by 3% to 22% from 12 to 24 months as early, low reserves are corrected; collision moves 2% to 4% |
 | New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 38% of the time, those above 14% |
@@ -977,7 +977,7 @@ Deliberate and emergent findings in the default run:
 | Cash follows premium, late | Receivables by age, late payers, returned drafts, refunds and write-offs can all be built from `billing_invoice` and `billing_receipt`: $1.64 million was owed on 7,263 bills at the valuation date, and $0.68 million had been written off |
 | The books tie to the subledgers | Written and earned premium, unearned premium, receivables, commissions payable, paid losses and case reserves in `gl_journal` can each be rebuilt from the tables behind them, by month and company; calendar-year results differ from accident-year ones for reasons a student can explain |
 | Physical damage follows the used-car market | Vehicle values, and with them total-loss payments, peak in 2022 and fall as used-car prices ease; total losses rise from 26% of paid collision claims in 2022 to 32% in 2026 as repair costs climb and values fall |
-| Payments leave an audit trail | Cheque sequence, voids, outstanding cheques, payments by approver against authority, vendor concentration (the ten busiest body shops take 29% of body-shop payments) and Benford's law can all be tested; the data holds no planted errors or fraud, so every test should come back clean |
+| Payments leave an audit trail | Check sequence, voids, outstanding checks, payments by approver against authority, vendor concentration (the ten busiest body shops take 29% of body-shop payments) and Benford's law can all be tested; the data holds no planted errors or fraud, so every test should come back clean |
 
 Reported mileage is understated relative to true mileage, on-street parking raises theft and
 hit-while-parked claims, and each ZIP has a hazard component the territories do not capture.
@@ -1013,9 +1013,9 @@ that list and get the population's mix.
 one place, for sharing.
 
 All assumptions live in `autoins/config.py` and `autoins/telematics.py`, each marked ANCHORED (published
-figure), TUNED (set to hit an anchored target) or ASSUMED (judgement). The ones that matter most:
+figure), TUNED (set to hit an anchored target) or ASSUMED (judgment). The ones that matter most:
 
-- **Suburban hazard is modelled, not observed.** Chicago's crash data covers the city only.
+- **Suburban hazard is modeled, not observed.** Chicago's crash data covers the city only.
   Suburban ZIPs get the city's income gradient at an assumed lower level.
 - **City hazard is damped.** Raw police-record rates vary about sevenfold across city ZIPs; an
   exponent narrows that to a range typical of rating territories.
@@ -1029,10 +1029,10 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgement). The ones 
   salvage and subrogation (see that section for why). If it is not, collision and comprehensive payments
   here are about a quarter too high against it, and they would then sit below Illinois' premiums at
   industry loss ratios; the two cannot both be matched on that reading.
-- **Vehicle values are modelled.** A car's value is its model year's base price, a depreciation curve
+- **Vehicle values are modeled.** A car's value is its model year's base price, a depreciation curve
   (ASSUMED shape) and the Manheim used-vehicle index by year. It is not a valuation service's figure for
-  the car, and trim levels, mileage and condition are not modelled.
-- **The market is stylised.** One market rate level stands for every competitor, shopping follows an
+  the car, and trim levels, mileage and condition are not modeled.
+- **The market is stylized.** One market rate level stands for every competitor, shopping follows an
   assumed season and year, and the company's price position is the same for every customer on a given
   day apart from random spread. There are no competitor names, no advertising, and no agency
   appointments or terminations during the extract: the 134 agencies are there throughout. Agency sizes,
@@ -1054,7 +1054,7 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgement). The ones 
   police reports for the city, not insurance claims for the metro area. Hold-over of weekend notices, the
   weekday mix of quotes and effective dates, and loss times for causes other than crashes and thefts are
   ASSUMED.
-- **Billing and payment detail are stylised.** Plans, fees, how often customers pay late, how balances are
+- **Billing and payment detail are stylized.** Plans, fees, how often customers pay late, how balances are
   collected, vendor shares, payment methods, clearing times, staffing and authority limits are ASSUMED
   (`autoins/billing.py`, `autoins/payments.py`). They change no premium, loss or date in the other tables.
   Bills and receipts before the start date exist only for the terms in the data.
@@ -1075,31 +1075,31 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgement). The ones 
   on earlier accident years. Development triangles for accident years 2022 onward are complete;
   whole-company calendar-year payments and reserves are not (the first calendar year pays too
   little). Moving the start date does not create that history.
-- **The rate schedule is stylised**: +48% cumulative between April 2022 and March 2025, then a 2%
+- **The rate schedule is stylized**: +48% cumulative between April 2022 and March 2025, then a 2%
   cut in June 2026. Telematics discounts are not offset in the base rates.
-- **Telematics is a stylised programme.** Take-up, discounts, drop-out, the score formula and the 7%
-  behaviour effect are ASSUMED, shaped on published descriptions of US programmes. A member who leaves
-  mid-term keeps the discount until the renewal, and the behaviour effect applies until then too.
+- **Telematics is a stylized program.** Take-up, discounts, drop-out, the score formula and the 7%
+  behavior effect are ASSUMED, shaped on published descriptions of US programs. A member who leaves
+  mid-term keeps the discount until the renewal, and the behavior effect applies until then too.
 - **Catastrophes are fictional.** Dates and footprints are plausible for northern Illinois but
   do not correspond to actual storms.
 - **Household dynamics are partly sourced.** Mover, divorce, marriage, mortality, licensing and
   vehicle-ownership rates come from public data (see "Dates and timing"); how often households add
-  or sell cars, how often a leaving driver takes a car, and the shapes by age are judgement calls.
+  or sell cars, how often a leaving driver takes a car, and the shapes by age are judgment calls.
   Income, insurance score, payment plan and multi-policy status stay fixed for a policy's life;
   liability limits change only at renewal, and homeowner status only with a move.
 - **Report lags rest on one published study** (one insurer, 1996 to 2005). Lags beyond a year are
   probably understated there, so treat the IBNR tail as indicative.
 - **Timing assumptions** (rating lead times, driving-record posting lags, replacement delays,
-  payment patterns, endorsement processing lags) are judgement calls, marked ASSUMED in
+  payment patterns, endorsement processing lags) are judgment calls, marked ASSUMED in
   `autoins/config.py` and `autoins/claims.py`.
 - **Identifiers and symbols are fictional.** VINs have a valid check digit but begin with `0`, which
-  no manufacturing region uses; policy, claim, quote, invoice and cheque numbers follow this dataset's
-  own formats; licence numbers are masked; company codes only look like NAIC codes; and the vehicle
+  no manufacturing region uses; policy, claim, quote, invoice and check numbers follow this dataset's
+  own formats; license numbers are masked; company codes only look like NAIC codes; and the vehicle
   symbols are this dataset's own scales, not ISO's licensed ones.
 - **Claimants are not people.** A liability or injury feature has a claimant number within its claim,
   the payments name a (fictional) claimant, and `claim.involved_driver_id` is the insured driver involved.
   There is no table of third-party claimants who can be followed from one claim to another.
-- **Not modelled:** fraud itself (only referrals), planted errors or irregularities for audit tests,
+- **Not modeled:** fraud itself (only referrals), planted errors or irregularities for audit tests,
   uninsured motorist property damage, reinstatements after a cancellation, excluded
   drivers, separate mailing and garaging addresses, reinsurance, and the edit errors and out-of-sequence
   bookings of production data. The dataset is an analytical extract for teaching: it is not a model of a policy
@@ -1115,20 +1115,20 @@ exposures and of NAIC market conduct claim counts. Claims link to the rating rec
 under, as statistical plans require; payments, voids and recoveries form a transaction ledger; and
 premium is booked as policy transactions with effective and accounting dates. `vehicle_model_year` is
 the kind of make, model and model-year table insurers license for rating, and the telematics tables
-hold what a usage-based programme records. Public alternatives are far thinner: French motor data
+hold what a usage-based program records. Public alternatives are far thinner: French motor data
 (`freMTPL2`) has one row per policy and undated claims, the CAS Loss Reserve Database holds
 company-level triangles only, and the real portfolio in `real_data/` is a single table with one row per
 vehicle per year (see "Compared with a real insurer's data").
 
 Around those sit the records operations and accounting keep: a bill and a receipt for every premium
 dollar, commission on every premium transaction and a monthly statement for every agency, for every claim
-payment a payee, a method, a cheque number, a clearing date and an approver with a payment authority, and
+payment a payee, a method, a check number, a clearing date and an approver with a payment authority, and
 a general ledger whose monthly entries add those subledgers up. Vehicles are identified by VIN, as
-policies are written; there are no licence plates, which insurers meet mostly in claim files.
+policies are written; there are no license plates, which insurers meet mostly in claim files.
 
 It also has what reserving, claims and pricing work rely on: case reserve history (`claim_reserve_transaction`,
 as in claim systems' reserve transactions and statistical plans' outstanding-loss records), expense
-split into defence and cost containment versus adjusting and other with expense reserves, limits and
+split into defense and cost containment versus adjusting and other with expense reserves, limits and
 deductibles on each rating record, VIN prefixes and vehicle symbols (fictional, in the shape
 statistical plans use), underinsured motorist, rental and towing coverages, claim detail (attorney and
 suit dates, fault percentage, injury type, police report, fraud referral), applied discounts, SR-22
@@ -1230,22 +1230,22 @@ autoins/population.py    households (and their hidden stability), agencies, driv
 autoins/names.py         driver names from ZIP-level Census make-up (used for nothing else)
 autoins/truth.py         true frequency and severity, expected loss, claim simulation
 autoins/rating.py        the insurer's rating plan: filed discounts, and the rest fitted around them
-autoins/telematics.py    the Lakefront DriveCheck usage-based programme
+autoins/telematics.py    the Lakefront DriveCheck usage-based program
 autoins/simulate.py      term-by-term simulation: rating, telematics, retention (price, claims, the market),
                          underwriting review, household changes, claims
 autoins/claims.py        claim lifecycle: payments, reserves, claim detail, valuation cut-off
 autoins/quotes.py        the new-business quote funnel
 autoins/market.py        the market: seasonal shopping, the company's rates against the market's, conversion
 autoins/ledger.py        the general ledger and agency commission statements, from the published tables
-autoins/billing.py       bills and cash: instalments, late and returned payments, refunds, write-offs
-autoins/payments.py      claims staff, vendors, and each claim payment's payee, cheque and approver
+autoins/billing.py       bills and cash: installments, late and returned payments, refunds, write-offs
+autoins/payments.py      claims staff, vendors, and each claim payment's payee, check and approver
 autoins/identifiers.py   business keys (policy, claim and quote numbers, VINs) and creation-order IDs
 autoins/refdata.py       reference data and the calendar: seasonality, real crash days, business days
 autoins/tables.py        output tables and answer key
 autoins/schema.py        each table's primary key and foreign keys (declared in the SQLite release)
 output/                  where generate.py writes (ignored by git; published as releases)
 samples/                 first 100 rows of every table (written by the samples workflow)
-reference/               ZIP reference data, vehicle catalogue and its curation, names, Chicago's daily crash and
+reference/               ZIP reference data, vehicle catalog and its curation, names, Chicago's daily crash and
                          theft index and hour-of-day profiles
 real_data/               a real motor insurance portfolio, for comparison (CC BY 4.0)
 docs/                    limitations; comparison with the real portfolio; old-to-new schema map; review response

@@ -25,7 +25,7 @@ below). The favicon is a plain circle with variation D's two bands and no backgr
 
 The favicon's top half is navy, which is hard to see on a dark browser tab bar.
 
-To switch the logo with the reader's colour scheme:
+To switch the logo with the reader's color scheme:
 
 ```html
 <picture>
@@ -85,7 +85,7 @@ Each candidate in [`candidates/`](candidates/) has four SVG files:
 [`type-study/`](type-study/) holds the six wordmark settings shown at the top of the preview.
 
 All text is converted to outlines, so the files need no font and render the same everywhere. The
-colours are written into the files: Ink `#0F1E2E` and Lake `#1A75A8` on light backgrounds (Lake
+colors are written into the files: Ink `#0F1E2E` and Lake `#1A75A8` on light backgrounds (Lake
 passes 4.5:1 on white), `#F2F5F8` and `#62B6E8` on dark ones.
 
 The candidates' icons are the full marks scaled down; the final favicon in `logo/` is drawn on the

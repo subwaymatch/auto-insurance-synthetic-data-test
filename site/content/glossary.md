@@ -80,7 +80,7 @@ IBNR (incurred but not reported)
 Incurred loss
 :   Paid loss plus case reserves. *Net* incurred also deducts salvage and subrogation. In the data: `claim_feature.incurred_loss`, `claim_feature.net_incurred_loss`.
 
-Instalment
+Installment
 :   One of several payments of a policy’s premium. In the data: `billing_invoice`.
 
 Insurance score
@@ -159,7 +159,7 @@ Underwriting
 :   Deciding whether to insure a risk, on what terms and in which company. In the data: `policy.company_id`, `renewal_offer.underwriting_decision`.
 
 Unearned premium
-:   Written premium not yet earned, which the insurer would owe back if every policy were cancelled. A liability on the balance sheet. In the data: the unearned premium accounts in `gl_journal`.
+:   Written premium not yet earned, which the insurer would owe back if every policy were canceled. A liability on the balance sheet. In the data: the unearned premium accounts in `gl_journal`.
 
 Uninsured motorist (UM)
 :   Coverage for the insured’s injuries when the at-fault driver has no insurance or can’t be found. In the data: `exposure.um_limit`.

@@ -203,7 +203,7 @@ def load_dictionary(strict: bool) -> dict[str, Table]:
 
 # --------------------------------------------------------------------------- the data model diagram
 
-# Hand-placed so that every drawn link joins neighbouring columns or runs down one column.
+# Hand-placed so that every drawn link joins neighboring columns or runs down one column.
 DIAGRAM_COLUMNS = [
     ("Sellers and places", ["underwriting_company", "agency", "producer", "agency_statement", "location",
                             "zip_demographics"]),
@@ -416,6 +416,18 @@ def rewrite_repo_links(body: str, source: str) -> str:
     return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", fix, body)
 
 
+ICON_REF = re.compile(r"%ICON\(([a-z0-9-]+)\)%")
+
+
+def icon(name: str) -> str:
+    """A Lucide icon from site/icons/ (lucide-static, ISC license), inline and hidden from screen readers."""
+    svg = (SITE / "icons" / f"{name}.svg").read_text()
+    svg = re.sub(r"<!--.*?-->", "", svg, flags=re.S)
+    svg = re.sub(r'\s(width|height)="24"', r' \1="16"', svg)
+    svg = re.sub(r"\s+", " ", svg.replace("<svg", '<svg aria-hidden="true"', 1)).strip()
+    return svg.replace("> <", "><")
+
+
 UNKNOWN_REFS: set[str] = set()   # `table.column` in a page where the table has no such column
 CODE_REF = re.compile(r"<code>([a-z_]+)(?:\.([a-z_0-9]+))?</code>")
 SKIP_BLOCKS = re.compile(r"(<a\b.*?</a>|<pre\b.*?</pre>|<h[1-6]\b.*?</h[1-6]>)", re.S)
@@ -492,6 +504,7 @@ def build(out: Path, base_url: str, strict: bool) -> None:
         body = body.replace("%RELEASE%", RELEASE).replace("%REPO%", REPO)
         body_html, toc = render_markdown(body)
         body_html = link_code_refs(body_html, tables, root)
+        body_html = ICON_REF.sub(lambda m: icon(m.group(1)), body_html)
         body_html = body_html.replace("<!-- territory-map -->", territory_map_html())
         body_html = body_html.replace("<!-- data-model-diagram -->",
                                       f'<figure class="diagram">{data_model_svg(tables, "/")}</figure>')

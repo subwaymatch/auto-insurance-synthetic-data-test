@@ -11,7 +11,7 @@ description: Policies, coverages, limits, deductibles, rating, written and earne
 
 A personal auto policy is a contract between an insurer and a household. The **named insured** buys it; it lists the household’s **drivers** and **vehicles**, the **coverages** on each vehicle, and the price. It runs for a **term**, usually six or twelve months, and then **renews** for another term at a new price unless the customer or the company ends it.
 
-Things change during a term. A household moves, buys a car, adds a newly licensed teenager. Each change is an **endorsement**: the policy is re-rated from that day, and the customer pays more or gets money back for the rest of the term (**pro rata**). A policy can also be **cancelled** mid-term, by the customer or by the company (most often for non-payment), or **non-renewed** at the end of a term.
+Things change during a term. A household moves, buys a car, adds a newly licensed teenager. Each change is an **endorsement**: the policy is re-rated from that day, and the customer pays more or gets money back for the rest of the term (**pro rata**). A policy can also be **canceled** mid-term, by the customer or by the company (most often for non-payment), or **non-renewed** at the end of a term.
 
 <div class="in-the-data" markdown="1">
 `policy` has one row per policy and `policy_term` one per term. `driver` and `insured_vehicle` list who and what each policy covers, with the dates they joined and left. Every change of premium is a row in `premium_transaction` (new business, renewal, endorsement or cancellation), and `renewal_offer` records each renewal the company offered and what the customer decided.
@@ -74,7 +74,7 @@ Premium is counted in three ways, and mixing them up is the most common mistake 
 
 - **Written premium** is booked when a policy is sold or changed: a $1,200 twelve-month policy writes $1,200 on its effective date.
 - **Earned premium** is the part of written premium for cover already given. One month into that policy, $100 is earned. Insurers earn premium evenly over the term.
-- **Unearned premium** is the rest ($1,100 here), which the insurer owes back if the policy is cancelled. It is a liability on the balance sheet.
+- **Unearned premium** is the rest ($1,100 here), which the insurer owes back if the policy is canceled. It is a liability on the balance sheet.
 
 **Exposure** measures how much cover was given, in **car-years**: one car insured for a full year is one car-year; two cars for six months is also one. Claim frequency is claims per car-year, so the denominator of almost every rate in insurance analytics comes from exposure.
 
@@ -94,7 +94,7 @@ Keeping customers matters as much. **Retention** is the share of renewal offers 
 
 ## Billing and collections
 
-Customers pay in full or in **instalments**. Each bill has a due date; a payment can be on time, late, returned by the bank, or never made. An unpaid instalment leads to a past-due notice and then a **cancellation for non-payment**. When a policy ends, the account is settled: money paid in advance is refunded, and a balance still owed is billed and, if never paid, **written off**. Premium written but not yet collected is a **premium receivable**.
+Customers pay in full or in **installments**. Each bill has a due date; a payment can be on time, late, returned by the bank, or never made. An unpaid installment leads to a past-due notice and then a **cancellation for non-payment**. When a policy ends, the account is settled: money paid in advance is refunded, and a balance still owed is billed and, if never paid, **written off**. Premium written but not yet collected is a **premium receivable**.
 
 <div class="in-the-data" markdown="1">
 `billing_invoice` has every bill with `billing_invoice.due_date`, `billing_invoice.amount_due`, `billing_invoice.invoice_status`, `billing_invoice.paid_date` and `billing_invoice.write_off_date`. `billing_receipt` has every payment, returned draft and refund.
@@ -110,7 +110,7 @@ Customers pay in full or in **instalments**. Each bill has a due date; a payment
 4. **Investigation.** Who was at fault, what is damaged, how badly people are hurt. Illinois’ fault rule decides whether the insured’s liability coverage pays (see [Illinois](/illinois/#fault-and-comparative-negligence)).
 5. **Reserving.** The adjuster sets a **case reserve** on each feature: an estimate of what is still to be paid. It is revised as facts emerge.
 6. **Payment.** Payments go to the insured, a body shop, a hospital, a claimant or their lawyer, a lienholder. Each payment reduces the reserve.
-7. **Recovery.** The insurer recovers money through **salvage** (selling a totalled car) and **subrogation** (collecting from the at-fault driver’s insurer after paying its own customer).
+7. **Recovery.** The insurer recovers money through **salvage** (selling a totaled car) and **subrogation** (collecting from the at-fault driver’s insurer after paying its own customer).
 8. **Closing.** The file closes when nothing more is owed. Many features close without payment, for example a liability claim when the insured wasn’t at fault. A closed claim can **reopen** if a new bill arrives.
 
 <div class="in-the-data" markdown="1">
@@ -160,7 +160,7 @@ Insurers keep accounts by **statutory accounting** rules set by state regulators
 
 ## Telematics
 
-**Usage-based insurance** measures how a car is actually driven, through a phone app or a device in the car, and prices on it. Programmes typically give a discount for joining and a further discount at renewal for a good driving score. They change who buys (careful drivers are likelier to sign up) as well as how people drive while monitored.
+**Usage-based insurance** measures how a car is actually driven, through a phone app or a device in the car, and prices on it. Programs typically give a discount for joining and a further discount at renewal for a good driving score. They change who buys (careful drivers are likelier to sign up) as well as how people drive while monitored.
 
 <div class="in-the-data" markdown="1">
 `telematics_enrollment` has each policy’s enrollment, and `telematics_score` each scored period: miles, trips, hard braking, speeding, phone use, the `telematics_score.driving_score` and the `telematics_score.earned_discount_pct`.

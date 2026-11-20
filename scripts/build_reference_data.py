@@ -155,7 +155,7 @@ def main() -> None:
         z[f"{name}_hazard_index"] = idx / wmean(idx, z.vehicles_available)
         print(f"{name}: city rate {city_rate:.4f}/vehicle-year, income slope {slope:.2f}, "
               f"index range {z[f'{name}_hazard_index'].min():.2f}-{z[f'{name}_hazard_index'].max():.2f}")
-    z["hazard_basis"] = np.where(z.is_chicago, "observed", "modelled")
+    z["hazard_basis"] = np.where(z.is_chicago, "observed", "modeled")
 
     z = z.drop(columns="is_chicago").sort_index()
     z.insert(0, "location_id", np.arange(1, len(z) + 1))

@@ -12,8 +12,8 @@ description: Download the Lakefront data as CSV, SQLite or Parquet, the instruct
 
 | | CSV | SQLite | Parquet |
 |---|---|---|---|
-| **Student data** | [CSV zip](%RELEASE%/chicago-auto-insurance-data-latest-csv.zip) | [SQLite zip](%RELEASE%/chicago-auto-insurance-data-latest-sqlite.zip) | [Parquet zip](%RELEASE%/chicago-auto-insurance-data-latest-parquet.zip) |
-| **Instructor answer key** | [CSV zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-csv.zip) | [SQLite zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-sqlite.zip) | [Parquet zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-parquet.zip) |
+| **Student data** | [%ICON(file-spreadsheet)%CSV zip](%RELEASE%/chicago-auto-insurance-data-latest-csv.zip) | [%ICON(database)%SQLite zip](%RELEASE%/chicago-auto-insurance-data-latest-sqlite.zip) | [%ICON(columns-3)%Parquet zip](%RELEASE%/chicago-auto-insurance-data-latest-parquet.zip) |
+| **Instructor answer key** | [%ICON(file-spreadsheet)%CSV zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-csv.zip) | [%ICON(database)%SQLite zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-sqlite.zip) | [%ICON(columns-3)%Parquet zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-parquet.zip) |
 | Size, zipped | 97 MB | 164 MB (183 MB with the answer key) | 70 MB |
 | Size, unzipped | 419 MB | 536 MB (589 MB) | 103 MB |
 
