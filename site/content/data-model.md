@@ -24,12 +24,12 @@ The first question to ask of any table is what one row represents: its **grain**
 
 ## Keys and identifiers
 
-Every record has two kinds of identifier, as in an insurer’s warehouse:
+Every record has two kinds of identifier:
 
 - **Integer keys** (`..._id`) join the tables. A key has the same name in every table that holds it: `policy_id` in `policy`, `driver`, `claim` and so on. Keys are numbered in the order records were created and say nothing else about a record.
 - **Business keys** are what the company prints on documents: `policy.policy_number` (`0830512-LFM-47`, with check digits), `claim.claim_number` (`24-0022944`), `quote.quote_number`, `billing_invoice.invoice_number`, `claim_payment.check_number`, and each car’s `insured_vehicle.vin`, with its check digit.
 
-Join on the integer keys. The business keys are there to be read, validated and searched, as an analyst would in a real claim file.
+Join on the integer keys. The business keys are for reading, validating and searching.
 
 ## Current versus historical values
 

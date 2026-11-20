@@ -8,7 +8,7 @@ description: Illinois auto insurance law (minimum limits, uninsured motorist cov
 ---
 
 !!! note "Not legal advice"
-    This is a summary for understanding the data, checked against the statutes on the Illinois General Assembly’s site in November 2026. For any real decision, read the law itself or ask the [Illinois Department of Insurance](https://idoi.illinois.gov/).
+    This is a summary for understanding the data, checked against the statutes on the Illinois General Assembly’s site in November 2026. Before acting on it, read the law itself or ask the [Illinois Department of Insurance](https://idoi.illinois.gov/).
 
 ## What a driver must carry
 

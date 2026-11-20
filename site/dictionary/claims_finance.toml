@@ -193,7 +193,7 @@ financial_statement = "`Balance sheet` or `Income statement`."
 
 [gl_journal]
 grain = "Journal line: one account in one monthly journal entry"
-summary = """Monthly journal entries for each underwriting company and kind of activity, each summarizing a published subledger table, plus one opening entry on December 31, 2021 whose cash and surplus are assumed. All lines sharing a `journal_number` balance. There are no closing entries, so an account's balance is the running sum of `debit` minus `credit` from the opening entry, and income-statement accounts keep accumulating across years: filter on `accounting_period` for one year's results."""
+summary = """Monthly journal entries for each underwriting company and kind of activity, each summarizing a published subledger table, plus one opening entry on December 31, 2021 that sets the opening balances, cash and surplus included. All lines sharing a `journal_number` balance. There are no closing entries, so an account's balance is the running sum of `debit` minus `credit` from the opening entry, and income-statement accounts keep accumulating across years: filter on `accounting_period` for one year's results."""
 
 [gl_journal.columns]
 journal_line_id = "Primary key. Ordered by period, company and journal."
@@ -213,7 +213,7 @@ summary = """Two hidden traits of each agency that the insurer never records. Th
 
 [agency_truth.columns]
 agency_id = "Primary key, and the `agency` described."
-book_quality_factor = "Hidden multiplier on the at-fault crash frequency of every driver the agency places, lognormal around 1 with a spread of about 11%. Above 1 is a worse book than its rating variables show. Exactly 1 for the direct units."
+book_quality_factor = "Hidden multiplier on the at-fault crash frequency of every driver the agency places, around 1, typically within about 11% of it. Above 1 is a worse book than its rating variables show. Exactly 1 for the direct units."
 retention_effect = "Hidden shift in the renewal log-odds of the agency's customers, spread about 0.18; positive keeps customers better. Correlated with book quality (about -0.5 against its log), so agencies with worse books also tend to lose more customers. Exactly 0 for the direct units."
 
 [claim_feature_truth]
@@ -234,7 +234,7 @@ summary = """Each driver's hidden risk factor, and their race and ethnicity grou
 
 [driver_truth.columns]
 driver_id = "Primary key, and the `driver` described."
-latent_risk_factor = "The driver's hidden multiplier on at-fault crash frequency, on top of the effects of age, sex, experience, marital status and good-student status; averages about 1, so 2 means twice the at-fault crashes. It is an individual draw times `policy_truth.household_risk_factor`. Violations and prior accidents depend on it, so records reveal it only in part."
+latent_risk_factor = "The driver's hidden multiplier on at-fault crash frequency, on top of the effects of age, sex, experience, marital status and good-student status; averages about 1, so 2 means twice the at-fault crashes. It is the driver's own factor times `policy_truth.household_risk_factor`. Violations and prior accidents depend on it, so records reveal it only in part."
 race_ethnicity = "The driver's race and ethnicity group. The insurer never records it, and no premium or claim depends on it. `White (non-Hispanic)`, `Black (non-Hispanic)`, `Hispanic`, `Asian or Pacific Islander (non-Hispanic)` or `Other or multiracial (non-Hispanic)`."
 
 [exposure_truth]
@@ -259,7 +259,7 @@ summary = """Each vehicle's true annual mileage and whether it belongs to the Ki
 
 [insured_vehicle_truth.columns]
 insured_vehicle_id = "Primary key, and the `insured_vehicle` described."
-true_annual_mileage = "Miles the vehicle is actually driven a year, which drives its true claim frequency. `insured_vehicle.annual_mileage` is the customer's report: this figure with a random understatement (about 10% for the typical car), rounded to 500 and held between 1,000 and 30,000."
+true_annual_mileage = "Miles the vehicle is actually driven a year, which drives its true claim frequency. `insured_vehicle.annual_mileage` is the customer's report: this figure understated (by about 10% for the typical car), rounded to 500 and held between 1,000 and 30,000."
 kia_hyundai_theft_exposure = "`Y` for Kia and Hyundai model years 2011 to 2021 that are not electric, the key-start cars hit by the theft wave: their vehicle theft rate is multiplied by a yearly factor peaking at 6 in 2023. Students can rebuild the flag from `vehicle_model_year`."
 
 [location_truth]
@@ -271,9 +271,9 @@ location_id = "Primary key, and the `location` described."
 zip_code = "Five-digit ZIP code, the same as `location.zip_code`."
 hazard_basis = "`observed` for City of Chicago ZIPs, whose public indices come from the city's police crash and vehicle theft records for 2021 to 2025; `modelled` for suburban ZIPs, estimated from the city's pattern because the city's records stop at its limits."
 public_crash_hazard_index = "Crash hazard index built from public data, relative to a vehicle-weighted average of 1. The rating plan uses it: `location.liability_territory` groups ZIP codes by it."
-true_crash_hazard = "The ZIP code's true crash hazard: the public index times a hidden ZIP effect (lognormal, spread about 12%). Multi-vehicle crash rates scale with it, single-vehicle and parked-car rates with its square root, and injuries per crash rise with it."
+true_crash_hazard = "The ZIP code's true crash hazard: the public index times a hidden ZIP effect, typically within about 12% of 1. Multi-vehicle crash rates scale with it, single-vehicle and parked-car rates with its square root, and injuries per crash rise with it."
 public_theft_hazard_index = "Vehicle theft hazard index built from public data, relative to a vehicle-weighted average of 1. `location.comprehensive_territory` groups ZIP codes by it."
-true_theft_hazard = "The ZIP code's true theft hazard: the public index times a hidden ZIP effect (lognormal, spread about 20%). Vehicle theft rates scale with it, parts theft with its 0.8 power and vandalism with its square root."
+true_theft_hazard = "The ZIP code's true theft hazard: the public index times a hidden ZIP effect, typically within about 20% of 1. Vehicle theft rates scale with it, parts theft with its 0.8 power and vandalism with its square root."
 other_driver_uninsured_probability = "Probability, 0 to 1, that the other driver in a not-at-fault crash is uninsured or fled: 0.16 times the public crash index to the 0.9 power, held between 0.06 and 0.40. It decides uninsured versus underinsured motorist claims."
 
 [policy_truth]
@@ -283,7 +283,7 @@ summary = """Two hidden traits of each household: its stability, which affects c
 [policy_truth.columns]
 policy_id = "Primary key, and the `policy` described."
 stability = "How settled the household is: standard normal, shifted up 0.30 for the book in force when the extract begins and down 0.30 for new business, plus a small channel shift. Each unit lowers at-fault claim frequency about 26% and makes renewal, on-time payment, homeownership, bundling, prior insurance and paying in full likelier."
-household_risk_factor = "Hidden multiplier on at-fault crash frequency shared by every driver on the policy, averaging about 1: a random household part, the effect of `stability`, the agency's `agency_truth.book_quality_factor` and a small channel factor. Each driver's `driver_truth.latent_risk_factor` is this times an individual draw."
+household_risk_factor = "Hidden multiplier on at-fault crash frequency shared by every driver on the policy, averaging about 1: a household part, the effect of `stability`, the agency's `agency_truth.book_quality_factor` and a small channel factor. Each driver's `driver_truth.latent_risk_factor` is this times the driver's own factor."
 
 [renewal_offer_truth]
 grain = "Renewal evaluated"

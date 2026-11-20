@@ -4,9 +4,9 @@ layout: home
 description: Five years of a Chicago-area auto insurer’s data for teaching and analysis: policies, drivers, vehicles, premiums, bills, claims and a general ledger, in CSV, SQLite and Parquet.
 ---
 
-## Built to behave like an operating company’s data
+## What the data holds
 
-This is the warehouse of a whole carrier, not one flat table: answering a question means finding the right table, joining on the right key, and knowing what was known when.
+The data covers the whole company, so answering a question means finding the right table, joining on the right key, and knowing what was known when.
 
 <div class="feature-grid" markdown="1">
 <div markdown="1">
