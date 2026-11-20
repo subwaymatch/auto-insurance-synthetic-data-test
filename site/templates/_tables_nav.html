@@ -1,0 +1,15 @@
+<nav class="tables-nav" aria-label="Tables">
+  <details class="tables-nav-inner" open>
+    <summary>All tables</summary>
+    <a class="all{% if url == 'data-dictionary/' %} active{% endif %}" href="/data-dictionary/">Overview and search</a>
+    {% for group, names in groups.items() %}
+    {% set present = names|select("in", tables)|list %}
+    {% if present %}
+    <p class="tables-nav-group">{{ group }}</p>
+    {% for name in present %}
+    <a href="/data-dictionary/{{ name }}/"{% if table is defined and table.name == name %} class="active" aria-current="page"{% endif %}>{{ name }}</a>
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+  </details>
+</nav>

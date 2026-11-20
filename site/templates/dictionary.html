@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block body_class %}dictionary{% endblock %}
+{% block main %}
+<div class="wrap dict-layout">
+  {% include "_tables_nav.html" %}
+  <div class="dict-main">
+    <header class="page-head">
+      <p class="eyebrow">Reference</p>
+      <h1>Data dictionary</h1>
+      <p class="lede">Every table in the dataset and what each column means. Row counts are for the full data: 43,368 policies from 2022 to 2026. The <a href="/data-model/">data model</a> explains how the tables fit together.</p>
+    </header>
+
+    <div class="search">
+      <label for="dict-search" class="visually-hidden">Search columns</label>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+      <input id="dict-search" type="search" placeholder="Search every column, for example “deductible” or “loss_date”" autocomplete="off">
+    </div>
+    <div id="dict-results" class="dict-results" hidden></div>
+
+    <div id="dict-groups">
+      {% for group, names in groups.items() %}
+      {% set present = names|select("in", tables)|list %}
+      {% if present %}
+      <section class="dict-group">
+        <h2 id="{{ group|lower|replace(' ', '-')|replace('(', '')|replace(')', '') }}">{{ group }}</h2>
+        {% if group.startswith("Answer key") %}
+        <p class="note">The answer key is a separate download for instructors. It holds the truth behind the data, so keep it from students.</p>
+        {% endif %}
+        <div class="table-cards">
+          {% for name in present %}
+          {% set t = tables[name] %}
+          <a class="table-card" href="/data-dictionary/{{ t.name }}/">
+            <code>{{ t.name }}</code>
+            <span class="grain">{{ t.grain }}</span>
+            <span class="meta">{% if t.rows %}{{ "{:,}".format(t.rows) }} rows · {% endif %}{{ t.columns|length }} columns</span>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<script id="dict-index" type="application/json">{{ search_index|safe }}</script>
+{% endblock %}

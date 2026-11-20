@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block main %}
+{% set show_toc = toc and toc|length > 1 and not page.wide %}
+<div class="wrap page-grid{% if not show_toc %} no-toc{% endif %}{% if page.wide %} wide{% endif %}">
+  <article class="prose">
+    <header class="page-head">
+      {% if page.eyebrow %}<p class="eyebrow">{{ page.eyebrow }}</p>{% endif %}
+      <h1>{{ page.title }}</h1>
+      {% if page.lede %}<p class="lede">{{ page.lede|md|safe }}</p>{% endif %}
+    </header>
+    {{ content|safe }}
+  </article>
+  {% if show_toc %}
+  <aside class="toc" aria-label="On this page">
+    <nav>
+      <p class="toc-title">On this page</p>
+      <ul>
+        {% for h in toc %}
+        <li><a href="#{{ h.id }}">{{ h.name|safe }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

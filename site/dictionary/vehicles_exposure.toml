@@ -1,0 +1,221 @@
+[insured_vehicle]
+grain = "Vehicle insured on a policy"
+summary = """One row for every vehicle ever insured on a policy in the data, from the day it joined; a car bought to replace another is a new row. Coverage, deductibles, main driver, ownership and parking show the vehicle's latest status (the valuation date, December 31, 2026, or when it or its policy left), not its history: use `exposure` for what was in force on a given date. A blank `removed_date` does not mean the car is still insured, because a vehicle on a policy that was cancelled or not renewed keeps a blank removal date."""
+
+[insured_vehicle.columns]
+insured_vehicle_id = "Primary key."
+policy_id = "The policy the vehicle is insured on."
+unit_number = "The vehicle's place on its policy in the order vehicles joined: `1` for the first, `2` for the next, and so on. Numbers are not reused when a vehicle leaves."
+vehicle_model_year_id = "The vehicle's make, model and model year."
+primary_driver_id = "The vehicle's main driver at its latest status. The main driver can change (a driver leaves, a car is handed over); `exposure.driver_id` has the driver rated on the car in each period."
+ownership = "`Owned`, `Financed` or `Leased`, at the latest status. A financed car can become `Owned` at a renewal when its loan is paid off."
+added_date = "Day the vehicle joined the policy: the policy's first day for new business, the purchase day for a car added or bought as a replacement. For policies already in force on January 1, 2022 it can be many years earlier."
+removed_date = "First day the vehicle was no longer insured on the policy (the day after the loss for a car destroyed or stolen). Blank if it was still on the policy on the valuation date, and also if the whole policy ended (cancelled or not renewed) with the car on it: check `policy` for that."
+primary_use = "`Pleasure`, `Commute` or `Business`, as declared when the vehicle joined. A rating variable."
+annual_mileage = "Annual miles the customer reported, rounded to 500 (1,000 to 30,000). Customers tend to understate how far they drive. The rating plan uses it in bands."
+parking = "Where the vehicle is usually parked: `Street`, `Driveway/Lot` or `Garage`, at the latest status (it can change when the household moves). Not a rating variable."
+anti_theft_device = "`Y` if the vehicle has an anti-theft device, otherwise `N`. Not a rating variable."
+automatic_emergency_braking = "`Y` if the vehicle has automatic emergency braking, otherwise `N`; commoner on newer and luxury models. Not a rating variable."
+collision_coverage = "`Y` if the vehicle carries collision coverage at its latest status, otherwise `N`. Owners of older cars drop it at renewals; `exposure.collision_deductible` shows what was in force on each date."
+collision_deductible = "Collision deductible in dollars at the latest status: `250`, `500`, `1000` or `2000`. `0` means no collision coverage."
+comprehensive_coverage = "`Y` if the vehicle carries comprehensive (other than collision) coverage at its latest status, otherwise `N`. Every vehicle with collision also has comprehensive."
+comprehensive_deductible = "Comprehensive deductible in dollars at the latest status: `100`, `250`, `500` or `1000`. `0` means no comprehensive coverage."
+full_glass_coverage = "`Y` if glass claims are paid without the comprehensive deductible (needs comprehensive), at the latest status, otherwise `N`."
+rental_reimbursement = "Rental reimbursement option at the latest status, as daily limit / maximum per claim in dollars: `30/900`, `40/1200` or `50/1500`. Blank when not carried. It needs collision coverage."
+towing_and_labor = "`Y` if towing and labor coverage (up to $100 a tow; needs comprehensive) is carried at the latest status, otherwise `N`."
+vin = "The vehicle's 17-character VIN, with its check digit in position 9."
+vin_prefix = "The first 10 characters of the VIN with the check digit masked as `*`. It equals `vehicle_model_year.vin_pattern`, the way insurers match a VIN to a vehicle table."
+removal_reason = "Why the vehicle left: `Replaced` (traded for another car, which points back through `replaces_insured_vehicle_id`), `Sold`, `Left With Driver` (a driver leaving the policy took it), `Total Loss` (the company paid it as a total loss) or `Destroyed or Stolen` (wrecked or stolen with no company total-loss claim on file by the valuation date). Blank when `removed_date` is blank."
+replaces_insured_vehicle_id = "The vehicle this one replaced, after a trade-in or after a car was destroyed or stolen. Blank for other vehicles."
+
+[vehicle_model_year]
+grain = "Make, model and model year"
+summary = """A catalog of every make, model and model year of car, SUV, pickup and passenger van sold in the US from 1997 to 2026 (8,750 rows of 940 models from 74 makes), whether or not Lakefront insures one, like the vehicle tables insurers license. Engine, drive, fuel and size class describe the model year's most common configuration in EPA fuel economy data. `insured_vehicle`, `exposure` and `claim` point to a row through `vehicle_model_year_id`; price new and the symbols belong to the model year, so they live only here."""
+
+[vehicle_model_year.columns]
+vehicle_model_year_id = "Primary key."
+make = "Manufacturer, as named in EPA fuel economy data after cleaning, for example `Toyota`, `Ford` or `MINI`."
+model = "Model name, cleaned from EPA's base model names: two- and four-wheel-drive versions and trims are merged, and battery-electric versions of petrol models are their own model (for example `F-150 Lightning`)."
+model_year = "Model year, 1997 to 2026."
+body_type = "`SUV`, `Sedan`, `Coupe`, `Pickup`, `Hatchback`, `Convertible`, `Minivan`, `Wagon` or `Van`: the model's most common body, the same in every year."
+vehicle_class = "EPA size class of the model year, for example `Small SUV`, `Standard SUV`, `Compact Car`, `Midsize Car`, `Large Car`, `Two-Seater`, `Minivan`, `Standard Pickup` or `Heavy-Duty Pickup`. Two models carry the value `truck`."
+segment = "Rating segment: `Mainstream`, `Economy`, `Luxury`, `Sports`, `Truck`, `Electric` or `Minivan`, set from size class, make, price and fuel (full-size body-on-frame SUVs count as `Truck`). A rating variable."
+fuel_type = "Fuel of the most common configuration: `Gasoline`, `Hybrid`, `Plug-in Hybrid`, `Electric`, `Diesel`, `Flex Fuel`, `Hydrogen` or `Natural Gas`."
+drive_type = "`FWD`, `RWD`, `AWD` or `4WD` for the most common configuration. Blank for five early electric models with no drive in the EPA data."
+engine_cylinders = "Number of engine cylinders of the most common configuration. Blank for electric and most hydrogen fuel-cell models."
+engine_displacement_l = "Engine displacement in liters (the median over the model year's EPA configurations, one decimal). Blank where `engine_cylinders` is blank."
+msrp = "Approximate base price new, in dollars of that model year, rounded to $100: a 2024 base price (curated for about 900 models, estimated for the rest) adjusted by 2.4% a year. Ignores trim and options. The plan rates it in bands, and `exposure.vehicle_value` is derived from it."
+vin_pattern = "Ten-character VIN pattern for the model year: positions 1 to 8 stand for the make and model, position 9 (the check digit) is masked as `*`, and position 10 is the standard model-year code. Joins to `insured_vehicle.vin_prefix`."
+physical_damage_symbol = "This dataset's own physical damage symbol, 1 to 30: one step higher for about every 9% of price new above $9,000, plus 2 for sports and 1 for luxury and electric models. Not ISO's symbols, and not used by the rating plan, which rates price new, segment and vehicle age directly."
+liability_symbol = "This dataset's own liability symbol, 1 to 5, from the accident frequency and severity typical of the model's segment and body type (minivans `1`, sports models `5`). Not ISO's symbols, and not used by the rating plan."
+
+[exposure]
+grain = "Policy term, vehicle and endorsement period"
+summary = """One row per vehicle for each stretch of a policy term with unchanged rating: endorsement 0 starts on the term's effective date, and each mid-term change (a car, driver or address change) ends the policy's rows and starts re-rated ones. It is the effective-dated record of the drivers, address, characteristics, discounts, coverage and premium in force, so use it rather than `policy` or `insured_vehicle` for anything historical. Premium by coverage is the full-term rate, not prorated; only `earned_exposure` and `earned_premium` measure the row's own dates, and only inside the extract (January 1, 2022 to December 31, 2026)."""
+
+[exposure.columns]
+exposure_id = "Primary key."
+policy_term_id = "The policy term the row belongs to."
+policy_id = "The policy the row belongs to."
+endorsement_number = "Period within the term: `0` for rows starting on the term's effective date, then `1`, `2` and so on for each later date in the term on which rows start. A term that began with no vehicle (a replacement still to come) starts at `1`."
+change_reason = "The mid-term change that started the row: `Vehicle Added`, `Vehicle Replaced`, `Replacement Vehicle Added`, `Vehicle Removed`, `Driver Removed`, `Spouse Added`, `Newly Licensed Driver Added` or `Address Change`, joined with `; ` when several fell on one day. It is the policy's change, so every vehicle re-rated that day carries it. Blank for endorsement 0."
+insured_vehicle_id = "The vehicle rated."
+vehicle_model_year_id = "The vehicle's make, model and model year (the same as on `insured_vehicle`)."
+model_year = "The vehicle's model year, repeated as a rated characteristic: the plan rates the vehicle's age from it."
+driver_id = "The driver rated on this vehicle for the period: the car's main driver when the row starts. It can differ from `insured_vehicle.primary_driver_id`, which is the latest."
+location_id = "The garaging ZIP code in force for the period (the household's address then). A move starts new rows; `policy.location_id` is only the latest address."
+rating_date = "Day the row was rated, using only what the insurer knew by then: for endorsement 0, the term's rating date (`policy_term.rating_date`, on or before the term starts); for a mid-term row, the day of the change. Endorsement 0 rows of terms already in force on January 1, 2022 were rated before that date."
+rated_driver_age = "Age of the rated driver in whole years on `coverage_start_date`."
+rated_driver_class = "Driver class used in rating, from the rated driver's age on `coverage_start_date` and, under 25, sex: `16-17 M`, `16-17 F`, `18-20 M`, `18-20 F`, `21-24 M` and `21-24 F`, then `25-29`, `30-39`, `40-49`, `50-64`, `65-74` and `75+`."
+rated_violation_points = "Violation points of the rated driver: 1 per minor and 3 per major violation dated in the three years before `coverage_start_date` and posted to the driving record by `rating_date`. Not capped; the plan rates 4 or more alike."
+rated_at_fault_accidents = "At-fault accidents of the rated driver dated in the three years before `coverage_start_date` and known by `rating_date`: accidents reported by a prior carrier and the company's own claims once chargeable. Not capped; the plan rates 2 or more alike."
+rated_good_student = "`Y` if the rated driver qualified for the good-student discount (10% off bodily injury, property damage, medical payments and collision): under 25, in full-time school and keeping B grades on `coverage_start_date`. Otherwise `N`."
+rated_married = "`Y` if the rated driver was married (5% off bodily injury, property damage, medical payments and collision), otherwise `N`."
+rated_homeowner = "`Y` if the household owned its home when the row was rated (5% off bodily injury, property damage, uninsured motorist, medical payments and collision), otherwise `N`. It can change with a move."
+inexperienced_operator = "`Y` if the rated driver had been licensed for less than three years on `coverage_start_date`, otherwise `N`."
+occasional_youthful_operator = "`Y` if the household has a driver under 25 who is not the main driver of any car and this is the car such a driver is charged on: the policy's last-ranked car (cars are ranked by value when the policy was written, most valuable first, and cars added later rank after them). Otherwise `N`."
+multi_car_discount = "`Y` if the policy had more than one vehicle when the row was rated (10% off every coverage except rental and towing), otherwise `N`."
+multi_policy_discount = "`Y` if the household has another policy with the company (8% off every coverage except rental and towing), otherwise `N`. Fixed for the policy's life."
+paid_in_full_discount = "`Y` if the policy is on the paid-in-full payment plan (6% off every coverage except rental and towing), otherwise `N`."
+bi_limit = "Bodily injury liability limits in force, in thousands of dollars per person / per accident: `25/50` (the Illinois minimum), `50/100`, `100/300`, `250/500` or `500/500`."
+pd_limit = "Property damage liability limit in force, in dollars per accident: `20000`, `50000`, `100000` or `250000`. It goes with the bodily injury option."
+um_limit = "Uninsured/underinsured motorist bodily injury limits in force, in thousands of dollars per person / per accident. Same values as `bi_limit` and never higher than it."
+med_pay_limit = "Medical payments limit in force, in dollars: `1000`, `2000`, `5000` or `10000`. `0` means no medical payments coverage."
+collision_deductible = "Collision deductible in force, in dollars: `250`, `500`, `1000` or `2000`. `0` means no collision coverage."
+comprehensive_deductible = "Comprehensive deductible in force, in dollars: `100`, `250`, `500` or `1000`. `0` means no comprehensive coverage."
+full_glass_coverage = "`Y` if full glass coverage was in force (glass claims paid without the comprehensive deductible), otherwise `N`."
+rental_reimbursement = "Rental reimbursement in force, as daily limit / maximum per claim in dollars: `30/900`, `40/1200` or `50/1500`. Blank when not carried."
+towing_and_labor = "`Y` if towing and labor coverage was in force, otherwise `N`."
+telematics_enrolled = "`Y` if the vehicle was enrolled in the Lakefront DriveCheck telematics program when the row was rated, otherwise `N`."
+telematics_discount_pct = "Telematics discount the row was rated with, in percent: `5` until the car has been scored, then the discount its driving score earned (0 at a score of 45 or below, rising to 30 at 95 or above). `0` when not enrolled. It applies to every coverage except rental and towing and is already taken off the premiums."
+tenure_years = "Years the policy had been with the company when the term began (prior terms times the term length), one decimal; `0` in a new policy's first term. The loyalty discount is 2%, 4% and 6% from 1, 3 and 6 years."
+vehicle_value = "Estimated actual cash value of the vehicle in dollars, rounded to $10: its price new, depreciated to its age around the middle of the row's period at that year's used-car prices (at least $1,500). Total losses are settled on it. Not a rating variable: the plan rates price new (`vehicle_model_year.msrp`)."
+bi_premium = "Bodily injury liability premium in dollars for this vehicle for the full policy term (6 or 12 months), at this row's limits, rated characteristics and discounts and the rate level of the term's effective date. A full-term rate: it is neither the premium written nor the premium earned for the row's dates."
+pd_premium = "Property damage liability premium in dollars, on the same full-term basis as `bi_premium` (not prorated to the row's dates)."
+um_premium = "Uninsured/underinsured motorist bodily injury premium in dollars, on the same full-term basis as `bi_premium` (not prorated to the row's dates)."
+med_pay_premium = "Medical payments premium in dollars, on the same full-term basis as `bi_premium` (not prorated to the row's dates). `0` when `med_pay_limit` is 0."
+collision_premium = "Collision premium in dollars, on the same full-term basis as `bi_premium` (not prorated to the row's dates). `0` without collision coverage."
+comprehensive_premium = "Comprehensive premium in dollars, including any full glass charge, on the same full-term basis as `bi_premium` (not prorated to the row's dates). `0` without comprehensive coverage."
+rental_premium = "Rental reimbursement premium in dollars, on the same full-term basis as `bi_premium` but with no telematics discount. `0` when not carried."
+towing_premium = "Towing and labor premium in dollars, on the same full-term basis as `bi_premium` but with no telematics discount. `0` when not carried."
+total_premium = "Sum of the eight coverage premiums: the vehicle's full-term premium in dollars at this row's rating. The premium for the row's own dates is this times the row's days divided by the term's days; `earned_premium` is the part earned inside the extract."
+coverage_start_date = "First day the row covers: the term's effective date for endorsement 0, otherwise the day of the change or the day a replacement car arrived. Before January 1, 2022 for terms already in force then."
+coverage_end_date = "Day the row's cover stops; the row covers the days before it, and the next row (if any) starts on it. It is the term's expiration date, the next change, the cancellation date, or the day after a total loss or theft, and can be after the valuation date for rows still running."
+earned_exposure = "Car-years earned inside the extract: the row's days from January 1, 2022 (or `coverage_start_date`, if later) up to `coverage_end_date` or through December 31, 2026, whichever comes first, divided by 365.25 (four decimals)."
+earned_premium = "Premium in dollars earned inside the extract: `total_premium` times the days counted in `earned_exposure`, divided by the days in the policy term. Premium earned before January 1, 2022 is not included (`policy_term.earned_premium_before_extract` has it by term), nor is premium still unearned on the valuation date."
+
+[rate_change]
+grain = "Filed rate change"
+summary = """Lakefront's filed overall rate changes that took effect between January 1, 2022 and the valuation date, December 31, 2026: seven changes, the first six raising rates and the last a cut. A change applies to every new and renewal term effective on or after its date, including that term's later endorsements, so a term keeps its rates until it renews. `policy_term.rate_level_index` gives each term's level on the same scale as `cumulative_rate_level`."""
+
+[rate_change.columns]
+effective_date = "Primary key. Day the change takes effect, for terms effective on or after it."
+rate_change_pct = "Overall change in rates, in percent (`4.0` is a 4% increase; negative is a cut). It applies to every coverage and rating cell alike."
+cumulative_rate_level = "Rate level after this change relative to the level in force on January 1, 2022 (1.0): the product of 1 plus each change up to and including this one, four decimals."
+
+[location]
+grain = "ZIP code"
+summary = """The 290 ZIP codes of the seven-county Chicago area (Cook, DuPage, Lake, Will, Kane, McHenry and Kendall) that the data uses, with Census population and income and the rating plan's two territories. Population, income and density describe everyone living in the ZIP, not Lakefront's policyholders. `policy.location_id` is a policy's latest address; `exposure.location_id` is the address in force on each date."""
+
+[location.columns]
+location_id = "Primary key."
+zip_code = "Five-digit ZIP code (a Census ZIP Code Tabulation Area), stored as text. Unique; `zip_demographics`, `agency` and `vendor` join on it."
+city = "Place name for the ZIP from GeoNames; every `606xx` ZIP is `Chicago`. A ZIP that spans several towns shows one name."
+state = "Always `IL`."
+county = "County holding most of the ZIP's land: `Cook County`, `DuPage County`, `Lake County`, `Will County`, `Kane County`, `McHenry County` or `Kendall County`."
+region = "Reporting area: `City of Chicago` (ZIPs starting `606`), `Suburban Cook`, `DuPage County`, `Lake County`, `Will County`, `Kane County`, `McHenry County` or `Kendall County`."
+latitude = "Latitude of the ZIP's Census internal point, in decimal degrees (four decimals)."
+longitude = "Longitude of the ZIP's Census internal point, in decimal degrees (four decimals; negative, west of Greenwich)."
+population = "Residents of the ZIP, from the Census American Community Survey 2020 to 2024 five-year estimates. The same figure as `zip_demographics.population`."
+median_household_income = "Median household income of the ZIP's residents in dollars (American Community Survey 2020 to 2024). `250001` is the Census top code, meaning $250,000 or more; the few ZIPs whose figure the Census suppressed carry their county's median of ZIP medians."
+population_density_per_sq_mile = "Residents per square mile of land (population divided by Census land area), rounded to a whole number."
+liability_territory = "Rating territory, `T01` to `T12`, used for every coverage except comprehensive. ZIPs are ranked by a public crash hazard index (from Chicago police crash records in the city, estimated for the suburbs) and cut into 12 groups with about equal numbers of households with a vehicle: `T01` has the lowest index, `T12` the highest."
+comprehensive_territory = "Rating territory, `T01` to `T12`, used for comprehensive, built the same way from a public vehicle-theft hazard index: `T01` lowest, `T12` highest. A ZIP's two territories often differ."
+
+[zip_demographics]
+grain = "ZIP code"
+summary = """Census American Community Survey (2020 to 2024 five-year) profile of each ZIP's residents: age, race and ethnicity, home ownership, vehicle availability and commuting. These describe everyone living in the ZIP, not Lakefront's policyholders or drivers. Percentages run from 0 to 100; join to `location` on `zip_code`, and to policies through `location.location_id`."""
+
+[zip_demographics.columns]
+zip_code = "Primary key. Five-digit ZIP code, stored as text; one row for each `location` ZIP."
+population = "Residents of the ZIP (the same figure as `location.population`)."
+pct_age_16_24 = "Percent of residents aged 16 or older who are 16 to 24. The four age columns are shares of the driving-age population, not of all residents, and add up to 100; the 16 to 17 count is estimated as two-thirds of the Census 15 to 17 group."
+pct_age_25_39 = "Percent of residents aged 16 or older who are 25 to 39."
+pct_age_40_64 = "Percent of residents aged 16 or older who are 40 to 64."
+pct_age_65_plus = "Percent of residents aged 16 or older who are 65 or older."
+pct_white_non_hispanic = "Percent of all residents who are white and not Hispanic. The four race and ethnicity columns do not add up to 100: other and multiracial groups are not shown."
+pct_black_non_hispanic = "Percent of all residents who are Black and not Hispanic."
+pct_hispanic = "Percent of all residents who are Hispanic or Latino, of any race."
+pct_asian_non_hispanic = "Percent of all residents who are Asian and not Hispanic."
+households = "Number of households (occupied homes)."
+pct_households_owner_occupied = "Percent of households that own their home."
+pct_households_with_vehicle = "Percent of households with at least one vehicle available."
+pct_workers_commute_by_car = "Percent of workers aged 16 or older who usually get to work by car, truck or van, alone or in a carpool. Workers who work from home count in the total."
+pct_workers_commute_by_transit = "Percent of workers aged 16 or older who usually get to work by public transportation (not taxi)."
+pct_workers_from_home = "Percent of workers aged 16 or older who work from home."
+mean_commute_minutes = "Average one-way travel time to work in minutes, for workers who do not work from home."
+
+[underwriting_company]
+grain = "Underwriting company"
+summary = """The three companies of the Lakefront group, one for each underwriting tier. Every policy is placed with one company when it is first written, from its insurance score, driving record and prior insurance, and stays there for life (`policy.company_id`); the company is also a rating factor, and the general ledger is kept by company."""
+
+[underwriting_company.columns]
+company_id = "Primary key."
+company_code = "Three-letter company code: `LFP`, `LFM` or `PPC`. It appears in policy numbers and general ledger journal numbers."
+naic_style_code = "Five-digit company code in the format of an NAIC company code (`98412`, `98413` or `98427`)."
+company_name = "Company name: Lakefront Preferred Insurance Company, Lakefront Mutual Automobile Insurance Company or Prairie Path Casualty Company."
+tier = "Tier of business the company writes: `Preferred` (an insurance score of 740 or more, a clean record and prior insurance), `Standard`, or `Non-Standard` (poor scores or records, or no prior insurance with a weak profile)."
+city = "City of the company's home office: `Chicago` or `Oak Brook`."
+state = "Always `IL`."
+
+[agency]
+grain = "Agency or direct sales unit"
+summary = """Every outlet that sells Lakefront policies: 120 independent agencies, 14 exclusive agents' offices and two direct units (online and contact center), all in place for the whole extract. Each policy belongs to one (`policy.agency_id`); an agency earns its commission rates on every premium transaction of its policies (`premium_transaction`), and direct business earns none."""
+
+[agency.columns]
+agency_id = "Primary key."
+agency_code = "Business key: `IL-` and five digits for an agency, `HO-00001` and `HO-00002` for the direct units. Producer codes extend it."
+agency_name = "Agency name. An independent agency is named for its owner, partners, town or a trade name; an exclusive agent's office carries the agent's name; the direct units are `Direct - Online` and `Direct - Contact Center`."
+channel = "`Independent Agent`, `Exclusive Agent` or `Direct`. Every policy of the agency has this `policy.distribution_channel`."
+city = "City of the agency's office, from its ZIP code; `Chicago` for the direct units."
+state = "Always `IL`."
+zip_code = "ZIP code of the agency's office; `60606` (downtown Chicago) for the direct units."
+appointment_date = "Day the agency was first appointed to sell for Lakefront, between 1998 and 2020. The direct units carry a date in January 1996. No agency is appointed or terminated during the extract."
+new_business_commission_pct = "Commission on a policy's first term, in percent of written premium: `12`, `13` or `15` for independent agencies, `10`, `11` or `12` for exclusive agents, `0` for the direct units."
+renewal_commission_pct = "Commission on later terms, in percent of written premium: 2 points below the new-business rate for independent agencies and 3 points below for exclusive agents; `0` for the direct units."
+
+[producer]
+grain = "Producer (licensed agent) at an agency"
+summary = """The licensed agents who work at each independent agency and exclusive agent's office: one to twelve per agency, more at bigger ones, and none at the direct units. Each agent-written policy has one servicing producer (`policy.producer_id`, blank for direct business). Nobody joins or leaves during the extract."""
+
+[producer.columns]
+producer_id = "Primary key."
+producer_code = "Business key: the agency code and the producer's two-digit number at the agency, for example `IL-04417-02`. `-01` is the agency's principal."
+agency_id = "The agency the producer works at."
+first_name = "First name. An agency's first producer is its owner or principal, whose name the agency often carries."
+last_name = "Last name."
+start_date = "Day the producer started at the agency: the agency's appointment date for its principal, later for the others, and always at least 30 days before January 1, 2022."
+
+[agency_statement]
+grain = "Agency and accounting month"
+summary = """The monthly commission statement of each independent agency and exclusive agent's office: the written premium and commission its policies booked in the month, and the day the commission was paid. It totals `premium_transaction` by accounting date (the later of `effective_date` and `processed_date`), not by effective date, and only months with activity appear. The first month, December 2021, holds only what was booked that month; the December 2026 statements are unpaid on the valuation date."""
+
+[agency_statement.columns]
+statement_id = "Primary key."
+agency_id = "The agency the statement is for. Direct units have no statements."
+statement_month = "Accounting month the statement covers, as text `YYYY-MM`, from `2021-12` to `2026-12`."
+written_premium = "Written premium in dollars booked in the month on the agency's policies: the sum of `premium_transaction.written_premium` whose accounting date falls in the month. Negative when returns exceed new premium."
+commission_amount = "Commission in dollars booked in the month: the sum of `premium_transaction.commission_amount`. Negative when return commission exceeds commission earned; the agency repays it."
+payment_date = "Day the commission was paid: the 15th of the following month, or the next business day. Blank when that falls after the valuation date (the December 2026 statements)."
+payment_method = "`EFT` when paid; blank when `payment_date` is blank."
+
+[catastrophe]
+grain = "Catastrophe event"
+summary = """Hail, wind and flood events that struck the area between January 1, 2022 and the valuation date, December 31, 2026. Each one's comprehensive claims are dated on the event date and carry its `catastrophe_id` in `claim`."""
+
+[catastrophe.columns]
+catastrophe_id = "Primary key. `CAT-`, the year and a sequence within the year, for example `CAT-2024-02`."
+event_date = "Day of the event; its claims have this `loss_date`."
+description = "Description of the event and the area it hit."
+peril = "`Hail (catastrophe)`, `Wind or tree damage (catastrophe)` or `Flood (catastrophe)`, the same text as `claim.claim_description` on its claims."
+note = "A note on the event, the same for every row."

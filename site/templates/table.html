@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block body_class %}dictionary{% endblock %}
+{% block main %}
+<div class="wrap dict-layout">
+  {% include "_tables_nav.html" %}
+  <article class="dict-main">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/data-dictionary/">Data dictionary</a> <span aria-hidden="true">/</span> {{ table.group }}</nav>
+    <header class="page-head table-head">
+      <h1><code>{{ table.name }}</code></h1>
+      <p class="grain">One row per {{ table.grain|lower_first }}</p>
+    </header>
+    {% if table.answer_key %}
+    <p class="note">Answer key: instructors only. This table is in the answer-key download, not the student data.</p>
+    {% endif %}
+    <p class="table-summary">{{ table.summary|md|safe }}</p>
+    <dl class="facts">
+      {% if table.rows %}<div><dt>Rows</dt><dd>{{ "{:,}".format(table.rows) }}</dd></div>{% endif %}
+      <div><dt>Columns</dt><dd>{{ table.columns|length }}</dd></div>
+      <div><dt>Primary key</dt><dd><a href="#{{ table.pk }}"><code>{{ table.pk }}</code></a></dd></div>
+      <div><dt>File</dt><dd><code>{% if table.answer_key %}answer_key/{% endif %}{{ table.name }}.csv</code> · <a href="{{ repo }}/blob/main/{{ table.sample_path }}">first 100 rows</a></dd></div>
+    </dl>
+
+    {% if table.references or table.referenced_by %}
+    <div class="joins">
+      {% if table.references %}
+      <div>
+        <h2 class="small-heading">Links to</h2>
+        <ul>
+          {% for col, ref, ref_col in table.references %}
+          <li><a href="#{{ col }}"><code>{{ col }}</code></a> → <a href="/data-dictionary/{{ ref }}/#{{ ref_col }}"><code>{{ ref }}</code></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      {% if table.referenced_by %}
+      <div>
+        <h2 class="small-heading">Linked from</h2>
+        <ul>
+          {% for src, col, ref_col in table.referenced_by %}
+          <li><a href="/data-dictionary/{{ src }}/#{{ col }}"><code>{{ src }}.{{ col }}</code></a>{% if ref_col != table.pk %} → <code>{{ ref_col }}</code>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <h2 class="small-heading columns-heading">Columns</h2>
+    <div class="columns-table" role="table" aria-label="Columns of {{ table.name }}">
+      <div class="col-row col-head" role="row">
+        <span role="columnheader">Column</span><span role="columnheader">Type</span><span role="columnheader">Description</span><span role="columnheader">Examples</span>
+      </div>
+      {% for c in table.columns %}
+      <div class="col-row" id="{{ c.name }}" role="row">
+        <span class="col-name" role="cell">
+          <a href="#{{ c.name }}" class="col-anchor"><code>{{ c.name }}</code></a>
+          {% if c.pk %}<span class="badge pk" title="Primary key">PK</span>{% endif %}
+          {% if c.fk %}<a class="badge fk" href="/data-dictionary/{{ c.fk[0] }}/#{{ c.fk[1] }}" title="Foreign key to {{ c.fk[0] }}.{{ c.fk[1] }}">→ {{ c.fk[0] }}</a>{% endif %}
+        </span>
+        <span class="col-type" role="cell">{{ c.type }}</span>
+        <span class="col-desc" role="cell">{{ c.description|md|safe }}</span>
+        <span class="col-examples" role="cell">{% for e in c.examples %}<code>{{ e }}</code>{% endfor %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+</div>
+{% endblock %}
