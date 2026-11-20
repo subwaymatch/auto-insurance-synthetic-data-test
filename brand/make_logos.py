@@ -5,12 +5,13 @@ Text is set in Inter 4 / Inter Display with HarfBuzz (so the font's kerning appl
 tighter than the font's default, then converted to outlines: the SVGs need no font installed and
 look the same everywhere. Marks are drawn on a 64-unit grid.
 
-Needs fonttools, uharfbuzz and the Inter 4 OTF files (https://rsms.me/inter/):
+Needs fonttools, uharfbuzz, resvg-py (for the PNG and ICO files) and the Inter 4 OTF files
+(https://rsms.me/inter/):
 
-    pip install fonttools uharfbuzz
+    pip install fonttools uharfbuzz resvg-py
     python brand/make_logos.py --fonts /path/to/inter/otf
 
-Writes brand/candidates/, brand/type-study/, brand/sunrise/ and the preview pages
+Writes brand/logo/ (the chosen logo and favicons), brand/candidates/, brand/type-study/, brand/sunrise/ and the preview pages
 brand/preview.html and brand/sunrise/preview.html (every SVG inlined as a data URI, so each page
 works on its own).
 """
@@ -427,6 +428,69 @@ def sunrise_mark(v: Sunrise, c, uid, height=56, overlay=False):
 OVERLAY = "#E5484D"
 
 
+# --------------------------------------------------------------------------- the final logo
+
+LOGO = SUNRISE[1]  # B: Inter's o, three bands
+
+# The favicon: variation D's two bands in a plain circle, with no tile behind it. Drawn on a
+# 32-unit grid with every horizontal edge on an even unit, so the bands fall on whole pixels at
+# 16, 32 and 48 px: the top half ends at 16, then a gap, a band, a gap and the last band.
+FAVICON_EDGES = {"horizon": 16, "gap1": 18, "band1": 24, "gap2": 26}
+
+
+def favicon_body(c) -> tuple[str, str]:
+    e = FAVICON_EDGES
+    defs = '<clipPath id="sun"><circle cx="16" cy="16" r="15"/></clipPath>'
+    sky = rect(0, 0, 32, e["horizon"])
+    lake = rect(0, e["gap1"], 32, e["band1"] - e["gap1"]) + rect(0, e["gap2"], 32, 32 - e["gap2"])
+    return defs, (f'<g clip-path="url(#sun)"><path fill="{c["ink"]}" d="{sky}"/>'
+                  f'<path fill="{c["lake"]}" d="{lake}"/></g>')
+
+
+def favicon_svg() -> str:
+    defs, body = favicon_body(LIGHT)
+    return svg(32, 32, body, defs)
+
+
+def apple_touch_svg(size=180, share=0.68) -> str:
+    """iOS shows touch icons on an opaque square, so this one has a white background."""
+    defs, body = favicon_body(LIGHT)
+    s = size * share / 30
+    off = size / 2 - 16 * s
+    return svg(size, size, f'<rect width="{size}" height="{size}" fill="#FFFFFF"/>'
+               f'<g transform="translate({f(off)} {f(off)}) scale({f(s)})">{body}</g>', defs)
+
+
+def png(svg_text: str, size: int) -> bytes:
+    import resvg_py  # only needed for the PNG and ICO files
+    return bytes(resvg_py.svg_to_bytes(svg_string=svg_text, width=size, height=size))
+
+
+def ico(images: list[tuple[int, bytes]]) -> bytes:
+    """A .ico file holding one PNG per size."""
+    header = (0).to_bytes(2, "little") + (1).to_bytes(2, "little") + len(images).to_bytes(2, "little")
+    entries, data, offset = b"", b"", 6 + 16 * len(images)
+    for size, blob in images:
+        entries += (bytes([size % 256, size % 256, 0, 0]) + (1).to_bytes(2, "little")
+                    + (32).to_bytes(2, "little") + len(blob).to_bytes(4, "little")
+                    + (offset + len(data)).to_bytes(4, "little"))
+        data += blob
+    return header + entries + data
+
+
+def build_logo(out: Path) -> list[str]:
+    """brand/logo/: the logo for light and dark backgrounds and the favicon set."""
+    logo_dir = out / "logo"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    (logo_dir / "lakefront-logo.svg").write_text(sunrise_lockup(LOGO, LIGHT, "logo"))
+    (logo_dir / "lakefront-logo-dark.svg").write_text(sunrise_lockup(LOGO, DARK, "logo"))
+    fav = favicon_svg()
+    (logo_dir / "favicon.svg").write_text(fav)
+    (logo_dir / "favicon.ico").write_bytes(ico([(n, png(fav, n)) for n in (16, 32, 48)]))
+    (logo_dir / "apple-touch-icon.png").write_bytes(png(apple_touch_svg(), 180))
+    return sorted(p.name for p in logo_dir.iterdir())
+
+
 # --------------------------------------------------------------------------- the candidates
 
 CANDIDATES = [
@@ -670,6 +734,7 @@ def main():
     (args.out / "preview.html").write_text(preview(files))
     (args.out / "sunrise" / "preview.html").write_text(sunrise_preview(files))
     print(f"wrote {len(files)} SVG files, preview.html and sunrise/preview.html to {args.out}")
+    print("wrote logo/:", ", ".join(build_logo(args.out)))
 
 
 if __name__ == "__main__":

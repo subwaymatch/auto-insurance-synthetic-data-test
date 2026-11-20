@@ -1,8 +1,43 @@
-# Lakefront logo candidates
+# Lakefront logo
 
-Six logo candidates for the dataset's website, plus a type study of Inter with tightened spacing.
-Open [`preview.html`](preview.html) in a browser to compare them on light and dark backgrounds and at
-icon sizes, or look at the picture below.
+## The logo
+
+![Lakefront](logo/lakefront-logo.svg)
+
+The wordmark is Inter Display SemiBold at -0.04em, converted to outlines. Its o is the sun rising over
+the lake: Inter's own o, filled, navy above the horizon and three lake-blue bands below (variation B
+below). The favicon is a plain circle with variation D's two bands and no background.
+
+| File in [`logo/`](logo/) | Use |
+|---|---|
+| `lakefront-logo.svg` | The logo on light backgrounds |
+| `lakefront-logo-dark.svg` | The logo on dark backgrounds |
+| `favicon.svg` | Favicon for browsers that take SVG. Drawn on a 32-unit grid so its bands fall on whole pixels at 16, 32 and 48 px |
+| `favicon.ico` | The same at 16, 32 and 48 px, for everything else |
+| `apple-touch-icon.png` | 180 x 180 home-screen icon. iOS needs an opaque square, so this one has a white background |
+
+```html
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+```
+
+The favicon's top half is navy, which is hard to see on a dark browser tab bar.
+
+To switch the logo with the reader's colour scheme:
+
+```html
+<picture>
+  <source srcset="lakefront-logo-dark.svg" media="(prefers-color-scheme: dark)">
+  <img src="lakefront-logo.svg" alt="Lakefront" height="32">
+</picture>
+```
+
+## How it was chosen
+
+Six logo candidates, a type study of Inter with tightened spacing, and variations of the chosen
+candidate. Open [`preview.html`](preview.html) in a browser to compare the candidates on light and dark
+backgrounds and at icon sizes, or look at the picture below.
 
 ![Lakefront logo candidates](preview.png)
 
@@ -15,7 +50,7 @@ icon sizes, or look at the picture below.
 | 05 | Sunrise o | The o becomes the sun rising over the lake, its lower half reflected in bands. |
 | 06 | Shield | An insurer's shield with a wave-cut horizon. The most literal. |
 
-## Sunrise o variations
+### Sunrise o variations
 
 Candidate 05 was chosen. [`sunrise/`](sunrise/) refines it in two ways: the lake bands now run to the
 bottom of the o, so it sits on the baseline like the letters around it (the first drawing stopped
@@ -34,7 +69,7 @@ the outline of Inter's o over each version.
 | D | Inter's o, two bands | Bolder; still works as a favicon |
 | E | Inter's o, horizon only | Ink above the horizon, lake below; the quietest, and the clearest at small sizes |
 
-## Files
+### Files
 
 Each candidate in [`candidates/`](candidates/) has four SVG files:
 
@@ -43,7 +78,7 @@ Each candidate in [`candidates/`](candidates/) has four SVG files:
 | `NN-name-lockup.svg` | Mark and wordmark, for light backgrounds |
 | `NN-name-lockup-dark.svg` | The same for dark backgrounds |
 | `NN-name-mark.svg` | The mark alone, 64 x 64 |
-| `NN-name-icon.svg` | The mark on a rounded tile, for a favicon or social card |
+| `NN-name-icon.svg` | The mark on a rounded tile, for an app icon |
 
 [`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `e-...`.
 [`type-study/`](type-study/) holds the six wordmark settings shown at the top of the preview.
@@ -52,8 +87,8 @@ All text is converted to outlines, so the files need no font and render the same
 colours are written into the files: Ink `#0F1E2E` and Lake `#1A75A8` on light backgrounds (Lake
 passes 4.5:1 on white), `#F2F5F8` and `#62B6E8` on dark ones.
 
-The icons are the full marks scaled down. They hold up at 32 px; the chosen one will probably want
-a simplified 16 px favicon drawn on the pixel grid.
+The candidates' icons are the full marks scaled down; the final favicon in `logo/` is drawn on the
+pixel grid instead.
 
 ## Setting the wordmark as live text
 
@@ -78,7 +113,7 @@ heading.
 ## Rebuilding
 
 ```bash
-pip install fonttools uharfbuzz
+pip install fonttools uharfbuzz resvg-py
 ```
 
 ```bash
@@ -87,6 +122,7 @@ python brand/make_logos.py --fonts /path/to/inter/otf
 
 `make_logos.py` needs the Inter 4 OTF files from [rsms.me/inter](https://rsms.me/inter/) (both
 `Inter-*.otf` and `InterDisplay-*.otf`). It sets the text with HarfBuzz so the font's kerning
-applies, then writes every SVG and both preview pages. The wordmark used by the lockups, the palette and
+applies, then writes every SVG, both preview pages, and `logo/` (resvg renders its PNG and ICO
+files). The wordmark used by the lockups, the palette and
 each mark's geometry are near the top of the script; the sunrise variations are the `SUNRISE`
 list, where each band is given in 28ths of the o's half-height below the horizon.
