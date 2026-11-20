@@ -185,6 +185,24 @@ class GeneratorTest(unittest.TestCase):
         first = pay[pay["payment_type"] == "Loss"].groupby("claim_id")["payment_date"].min()
         self.assertTrue((own["known_date"] > own["claim_id"].map(first)).all())
 
+    def test_incident_sources_match_when_and_where_they_happened(self) -> None:
+        """A company claim before the extract happened before the start date, while the driver was on the policy;
+        accidents an adult brings when joining a policy mid-term came from a previous insurer."""
+        inc, drv, pol = self.read("driver_incident"), self.read("driver"), self.read("policy")
+        inc = inc.merge(drv[["driver_id", "policy_id", "added_date"]], on="driver_id").merge(
+            pol[["policy_id", "original_inception_date"]], on="policy_id")
+        before = inc[inc.source == "Company Claim (Before Extract)"]
+        self.assertGreater(len(before), 20)
+        self.assertTrue((before["incident_date"] < self.a["start"]).all())
+        self.assertTrue((before["incident_date"] >= before["added_date"]).all())
+        self.assertTrue((before["incident_date"] >= before["original_inception_date"]).all())
+        prior = inc[inc.source == "Prior Carrier Report"]
+        joined_later = prior[prior["added_date"] > self.a["start"]]
+        self.assertGreater(len(joined_later), 0)
+        self.assertTrue((joined_later["incident_date"] <= joined_later["added_date"]).all())
+        accidents = inc[inc.incident_type == "At-Fault Accident"]
+        self.assertTrue(set(accidents.source) <= {"Company Claim", "Company Claim (Before Extract)", "Prior Carrier Report"})
+
     def test_uninsured_and_underinsured_motorist_are_told_apart(self) -> None:
         feat = self.read("claim_feature")
         um = feat[feat["coverage_code"] == "UM"]

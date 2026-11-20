@@ -29,22 +29,22 @@ with the driver, vehicle and policy, how claim costs and premiums spread, and ho
 **Where it looks realistic**
 
 - **Risk relationships that both books record point the same way, with similar strength.** Drivers under 25
-  claim 1.37 times the book average in the real data and 1.25 times in the synthetic (was 1.28). Drivers
-  licensed under five years claim 1.37 and 1.32 times. Urban vehicles claim 1.14 and 1.16 times, and frequency
+  claim 1.37 times the book average in the real data and 1.28 times in the synthetic (the same as before). Drivers
+  licensed under five years claim 1.37 and 1.37 times. Urban vehicles claim 1.14 and 1.15 times, and frequency
   rises with vehicle value in both (§6).
 - **Claim costs are skewed in the same way up to the 99th percentile.** The 90th percentile is 5.5 times the
-  median in the real data and 6.7 in the synthetic, and the 99th percentile is 28.8 and 27.2 times (§4).
+  median in the real data and 6.3 in the synthetic, and the 99th percentile is 28.8 and 24.5 times (§4).
 - **Premiums spread in a similar way**, wider in the synthetic book, as expected with US territory and credit
   rating and a full set of discounts (coefficient of variation 0.41 real, 0.53 synthetic, was 0.48; §5).
 - **Loss ratios and retention are in a plausible range.** Real mature years run 57% to 102% (78% overall);
-  synthetic years run 63% to 79% (69% overall; §5). The real book loses 25% of contracts a year and the
-  synthetic 18.8%, which is in line with US retention (§8).
+  synthetic years run 62% to 79% (67% overall; §5). The real book loses 25% of contracts a year and the
+  synthetic 18.7%, which is in line with US retention (§8).
 - **A claim costs customers in both books.** A real contract with a claim in the period is 1.45 times as
-  likely to end as one without (32.5% against 22.4%); a synthetic one 1.41 times (25.2% against 17.9%; was
-  1.06 before the second round). 965 of the 11,462 synthetic non-renewals are the company's decision (was
+  likely to end as one without (32.5% against 22.4%); a synthetic one 1.40 times (25.1% against 17.9%; was
+  1.06 before the second round). 1,000 of the 11,500 synthetic non-renewals are the company's decision (was
   165 of 10,958).
 - **The premium ranks risk.** On the synthetic book it captures most of the ranking that the answer key's true
-  expected loss can achieve (Gini 0.192 against 0.234 on claim counts; §7). The gap between the two is wider than
+  expected loss can achieve (Gini 0.193 against 0.239 on claim counts; §7). The gap between the two is wider than
   it first was (0.211 against 0.247) because the plan now files round discounts and cannot see household
   stability, the new-customer effect or an agency's book quality. Both are lower than before the second round
   (0.213 and 0.255): comprehensive claims, which owe little to the driver, are now a larger share of all claims.
@@ -66,30 +66,30 @@ with the driver, vehicle and policy, how claim costs and premiums spread, and ho
    (glass, theft, weather), which the driver's characteristics barely predict. Three effects that are strong
    in the real data were absent from the synthetic and are now present, but weaker:
    - **Payment method.** Half-yearly payers claim 1.61 times as often as annual payers, other factors held
-     equal; synthetic instalment payers claim 1.12 times as often (was 1.04).
+     equal; synthetic instalment payers claim 1.15 times as often (was 1.04).
    - **Tenure.** Customers of 10 or more years claim 0.69 times as often as those of under two years in the
-     real data, other factors held equal, and 0.85 times as often in the synthetic (was 1.00).
+     real data, other factors held equal, and 0.86 times as often in the synthetic (was 1.00).
    - **Channel.** Real broker business runs 12% above the book's average frequency and 20% above its average
-     loss cost. Synthetic independent-agent business runs 2% above average frequency and 5% above average
-     loss cost, and 5% above exclusive-agent business with other factors held equal (was no difference).
+     loss cost. Synthetic independent-agent business runs 2% above average frequency and 4% above average
+     loss cost, and 8% above exclusive-agent business with other factors held equal (was no difference).
 2. **The very largest claims are smaller.** The costliest 1% of claim-years make up 24% of real claim cost but
-   16% of synthetic cost (coefficient of variation 4.4 against 2.0; §4). Part of this is structural: US
+   15% of synthetic cost (coefficient of variation 4.4 against 2.1; §4). Part of this is structural: US
    liability limits cap claims, while Spanish compulsory injury cover is effectively unlimited.
 3. **The synthetic data is spotless, and real data is not.** The real extract has non-renewal "stub" rows
    with premium but no cover (14%), dates out of order, `NA` text, zeros standing for missing values, and
    fields taken at extraction time that leak later information into earlier rows (§10). The synthetic tables
    have none of these, so they cannot teach data cleaning.
 
-Frequency falls with vehicle age in the synthetic book (0.72 for 15 or more years, was 0.61) but not in the
+Frequency falls with vehicle age in the synthetic book (0.73 for 15 or more years, was 0.61) but not in the
 real one (1.02). Most of that is coverage: fewer old synthetic cars carry collision and comprehensive cover
-(37% of those 16 and older carry collision). Synthetic liability claims alone are level with age (1.02), as
-real claims are (§6).
+(37% of those 16 and older carry collision). Synthetic liability claims alone do not fall with age (1.08), as
+real claims do not (§6).
 
 The response to price can now be compared too: `renewal_offer` (added after the third external review)
 records every renewal offer, declined ones included. The real data shows a clear response: 11% of contracts
 leave after a premium cut of more than 5%, against 28.5% after an increase of 10% or more. Synthetic
-customers respond only above about a 5% increase: 4.0% to 5.0% leave after anything from a cut of more than
-5% to a 5% rise, 6.3% after 5% to 10% and 14.1% after 10% or more (§8). The synthetic response is weaker for
+customers respond only above about a 5% increase: 4.5% to 4.8% leave after anything from a cut of more than
+5% to a 5% rise, 6.2% after 5% to 10% and 14.0% after 10% or more (§8). The synthetic response is weaker for
 small changes and lower overall, in line with its lower attrition.
 
 **What the real data cannot tell us.** The real claim counts have a defect of their own (§10). Within a
@@ -98,21 +98,21 @@ A claim-free period is followed by one with a claim only 1.5% of the time, altho
 claim. Claim frequency also halves between periods starting in 2016 and 2017, which nothing in the data
 explains. So the real data cannot benchmark claim-count overdispersion, year-to-year claim persistence or the
 frequency level, and this note does not judge the synthetic data on them. The synthetic book's own figures
-(claim counts very close to Poisson; frequency after a claim 1.16 times frequency after none, and 1.42
+(claim counts very close to Poisson; frequency after a claim 1.29 times frequency after none, and 1.42
 before customers with claims began to leave: those who stay after a claim are a selected group, and those
-with an at-fault claim leave most) are plausible but unverified here. A car with an at-fault claim is 1.48
+with an at-fault claim leave most) are plausible but unverified here. A car with an at-fault claim is 1.6
 times as likely to have another the following year.
 
 ### Suggested changes to the generator, most valuable first
 
 | # | Change | Why (evidence) | Status |
 |---|---|---|---|
-| 1 | Make attrition respond to claims: customers with a recent claim or surcharge shop more, and the company non-renews repeat at-fault drivers. Tenure then becomes protective through selection, as in real books. | Real: leaving after a claim is 1.45 times as likely, and 10+ year customers claim 0.69 times as often. Synthetic: was 1.06 times and 0.84 times, with only 165 company non-renewals (§6, §7, §8). | Done: a claim since the last offer lowers the chance of renewing, an at-fault or second claim more, and the underwriting review non-renews half the policies with two at-fault accidents (or two major violations, or one of each) in three years. Leaving after a claim is now 1.41 times as likely and there are 965 company non-renewals. Tenure is protective through hidden household stability (0.85 times) |
-| 2 | Let payment plan carry real risk, for example through the latent risk factor or financial stress beyond the insurance score. | Real half-yearly payers claim 1.61 times as often, other factors held equal; synthetic instalment payers claim 1.12 times as often (was 1.04; §7). | Partly done: household stability drives the payment plan, so the filed 6% paid-in-full discount now has risk behind it; the effect is weaker than in the real book |
+| 1 | Make attrition respond to claims: customers with a recent claim or surcharge shop more, and the company non-renews repeat at-fault drivers. Tenure then becomes protective through selection, as in real books. | Real: leaving after a claim is 1.45 times as likely, and 10+ year customers claim 0.69 times as often. Synthetic: was 1.06 times and 0.84 times, with only 165 company non-renewals (§6, §7, §8). | Done: a claim since the last offer lowers the chance of renewing, an at-fault or second claim more, and the underwriting review non-renews half the policies with two at-fault accidents (or two major violations, or one of each) in three years. Leaving after a claim is now 1.40 times as likely and there are 1,000 company non-renewals. Tenure is protective through hidden household stability (0.86 times) |
+| 2 | Let payment plan carry real risk, for example through the latent risk factor or financial stress beyond the insurance score. | Real half-yearly payers claim 1.61 times as often, other factors held equal; synthetic instalment payers claim 1.15 times as often (was 1.04; §7). | Partly done: household stability drives the payment plan, so the filed 6% paid-in-full discount now has risk behind it; the effect is weaker than in the real book |
 | 3 | Age the fleet, keeping physical damage take-up falling with age. | Was 7.6 years with 29% aged 10+ (§2). | Done: tuned to Chicago crash-involved personal vehicles (about 10 years in force, 41% aged 10+) |
-| 4 | Record renewal offers, including those declined: the offered premium, the change and the outcome. | The real data supports price-elasticity exercises (11% to 28.5% leaving across price changes); the synthetic `renewal_offer` table now does too, with a flatter response (4.0% to 14.1%; §8). | Done (`renewal_offer`) |
-| 5 | Add a modest channel effect, for example selection on independent-agent business. | Real broker business: 1.12 times the book's average frequency and 1.20 times its average loss cost. Synthetic independent-agent business: 1.02 times, and 1.05 times exclusive-agent business with other factors equal (§6, §7). | Done: channels differ in risk and retention, and each agency has its own book quality |
-| 6 | Check the bodily injury severity tail against US large-loss data, such as the share of claims at the policy limit. | The top 1% of claim-years make up 24% of real cost against 16% of synthetic; limits explain part of this (§4). | Open |
+| 4 | Record renewal offers, including those declined: the offered premium, the change and the outcome. | The real data supports price-elasticity exercises (11% to 28.5% leaving across price changes); the synthetic `renewal_offer` table now does too, with a flatter response (4.5% to 14.0%; §8). | Done (`renewal_offer`) |
+| 5 | Add a modest channel effect, for example selection on independent-agent business. | Real broker business: 1.12 times the book's average frequency and 1.20 times its average loss cost. Synthetic independent-agent business: 1.02 times, and 1.08 times exclusive-agent business with other factors equal (§6, §7). | Done: channels differ in risk and retention, and each agency has its own book quality |
+| 6 | Check the bodily injury severity tail against US large-loss data, such as the share of claims at the policy limit. | The top 1% of claim-years make up 24% of real cost against 15% of synthetic; limits explain part of this (§4). | Open |
 | 7 | Optionally, a "messy extract" mode that injects documented defects (stub rows, out-of-order dates, `NA` text, zeros for missing values, snapshot fields) and logs each one in the answer key. | Real extracts need this cleaning (§10); the synthetic tables are perfectly clean. | Open |
 
 Things *not* to change on this evidence: the frequency level (the real counts include breakdown assistance
@@ -128,7 +128,7 @@ products differ; §9).
 | Market | Spain (inferred), euros | Chicago area, US dollars |
 | Years | Annual periods starting Nov 2015 to Nov 2018 | 1 Jan 2022 to 31 Dec 2026 |
 | Grain | One row per vehicle contract per annual period | 32 linked tables; rolled up to one row per policy term and vehicle |
-| Size | 105,555 rows, 53,502 contracts | 374,372 vehicle-terms, 43,366 policies, 176,381 vehicle-years |
+| Size | 105,555 rows, 53,502 contracts | 374,979 vehicle-terms, 43,366 policies, 176,758 vehicle-years |
 | Vehicles | 79% cars, 13% vans, 8% motorbikes, 1% agricultural | Private passenger cars and light trucks |
 | Terms | 12 months | 6 months (66% of exposure) or 12 months |
 | Used here | Passenger cars, periods starting by end of 2017: 46,376 rows, 45,197 vehicle-years | All vehicle-terms with exposure in the extract |
@@ -144,8 +144,8 @@ exposure).
 
 | | Real | Synthetic |
 |---|---|---|
-| Mean driver age | 46.7 | 51.2 |
-| Under 25 / 65 and over | 2.1% / 9.5% | 5.6% / 24.1% |
+| Mean driver age | 46.7 | 51.3 |
+| Under 25 / 65 and over | 2.1% / 9.5% | 5.7% / 24.2% |
 | Median years licensed | 23.0 | 34.0 |
 | Mean vehicle age / share 10+ years | 11.2 / 65% | 9.3 / 39% |
 | More than one driver | 14% | 70% |
@@ -163,7 +163,7 @@ remaining vehicle age gap reflects the two markets: the synthetic fleet is tuned
 |---|---|---|
 | 2015 / 2016 | 0.84 / 0.82 | |
 | 2017 / 2018 (cut off) | 0.45 / 0.31 | |
-| 2022 to 2025 | | 0.108 to 0.111 |
+| 2022 to 2025 | | 0.108 to 0.113 |
 
 Levels differ by a factor of four to seven. Real counts include breakdown assistance, which is 56% of
 claim-type lines (§9), glass and legal claims, and they carry the counting defect described above. Synthetic
@@ -175,23 +175,23 @@ the figures are 92.0% and under 0.1%.
 
 | | Real | Synthetic |
 |---|---|---|
-| Median | EUR 311 | USD 2,912 |
-| Coefficient of variation | 4.39 | 2.04 |
-| 90th percentile / median | 5.5 | 6.7 |
-| 99th percentile / median | 28.8 | 27.2 |
-| Share of cost in the costliest 1% / 10% | 23.8% / 58.7% | 15.5% / 53.9% |
+| Median | EUR 311 | USD 3,023 |
+| Coefficient of variation | 4.39 | 2.06 |
+| 90th percentile / median | 5.5 | 6.3 |
+| 99th percentile / median | 28.8 | 24.5 |
+| Share of cost in the costliest 1% / 10% | 23.8% / 58.7% | 15.4% / 53.3% |
 
 ### Premium and loss ratio (§5)
 
 | | Real (annual premium) | Synthetic (annual rate) |
 |---|---|---|
-| Median | EUR 298 | USD 1,108 |
+| Median | EUR 298 | USD 1,109 |
 | Coefficient of variation | 0.41 | 0.53 |
-| 90th / 10th percentile | 2.21 | 3.55 |
+| 90th / 10th percentile | 2.21 | 3.53 |
 | 99th percentile / median | 2.85 | 3.15 |
 
 Loss ratio by period start year: real 101.5% (2015), 98.3% (2016) and 56.9% (2017), 78.4% over all three;
-synthetic 79.4% (2022), 72.0% (2023), 65.3% (2024), 64.6% (2025) and 63.1% (2026), 68.7% over all years.
+synthetic 79.2% (2022), 67.5% (2023), 65.2% (2024), 62.1% (2025) and 63.2% (2026), 67.4% over all years.
 The real drop between 2016 and 2017 matches the unexplained drop in claim counts.
 
 ### Risk relationships (§6 and §7)
@@ -202,14 +202,14 @@ other factors equal; they compare each level with the first level shown.
 
 | Factor | Level | Real relativity | Synthetic relativity | Real model | Synthetic model |
 |---|---|---|---|---|---|
-| Driver age | under 25 / 65+ | 1.37 / 0.72 | 1.25 / 0.84 | 1 / 0.86 | 1 / 0.65 |
-| Years licensed | 0-4 / 30+ | 1.37 / 0.89 | 1.32 / 0.94 | 1 / 0.76 | 1 / 0.99 |
-| Vehicle value | lowest / highest fifth | 0.81 / 1.21 | 0.75 / 1.11 | 1 / 1.58 | 1 / 1.22 |
-| Urban | yes | 1.14 | 1.16 | 1.15 | 1.26 |
-| Vehicle age | 0-2 / 15+ years | 0.87 / 1.02 | 1.10 / 0.72 | 1 / 1.50 | 1 / 0.77 |
-| Pays in instalments | yes | 1.41 | 1.06 | 1.61 | 1.12 |
-| Years with the company | 0-1 / 10+ | 1.03 / 0.70 | 1.09 / 0.91 | 1 / 0.69 | 1 / 0.85 |
-| Channel | broker (independent agent) | 1.12 | 1.02 | 1.02 | 1.05 |
+| Driver age | under 25 / 65+ | 1.37 / 0.72 | 1.28 / 0.85 | 1 / 0.86 | 1 / 0.75 |
+| Years licensed | 0-4 / 30+ | 1.37 / 0.89 | 1.37 / 0.94 | 1 / 0.76 | 1 / 0.79 |
+| Vehicle value | lowest / highest fifth | 0.81 / 1.21 | 0.76 / 1.10 | 1 / 1.58 | 1 / 1.21 |
+| Urban | yes | 1.14 | 1.15 | 1.15 | 1.25 |
+| Vehicle age | 0-2 / 15+ years | 0.87 / 1.02 | 1.13 / 0.73 | 1 / 1.50 | 1 / 0.76 |
+| Pays in instalments | yes | 1.41 | 1.07 | 1.61 | 1.15 |
+| Years with the company | 0-1 / 10+ | 1.03 / 0.70 | 1.13 / 0.88 | 1 / 0.69 | 1 / 0.86 |
+| Channel | broker (independent agent) | 1.12 | 1.02 | 1.02 | 1.08 |
 | More than one driver | yes | 1.22 | 1.01 | 1.28 | 1.01 |
 
 The last row is not comparable: the books define it differently.
@@ -220,10 +220,10 @@ frequency of the riskiest tenth divided by that of the safest tenth.
 
 | Ranked by | Real Gini | Real top/bottom | Synthetic Gini | Synthetic top/bottom |
 |---|---|---|---|---|
-| Premium | 0.129 | 1.9 | 0.192 | 4.0 |
-| True expected loss (answer key) | | | 0.234 | 5.3 |
-| Model on the nine shared factors, held-out data | 0.222 (2017 only: 0.253) | 4.0 | 0.119 | 2.3 |
-| Same model plus US rating factors | | | 0.148 | 2.6 |
+| Premium | 0.129 | 1.9 | 0.193 | 3.8 |
+| True expected loss (answer key) | | | 0.239 | 5.1 |
+| Model on the nine shared factors, held-out data | 0.222 (2017 only: 0.253) | 4.0 | 0.121 | 2.3 |
+| Same model plus US rating factors | | | 0.145 | 2.5 |
 
 The real insurer's premium ranks claims less well than a nine-factor model does, which suggests that payment
 method, vehicle age and tenure were not fully priced. The synthetic premium ranks well because most of the
@@ -233,20 +233,20 @@ rating plan is fitted to the true costs (see the README's "Assumptions and limit
 
 | | Real | Synthetic |
 |---|---|---|
-| Contracts or policies lost per year | 25.3% | 18.8% |
-| of which mid-term cancellation / not renewed | 5.3% / 20.0% | 9.0% / 10.8% |
-| Lost in a period with a claim / without | 32.5% / 22.4% | 25.2% / 17.9% |
+| Contracts or policies lost per year | 25.3% | 18.7% |
+| of which mid-term cancellation / not renewed | 5.3% / 20.0% | 8.9% / 10.8% |
+| Lost in a period with a claim / without | 32.5% / 22.4% | 25.1% / 17.9% |
 
 Real renewal offers and how many were declined: price cut of more than 5%, 11.1%; cut of 0% to 5%, 13.1%;
 rise of 0% to 2%, 18.4%; 2% to 5%, 21.7%; 5% to 10%, 26.4%; 10% or more, 28.5%. Synthetic offers the company
-made that reached their renewal date (`renewal_offer`), on the same bands: 4.0%, 4.8%, 4.6%, 5.0%, 6.3% and
-14.1% (suggestion 4).
+made that reached their renewal date (`renewal_offer`), on the same bands: 4.5%, 4.6%, 4.6%, 4.8%, 6.2% and
+14.0% (suggestion 4).
 
 ### What a claim is (§9)
 
 Real claim types (a sample of rows with claims) are dominated by number by breakdown assistance (56% of
 lines, 10% of cost). By cost, *negligence*, probably liability to third parties, is 46%. Synthetic cost is
-30% bodily injury liability, 22% property damage liability, 28% collision and 16% comprehensive. The products
+30% bodily injury liability, 21% property damage liability, 28% collision and 16% comprehensive. The products
 differ, so this section explains why frequency levels cannot be compared; it does not suggest a fix.
 
 ### Data quality (§10)

@@ -1605,18 +1605,18 @@ vehicle_id,model_key,make,model,model_year,body_type,vehicle_class,segment,fuel_
 1604,164,Chevrolet,Astro,2003,Van,Passenger Van,mainstream,Gasoline,4WD,6,4.3,35000,21300,True,1.0,45,0.004500805,EPA
 1605,164,Chevrolet,Astro,2004,Van,Passenger Van,mainstream,Gasoline,4WD,6,4.3,35000,21800,True,1.0,48,0.00386525,EPA
 1606,164,Chevrolet,Astro,2005,Van,Passenger Van,mainstream,Gasoline,4WD,6,4.3,35000,22300,True,1.0,65,0.003628458,EPA
-1607,165,Chevrolet,Avalanche,2002,SUV,truck,mainstream,Gasoline,4WD,8,5.3,50000,29700,True,1.4,129,0.008195372,EPA
-1608,165,Chevrolet,Avalanche,2003,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,30400,True,1.4,73,0.005944967,EPA
-1609,165,Chevrolet,Avalanche,2004,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,31100,True,1.4,76,0.004581373,EPA
-1610,165,Chevrolet,Avalanche,2005,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,31900,True,1.4,59,0.003397396,EPA
-1611,165,Chevrolet,Avalanche,2006,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,32600,True,1.4,18,0.002682397,EPA
-1612,165,Chevrolet,Avalanche,2007,SUV,truck,mainstream,Gasoline,RWD,8,5.3,50000,33400,True,1.4,121,0.002739786,EPA
-1613,165,Chevrolet,Avalanche,2008,SUV,truck,mainstream,Gasoline,RWD,8,5.3,50000,34200,True,1.4,62,0.002172398,EPA
-1614,165,Chevrolet,Avalanche,2009,SUV,truck,mainstream,Gasoline,RWD,8,5.3,50000,35000,True,1.4,28,0.001597903,EPA
-1615,165,Chevrolet,Avalanche,2010,SUV,truck,mainstream,Flex Fuel,RWD,8,5.8,50000,35900,True,1.4,18,0.001219212,EPA
-1616,165,Chevrolet,Avalanche,2011,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,36700,True,1.4,41,0.00110745,EPA
-1617,165,Chevrolet,Avalanche,2012,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,37600,True,1.4,20,0.000906373,EPA
-1618,165,Chevrolet,Avalanche,2013,SUV,truck,mainstream,Flex Fuel,4WD,8,5.3,50000,38500,True,1.4,38,0.000896342,EPA
+1607,165,Chevrolet,Avalanche,2002,SUV,Standard SUV,truck,Gasoline,4WD,8,5.3,50000,29700,True,1.4,129,0.008195372,EPA
+1608,165,Chevrolet,Avalanche,2003,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,30400,True,1.4,73,0.005944967,EPA
+1609,165,Chevrolet,Avalanche,2004,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,31100,True,1.4,76,0.004581373,EPA
+1610,165,Chevrolet,Avalanche,2005,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,31900,True,1.4,59,0.003397396,EPA
+1611,165,Chevrolet,Avalanche,2006,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,32600,True,1.4,18,0.002682397,EPA
+1612,165,Chevrolet,Avalanche,2007,SUV,Standard SUV,truck,Gasoline,RWD,8,5.3,50000,33400,True,1.4,121,0.002739786,EPA
+1613,165,Chevrolet,Avalanche,2008,SUV,Standard SUV,truck,Gasoline,RWD,8,5.3,50000,34200,True,1.4,62,0.002172398,EPA
+1614,165,Chevrolet,Avalanche,2009,SUV,Standard SUV,truck,Gasoline,RWD,8,5.3,50000,35000,True,1.4,28,0.001597903,EPA
+1615,165,Chevrolet,Avalanche,2010,SUV,Standard SUV,truck,Flex Fuel,RWD,8,5.8,50000,35900,True,1.4,18,0.001219212,EPA
+1616,165,Chevrolet,Avalanche,2011,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,36700,True,1.4,41,0.00110745,EPA
+1617,165,Chevrolet,Avalanche,2012,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,37600,True,1.4,20,0.000906373,EPA
+1618,165,Chevrolet,Avalanche,2013,SUV,Standard SUV,truck,Flex Fuel,4WD,8,5.3,50000,38500,True,1.4,38,0.000896342,EPA
 1619,166,Chevrolet,Aveo,2004,Sedan,Compact Car,economy,Gasoline,FWD,4,1.6,17000,10600,True,1.0,33,0.002499658,EPA
 1620,166,Chevrolet,Aveo,2005,Sedan,Compact Car,economy,Gasoline,FWD,4,1.6,17000,10800,True,1.0,46,0.002655166,EPA
 1621,166,Chevrolet,Aveo,2006,Sedan,Subcompact Car,economy,Gasoline,FWD,4,1.6,17000,11100,True,1.0,48,0.00296279,EPA
@@ -3768,11 +3768,11 @@ vehicle_id,model_key,make,model,model_year,body_type,vehicle_class,segment,fuel_
 3767,387,Hummer,H2,2007,SUV,Standard SUV,truck,Gasoline,4WD,8,6.0,82000,54800,True,1.5,11,0.000659462,Supplement
 3768,387,Hummer,H2,2008,SUV,Standard SUV,truck,Gasoline,4WD,8,6.0,82000,56100,True,1.5,8,0.000457998,Supplement
 3769,387,Hummer,H2,2009,SUV,Standard SUV,truck,Gasoline,4WD,8,6.0,82000,57500,True,1.5,1,0.00031223,Supplement
-3770,388,Hummer,H3,2006,SUV,truck,luxury,Gasoline,4WD,5,3.5,42000,27400,True,1.3,114,0.003770953,EPA
-3771,388,Hummer,H3,2007,SUV,truck,luxury,Gasoline,4WD,5,3.7,42000,28100,True,1.3,92,0.002827693,EPA
-3772,388,Hummer,H3,2008,SUV,truck,luxury,Gasoline,4WD,5,3.7,42000,28700,True,1.3,52,0.002015925,EPA
-3773,388,Hummer,H3,2009,SUV,truck,luxury,Gasoline,4WD,5,3.7,42000,29400,True,1.3,14,0.001296369,EPA
-3774,388,Hummer,H3,2010,SUV,truck,luxury,Gasoline,4WD,5,3.7,42000,30100,True,1.3,3,0.000849927,EPA
+3770,388,Hummer,H3,2006,SUV,Small SUV,truck,Gasoline,4WD,5,3.5,42000,27400,True,1.3,114,0.003770953,EPA
+3771,388,Hummer,H3,2007,SUV,Small SUV,truck,Gasoline,4WD,5,3.7,42000,28100,True,1.3,92,0.002827693,EPA
+3772,388,Hummer,H3,2008,SUV,Small SUV,truck,Gasoline,4WD,5,3.7,42000,28700,True,1.3,52,0.002015925,EPA
+3773,388,Hummer,H3,2009,SUV,Small SUV,truck,Gasoline,4WD,5,3.7,42000,29400,True,1.3,14,0.001296369,EPA
+3774,388,Hummer,H3,2010,SUV,Small SUV,truck,Gasoline,4WD,5,3.7,42000,30100,True,1.3,3,0.000849927,EPA
 3775,389,Hyundai,Accent,1997,Sedan,Compact Car,economy,Gasoline,FWD,4,1.5,17000,9000,True,1.0,0,0.000375485,EPA
 3776,389,Hyundai,Accent,1998,Sedan,Compact Car,economy,Gasoline,FWD,4,1.5,17000,9200,True,1.0,0,0.000531668,EPA
 3777,389,Hyundai,Accent,1999,Sedan,Subcompact Car,economy,Gasoline,FWD,4,1.5,17000,9400,True,1.0,3,0.000793277,EPA
