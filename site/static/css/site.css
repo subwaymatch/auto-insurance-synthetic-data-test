@@ -153,6 +153,8 @@ hr { border: 0; margin: 48px 0; }
   display: inline-flex; align-items: center; gap: 7px;
 }
 .lucide { flex: none; width: 16px; height: 16px; }
+.prose a .lucide { vertical-align: -3px; margin-right: 6px; }
+.prose a:has(.lucide) { white-space: nowrap; }
 :root[data-theme="dark"] .site-nav a.nav-button { background: var(--accent); color: #07131D; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .site-nav a.nav-button { background: var(--accent); color: #07131D; } }
 .site-nav a.nav-button:hover, .site-nav a.nav-button.active { color: #fff; filter: brightness(1.15); }
