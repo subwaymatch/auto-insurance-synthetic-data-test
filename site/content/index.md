@@ -6,7 +6,7 @@ description: Five years of a Chicago-area auto insurer’s data for teaching and
 
 ## Built to behave like an operating company’s data
 
-Most teaching datasets are one flat table. This one is the warehouse of a whole carrier, so questions have to be answered the way they are at work: by finding the right table, joining on the right key, and knowing what was known when.
+This is the warehouse of a whole carrier, not one flat table: answering a question means finding the right table, joining on the right key, and knowing what was known when.
 
 <div class="feature-grid" markdown="1">
 <div markdown="1">
@@ -30,8 +30,8 @@ Each claim has coverages, payments, salvage and subrogation recoveries, and a ca
 Every premium is billed and collected, every claim payment has a payee, a check number and an approver, and a monthly general ledger ties to each subledger, from written premium to case reserves.
 </div>
 <div markdown="1">
-### Findings to discover
-The rating plan has weaknesses for students to find, and the claims hold patterns it doesn’t price. An answer key holds the truth for instructors, so students’ findings can be checked.
+### Three formats
+CSV files, one SQLite database with every primary and foreign key declared, and Parquet files with their column types set: the same tables in each.
 </div>
 </div>
 

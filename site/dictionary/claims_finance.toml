@@ -209,7 +209,7 @@ credit = "Credit amount in dollars; 0 when the line is a debit. Never negative."
 
 [agency_truth]
 grain = "Agency"
-summary = """Two hidden traits of each agency that the insurer never records. Instructors use them to tell whether an agency's poor or good results reflect a truly different book or just claim luck, and to check retention models. The two direct units have neutral values."""
+summary = """Two hidden traits of each agency that the insurer never records. They describe how each agency's book compares with what its rating variables show, and how well it keeps its customers. The two direct units have neutral values."""
 
 [agency_truth.columns]
 agency_id = "Primary key, and the `agency` described."
@@ -218,7 +218,7 @@ retention_effect = "Hidden shift in the renewal log-odds of the agency's custome
 
 [claim_feature_truth]
 grain = "Reported claim feature, at ultimate"
-summary = """Each feature in `claim_feature` as it finally develops, including payments, recoveries, reopenings and closes after the valuation date (December 31, 2026). Instructors compare it with `claim_feature` to measure development on known claims and to score students' reserve and ultimate-loss estimates. Losses not yet reported at the valuation date are in `unreported_claim` instead."""
+summary = """Each feature in `claim_feature` as it finally develops, including payments, recoveries, reopenings and closes after the valuation date (December 31, 2026). Comparing it with `claim_feature` measures development on known claims. Losses not yet reported at the valuation date are in `unreported_claim` instead."""
 
 [claim_feature_truth.columns]
 claim_feature_id = "Primary key, and the `claim_feature` described."
@@ -230,7 +230,7 @@ eventual_close_date = "Date the feature finally closes, after any reopening. Aft
 
 [driver_truth]
 grain = "Driver"
-summary = """Each driver's hidden risk factor, and their race and ethnicity group, which the insurer never records. The risk factor lets instructors measure how much of true risk the rating variables and driving records capture; the group supports fairness audits, such as checking surname-and-address (BISG) race estimates against the truth."""
+summary = """Each driver's hidden risk factor, and their race and ethnicity group, which the insurer never records. Rating variables and driving records capture the risk factor only in part; the group allows fairness testing, such as checking surname-and-address (BISG) race estimates against it."""
 
 [driver_truth.columns]
 driver_id = "Primary key, and the `driver` described."
@@ -255,7 +255,7 @@ expected_loss_total = "Sum of the eight coverages, rounded on its own, so it can
 
 [insured_vehicle_truth]
 grain = "Insured vehicle"
-summary = """Each vehicle's true annual mileage and whether it belongs to the Kia and Hyundai theft-wave group. Instructors use it to show how far reported mileage understates driving (and that telematics mileage exposes it), and to confirm a theft trend the rating plan does not price."""
+summary = """Each vehicle's true annual mileage and whether it belongs to the Kia and Hyundai theft-wave group."""
 
 [insured_vehicle_truth.columns]
 insured_vehicle_id = "Primary key, and the `insured_vehicle` described."
@@ -264,7 +264,7 @@ kia_hyundai_theft_exposure = "`Y` for Kia and Hyundai model years 2011 to 2021 t
 
 [location_truth]
 grain = "ZIP code"
-summary = """Each ZIP code's hidden true crash and theft hazards beside the public indices the rating territories are built from, and the chance that the other driver in a not-at-fault crash is uninsured. Instructors use it to show the geographic risk the territories cannot capture, and to separate it from noise in ZIP-level claim experience."""
+summary = """Each ZIP code's hidden true crash and theft hazards beside the public indices the rating territories are built from, and the chance that the other driver in a not-at-fault crash is uninsured."""
 
 [location_truth.columns]
 location_id = "Primary key, and the `location` described."
@@ -278,7 +278,7 @@ other_driver_uninsured_probability = "Probability, 0 to 1, that the other driver
 
 [policy_truth]
 grain = "Policy (household)"
-summary = """Two hidden traits of each household: its stability, which drives claims, renewals and payment habits, and the risk factor its drivers share. Instructors use them to show that discounts such as homeowner and multi-policy work partly as stand-ins for stability, and why new business costs more than it is charged."""
+summary = """Two hidden traits of each household: its stability, which affects claims, renewals and payment habits, and the risk factor its drivers share."""
 
 [policy_truth.columns]
 policy_id = "Primary key, and the `policy` described."
@@ -287,7 +287,7 @@ household_risk_factor = "Hidden multiplier on at-fault crash frequency shared by
 
 [renewal_offer_truth]
 grain = "Renewal evaluated"
-summary = """The customer's true chance of accepting each renewal in `renewal_offer`, fixed on the offer date. Instructors use it to score retention and price-elasticity models: the observed `renewal_offer.outcome` is a single random draw from this probability, so even a perfect model mispredicts some outcomes."""
+summary = """The customer's true chance of accepting each renewal in `renewal_offer`, fixed on the offer date. The observed `renewal_offer.outcome` is one outcome of this chance, so even a perfect model mispredicts some renewals."""
 
 [renewal_offer_truth.columns]
 renewal_offer_id = "Primary key, and the `renewal_offer` described."

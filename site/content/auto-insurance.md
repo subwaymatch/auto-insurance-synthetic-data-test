@@ -60,7 +60,7 @@ An insurer can’t know what a particular driver will cost. It can estimate what
 3. **Discounts and surcharges.** Further factors for multi-car, bundling, paying in full, loyalty, good students and so on.
 4. **Rate level.** When costs rise, the insurer files a **rate change** that moves every price by a percentage from an effective date.
 
-The plan’s goal is that premiums match expected losses plus expenses and profit, segment by segment. When a segment pays less than it costs, the company loses money on it; when it pays more, a competitor can take it away. Testing whether a plan gets this right is the actuary’s core job, and the Lakefront plan has weaknesses for students to find.
+The plan’s goal is that premiums match expected losses plus expenses and profit, segment by segment. When a segment pays less than it costs, the company loses money on it; when it pays more, a competitor can take it away. Testing whether a plan gets this right is the actuary’s core job.
 
 A term is rated on its **rating date**, using only what the insurer knows by then. A speeding ticket that hasn’t reached the driving record yet doesn’t count until the next renewal.
 
@@ -147,7 +147,7 @@ The basic measures every insurance analyst uses:
 Losses are grouped by **accident year** (the year the loss happened), by **calendar year** (the year a payment or reserve change was booked) or by **policy year**. An accident year’s losses keep changing for years after it ends, as late claims are reported and reserves are revised: this is **loss development**. Actuaries track it in **development triangles** (losses by accident year and age) and use them to estimate **IBNR**, the losses **incurred but not reported** yet, and the **ultimate** cost of each year.
 
 <div class="in-the-data" markdown="1">
-Payments (`claim_payment.payment_date`) and reserve changes (`claim_reserve_transaction.transaction_date`) are dated, so paid and incurred triangles can be built as of any date. The data has no IBNR: estimating it is an exercise, and the answer key’s `unreported_claim` lists the claims that had happened but not been reported at the end of 2026. Lakefront’s ledger has commission but no other expenses, so it supports loss ratios but not a combined ratio.
+Payments (`claim_payment.payment_date`) and reserve changes (`claim_reserve_transaction.transaction_date`) are dated, so paid and incurred triangles can be built as of any date. The data holds no IBNR estimate; the answer key’s `unreported_claim` lists the claims that had happened but not been reported at the end of 2026. Lakefront’s ledger has commission but no other expenses, so it supports loss ratios but not a combined ratio.
 </div>
 
 ## The accounts

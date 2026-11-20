@@ -907,10 +907,10 @@ every figure can be traced back to rows a student can see.
   closes at least 30 days after the suit (a feature drawn to close sooner stays open longer).
   At-fault insureds are 51% to 100% at fault and others 0% to 49%, so the data has no evenly shared
   (50/50) accidents, a simplification: under Illinois' modified comparative fault rule a claimant
-  recovers only if no more than 50% at fault. `insured_fault_pct` describes the accident only: settlements are not
-  reduced for the other party's share of fault (see "Assumptions and limits"). Injury type follows
-  severity. Police reports, fraud referrals and SR-22 filings (three years after a DUI, driving while
-  suspended or leaving the scene) are included.
+  recovers only if no more than 50% at fault. `insured_fault_pct` describes the accident only:
+  settlements are not reduced for the other party's share of fault (see "Assumptions and limits").
+  Injury type follows severity. Police reports, fraud referrals and SR-22 filings (three years after a
+  DUI, driving while suspended or leaving the scene) are included.
 - **Coverages and limits.** Every payment respects the terms on the exposure row it arose under, which
   `validate.py` checks coverage by coverage. Bodily injury and uninsured motorist payments are held
   to the per-person limit and, across an accident's claimants, to the per-accident limit, shared pro

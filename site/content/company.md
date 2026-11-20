@@ -13,7 +13,7 @@ description: Who Lakefront is: three underwriting companies, 134 agencies and tw
 |---|---|
 | Business | Personal auto insurance only: private passenger cars, SUVs, pickups and vans |
 | Territory | Cook, DuPage, Lake, Will, Kane, McHenry and Kendall counties: 290 ZIP codes |
-| Size | About 22,650 policies and 39,000 cars in force at the end of 2026, and some $54 million of premium a year: roughly 1% of the area’s household vehicles |
+| Size | About 22,640 policies and 39,000 cars in force at the end of 2026, and some $54 million of premium a year: roughly 1% of the area’s household vehicles |
 | History in the data | 1 January 2022 to 31 December 2026. 19,745 policies were already in force on the first day; 43,368 policies were written or renewed in all |
 | Companies | Three underwriting companies, for preferred, standard and non-standard risks |
 | Distribution | 120 independent agencies, 14 exclusive agents’ offices, and direct sales online and by phone |
@@ -37,9 +37,9 @@ The company’s three-letter code is part of every policy number: `0830512-LFM-4
 
 Customers reach Lakefront in three ways. The channel matters: it changes who buys, how much they pay in commission, and how long they stay.
 
-**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 45 or fewer Lakefront policies in force, the largest has 483, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
+**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 47 or fewer Lakefront policies in force, the largest has 491, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
 
-**Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 440 policies each and earn somewhat less commission.
+**Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 437 policies each and earn somewhat less commission.
 
 **Direct.** Two in-house units, `Direct - Online` and `Direct - Contact Center`, which pay no commission.
 
@@ -81,8 +81,6 @@ The rating plan multiplies a base rate by factors for the driver, the car, where
 | No prior insurance | 8% surcharge |
 | Lakefront DriveCheck (telematics) | 5% for joining, then up to 30% depending on the driving score |
 
-Whether each discount is worth what it gives away is one of the questions the data can answer.
-
 ### Paying for it
 
 Customers pay in full or by monthly instalments, either by automatic bank draft (EFT) or by bill. Instalments after the first carry a $2 fee by draft or $5 by bill; a payment more than five days late costs $10, and a returned draft $25. An unpaid instalment leads to a past-due notice, then a notice of cancellation, and cover ends three to four weeks after the missed due date. See `billing_invoice` and `billing_receipt`.
@@ -110,7 +108,7 @@ Adjusters, senior adjusters, supervisors, investigators and a claims manager (46
 
 ## Five years in brief
 
-Lakefront entered 2022 under-priced, as much of the industry did after the pandemic: used-car prices and repair costs had soared while rates had been cut. It raised rates seven times, 48% in all by March 2025, then cut them 2% in June 2026 (`rate_change`).
+Lakefront entered 2022 under-priced, as much of the industry did after the pandemic: used-car prices and repair costs had soared while rates had been cut. It raised rates six times, 48% in all by March 2025, then cut them 2% in June 2026 (`rate_change`).
 
 | Effective | Change | Rate level |
 |---|---:|---:|
@@ -126,10 +124,10 @@ Each increase made Lakefront dearer than its competitors until they caught up, s
 
 | Year end | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---:|---:|---:|---:|---:|
-| Policies in force | 20,385 | 19,968 | 20,206 | 21,448 | 22,650 |
-| Loss ratio, by accident year | 79.5% | 76.9% | 66.3% | 64.1% | 62.6% |
+| Policies in force | 20,429 | 20,089 | 20,261 | 21,475 | 22,640 |
+| Loss ratio, by accident year | 80.1% | 72.5% | 66.5% | 61.2% | 62.4% |
 
-The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Eight catastrophes (hailstorms, a derecho and flash floods) add between half a point and three points a year (`catastrophe`).
+The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Eight catastrophes (hailstorms, a derecho and flash floods) add between half a point and two and a half points a year (`catastrophe`).
 
 ## What the books leave out
 

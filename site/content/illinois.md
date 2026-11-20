@@ -116,7 +116,7 @@ Motor vehicle thefts recorded by the Chicago Police Department ([City of Chicago
 | Thefts | 8,979 | 9,962 | 10,605 | 21,476 | 29,257 | 21,715 | 17,261 |
 
 <div class="in-the-data" markdown="1">
-The theft wave is in the claims: look for whole-vehicle thefts (`claim.cause_of_loss` `THEFT_TOTAL`) of the affected makes and model years (`vehicle_model_year`). Whether Lakefront’s prices kept up is a question for students. The answer key’s `insured_vehicle_truth.kia_hyundai_theft_exposure` marks the affected cars.
+The theft wave is in the claims: look for whole-vehicle thefts (`claim.cause_of_loss` `THEFT_TOTAL`) of the affected makes and model years (`vehicle_model_year`). The answer key’s `insured_vehicle_truth.kia_hyundai_theft_exposure` marks the affected cars.
 </div>
 
 ## Changes coming in 2027
