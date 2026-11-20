@@ -119,7 +119,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "earned_premium": terms.earned.round(2), "rate_level_index": (terms.rate_level / cal.rate_level[0]).round(4)})
 
     last = terms.sort_values(["pol", "s"], kind="stable").groupby("pol").tail(1).set_index("pol").reindex(pol["pol"])
-    status = np.where(last.cancel_day >= 0, "Cancelled", np.where(last.nonrenewal_reason != "", "Non-Renewed", "In Force"))
+    status = np.where(last.cancel_day >= 0, "Canceled", np.where(last.nonrenewal_reason != "", "Non-Renewed", "In Force"))
     end_day = np.where(last.cancel_day >= 0, last.cancel_day, last.e)
     reason = np.where(last.cancel_day >= 0, last.cancel_reason, last.nonrenewal_reason)
     ni_drv = pol.ni_drv.to_numpy()
@@ -144,7 +144,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "original_inception_date": pd.Series(cal.start + inception.astype("timedelta64[D]")).dt.strftime("%Y-%m-%d").to_numpy(),
         "first_effective_date": D(pol.first_day), "latest_expiration_date": D(end_day),
         "term_months": pol.term_months, "policy_status": status, "status_reason": reason,
-        "cancel_date": np.where(status == "Cancelled", D(end_day), ""),
+        "cancel_date": np.where(status == "Canceled", D(end_day), ""),
         "named_insured_driver_id": ni_drv + 1,
         "number_of_drivers": on_policy(drv.pol.to_numpy(), drv.added_day.to_numpy(), removed_d),
         "number_of_vehicles": on_policy(veh.pol.to_numpy(), veh.added_day.to_numpy(), removed_v),
@@ -440,7 +440,7 @@ def _telematics_tables(tele: dict, terms: pd.DataFrame, V: int, D, polno) -> dic
     en = en[en.start <= V]
     ended = (en.end >= 0) & (en.end <= V)
     out = {"telematics_enrollment": pd.DataFrame({
-        "enrollment_id": en.eid + 1, "policy_id": polno(en.pol), "programme": telematics.PROGRAMME,
+        "enrollment_id": en.eid + 1, "policy_id": polno(en.pol), "program": telematics.PROGRAMME,
         "device_type": np.array(telematics.DEVICE_TYPES)[en.device], "enrollment_date": D(en.start),
         "participation_discount_pct": int(round(telematics.PARTICIPATION_DISCOUNT * 100)),
         "end_date": np.where(ended, D(en.end.clip(0)), ""), "end_reason": np.where(ended, en.reason, "")})}
@@ -601,7 +601,7 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, notices
     lost = veh[veh.removal_reason.isin([REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")])]
     changes = pd.concat([changes, pd.DataFrame({"pol": lost.pol, "day": lost.removed_day})]).drop_duplicates()
     add(changes.pol, changes.day, "Policy Change Confirmation")
-    add(claims.pol, claims.report_day, "Claim Acknowledgement", phone=0.45)
+    add(claims.pol, claims.report_day, "Claim Acknowledgment", phone=0.45)
     closed = ~cg.open.to_numpy()
     add(claims.pol[closed], cg.close_day.to_numpy()[closed], "Claim Closure Notice", phone=0.10)
 

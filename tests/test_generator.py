@@ -349,7 +349,7 @@ class GeneratorTest(unittest.TestCase):
             validate.integrity_renewals(rep, o, term, risk, self.a["valuation"])
         self.assertEqual(rep.failures, 0, out.getvalue())
         declined = o[o["outcome"].isin(["Insured Did Not Renew", "Company Non-Renewal"])]
-        self.assertTrue({"Renewed", "Insured Did Not Renew", "Cancelled Before Renewal", "Pending"} <= set(o["outcome"]))
+        self.assertTrue({"Renewed", "Insured Did Not Renew", "Canceled Before Renewal", "Pending"} <= set(o["outcome"]))
         # (a household whose only car was written off, its replacement not yet bought, has nothing to price)
         self.assertTrue(((declined["renewal_premium"] > 0) | (declined["vehicles_offered"] == 0)).all()
                         and declined["offer_date"].notna().all())

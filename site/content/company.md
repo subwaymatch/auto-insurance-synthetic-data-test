@@ -83,7 +83,7 @@ The rating plan multiplies a base rate by factors for the driver, the car, where
 
 ### Paying for it
 
-Customers pay in full or by monthly instalments, either by automatic bank draft (EFT) or by bill. Instalments after the first carry a $2 fee by draft or $5 by bill; a payment more than five days late costs $10, and a returned draft $25. An unpaid instalment leads to a past-due notice, then a notice of cancellation, and cover ends three to four weeks after the missed due date. See `billing_invoice` and `billing_receipt`.
+Customers pay in full or by monthly installments, either by automatic bank draft (EFT) or by bill. Installments after the first carry a $2 fee by draft or $5 by bill; a payment more than five days late costs $10, and a returned draft $25. An unpaid installment leads to a past-due notice, then a notice of cancellation, and cover ends three to four weeks after the missed due date. See `billing_invoice` and `billing_receipt`.
 
 ## Lakefront DriveCheck
 

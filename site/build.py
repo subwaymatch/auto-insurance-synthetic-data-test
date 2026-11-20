@@ -203,7 +203,7 @@ def load_dictionary(strict: bool) -> dict[str, Table]:
 
 # --------------------------------------------------------------------------- the data model diagram
 
-# Hand-placed so that every drawn link joins neighbouring columns or runs down one column.
+# Hand-placed so that every drawn link joins neighboring columns or runs down one column.
 DIAGRAM_COLUMNS = [
     ("Sellers and places", ["underwriting_company", "agency", "producer", "agency_statement", "location",
                             "zip_demographics"]),
@@ -420,7 +420,7 @@ ICON_REF = re.compile(r"%ICON\(([a-z0-9-]+)\)%")
 
 
 def icon(name: str) -> str:
-    """A Lucide icon from site/icons/ (lucide-static, ISC licence), inline and hidden from screen readers."""
+    """A Lucide icon from site/icons/ (lucide-static, ISC license), inline and hidden from screen readers."""
     svg = (SITE / "icons" / f"{name}.svg").read_text()
     svg = re.sub(r"<!--.*?-->", "", svg, flags=re.S)
     svg = re.sub(r'\s(width|height)="24"', r' \1="16"', svg)

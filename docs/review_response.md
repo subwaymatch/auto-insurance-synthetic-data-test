@@ -18,8 +18,8 @@ December 2026; content hash `4b5bca69599df49e`).
 |---|---|---|---|---|
 | F1 | Telematics scores attributed to a driver assigned to the car after the driving | Confirmed and fixed | 211 scores overlap another driver's exposure; 48 name a driver first assigned after the window | 0 and 0; 165 scoring periods split where the car's driver changed |
 | F2 | Renewal decisions use the household, claims and premium as they stood after the offer date | Confirmed and fixed | Offer-date and inception-date inputs mixed; declined renewals left no record of their offer | Every input as at the offer date; 179,620 offers kept, declined ones included, in the new `renewal_offer` table |
-| - | A score of a customer who left the programme linked to a term that began before it | Found while checking F1; fixed | 4 scores | 0 |
-| - | Opt-ins at a renewal that was not taken recorded as enrolments that ended the day they began | Found while fixing F2; fixed | 257 enrolments | 0 (the opt-in is on the renewal offer instead) |
+| - | A score of a customer who left the program linked to a term that began before it | Found while checking F1; fixed | 4 scores | 0 |
+| - | Opt-ins at a renewal that was not taken recorded as enrollments that ended the day they began | Found while fixing F2; fixed | 257 enrollments | 0 (the opt-in is on the renewal offer instead) |
 
 ### F1. Telematics uses a driver assigned after the driving occurred
 
@@ -30,7 +30,7 @@ another household driver after (or during) the scoring window was scored as the 
 **What we found.** Confirmed: 211 of 56,491 scores overlap an exposure row of the same car rated to a
 different driver, and 48 scores with windows starting in 2022 or later name a driver whose first exposure
 on that car begins after the window ends (the reviewer's example, score 6564, was such a takeover). Two
-smaller leaks of the same kind: the take-up of the programme used the drivers on the policy at the renewal
+smaller leaks of the same kind: the take-up of the program used the drivers on the policy at the renewal
 date rather than on the offer date, and a driver's propensity used their current marital status. Cars sold
 or written off between the scoring date and the renewal were not scored at all, although they were on the
 policy that day.
@@ -50,7 +50,7 @@ current state:
   changes.
 - **Who is scored.** Every monitored car on the policy on the scoring date, including one that leaves
   before the renewal (its score applies to no term).
-- **Take-up** of the programme uses the household on the offer date (as quoted, for new business).
+- **Take-up** of the program uses the household on the offer date (as quoted, for new business).
 
 **Checks.** `validate.py`: "each score is the driving of the driver assigned to the car on the days scored"
 (against the exposure rows' rated driver, the reviewer's interval check, plus the opening assignment for
@@ -61,7 +61,7 @@ driver unchanged; moving that takeover to any later date changes nothing, metric
 draws; a change inside the window splits it, and a move alone (same driver) does not. The existing
 membership checks still pass.
 
-**Found along the way.** A customer who left the programme earned no discount, and their last score was
+**Found along the way.** A customer who left the program earned no discount, and their last score was
 marked with day `-1` for "applies to no term". Day `-1` is a real day, 31 December 2021, the start of some
 opening terms, so 4 such scores were linked to that term. A sentinel that cannot be a day replaces it.
 
@@ -87,7 +87,7 @@ would be given were not those the decision used.
 1. **Underwriting review.** Drivers on the policy that day, with incidents known by then, dated in the
    three years before the renewal. A flagged policy may be non-renewed by the company (a notice, not an
    offer).
-2. **Telematics.** Enrolled cars are scored (F1), and the programme is offered to non-members.
+2. **Telematics.** Enrolled cars are scored (F1), and the program is offered to non-members.
 3. **The offer.** The renewal premium is evaluated from the expiring term's exposure rows in force on the
    offer date (cars, rated drivers, address, homeowner status, limits and deductibles), rated for the new
    term at its rates, with the records known that day and the telematics discounts just earned. It is
@@ -97,13 +97,13 @@ would be given were not those the decision used.
 
 Nothing after the offer date changes these. Later events remain later events: a household change before
 the effective date re-rates the pending renewal (a revised offer, as before), a cancellation before the
-effective date ends the policy ("Cancelled Before Renewal"), and a household with no car left has nothing to
+effective date ends the policy ("Canceled Before Renewal"), and a household with no car left has nothing to
 renew. Decisions draw from a dedicated random stream, one pair of draws per policy per term, so a policy's
 decision depends only on its own history up to the offer. Customers do not re-decide on a revised offer;
 that is a stated simplification ([limitations.md](limitations.md)).
 
 **New table `renewal_offer`**: one row per renewal evaluated, 179,620 in the default run: 162,374
-renewed, 11,979 not renewed by the insured, 134 company non-renewals, 1,146 cancelled before the renewal
+renewed, 11,979 not renewed by the insured, 134 company non-renewals, 1,146 canceled before the renewal
 date and 3,987 pending (taking effect after the valuation date). Each row has the offer date (the decision
 date and snapshot date), the vehicles offered, the expiring and renewal premium for a full term, the
 premium change, the telematics opt-in, the underwriting decision, the revised offer date (10,393 offers,
@@ -122,8 +122,8 @@ what was known on the offer date, whatever the revision brings later.
 **Checks.** `validate.py`: each offer is made during its expiring term and by the valuation date; each
 covers the vehicles in force on its offer date at the premium they were then insured for; every renewal
 term after a policy's first in the data is a renewed offer with the term's offer date and revised offer
-date; every non-renewed term has one offer whose outcome is its non-renewal reason; "Cancelled Before
-Renewal" exactly when the expiring term was cancelled after the offer; pending only after the valuation
+date; every non-renewed term has one offer whose outcome is its non-renewal reason; "Canceled Before
+Renewal" exactly when the expiring term was canceled after the offer; pending only after the valuation
 date; no telematics offer or revision for a company non-renewal. Tests in `RenewalTimelineTest`: every
 offer of a run, evaluated again at the end of the run with the whole later history present (later claims,
 moves, cars, drivers and records, and the scrambled current state of the policy), gives the same premium,
@@ -136,9 +136,9 @@ known a day later do not. The existing rating-date checks and the revised-offer 
 
 The order of random draws changed, so every table differs by sampling noise; every calibration band still
 holds. Policy terms 205,616 → 205,742; exposure rows 460,536 → 460,831; claims 20,381 → 20,343; telematics
-scores 56,491 → 59,553 (split windows and cars scored on their last scoring date) and enrolments 12,607 →
-12,298 (no enrolment for an opt-in whose renewal was not taken); customer contacts 329,368 → 347,405
-(renewal offers that were declined). Retention is unchanged in substance: annualised policy retention 83.3%
+scores 56,491 → 59,553 (split windows and cars scored on their last scoring date) and enrollments 12,607 →
+12,298 (no enrollment for an opt-in whose renewal was not taken); customer contacts 329,368 → 347,405
+(renewal offers that were declined). Retention is unchanged in substance: annualized policy retention 83.3%
 → 83.4%, insured non-renewals 12,109 → 11,979, company non-renewals 121 → 134. The renewal rate falls with the
 offered change, from about 95% for changes of 5% or less to 87.5% for 10% to 20% and 75% above 20%. The
 overall loss ratio is 66.9% (was 68.3%), and the expected loss ratios plus catastrophes for 2022 to 2025
@@ -147,7 +147,7 @@ are 79.3%, 77.6%, 67.9% and 64.7% (were 79.1%, 77.1%, 67.9%, 64.8%).
 ### Tables, realism and follow-up work
 
 The reviewer's assessment of the table structure and statistical realism (a credible teaching extract, not
-an operational database; effective-dated exposure; a recognisable claims structure; missing billing, party
+an operational database; effective-dated exposure; a recognizable claims structure; missing billing, party
 and status histories; national calibration that does not validate Chicago subgroups; immature 2026
 losses) is **agreed**; the limits are in [limitations.md](limitations.md). Of the recommended follow-up
 work, the offer and decision history is done (`renewal_offer`). Not done in this change, and listed as next
@@ -172,11 +172,11 @@ unnoticed.
 
 | # | Finding | Verdict | Before | After |
 |---|---|---|---|---|
-| 1 | Renewals rated with changes made after their rating date | Confirmed and fixed (partly a dating artefact) | 1,738 rows at an address not yet in force; 34,493 rows whose car joined after the rating date | 0 and 0 |
+| 1 | Renewals rated with changes made after their rating date | Confirmed and fixed (partly a dating artifact) | 1,738 rows at an address not yet in force; 34,493 rows whose car joined after the rating date | 0 and 0 |
 | 2 | Conviction dates before 2022 moved to 1 January 2022 | Confirmed and fixed | 7,982 convictions dated after the day they became known; 210 SR-22 filings moved too | 0 |
 | 3 | Case reserves above the coverage limit | Confirmed and fixed | 61 features and 9 accidents above a limit | 0 |
 | 4 | Underinsured motorist ignores the at-fault insurer's per-accident limit | Confirmed and fixed | $45,000 paid instead of $70,000 in the reviewer's example | Correct, in claims and expected losses |
-| 5 | Telematics scores before the driver joined the policy | Confirmed and fixed (mostly the same dating artefact as 1) | 6,741 score windows | 0 |
+| 5 | Telematics scores before the driver joined the policy | Confirmed and fixed (mostly the same dating artifact as 1) | 6,741 score windows | 0 |
 | 6 | Bound quotes carry the telematics discount, lost quotes never can | Confirmed and fixed | 6,233 of 23,315 bound quotes discounted, no lost quote | Both offered alike; new `quote.telematics_opt_in` |
 | 7 | Real-data comparison scales expected losses down twice | Confirmed and fixed | Gini 0.247, top/bottom decile 5.22 | 0.251 and 5.97 |
 | 8 | Release files leave out the documents the README links to | Confirmed and fixed | `README.md` only | `README.md`, `CHANGELOG.md` and `docs/` in every zip |
@@ -195,12 +195,12 @@ unnoticed.
 household as it stood on the effective date. The reviewer found renewal rows rated at an address the
 household moved to after the rating date, and cars added after it.
 
-**What we found.** Two causes, one real and one a dating artefact:
+**What we found.** Two causes, one real and one a dating artifact:
 
 - *Real:* a move, a car bought or sold, or a driver joining or leaving in the last weeks of a term
   reached the renewal without changing its rating date. Real policy systems re-rate the pending
   renewal when such a change is processed, and send a revised offer.
-- *Artefact:* drivers and cars on policies already renewing on 1 January 2022 were all dated as added
+- *Artifact:* drivers and cars on policies already renewing on 1 January 2022 were all dated as added
   on the start of their first term in the data, after that term's rating date, although they had been on
   the policy for years. That accounted for 28,440 of the 34,493 flagged car rows and most of the 28,503
   flagged driver rows.
@@ -248,7 +248,7 @@ car's value less the deductible for physical damage, and for injury coverages a 
 per-accident limit that is never less than what that claimant is eventually paid (so claimants' caps
 add up to no more than the per-accident limit). Reserve estimates, the minimum reserve and reopening
 reserves are held within it. Expense reserves stay separate. Excess-of-limits exposure is not
-modelled.
+modeled.
 
 **Check.** `validate.py`: "paid loss plus case reserve stays within every per-person, per-accident and
 per-claim limit". Test: `test_reserve_caps_stay_within_the_limits`.
@@ -275,25 +275,25 @@ The reviewer's example now gives $70,000.
 **Finding.** Some score windows started before the scored car's primary driver was on the policy.
 
 **What we found.** Confirmed: 6,741 windows, all but two before 2022, mostly caused by the dating
-artefact in finding 1. Two related problems: a policy already in the programme on the start date could have
+artifact in finding 1. Two related problems: a policy already in the program on the start date could have
 joined it before the policy was written, and a car's window could start before the car was added.
 
 **Fix.** A window starts no earlier than the day the car and its primary driver were both on the policy,
-and an enrolment from before the extract starts no earlier than the policy's inception.
+and an enrollment from before the extract starts no earlier than the policy's inception.
 
-**Check.** `validate.py`: "a policy joins the programme after it was written, and a car is scored only
+**Check.** `validate.py`: "a policy joins the program after it was written, and a car is scored only
 while it and its driver are on the policy".
 
 #### 6. Bound quotes carry the telematics discount, lost quotes never can
 
 **Finding.** A bound quote shows the premium the policy was written with, including the 5%
-participation discount when the customer joined the programme. Quotes that did not bind were priced
-without the programme, so a discounted quote was always a bound one.
+participation discount when the customer joined the program. Quotes that did not bind were priced
+without the program, so a discounted quote was always a bound one.
 
 **What we found.** Confirmed: 6,233 of 23,315 bound quotes were discounted and no lost quote was.
 
-**Fix.** Every quote now offers the programme. Prospects who did not bind opt in at the rate the
-programme's take-up model gives new business, and are quoted with the participation discount. A new
+**Fix.** Every quote now offers the program. Prospects who did not bind opt in at the rate the
+program's take-up model gives new business, and are quoted with the participation discount. A new
 column, `quote.telematics_opt_in`, shows who said yes: 26.7% of bound quotes and 28.7% of the others
 (62% of lost quotes come through the direct channel, where take-up is highest; within each channel the two
 rates agree to within half a point).
@@ -361,7 +361,7 @@ industry.
 | Effective-dated policy-driver and driver-vehicle relationships | **Already present in another form.** `driver.added_date` and `removed_date` date each driver's time on the policy, and each `exposure` row names the rated driver of one car for one period. A person never appears on two policies here: drivers who leave a policy leave the company, so there is no cross-policy identity to keep. |
 | Coverage records with identifiers | **Already present in another form.** Each `exposure` row is the coverage record for one car and period (every limit, deductible and option, with its premium), and a claim feature points to it through `claim.exposure_id` and `claim_feature.coverage_code`. A separate coverage table would hold the same facts in a longer layout. |
 | Party records and roles (claimants, passengers, attorneys, repairers, payees) | **Not adopted.** A sizeable addition; listed in [limitations.md](limitations.md) (claimants are numbered within their claim only). |
-| Billing accounts, invoices, instalments and receipts | **Not adopted.** Listed in limitations; non-payment cancellations are present without the billing trail behind them. |
+| Billing accounts, invoices, installments and receipts | **Not adopted.** Listed in limitations; non-payment cancellations are present without the billing trail behind them. |
 | Quote versions and underwriting decisions | **Partly adopted.** Renewals now show an offer and, when re-rated, a later rating date and a revised offer. New-business quote revisions, referrals and declines are listed in limitations. |
 | Claim status and assignment history; payees and reversal links | **Not adopted.** Payments already record voids and reissues as transaction types; adjuster assignments, status history and payees are listed in limitations. |
 

@@ -83,7 +83,7 @@ def main() -> None:
         ep = (o * rate).sum()
         p(str(y), f"expected loss ratio {(o * exp_rate).sum() / ep:.1%}; enrolled cars {(o * on).sum() / o.sum():.1%} of car-years; "
           f"telematics discount {(o * rate * discount_share).sum() / ep:.1%} of premium")
-    p("telematics", f"{len(enrol):,} enrolments, {len(score):,} scores")
+    p("telematics", f"{len(enrol):,} enrollments, {len(score):,} scores")
 
     # bodily injury luck: paid claims a year and the standard deviation of their total in loss-ratio points
     cy = clm.assign(year=pd.to_datetime(clm.loss_date).dt.year)
@@ -110,7 +110,7 @@ def main() -> None:
       f"{elr(j[on & (d <= 0.10)]):.0%} earning 10% or less, {elr(j[on & (d > 0.20)]):.0%} earning 21% to 30%")
     sc = score[score.days_monitored >= 45].merge(veh[["insured_vehicle_id", "annual_mileage"]], on="insured_vehicle_id")
     ratio = sc.miles_driven * 365.25 / sc.days_monitored / sc.annual_mileage
-    p("telematics mileage", f"annualised miles above reported for {(ratio > 1).mean():.0%} of scored windows (median {ratio.median() - 1:+.0%})")
+    p("telematics mileage", f"annualized miles above reported for {(ratio > 1).mean():.0%} of scored windows (median {ratio.median() - 1:+.0%})")
 
     kh = veh.insured_vehicle_id.map(vtruth.set_index("insured_vehicle_id").kia_hyundai_theft_exposure).eq("Y")
     kh_id = set(veh.insured_vehicle_id[kh])
@@ -238,7 +238,7 @@ def operations(out: Path) -> None:
     late = (pd.to_datetime(paid.paid_date) - pd.to_datetime(paid.due_date)).dt.days
     p("paid more than 5 days late", f"{(late > 5).mean():.1%}")
     p("receipts", f"{rec.receipt_type.value_counts().to_dict()}; methods {rec.payment_method.value_counts(normalize=True).round(3).to_dict()}")
-    p("fees collected", f"instalment ${paid.installment_fee.sum():,.0f}, late and returned-payment ${paid.late_fee.sum():,.0f}")
+    p("fees collected", f"installment ${paid.installment_fee.sum():,.0f}, late and returned-payment ${paid.late_fee.sum():,.0f}")
     op, wo = inv[inv.invoice_status == "Open"], inv[inv.invoice_status == "Written Off"]
     p("receivable at the valuation date", f"${op.amount_due.sum():,.0f} on {len(op):,} bills; written off ${wo.amount_due.sum():,.0f} on {len(wo):,}")
     p("refunds", f"${-rec[rec.receipt_type == 'Refund'].amount.sum():,.0f}")
@@ -250,7 +250,7 @@ def operations(out: Path) -> None:
     p("payees", pay.payee_type.value_counts().to_dict())
     p("methods and status", f"{pay.payment_method.value_counts().to_dict()}; {pay.payment_status.value_counts().to_dict()}")
     cut = pay[pay.check_number.notna() & (pay.transaction_type != "Void")]
-    p("cheques", f"{len(cut):,}, numbers {int(cut.check_number.min())} to {int(cut.check_number.max())}")
+    p("checks", f"{len(cut):,}, numbers {int(cut.check_number.min())} to {int(cut.check_number.max())}")
     e = emp.set_index("employee_id")
     p("approved by", e.job_title.reindex(pay.approved_by_employee_id).value_counts().to_dict())
     p("staff", f"{len(emp)}: {emp.job_title.value_counts().to_dict()}; {emp.termination_date.notna().sum()} left")

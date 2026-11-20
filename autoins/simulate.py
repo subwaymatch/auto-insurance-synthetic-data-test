@@ -299,7 +299,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
             nonrenew_reason.append(ended.outcome.to_numpy())
             active[off.pol[off.outcome != "Renewed"].to_numpy()] = False
         # a cancelled policy's enrolment ends on its cancellation day, once its renewal offer has been scored
-        sim.tele.end(ending[0], ending[1], "Policy Cancelled", st)
+        sim.tele.end(ending[0], ending[1], "Policy Canceled", st)
         if len(P) == 0:
             break
 
@@ -361,7 +361,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
         active[done] = False
         n_terms += len(P)
         k += 1
-    sim.tele.end(ending[0], ending[1], "Policy Cancelled", st)
+    sim.tele.end(ending[0], ending[1], "Policy Canceled", st)
 
     terms = pd.concat(terms, ignore_index=True)
     terms["nonrenewal_reason"] = ""
@@ -865,7 +865,7 @@ def _renewals(sim: Sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_t
     has_car = np.bincount(v["pol"][v["active"]], minlength=n) > 0
     has_car[v["pol"][sim.pending]] = True
     outcome = np.select([cancelled, company, eff > V_DAY, (u_stay >= p_accept) | ~has_car[P]],
-                        ["Cancelled Before Renewal", "Company Non-Renewal", "Pending", "Insured Did Not Renew"], "Renewed")
+                        ["Canceled Before Renewal", "Company Non-Renewal", "Pending", "Insured Did Not Renew"], "Renewed")
     renew = outcome == "Renewed"
     # a household change after the offer re-rates a renewal still to come: a revised offer (for a renewal that takes
     # effect, the term's final rating date, set by run)

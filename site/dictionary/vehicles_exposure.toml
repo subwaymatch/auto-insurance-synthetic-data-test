@@ -1,6 +1,6 @@
 [insured_vehicle]
 grain = "Vehicle insured on a policy"
-summary = """One row for every vehicle ever insured on a policy in the data, from the day it joined; a car bought to replace another is a new row. Coverage, deductibles, main driver, ownership and parking show the vehicle's latest status (the valuation date, December 31, 2026, or when it or its policy left), not its history: use `exposure` for what was in force on a given date. A blank `removed_date` does not mean the car is still insured, because a vehicle on a policy that was cancelled or not renewed keeps a blank removal date."""
+summary = """One row for every vehicle ever insured on a policy in the data, from the day it joined; a car bought to replace another is a new row. Coverage, deductibles, main driver, ownership and parking show the vehicle's latest status (the valuation date, December 31, 2026, or when it or its policy left), not its history: use `exposure` for what was in force on a given date. A blank `removed_date` does not mean the car is still insured, because a vehicle on a policy that was canceled or not renewed keeps a blank removal date."""
 
 [insured_vehicle.columns]
 insured_vehicle_id = "Primary key."
@@ -10,7 +10,7 @@ vehicle_model_year_id = "The vehicle's make, model and model year."
 primary_driver_id = "The vehicle's main driver at its latest status. The main driver can change (a driver leaves, a car is handed over); `exposure.driver_id` has the driver rated on the car in each period."
 ownership = "`Owned`, `Financed` or `Leased`, at the latest status. A financed car can become `Owned` at a renewal when its loan is paid off."
 added_date = "Day the vehicle joined the policy: the policy's first day for new business, the purchase day for a car added or bought as a replacement. For policies already in force on January 1, 2022 it can be many years earlier."
-removed_date = "First day the vehicle was no longer insured on the policy (the day after the loss for a car destroyed or stolen). Blank if it was still on the policy on the valuation date, and also if the whole policy ended (cancelled or not renewed) with the car on it: check `policy` for that."
+removed_date = "First day the vehicle was no longer insured on the policy (the day after the loss for a car destroyed or stolen). Blank if it was still on the policy on the valuation date, and also if the whole policy ended (canceled or not renewed) with the car on it: check `policy` for that."
 primary_use = "`Pleasure`, `Commute` or `Business`, as declared when the vehicle joined. A rating variable."
 annual_mileage = "Annual miles the customer reported, rounded to 500 (1,000 to 30,000). Customers tend to understate how far they drive. The rating plan uses it in bands."
 parking = "Where the vehicle is usually parked: `Street`, `Driveway/Lot` or `Garage`, at the latest status (it can change when the household moves). Not a rating variable."

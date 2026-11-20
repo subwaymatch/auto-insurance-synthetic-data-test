@@ -83,12 +83,12 @@ AGE = ([-INF, 25, 35, 45, 55, 65, INF], ["<25", "25-34", "35-44", "45-54", "55-6
 LIC = ([-INF, 5, 10, 20, 30, INF], ["0-4", "5-9", "10-19", "20-29", "30+"])      # a few real licences post-date the period
 VAGE = ([-INF, 3, 6, 10, 15, INF], ["0-2", "3-5", "6-9", "10-14", "15+"])
 TEN = ([-INF, 2, 5, 10, INF], ["0-1", "2-4", "5-9", "10+"])
-FACTORS = ["age_band", "lic_band", "vage_band", "value_band", "urban", "multi_driver", "instalments",
+FACTORS = ["age_band", "lic_band", "vage_band", "value_band", "urban", "multi_driver", "installments",
            "channel", "tenure_band"]
 US_FACTORS = ["score_band", "points_band", "accidents_band", "territory"]
 FACTOR_NAMES = {"age_band": "Driver age", "lic_band": "Years licensed", "vage_band": "Vehicle age",
                 "value_band": "Vehicle value (quintile within book)", "urban": "Urban",
-                "multi_driver": "More than one driver", "instalments": "Pays in instalments",
+                "multi_driver": "More than one driver", "installments": "Pays in installments",
                 "channel": "channel", "tenure_band": "Years with the company"}
 
 
@@ -105,7 +105,7 @@ def bands(df: pd.DataFrame) -> pd.DataFrame:
     df["tenure_band"] = cut(df.tenure, TEN)
     q = weighted_quantile(df.veh_value.to_numpy(), df.expo.to_numpy(), [0.2, 0.4, 0.6, 0.8])
     df["value_band"] = np.array(["Q1 low", "Q2", "Q3", "Q4", "Q5 high"])[np.searchsorted(q, df.veh_value, side="right")]
-    for c in ["urban", "multi_driver", "instalments"]:
+    for c in ["urban", "multi_driver", "installments"]:
         df[c] = np.where(df[c], "Y", "N")
     return df
 
@@ -135,7 +135,7 @@ def load_real(folder: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     d["veh_value"] = d.Value_vehicle
     d["urban"] = d.Area == 1
     d["multi_driver"] = d.Second_driver == 1
-    d["instalments"] = d.Payment == 1
+    d["installments"] = d.Payment == 1
     d["channel"] = np.where(d.Distribution_channel == 1, "Broker", "Agent")
     d["tenure"] = d.Seniority
     cars = d[(d.Type_risk == 3) & ~d.stub & (d.expo > 0)].copy()
@@ -189,7 +189,7 @@ def load_synthetic(folder: Path) -> tuple[pd.DataFrame, dict]:
     s["veh_value"] = s.vehicle_value
     s["urban"] = s.region == SYN_VALUES["urban_region"]
     s["multi_driver"] = s.term_id.map(n_drivers).fillna(0).to_numpy() > 1
-    s["instalments"] = s.payment_plan != SYN_VALUES["paid_in_full"]
+    s["installments"] = s.payment_plan != SYN_VALUES["paid_in_full"]
     s["channel"] = s.distribution_channel.map(SYN_VALUES["channel"])
     s["tenure"] = s.tenure_years
     # US rating fields the real data has no counterpart for, used in a second synthetic model
@@ -332,12 +332,12 @@ def report(real_all: pd.DataFrame, real: pd.DataFrame, types: pd.DataFrame, syn:
         wm = lambda x: float(np.average(x, weights=w))
         return [f"{wm(df.age):.1f}", fmt_pct(wm(df.age < 25)), fmt_pct(wm(df.age >= 65)),
                 f"{weighted_quantile(df.lic_years.to_numpy(), w, 0.5):.1f}", f"{wm(df.veh_age):.1f}",
-                fmt_pct(wm(df.veh_age >= 10)), fmt_pct(wm(df.multi_driver == "Y")), fmt_pct(wm(df.instalments == "Y")),
+                fmt_pct(wm(df.veh_age >= 10)), fmt_pct(wm(df.multi_driver == "Y")), fmt_pct(wm(df.installments == "Y")),
                 fmt_pct(wm(df.urban == "Y")), f"{weighted_quantile(df.tenure.to_numpy().astype(float), w, 0.5):.1f}"]
     hdr = ["Book", "Mean age", "Under 25", "65+", "Median yrs licensed", "Mean veh age", "Veh 10+ yrs", "2+ drivers",
-           "Instalments", "Urban", "Median tenure"]
+           "Installments", "Urban", "Median tenure"]
     print(table([["Real"] + mix(mature), ["Synthetic"] + mix(syn)], hdr))
-    print("  Real age and licence are the policyholder's; synthetic are the vehicle's rated driver. Real 'second driver'"
+    print("  Real age and license are the policyholder's; synthetic are the vehicle's rated driver. Real 'second driver'"
           " means another regular driver was declared; synthetic counts every listed household driver.")
 
     # [3] frequency --------------------------------------------------------------------------------------
@@ -387,7 +387,7 @@ def report(real_all: pd.DataFrame, real: pd.DataFrame, types: pd.DataFrame, syn:
     print("\n  Claim persistence: next year's frequency for vehicles with and without a claim this year:")
     print(table(rows, ["Book", "Pairs", "After a claim", "After none", "Ratio"]))
     print("  The real counts are not independent from one period to the next (section 10), which inflates the real risk")
-    print("  spread, P(2+ | 1+) and persistence; treat those three real figures as artefacts, not benchmarks.")
+    print("  spread, P(2+ | 1+) and persistence; treat those three real figures as artifacts, not benchmarks.")
 
     # [4] severity ---------------------------------------------------------------------------------------
     section(4, "Severity shape (annual claim cost of vehicle-years with a claim; levels are not comparable)")
@@ -501,7 +501,7 @@ def report(real_all: pd.DataFrame, real: pd.DataFrame, types: pd.DataFrame, syn:
     yrs = (done.cancel_date.fillna(done.expiration) - done.effective).dt.days / 365.25
     per_year = lambda k: k.sum() / yrs.sum()
     ann = lambda r: 1 - np.exp(-r)
-    rows.append(["Synthetic (policies, annualised)", f"{len(done):,} terms", fmt_pct(ann(per_year(t_cancel | t_nonren))),
+    rows.append(["Synthetic (policies, annualized)", f"{len(done):,} terms", fmt_pct(ann(per_year(t_cancel | t_nonren))),
                  fmt_pct(ann(per_year(t_cancel))), fmt_pct(ann(per_year(t_nonren)))])
     print(table(rows, ["Book", "Basis", "Lost per year", "Mid-term cancellation", "Not renewed"]))
     print("  Synthetic rates are terminations per policy-year turned into an annual probability (six-month terms renew twice a year).")
@@ -515,7 +515,7 @@ def report(real_all: pd.DataFrame, real: pd.DataFrame, types: pd.DataFrame, syn:
     dc = done.assign(claim=done.term_id.map(tc).fillna(0) > 0, lost=(t_cancel | t_nonren).to_numpy(), yrs=yrs.to_numpy())
     r_c = dc[dc.claim].lost.sum() / dc[dc.claim].yrs.sum()
     r_n = dc[~dc.claim].lost.sum() / dc[~dc.claim].yrs.sum()
-    rows.append(["Synthetic (annualised)", fmt_pct(ann(r_c)), fmt_pct(ann(r_n))])
+    rows.append(["Synthetic (annualized)", fmt_pct(ann(r_c)), fmt_pct(ann(r_n))])
     print("\n  Share of periods that end the contract, with and without a claim in the period:")
     print(table(rows, ["Book", "With a claim", "Without"]))
 
@@ -570,7 +570,7 @@ def report(real_all: pd.DataFrame, real: pd.DataFrame, types: pd.DataFrame, syn:
         ("Rows that are a non-renewal stub (lapse date = period start)", f"{(d.lapse_rel == 0).sum():,}"),
         ("Rows with a lapse date before the period start", f"{(d.lapse_rel < 0).sum():,}"),
         ("Rows whose contract start is after the period start", f"{(d.Date_start_contract > d.Date_last_renewal).sum():,}"),
-        ("Rows where the licence was issued after the period start", f"{(d.Date_driving_licence > d.Date_last_renewal).sum():,}"),
+        ("Rows where the license was issued after the period start", f"{(d.Date_driving_licence > d.Date_last_renewal).sum():,}"),
         ("Rows with the policyholder aged 95 or more", f"{(d.age >= 95).sum():,}"),
         ("'NA' text in Length", f"{(d.Length.astype(str) == 'NA').sum():,}"),
         ("'NA' text in Type_fuel", f"{(d.Type_fuel.astype(str) == 'NA').sum():,}"),
