@@ -35,7 +35,11 @@ OPEN_LAG = {"BI": (0.80, 8.0, 0.045, 160.0), "UM": (0.78, 12.0, 0.05, 170.0), "M
             "PD": (0.92, 20.0, 0.02, 90.0)}
 OPEN_LAG_SIGMA = 1.0
 OPEN_LAG_CAP = {"BI": 700, "UM": 700, "MED": 700, "PD": 1800}      # days after the accident, inside the statute
-FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_500, "PD": 3_500, "COLL": 3_500, "COMP": 1_200, "RENT": 600, "TOW": 140}
+# The formula (average) reserve set at first notice, at 2022 cost levels (ASSUMED). Property coverages' are near
+# the average paid per claim opened, nil payments included, as carriers set average reserves to be adequate in
+# aggregate (glass separately: GLASS_FORMULA_RESERVE); injury ones start low, as injury case reserves do
+FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_700, "PD": 5_000, "COLL": 5_000, "COMP": 3_000, "RENT": 600, "TOW": 140}
+GLASS_FORMULA_RESERVE = 900
 # precautionary injury claims and claims against an insured not at fault get a nominal reserve (ASSUMED)
 NOMINAL_RESERVE = {"BI": 2_500, "PD": 750}
 # log-scale (bias, noise) of an adjuster's early estimate of ultimate. Injury estimates start at about 86% of
@@ -66,9 +70,11 @@ DCC_COVERAGES = {"BI", "UM", "MED"}
 # starting low) is strongly correlated from one review to the next and shrinks as the claim matures,
 # which produces case development in the incurred triangles. Payments erode the reserve; closing takes
 # it to zero; a reopening sets it again for the expected supplement. Paid plus case reserve never exceeds
-# what the coverage could pay (the feature's `cap`: its limit, or its share of a per-accident limit, or the
-# car's value less the deductible): adjusters reserve within the policy limits, and expected legal costs
-# are carried in the separate expense reserve.
+# what the coverage could pay (the feature's `cap`: its per-person or per-claim limit, or the car's value less
+# the deductible): adjusters reserve within the policy limits, and expected legal costs are carried in the
+# separate expense reserve. Where several claimants of one accident share a per-accident limit, the limit
+# left after what has been paid is shared among their open reserves whenever they would add up to more,
+# using only what is known that day (claims._share_accident_limit).
 RESERVE_REVIEW_DAYS = {"BI": 90, "UM": 90, "MED": 60, "PD": 30, "COLL": 30, "COMP": 30, "RENT": 30, "TOW": 30}
 RESERVE_PERSISTENCE = 0.75           # correlation of successive estimate errors
 MIN_RESERVE = 250                    # an open feature carries at least this, unless less is left under its limit
@@ -245,7 +251,7 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     cvg, U = f.cvg.to_numpy(), f.paid.to_numpy()
     od, cd = f.open_day.to_numpy(), f.close_day.to_numpy()
     trend = cal.sev_trend["BI"][np.clip(f.day.to_numpy(), 0, cal.horizon)]
-    formula = pd.Series(cvg).map(FORMULA_RESERVE).to_numpy() * trend
+    formula = np.where(f.peril.to_numpy() == "GLASS", GLASS_FORMULA_RESERVE, pd.Series(cvg).map(FORMULA_RESERVE).to_numpy()) * trend
     nominal_amt = pd.Series(cvg).map(NOMINAL_RESERVE).fillna(0).to_numpy() * trend
     nominal = f.nominal.to_numpy().astype(bool)
     mu = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][0]).to_numpy()
@@ -284,7 +290,10 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     parts.append(pd.DataFrame(dict(fid=np.r_[fid, fid[ro]], day=closes, order=2, est=np.nan, pay=0.0, txn="Close")))
     loss = pays[pays.kind == "Loss"]
     parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=1, est=np.nan, pay=loss.amount, txn="Payment")))
-    out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE, pd.Series(cap, index=fid))]
+    room = f["room"].fillna(np.inf).to_numpy() if "room" in f else np.full(n, np.inf)
+    shared = pd.DataFrame(dict(occ=f.occ.to_numpy(), cvg=cvg, room=room), index=fid)
+    out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE, pd.Series(cap, index=fid),
+                        lambda ev, bal, paid: _share_accident_limit(ev, bal, paid, shared, cal))]
 
     # expense reserve on litigated features: set when the suit is filed, eroded by legal bills, closed with the feature
     li = np.flatnonzero(f.suit_day.to_numpy() > NO_DAY)
@@ -299,9 +308,11 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     return pd.concat(out, ignore_index=True)
 
 
-def _outstanding(ev: pd.DataFrame, rtype: str, floor: float, cap: pd.Series = None) -> pd.DataFrame:
+def _outstanding(ev: pd.DataFrame, rtype: str, floor: float, cap: pd.Series = None, share=None) -> pd.DataFrame:
     """Turn dated reserve events (estimates, payments, closes) into reserve changes and balances. With `cap` (by
-    feature), a balance never exceeds the cap less what has been paid, even after rounding or the floor."""
+    feature), a balance never exceeds the cap less what has been paid, even after rounding or the floor. `share`,
+    given the events and each one's balance and paid to date, returns the events again with any limit shared
+    between features applied (and changes it makes to other features added)."""
     ev = ev.sort_values(["fid", "day", "order"], kind="stable").reset_index(drop=True)
     g = ev.groupby("fid")
     paid = g.pay.cumsum().to_numpy()
@@ -313,9 +324,59 @@ def _outstanding(ev: pd.DataFrame, rtype: str, floor: float, cap: pd.Series = No
     if cap is not None:
         left = np.floor(np.maximum(cap.reindex(ev.fid).to_numpy() - paid, 0.0) * 100) / 100
         bal = np.minimum(bal, left)
+    if share is not None:
+        ev, bal = share(ev, bal, paid)
     prev = pd.Series(bal).groupby(ev.fid.to_numpy()).shift().fillna(0).to_numpy()
     ev = ev.assign(rtype=rtype, delta=bal - prev, outstanding=bal)
     return ev.loc[ev.delta != 0, ["fid", "day", "rtype", "txn", "delta", "outstanding"]]
+
+
+def _share_accident_limit(ev: pd.DataFrame, bal: np.ndarray, paid: np.ndarray, feat: pd.DataFrame, cal):
+    """Keep the case reserves of an accident's claimants within its per-accident limit, using only what is known
+    on each day. `ev` holds each feature's loss reserve events in order, `bal` the reserve each sets within the
+    feature's own limit and `paid` its payments to date; `feat` (by feature id) gives each feature's accident,
+    coverage and the room the coverage's per-accident limit allows. A reserve set during the day takes no more
+    than the room the accident's payments and other reserves leave. At the end of each business day on which
+    something happened, the adjuster rebalances: if the accident's paid to date plus the reserves wanted would
+    exceed the room, the room left after payments is shared among the open reserves in proportion to the
+    estimates, in whole dollars; if not, each gets its full estimate back. A change this makes to another
+    claimant's reserve is a reserve review that day. Returns the events, with those added, and their balances."""
+    f = feat.reindex(ev.fid.to_numpy())
+    key = f.groupby(["occ", "cvg"], sort=False).ngroup().to_numpy()          # the accident and coverage
+    room = f.room.to_numpy()
+    many = (pd.Series(ev.fid.to_numpy()).groupby(key).transform("nunique").to_numpy() > 1) & np.isfinite(room)
+    if not many.any():
+        return ev, bal
+    rows = np.flatnonzero(many)
+    sub = pd.DataFrame(dict(row=rows, g=key[rows], fid=ev.fid.to_numpy()[rows], day=ev.day.to_numpy()[rows],
+                            order=ev.order.to_numpy()[rows])).sort_values(["g", "day", "order", "fid"], kind="stable")
+    sub["pt"] = np.arange(len(sub))                   # position in the accident's sequence of events
+    sub["end"] = cal.is_business(sub.day.to_numpy()) & ((sub.g != sub.g.shift(-1)) | (sub.day != sub.day.shift(-1))).to_numpy()
+    new_bal = bal.copy()
+    added = []                                          # (fid, day, order, pt, balance) of changes made to other claimants
+    for _, grp in sub.groupby("g", sort=False):
+        lim = float(room[grp.row.iloc[0]])
+        want, got, spent = {}, {}, {}                   # each feature's own estimate, its reserve after sharing, paid
+        for r, fid, day, order, pt, end in zip(grp.row.to_numpy(), grp.fid.to_numpy(), grp.day.to_numpy(),
+                                               grp.order.to_numpy(), grp.pt.to_numpy(), grp.end.to_numpy()):
+            want[fid], spent[fid] = float(bal[r]), float(paid[r])
+            free = max(lim - sum(spent.values()), 0.0)
+            if end:
+                total = sum(want.values())
+                target = dict(want) if total <= free else {k: float(np.floor(w * free / total + 1e-7)) for k, w in want.items()}
+                added += [(k, day, order, pt, t) for k, t in target.items() if k != fid and t != got.get(k, 0.0)]
+                got = target
+            else:
+                got[fid] = min(want[fid], max(float(np.floor(free - sum(v for k, v in got.items() if k != fid) + 1e-7)), 0.0))
+            new_bal[r] = got[fid]
+    if not added:
+        return ev, new_bal
+    pt = np.zeros(len(ev), dtype=np.int64)
+    pt[sub.row.to_numpy()] = sub.pt.to_numpy()
+    extra = pd.DataFrame(added, columns=["fid", "day", "order", "pt", "bal"]).assign(txn="Reserve Review", est=np.nan, pay=0.0)
+    both = pd.concat([ev.assign(bal=new_bal, pt=pt), extra], ignore_index=True)
+    both = both.sort_values(["fid", "day", "order", "pt"], kind="stable").reset_index(drop=True)
+    return both.drop(columns=["bal", "pt"]), both.bal.to_numpy()
 
 
 def _open_lag(cvg: np.ndarray, R: np.random.Generator) -> np.ndarray:

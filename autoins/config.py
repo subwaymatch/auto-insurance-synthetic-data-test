@@ -408,14 +408,29 @@ LOOKBACK_DAYS = 3 * 365
 # --------------------------------------------------------------------------
 # Rating plan (what the insurer charges)
 # --------------------------------------------------------------------------
-# The plan is fitted to the true expected loss cost by minimum bias, then the
-# deliberate distortions below are applied. They are the "answers" a case study
+# The plan is fitted by minimum bias to the company's own claims experience, credibility-weighted with a
+# bureau complement, then the deliberate distortions below are applied. They are the "answers" a case study
 # can look for; they are also written to answer_key/rating_plan.json.
 TARGET_LOSS_RATIO = 0.825           # at day-one cost levels, before catastrophes: the book starts under-priced,
                                     # as the industry was entering 2022 after pandemic-era rate cuts (TUNED so
                                     # accident-year loss ratios follow the industry: about 80% in 2022, 73-75%
                                     # in 2023, 63-66% in 2024 and about 61% in 2025; see validate.py)
 COMP_CAT_LOAD = 1.16                # catastrophe provision in comprehensive rates
+# The experience the plan is fitted to (ASSUMED shapes). It is simulated: what the book as first written would
+# produce over EXPERIENCE_YEARS of losses at day-one cost levels, each coverage's claim count Poisson around the
+# true expected cost divided by a typical paid claim, each claim gamma-distributed (EXPERIENCE_SEVERITY: mean
+# and coefficient of variation, near the paid severities validate.py compares with). Each rating level's
+# experience gets limited-fluctuation credibility Z = sqrt(claims / standard), the standard being
+# FULL_CREDIBILITY_CLAIMS (the count within 5% of its expected value 90% of the time) times 1 + CV^2 for pure
+# premium (Mahler and Dean, "Credibility", Foundations of Casualty Actuarial Science, 2001). The rest, 1 - Z,
+# comes from the complement: a bureau relativity, here the relativity the true costs indicate off by a random
+# BUREAU_ERROR (lognormal sigma), since an industry book is not this book. The overall rate level is set from
+# the whole book's experience.
+EXPERIENCE_YEARS = 3
+EXPERIENCE_SEVERITY = {"BI": (25_000, 1.5), "PD": (6_500, 1.0), "UM": (25_000, 1.5), "MED": (4_000, 1.3),
+                       "COLL": (6_300, 1.0), "COMP": (2_800, 1.5), "RENT": (800, 0.6), "TOW": (120, 0.5)}
+FULL_CREDIBILITY_CLAIMS = 1082
+BUREAU_ERROR = 0.05
 N_TERRITORIES = 12
 PLANTED_DISTORTIONS = {
     "class": {"16-17 M": 0.80, "16-17 F": 0.80, "18-20 M": 0.82, "18-20 F": 0.82,
@@ -423,7 +438,7 @@ PLANTED_DISTORTIONS = {
     "mileage_exponent": 0.5,        # mileage relativities are flattened (square root of the fitted value)
 }
 # Filed discounts and surcharges (ASSUMED, typical of filed personal auto plans). Unlike the class, territory,
-# vehicle and insurance-score relativities, these are not fitted to the true expected cost: a real carrier files
+# vehicle and insurance-score relativities, these are not fitted to the experience: a real carrier files
 # them as round percentages, partly for marketing and retention, and they are only roughly what the risk
 # justifies. The rest of the plan is fitted around them. (levels in the order of rating.LEVELS; coverages they
 # apply to). The answer key's rating_plan.json gives what each is truly worth beside what is filed.
@@ -441,10 +456,11 @@ FILED_DISCOUNTS = {
     "married": ([1.00, 0.95], DRIVER_COVERAGES),                 # 5% married discount
 }
 
-# Filed rate changes, by effective date (ASSUMED timing; sized to the industry cycle). US private auto rates
-# rose 12.1% in 2022, 16.5% in 2023 and 7.6% in 2024 (S&P Global RateWatch), approved increases slowed to
+# Filed rate changes, by effective date (sized to the industry cycle; timing ASSUMED, and TUNED with the target
+# loss ratio so accident-year loss ratios, catastrophes included, follow the industry path). US private auto
+# rates rose 12.1% in 2022, 16.5% in 2023 and 7.6% in 2024 (S&P Global RateWatch), approved increases slowed to
 # 3.7% in 2025 (AM Best), and Illinois' largest writer cut rates in 2025 (State Farm). Cumulative here: +48%.
-RATE_CHANGES = [("2022-04-01", 0.04), ("2022-10-01", 0.08), ("2023-03-01", 0.10), ("2023-09-01", 0.09),
+RATE_CHANGES = [("2022-04-01", 0.04), ("2022-10-01", 0.08), ("2023-01-01", 0.10), ("2023-07-01", 0.09),
                 ("2024-03-01", 0.08), ("2025-03-01", 0.02), ("2026-06-01", -0.02)]
 
 # --------------------------------------------------------------------------

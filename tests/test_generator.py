@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import release_formats  # noqa: E402
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import identifiers, ledger, market, names, population, refdata, schema, simulate, telematics, truth  # noqa: E402
+from autoins import claims, identifiers, ledger, market, names, population, rating, refdata, schema, simulate, telematics, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -872,15 +872,66 @@ class LimitTest(unittest.TestCase):
         self.assertAlmostEqual(benefit.sum(), 70_000.0, places=2)
         self.assertGreater(truth.AGG_SHARE["UIM"].max(), 1.0)       # the expected loss allows for it too
 
-    def test_reserve_caps_stay_within_the_limits(self) -> None:
-        r = np.random.default_rng(5)
-        k = r.integers(1, 5, 5_000)
-        accident = np.repeat(np.arange(len(k)), k)
-        gross = 20_000 * np.exp(1.2 * r.standard_normal(len(accident)))
-        paid = truth.cap_per_accident(np.minimum(gross, 25_000), accident, len(k), np.full(len(k), 50_000.0))
-        cap = truth.reserve_caps(paid, gross, 25_000.0, accident, len(k), np.full(len(k), 50_000.0))
-        self.assertTrue((cap >= paid - 0.01).all() and (cap <= 25_000).all())
-        self.assertTrue((np.bincount(accident, cap) <= 50_000 + 0.01).all())
+
+class ReserveSharingTest(unittest.TestCase):
+    """Claimants of one accident share its per-accident limit, from what is known on each day."""
+
+    def setUp(self) -> None:
+        self.cal = Calendar(start=np.datetime64("2022-01-01"), valuation_day=2000, horizon=2001)     # day 0 is a Saturday
+        self.feat = pd.DataFrame(dict(occ=[0, 0], cvg=["BI", "BI"], room=[50_000.0, 50_000.0]), index=[10, 11])
+
+    def share(self, rows) -> pd.DataFrame:
+        """rows: (feature, day, order, transaction, the reserve it wants, paid to date)."""
+        ev = pd.DataFrame(rows, columns=["fid", "day", "order", "txn", "want", "paid"]).assign(est=np.nan, pay=0.0)
+        ev = ev.sort_values(["fid", "day", "order"], kind="stable").reset_index(drop=True)
+        out, bal = claims._share_accident_limit(ev.drop(columns=["want", "paid"]), ev.want.to_numpy(float),
+                                                ev.paid.to_numpy(float), self.feat, self.cal)
+        return out.assign(bal=bal)
+
+    def test_a_new_claimant_shares_the_limit_and_a_settlement_frees_it(self) -> None:
+        # Monday: A reserved at $30,000. Tuesday: B too, so the two share $50,000. Wednesday: B settles for $10,000
+        out = self.share([(10, 2, 0, "Initial Reserve", 30_000, 0), (11, 3, 0, "Initial Reserve", 30_000, 0),
+                          (11, 4, 1, "Payment", 20_000, 10_000), (11, 4, 2, "Close", 0, 10_000)])
+        a, b = out[out.fid == 10], out[out.fid == 11]
+        self.assertEqual(a.bal.tolist(), [30_000, 25_000, 30_000])          # cut when B arrives, restored when B settles
+        self.assertEqual(a.txn.tolist(), ["Initial Reserve", "Reserve Review", "Reserve Review"])
+        self.assertEqual(a.day.tolist(), [2, 3, 4])
+        self.assertEqual(b.bal.tolist(), [25_000, 15_000, 0])
+
+    def test_a_weekend_reserve_takes_only_the_room_left(self) -> None:
+        # B is reported on Saturday (day 7): its formula reserve gets what A leaves; Monday's review shares the limit
+        out = self.share([(10, 2, 0, "Initial Reserve", 30_000, 0), (11, 7, 0, "Initial Reserve", 30_000, 0),
+                          (11, 9, 0, "Reserve Review", 30_000, 0)])
+        a, b = out[out.fid == 10], out[out.fid == 11]
+        self.assertEqual(b.bal.tolist(), [20_000, 25_000])
+        self.assertEqual(a.bal.tolist(), [30_000, 25_000])
+        self.assertTrue(self.cal.is_business(a.day.to_numpy()[1:]).all())     # changes made by an adjuster: business days
+
+    def test_never_more_than_the_limit_whatever_the_estimates(self) -> None:
+        r = np.random.default_rng(4)
+        rows = []
+        for fid in (10, 11):
+            days = np.sort(r.choice(np.arange(2, 200), 12, replace=False))
+            paid = np.cumsum(np.where(r.random(12) < 0.3, r.uniform(0, 4_000, 12), 0.0))
+            rows += [(fid, int(d), 0, "Reserve Review", float(w), float(p)) for d, w, p in zip(days, r.uniform(0, 60_000, 12), paid)]
+        out = self.share(rows)
+        ev = pd.DataFrame(rows, columns=["fid", "day", "order", "txn", "want", "paid"])
+        for day in np.unique(out.day):
+            state = out[out.day <= day].groupby("fid").bal.last()
+            spent = ev[ev.day <= day].groupby("fid").paid.max()
+            self.assertLessEqual(state.sum() + spent.sum(), 50_000 + 0.01)
+
+
+class ExperienceRatingTest(unittest.TestCase):
+    def test_experience_is_unbiased_and_credibility_grows_with_claims(self) -> None:
+        y = {k: np.full(200_000, 50.0) for k in C.COVERAGES}
+        loss, count = rating.experience(y, np.random.default_rng(8))
+        for k in C.COVERAGES:
+            self.assertAlmostEqual(loss[k].sum() / (y[k].sum() * C.EXPERIENCE_YEARS), 1.0, delta=0.05)
+            self.assertTrue(((loss[k] > 0) == (count[k] > 0)).all())
+        z = rating.credibility(np.array([0, 100, 1_082 * 2, 10 ** 6]), 1.0)
+        self.assertEqual(z[0], 0.0)
+        self.assertTrue(0 < z[1] < z[2] and z[2] == z[3] == 1.0)       # full credibility at 1,082 x (1 + CV^2) claims
 
 
 class TelematicsAssignmentTest(unittest.TestCase):

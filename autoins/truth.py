@@ -149,18 +149,6 @@ def cap_per_accident(paid, accident, n_accidents: int, room) -> np.ndarray:
     return (cut + (over & paying & (rank < spare[accident]))) / 100
 
 
-def reserve_caps(paid, gross, per_person, accident, n_accidents: int, room) -> np.ndarray:
-    """The most an adjuster may reserve for each claimant of an injury coverage: the per-person limit, and a share
-    of the per-accident limit that never falls below what the claimant is eventually paid. The room the paid
-    amounts leave under each accident's limit is shared in proportion to the claimants' damages, so the
-    claimants' caps add up to no more than the per-accident limit and paid plus case reserve stays inside it."""
-    paid, w = np.asarray(paid, dtype=float), np.asarray(gross, dtype=float) + 1.0
-    room = np.maximum(np.asarray(room, dtype=float), 0.0)
-    slack = np.maximum(room - np.bincount(accident, paid, n_accidents), 0.0)[accident]
-    share = w / np.bincount(accident, w, n_accidents)[accident]
-    return np.floor(np.minimum(per_person, paid + slack * share) * 100) / 100
-
-
 def other_driver_limits(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.ndarray]:
     """Bodily injury limits (per person, per accident) of n at-fault drivers who are insured."""
     lims, w = zip(*C.OTHER_DRIVER_BI_LIMIT.items())
@@ -516,12 +504,14 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         return ids
 
     def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False,
-            um_type="", offset=0.0, cap=np.inf):
-        """cap: the most the feature could pay under the policy (its limit, or its share of a per-accident limit);
-        case reserves never exceed it."""
+            um_type="", offset=0.0, cap=np.inf, room=np.inf):
+        """cap: the most the feature could pay under the policy (its per-person or per-claim limit, or the car's
+        value less the deductible); room: for injury coverages, what the per-accident limit allows for all the
+        accident's claimants under the coverage together. Case reserves obey both, the second shared among the
+        claimants from what the adjuster knows at each review (claims._share_accident_limit)."""
         feats.append(pd.DataFrame(dict(occ=ids, cvg=cov, claimant=claimant, gross=gross, paid=np.where(cwp, 0.0, paid),
                                        cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
-                                       nominal=nominal, um_type=um_type, offset=offset, cap=cap)))
+                                       nominal=nominal, um_type=um_type, offset=offset, cap=cap, room=room)))
 
     def injury_features(cov, ids, vi, day, sev, pp, pa, factor):
         if len(ids) == 0:
@@ -534,7 +524,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         cwp = rng.random(len(o)) < C.CWP[cov]
         paid = cap_per_accident(np.where(cwp, 0.0, np.minimum(gross, pp[o])), o, len(ids), pa)   # per-accident limit
         add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "",
-            cap=reserve_caps(paid, gross, pp[o], o, len(ids), pa))
+            cap=pp[o], room=pa[o])
 
     def collision_features(peril, ids, vi, day, file_p, subro_p):
         # the damage to the insured car happens whether or not anyone claims it from us
@@ -599,10 +589,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         cwp = rng.random(len(o)) < C.CWP["UM"]
         room = c["um_pa"][vi] - np.bincount(o, other, len(ids))
         paid = cap_per_accident(np.where(cwp, 0.0, excess), o, len(ids), room)
-        cap = reserve_caps(paid, excess, np.maximum(c["um_pp"][vi][o] - other, 0.0), o, len(ids), room)
+        cap = np.maximum(c["um_pp"][vi][o] - other, 0.0)
         keep = (excess > 0) & (cwp | (paid > 0))
         add("UM", ids[o][keep], gross[keep], paid[keep], cwp[keep], claimant=claimant[keep], um_type="Underinsured",
-            offset=np.round(other[keep], 2), cap=cap[keep])
+            offset=np.round(other[keep], 2), cap=cap[keep], room=np.maximum(room, 0.0)[o][keep])
 
     def unpaid(cov, ids, p):
         """Claims opened and closed without payment: liability denied, or an injury claim never pursued."""

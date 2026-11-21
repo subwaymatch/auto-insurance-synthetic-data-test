@@ -969,7 +969,21 @@ def _stop_at_total_loss(occ: pd.DataFrame, feat: pd.DataFrame, wrecks: pd.DataFr
     """Keep each vehicle's losses up to and including the first that destroys it (a total loss the company
     pays and takes the wreck from, or a wreck nobody pays us for). A vehicle's losses form independent Poisson
     processes, so dropping everything after that loss gives exactly the losses of a vehicle insured until
-    then. Returns (occ, feat, day destroyed or -1, 1 for a company total loss / 2 for another wreck)."""
+    then. A car its owner keeps after a total loss stays on the policy but has no further losses in the term: on a
+    salvage certificate it may not be driven until it is rebuilt and inspected (and at renewal it loses its
+    physical damage cover). Returns (occ, feat, day destroyed or -1, 1 for a company total loss / 2 for another
+    wreck)."""
+    kept = occ[occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool) & feat.retained.to_numpy().astype(bool)])]
+    if len(kept):
+        first = kept.sort_values(["vrow", "day", "occ"], kind="stable").drop_duplicates("vrow")
+        k_day, k_occ = np.full(nv, -1), np.full(nv, -1)
+        k_day[first.vrow.to_numpy().astype(int)], k_occ[first.vrow.to_numpy().astype(int)] = first.day.to_numpy(), first.occ.to_numpy()
+        kd = k_day[occ.vrow.to_numpy()]
+        later = (kd >= 0) & ((occ.day.to_numpy() > kd) | ((occ.day.to_numpy() == kd) & (occ.occ.to_numpy() != k_occ[occ.vrow.to_numpy()])))
+        occ = occ[~later].reset_index(drop=True)
+        feat = feat[feat.occ.isin(occ.occ)].reset_index(drop=True)
+        wd = k_day[wrecks.vrow.to_numpy().astype(int)]
+        wrecks = wrecks[~((wd >= 0) & (wrecks.day.to_numpy() > wd))]
     stop_day, how, first_occ = np.full(nv, -1), np.zeros(nv, dtype=int), np.full(nv, -1)
     company = occ[occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool) & ~feat.retained.to_numpy().astype(bool)])]
     ends = pd.concat([company[["vrow", "day", "occ"]].assign(how=1), wrecks[["vrow", "day", "occ"]].assign(how=2)],

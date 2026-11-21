@@ -57,7 +57,7 @@ ILLINOIS_TAKE_UP_BAND = (-0.04, 0.04)     # difference from the state's share
 WIND_AND_WATER = ["WEATHER", "FLOOD", "HAIL_CAT", "WIND_CAT", "FLOOD_CAT"]
 # Bands for the like-for-like comparison, as a ratio to the national figure. Frequency is allowed to run
 # above national because the book is urban; severity should sit near it. The first calendar year is shown
-# but not held to a band for liability: with no claims from before the extract, its payments are too few.
+# but not held to a band for bodily injury: with no claims from before the warm-up year, its payments are too few.
 BENCHMARK_FREQ_BAND = (0.85, 1.45)
 BENCHMARK_SEV_BAND = (0.85, 1.15)
 TOWING_LIMIT = 100                      # towing and labor pays up to this per claim
@@ -645,6 +645,41 @@ def integrity_limits(rep, f) -> None:
               and on("COLL", "collision_deductible") and on("COMP", "comprehensive_deductible"))
 
 
+def integrity_reserve_sharing(rep, f, pay, reserves) -> None:
+    """At the end of every day with a payment or reserve change, an accident's injury claimants under one coverage
+    have been paid, and are reserved for, no more than the coverage's per-accident limit in total (for underinsured
+    motorist, less what the at-fault driver's insurer paid). `f` is the coverage features joined to their risk rows."""
+    cent = 0.005
+    inj = f[f["coverage_code"].isin(["BI", "UM"])].copy()
+    inj["g"] = inj.groupby(["claim_id", "coverage_code"]).ngroup()
+    inj = inj[inj.groupby("g")["claim_feature_id"].transform("size") > 1]
+    lim = np.where(inj["coverage_code"] == "BI", inj["bi_limit"].str.split("/").str[1].astype(float) * 1000,
+                   inj["um_limit"].str.split("/").str[1].astype(float) * 1000)
+    limit = pd.Series(lim, index=inj.index).groupby(inj["g"]).first() \
+        - inj["other_insurer_payment"].fillna(0).groupby(inj["g"]).sum()
+    group = inj.set_index("claim_feature_id")["g"]
+    r = reserves[(reserves["reserve_type"] == "Loss") & reserves["claim_feature_id"].isin(group.index)]
+    r = r.sort_values(["claim_feature_id", "transaction_date", "reserve_transaction_id"], kind="stable") \
+        .groupby(["claim_feature_id", "transaction_date"])["outstanding_reserve"].last()
+    p = pay[(pay["payment_type"] == "Loss") & pay["claim_feature_id"].isin(group.index)] \
+        .groupby(["claim_feature_id", "payment_date"])["amount"].sum()
+    p.index.names = r.index.names
+    st = pd.concat([r.rename("out"), p.rename("pay")], axis=1).reset_index().rename(columns={"transaction_date": "date"})
+    st["g"] = st["claim_feature_id"].map(group).to_numpy()
+    grid = st[["g", "date"]].drop_duplicates().merge(st[["g", "claim_feature_id"]].drop_duplicates(), on="g")
+    grid = grid.merge(st, on=["g", "claim_feature_id", "date"], how="left").sort_values(["claim_feature_id", "date"])
+    grid["paid"] = grid["pay"].fillna(0).groupby(grid["claim_feature_id"]).cumsum()
+    grid["out"] = grid.groupby("claim_feature_id")["out"].ffill().fillna(0)
+    tot = (grid["paid"] + grid["out"]).groupby([grid["g"], grid["date"]]).sum()
+    over = tot > limit.reindex(tot.index.get_level_values(0)).to_numpy() + cent
+    shared = tot.index.get_level_values(0).unique()
+    full = (tot >= limit.reindex(tot.index.get_level_values(0)).to_numpy() - 1.0).groupby(level=0).any()
+    rep.check("on every day, paid loss plus case reserve across an accident's injury claimants under one coverage stays "
+              "within its per-accident limit", not over.any(),
+              f"{len(shared):,} accidents with several claimants under one coverage; {full.sum():,} of them reserved or "
+              f"paid up to the limit at some point; {over.sum():,} days over")
+
+
 def integrity_links(rep, risk, term, veh, drv, clm, feat, pay, reserves) -> None:
     """Every key points to an existing row, and keys that a row carries more than once (a claim's policy and its
     exposure row's policy, a payment's claim and its feature's claim) agree. A key can exist and still name the
@@ -868,7 +903,7 @@ def benchmark(rep, risk, f, pay, s, e, last_full_year: int) -> None:
             nf, ns = national.get(y, (np.nan, np.nan))
             note = ""
             if k == "BI" and y == first_year:
-                note = "   (not held: no payments on earlier accident years)"
+                note = "   (not held: short of payments on accidents before the warm-up year)"
             elif y in national:
                 held["claims"] += claims
                 held["at_national"] += nf * car_years / 100
@@ -882,8 +917,8 @@ def benchmark(rep, risk, f, pay, s, e, last_full_year: int) -> None:
             rep.band(f"{k} severity relative to national, like for like", held["dollars"] / held["dollars_at_national"], BENCHMARK_SEV_BAND)
     print("  Still different from the national table: it covers the whole country (less a few states) and this book is")
     print("  one metropolitan area, so frequency is expected above it; national figures are not a Chicago or a")
-    print("  single-carrier benchmark. The first calendar year has no payments on accidents from before the extract,")
-    print("  which matters for bodily injury. Glass claims under full glass cover carry no deductible here. The table's")
+    print("  single-carrier benchmark. The first calendar year has payments on the year before (the warm-up) but none on")
+    print("  earlier accidents, which matters for bodily injury. Glass claims under full glass cover carry no deductible here. The table's")
     print("  claim-counting rules (per claimant or per accident, and when a claim counts as paid) are not published, nor")
     print("  is its treatment of salvage and subrogation: they are taken off collision and comprehensive payments here.")
 
@@ -1029,6 +1064,7 @@ class Report:
     def __init__(self, calibrate: bool = True) -> None:
         self.failures = self.warnings = 0
         self.calibrate = calibrate
+        self.bands = []                 # every band's figure, for --json (scripts/seed_spread.py)
 
     def check(self, label: str, ok: bool, detail: str = "", statistical: bool = False) -> None:
         soft = statistical and not self.calibrate
@@ -1036,9 +1072,12 @@ class Report:
         self.warnings += not ok and soft
         print(f"  [{'ok' if ok else 'warn' if soft else 'FAIL'}] {label}{(': ' + detail) if detail else ''}")
 
-    def band(self, label: str, value: float, band: tuple[float, float], fmt: str = "{:,.2f}") -> None:
-        self.check(label, band[0] <= value <= band[1], f"{fmt.format(value)} (target {fmt.format(band[0])} to {fmt.format(band[1])})",
-                   statistical=True)
+    def band(self, label: str, value: float, band: tuple[float, float], fmt: str = "{:,.2f}", key: str = None) -> None:
+        """key: a name for the figure that stays the same from run to run, where the label includes figures."""
+        ok = bool(band[0] <= value <= band[1])
+        self.bands.append({"key": key or label, "value": float(value), "low": band[0], "high": band[1], "ok": ok,
+                           "percent": "%" in fmt})
+        self.check(label, ok, f"{fmt.format(value)} (target {fmt.format(band[0])} to {fmt.format(band[1])})", statistical=True)
 
 
 def payload_hash(folder: Path, pattern: str) -> str:
@@ -1052,7 +1091,9 @@ def payload_hash(folder: Path, pattern: str) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent / "output")
-    out = ap.parse_args().out
+    ap.add_argument("--json", type=Path, help="also write every calibration band's figure to this file")
+    args = ap.parse_args()
+    out = args.out
     summary = json.loads((out / "run_summary.json").read_text())
     start, valuation = np.datetime64(summary["start"]), np.datetime64(summary["valuation"])
     t = rebuild(load(out), start, valuation)          # the totals an analyst works out from the records
@@ -1108,6 +1149,7 @@ def main() -> None:
                   (("COLL", "collision_premium"), ("COMP", "comprehensive_premium"), ("RENT", "rental_premium"),
                    ("TOW", "towing_premium"))))
     integrity_limits(rep, cov_ok)
+    integrity_reserve_sharing(rep, cov_ok, pay, reserves)
     age = (pd.to_datetime(drv["added_date"]) - pd.to_datetime(drv["date_of_birth"])).dt.days.to_numpy() / 365.25
     rep.check("all drivers are 16 or older when first insured", age.min() >= 16, f"youngest {age.min():.1f}, oldest {age.max():.1f}")
     integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end, valuation)
@@ -1193,7 +1235,8 @@ def main() -> None:
         # the answer key's expected losses leave out the (fictional, dated) catastrophes, so they are compared
         # with the year's losses excluding catastrophes
         rep.band(f"{y} loss ratio excluding catastrophes ({lr[y] - cat_lr[y]:.1%}) relative to its expected "
-                 f"({expected_lr:.1%})", (lr[y] - cat_lr[y]) / expected_lr, ACTUAL_TO_EXPECTED_BAND, "{:.2f}")
+                 f"({expected_lr:.1%})", (lr[y] - cat_lr[y]) / expected_lr, ACTUAL_TO_EXPECTED_BAND, "{:.2f}",
+                 key=f"{y} loss ratio excluding catastrophes relative to its expected")
     for y, b in INDUSTRY_LOSS_RATIO_BAND.items():
         a_, b_ = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")
         overlap = (np.minimum(e, b_) - np.maximum(s, a_)).astype("timedelta64[D]").astype(int).clip(0)
@@ -1262,7 +1305,8 @@ def main() -> None:
     big = r.groupby("agency_id")["earned_exposure"].sum().loc[lambda x: x >= MIN_AGENCY_CAR_YEARS].index
     by_agency = r[r["agency_id"].isin(big)].groupby("agency_id").apply(elr, include_groups=False)
     rep.band(f"spread of expected loss ratio across the {len(by_agency)} agencies with {MIN_AGENCY_CAR_YEARS:,}+ car-years "
-             "(90th less 10th percentile, points)", (by_agency.quantile(0.9) - by_agency.quantile(0.1)) * 100, (6.0, 25.0), "{:.1f}")
+             "(90th less 10th percentile, points)", (by_agency.quantile(0.9) - by_agency.quantile(0.1)) * 100, (6.0, 25.0), "{:.1f}",
+             key=f"spread of expected loss ratio across agencies with {MIN_AGENCY_CAR_YEARS:,}+ car-years (90th less 10th percentile, points)")
     market_cycle(rep, quotes, term, clm, offers, list(zip(rates.iloc[:, 0], rates.iloc[:, 1])), valuation)
     decided = offers[(offers["underwriting_decision"] == "Renew") & offers["outcome"].isin(["Renewed", "Insured Did Not Renew"])]
     kept_by = (decided["outcome"] == "Renewed").groupby(pol.set_index("policy_id")["distribution_channel"].reindex(decided["policy_id"]).to_numpy()).mean()
@@ -1283,6 +1327,9 @@ def main() -> None:
 
     warned = f" ({rep.warnings} calibration warning(s) on a small book)" if rep.warnings else ""
     print(f"\n{'ALL CHECKS PASSED' if rep.failures == 0 else str(rep.failures) + ' CHECK(S) FAILED'}{warned}")
+    if args.json:
+        args.json.write_text(json.dumps({"seed": summary["seed"], "policies": summary["policies"], "failures": rep.failures,
+                                         "warnings": rep.warnings, "bands": rep.bands}, indent=1) + "\n")
     sys.exit(1 if rep.failures else 0)
 
 
