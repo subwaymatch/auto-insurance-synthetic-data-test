@@ -86,8 +86,9 @@ LEASE_END_HAZARD = 0.70              # leased vehicles three or more years old
 # Vehicle ages. The household fleet (gamma, years, before an income tilt: richer households drive newer cars)
 # is TUNED so the cars in force match Chicago personal vehicles in crashes 2021-2025 (City of Chicago Traffic
 # Crashes - Vehicles: mean age 9.4 years in 2021 rising to 10.2 in 2025; 41-48% ten or more years old, about
-# 21% fifteen or more). Replacements are a mix of new and used purchases (ASSUMED).
-FLEET_AGE = dict(shape=2.1, scale=4.8, cap=30.0)
+# 21% fifteen or more). The ages are truncated at the vehicle catalogue's first model year (1997): a car drawn
+# older is drawn again. Replacements are a mix of new and used purchases (ASSUMED).
+FLEET_AGE = dict(shape=2.1, scale=5.5, cap=30.0)
 REPLACEMENT_AGE = dict(shape=1.6, scale=4.2)   # age of the vehicle bought as a replacement or an added car
 # Model popularity in reference/vehicle_catalogue.csv is measured on vehicles in Chicago crashes, mostly garaged
 # in the city (vehicle-weighted density about 16,000 people per square mile). Pickups are commoner where it is
@@ -467,6 +468,13 @@ MARKET_RETENTION = 1.5                   # renewal logit per unit of log(own rat
 # levels in 2024 (as LexisNexis' Insurance Demand Meter reported), and eased afterwards.
 SHOPPING_SEASONALITY = [0.98, 1.06, 1.14, 1.08, 1.03, 1.01, 1.00, 1.02, 0.97, 0.95, 0.91, 0.85]
 SHOPPING_YEAR = {2021: 0.90, 2022: 0.92, 2023: 1.00, 2024: 1.12, 2025: 1.08, 2026: 1.02}
+
+# --------------------------------------------------------------------------
+# The company's history (ASSUMED). It was founded in January 2000: no policy, agency appointment or producer is
+# older. Its systems went live over the years (identifiers.KEY_SYSTEMS), and each numbers its records from then.
+# --------------------------------------------------------------------------
+FOUNDED = "2000-01-01"
+COMPANY_SIZE_AT_FOUNDING = 0.25     # its size in 2000 as a share of its size from 2022, growing evenly in between
 
 # --------------------------------------------------------------------------
 # General ledger (ledger.py). The books open the day before the extract begins with surplus of this share of the

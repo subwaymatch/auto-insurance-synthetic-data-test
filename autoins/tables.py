@@ -320,8 +320,17 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     # who handles each claim and who each payment goes to (payments.py)
     emp, desks = payments.employees(cfg, cal, ref, pd.Series(branch).value_counts())
     vend = payments.vendors(cfg, ref)
-    full_name = (drv.first_name.astype(str) + " " + drv.last_name.astype(str)).to_numpy()
-    insured = full_name[ni_hist.at(claims.pol.to_numpy()[pays.claim_id.to_numpy() - 1], pays.day.to_numpy())[0]]
+    ni_pay = ni_hist.at(claims.pol.to_numpy()[pays.claim_id.to_numpy() - 1], pays.day.to_numpy())[0]
+    surname = drv.last_name.astype(str).to_numpy()[ni_pay].astype(object)
+    if res.sim.name_changes:
+        # the surname the named insured had on the payment date: before a later change of name, the old one
+        q = pd.DataFrame({"drv": ni_pay.astype(np.int64), "day": pays.day.to_numpy().astype(np.int64), "i": np.arange(len(pays))})
+        ch = pd.concat(res.sim.name_changes, ignore_index=True).astype({"drv": np.int64, "day": np.int64})
+        m = pd.merge_asof(q.sort_values("day", kind="stable"), ch.sort_values("day", kind="stable"), on="day", by="drv",
+                          direction="forward", allow_exact_matches=False)
+        hit = m.old.notna().to_numpy()
+        surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
+    insured = drv.first_name.astype(str).to_numpy()[ni_pay] + " " + surname
     detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured,
                                         np.where(cg.open.to_numpy(), cal.horizon + 1, cg.close_day.to_numpy()), emp, desks, vend)
     T["employee"], T["vendor"] = _employee_table(emp, desks, V, D), _vendor_table(vend)

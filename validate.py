@@ -193,7 +193,7 @@ def integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy
               f"from {pol['policy_number'].min()} to {pol['policy_number'].max()}")
 
 
-def integrity_billing(rep, inv, rec, term, ledger, pol, valuation) -> None:
+def integrity_billing(rep, inv, rec, term, ledger, pol, valuation, contact=None) -> None:
     """Bills and cash: every finished term's bills reconcile with the premium ledger, and with the cash received."""
     dt = lambda x: pd.to_datetime(x)
     val = pd.Timestamp(valuation)
@@ -236,6 +236,18 @@ def integrity_billing(rep, inv, rec, term, ledger, pol, valuation) -> None:
               lag.between(21, 28).all(),
               f"{len(np_terms):,} cancellations; median {lag.median():.0f} days after the missed due date; "
               f"{(~lag.between(21, 28)).sum():,} without a matching unpaid bill")
+    if contact is not None:
+        # Illinois: a notice of cancellation for non-payment is mailed at least ten days before cover ends (215 ILCS
+        # 5/143.15). Contacts start with the extract, so cancellations whose missed bill fell due before it are skipped
+        notice = contact.loc[contact["purpose"] == "Notice of Cancellation", ["policy_id", "contact_date", "contact_method"]]
+        due = missed.reindex(np_terms["policy_term_id"]).to_numpy()
+        x = np_terms[["policy_term_id", "policy_id", "cancel_date"]].assign(due=due)
+        x = x[x["due"] >= contact["contact_date"].min()].merge(notice, on="policy_id", how="left")
+        mailed = ((x["contact_date"] >= x["due"]) & (x["contact_method"] == "Written Letter")
+                  & ((dt(x["cancel_date"]) - dt(x["contact_date"])).dt.days >= 10))
+        got = mailed.groupby(x["policy_term_id"]).any()
+        rep.check("every cancellation for non-payment had a notice of cancellation mailed at least ten days before it",
+                  got.all(), f"{len(got):,} cancellations whose missed bill fell due in the extract; {(~got).sum():,} without")
     # money moved by a bank or by staff (a cheque banked, a bank draft taken or returned, a refund cheque) moves on
     # a business day; a card, online or agency payment can be made any day
     banked = rec[rec["payment_method"].isin(["Check", "EFT"])]
@@ -339,15 +351,18 @@ def integrity_payees(rep, pay, clm, feat, veh, drv) -> None:
     on = ((dt(d["added_date"]).reindex(who).to_numpy() <= loss_day)
           & ~(dt(d["removed_date"]).reindex(who).to_numpy() <= loss_day)
           & (d["policy_id"].reindex(who).to_numpy() == clm["policy_id"].to_numpy()))
+    # (by first name: a named insured who married since may now carry another surname than the one on the check)
     ins = pay[pay["payee_type"] == "Insured"][["payment_id", "claim_id", "payment_date", "payee_name"]]
-    ins = ins.assign(policy_id=c["policy_id"].reindex(ins["claim_id"]).to_numpy())
-    people = drv.assign(payee_name=drv["first_name"] + " " + drv["last_name"])[["policy_id", "payee_name", "added_date", "removed_date"]]
-    m = ins.merge(people, on=["policy_id", "payee_name"], how="left")
+    ins = ins.assign(policy_id=c["policy_id"].reindex(ins["claim_id"]).to_numpy(),
+                     first_name=ins["payee_name"].str.split(" ", n=1).str[0])
+    m = ins.merge(drv[["policy_id", "first_name", "last_name", "added_date", "removed_date"]], on=["policy_id", "first_name"], how="left")
     named = (m["added_date"] <= m["payment_date"]) & ~(m["removed_date"] <= m["payment_date"])
+    same = named & (m["payee_name"] == m["first_name"] + " " + m["last_name"])
     rep.check("each claim's driver was on the policy on the loss date, and each payment to the insured names someone on "
               "the policy on the payment date",
               on.all() and named.groupby(m["payment_id"]).any().all(),
-              f"{len(clm):,} claims ({(c['at_fault'] == 'N').sum():,} not at fault); {len(ins):,} payments to the insured")
+              f"{len(clm):,} claims ({(c['at_fault'] == 'N').sum():,} not at fault); {len(ins):,} payments to the insured, "
+              f"{(~same.groupby(m['payment_id']).any()).sum():,} under a surname the insured has since changed")
 
 
 def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
@@ -361,6 +376,9 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
               and clm["vehicle_model_year_id"].isin(known.index).all())
     rep.check("each exposure row's model year is its catalog row's",
               (known["model_year"].reindex(risk["vehicle_model_year_id"]).to_numpy() == risk["model_year"].to_numpy()).all())
+    years = risk.groupby("model_year")["earned_exposure"].sum().sort_index()
+    rep.check("no pile-up of older cars at the catalog's first model year", years.iloc[0] <= 1.5 * years.iloc[1],
+              f"{years.index[0]}: {years.iloc[0]:,.0f} car-years, {years.index[1]}: {years.iloc[1]:,.0f}", statistical=True)
     drawn = vmy[vmy["vehicle_model_year_id"].isin(veh["vehicle_model_year_id"])]
     print(f"  {drawn.groupby(['make', 'model']).ngroups:,} models from {drawn['make'].nunique()} makes are insured; "
           f"top makes {veh.merge(vmy, on='vehicle_model_year_id')['make'].value_counts(normalize=True).head(6).round(3).to_dict()}")
@@ -1029,7 +1047,7 @@ def main() -> None:
     integrity_renewals(rep, offers, term, risk, valuation)
     integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, contact)
     integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy)
-    integrity_billing(rep, inv, rec, term, ledger, pol, valuation)
+    integrity_billing(rep, inv, rec, term, ledger, pol, valuation, contact)
     integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term)
     integrity_payees(rep, pay, clm, feat, veh, drv)
     integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation)

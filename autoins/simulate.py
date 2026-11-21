@@ -187,6 +187,7 @@ class Sim:
     af_report: list = field(default_factory=list)
     tele: "Tele" = None
     last_change: np.ndarray = None      # per policy: the latest day its drivers, cars or address changed
+    name_changes: list = field(default_factory=list)   # (drv, day, old surname) when a named insured takes a spouse's
 
 
 @dataclass
@@ -1157,20 +1158,38 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
     if role == 3:
         employed, commute = np.zeros(m, dtype=bool), np.zeros(m)
     ni = p["ni_drv"][pol]
-    own_name = (role != 3) & (R.random(m) < 0.20)
+    u_keep = R.random(m)
     ids = len(drv) + np.arange(m)
     # a teen takes the household's group and surname; a spouse or other adult usually shares the group (names.py)
     p_same = {1: names.SAME_GROUP_SPOUSE, 2: names.SAME_GROUP_OTHER_ADULT}.get(role, 1.0)
     group = ref.names.related_group(R, drv.race_group.to_numpy()[ni], ref.names.zip_mix(zr), p_same)
+    own = ref.names.surname(R, group)
+    rename = np.zeros(m, dtype=bool)
+    if role == 3:
+        last = _household_surname(drv, pol, ni)
+    else:
+        # a new spouse (names.KEPT_OWN_SURNAME): a wife keeps her surname or takes the named insured's; a husband keeps
+        # his, and a woman named insured takes it from the wedding day unless she keeps her own
+        husband = male & ~drv.male.to_numpy()[ni]
+        keep = u_keep < names.KEPT_OWN_SURNAME[np.where(husband, drv.race_group.to_numpy()[ni], group)]
+        last = np.where(husband | keep, own, drv.last_name.to_numpy()[ni])
+        rename = husband & ~keep
     new = pd.DataFrame(dict(
         pol=pol, role=role, age=age, drv=ids, ord=p["n_drv"][pol], male=male, marital=marital, dob_day=dob,
         licensed_day=licensed, latent=R.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, m) * p["household_factor"][pol],
         good_grades=(role == 3) & (R.random(m) < C.GOOD_STUDENT_GRADES_P),
         school_end_day=dob + (population.school_end_age(R, m) * 365.25).astype(int), commute_miles=commute, employed=employed,
         first_name=ref.names.first_name(R, group, male, np.floor(cal.year_frac(dob)).astype(int)), race_group=group,
-        last_name=np.where(own_name, ref.names.surname(R, group), drv.last_name.to_numpy()[ni]), assigned=False, added_day=day,
+        last_name=last, assigned=False, added_day=day,
         removed_day=-1, removal_reason=0, active=True))
     sim.pop.drv = pd.concat([drv, new[drv.columns]], ignore_index=True)
+    if rename.any():
+        d, who = sim.pop.drv, ni[rename]
+        sim.name_changes.append(pd.DataFrame(dict(drv=who, day=np.broadcast_to(day, m)[rename],
+                                                  old=d.last_name.to_numpy()[who])))
+        last_now = d.last_name.to_numpy().copy()
+        last_now[who] = own[rename]
+        d["last_name"] = last_now
     sim.marital.add(ids, day, marital == "M")
     np.add.at(p["n_drv"], pol, 1)
     t0 = np.maximum(day - C.LOOKBACK_DAYS, licensed)
@@ -1183,6 +1202,18 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
     sim.pop.incidents = pd.concat([sim.pop.incidents, inc[sim.pop.incidents.columns]], ignore_index=True)
     sim.recs.add(inc.drv, inc.day, inc.kind.map(KIND), inc.known_day)
     return ids
+
+
+def _household_surname(drv: pd.DataFrame, pol: np.ndarray, ni: np.ndarray) -> np.ndarray:
+    """The surname a household's children carry: the husband's when a woman named insured is married to him (she
+    may have kept her own), otherwise the named insured's."""
+    last = drv.last_name.to_numpy()[ni].copy()
+    h = drv[(drv.role.to_numpy() == 1) & drv.active.to_numpy() & drv.male.to_numpy()]
+    husband = pd.Series(h.last_name.to_numpy(), index=h.pol.to_numpy())
+    husband = husband[~husband.index.duplicated(keep="last")].reindex(pol).to_numpy()
+    use = ~drv.male.to_numpy()[ni] & pd.notna(husband)
+    last[use] = husband[use]
+    return last
 
 
 def _marry(sim: Sim, pol, day) -> None:

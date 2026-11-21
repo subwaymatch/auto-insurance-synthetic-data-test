@@ -12,9 +12,11 @@ billing system sends and the cash it receives:
 * Customers pay by automatic bank draft (the EFT plan), card, online bank payment, cheque or through their
   agent. Most pay on time. Some pay late, more often the less settled households (the hidden stability of
   population.py), and pay a late fee; a few bank drafts are returned unpaid and collected again with a fee.
-* A cancellation for non-payment is the instalment that was never paid (simulate._missed_installment). When
-  any cancellation is processed, bills still unpaid are cancelled and the account is settled against the
-  premium earned: a balance still owed is billed (and, after a non-payment cancellation, mostly never
+* A cancellation for non-payment is the instalment that was never paid (simulate._missed_installment). A bill
+  gets a past-due notice and then a notice of cancellation; a bank draft is attempted and returned, and its
+  returned-payment notice and notice of cancellation go out the day it comes back. Either way the notice of
+  cancellation is mailed at least ten days before cover ends, as Illinois requires. When any cancellation is
+  processed, bills still unpaid are cancelled and the account is settled against the premium earned: a balance still owed is billed (and, after a non-payment cancellation, mostly never
   collected and written off), and money paid ahead is refunded.
 
 For every finished term, the premium on its bills (less cancelled ones) minus the premium refunded equals its
@@ -180,8 +182,10 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
     inv["status"] = np.where(settled, "Paid", np.where(pc[it] < 10 ** 9, "Canceled", "Open"))
     inv["method"] = method
     # a returned draft leaves its first attempt and the bank's reversal on the account, even if the term is
-    # cancelled before it is collected again
-    inv["try_day"] = np.where(returned & (paid < pc[it]) & ~never, paid, NO_DAY)
+    # cancelled before it is collected again. The draft for the instalment a leaving household does not pay is
+    # attempted on its due date too, and comes back (the account is closed or the authorisation withdrawn)
+    inv["missed"] = never & (inv.inst.to_numpy() - 1 == miss)
+    inv["try_day"] = np.where(((returned & ~never) | (inv.missed.to_numpy() & eft)) & (paid < pc[it]), paid, NO_DAY)
     inv["bounce_day"] = np.where(inv.try_day != NO_DAY, bounce, NO_DAY)
     inv["stop"] = pc[it]                                 # nothing is chased once the cancellation is processed
     inv["write_off"] = NO_DAY
@@ -204,7 +208,7 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
                            prem=owed[bal], fee=0, late_fee=0, total=owed[bal], paid_day=np.where(collect[bal], fb_paid[bal], NO_DAY),
                            status=np.where(collect[bal], "Paid", "Written Off"),
                            method=np.where(collect[bal], fb_method[bal], ""),
-                           try_day=NO_DAY, bounce_day=NO_DAY, stop=10 ** 9,
+                           try_day=NO_DAY, bounce_day=NO_DAY, stop=10 ** 9, missed=False,
                            write_off=np.where(collect[bal], NO_DAY, fb_issue[bal] + WRITE_OFF_DAYS)))
     inv = pd.concat([inv, fb], ignore_index=True)
     back = owed < 0
@@ -243,7 +247,8 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
 def _notices(inv: pd.DataFrame, V: int) -> pd.DataFrame:
     """What billing sent the customer: a past-due notice when a bill is still unpaid some days after its due
     date, a notice of cancellation after that (rescinded if the customer pays), and a notice when a bank draft
-    comes back unpaid. Returns (term, day, purpose)."""
+    comes back unpaid. A bank draft for the instalment that is never paid gets its notice of cancellation the
+    day the bank returns it, as well as the returned-payment notice. Returns (term, day, purpose)."""
     reg = inv[inv.kind != "Final Balance"]
     unpaid_on = lambda d: ((reg.paid_day == NO_DAY) | (reg.paid_day > d)) & (d < reg.stop) & (d <= V)
     out = []
@@ -253,4 +258,6 @@ def _notices(inv: pd.DataFrame, V: int) -> pd.DataFrame:
         out.append(pd.DataFrame(dict(term=reg.term[m], day=d[m], purpose=purpose)))
     rt = reg[(reg.bounce_day != NO_DAY) & (reg.bounce_day <= V)]
     out.append(pd.DataFrame(dict(term=rt.term, day=rt.bounce_day, purpose="Returned Payment Notice")))
+    lost = rt[rt.missed & (rt.method == "EFT")]
+    out.append(pd.DataFrame(dict(term=lost.term, day=lost.bounce_day, purpose="Notice of Cancellation")))
     return pd.concat(out, ignore_index=True)

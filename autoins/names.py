@@ -6,6 +6,9 @@ reference/first_names.csv is present, from Social Security first-name frequencie
 of birth, reweighted to the group (Tzioumis 2018). Without that file, first names come from reference/names.csv,
 independent of group and age.
 
+Married couples usually share a surname, the husband's; how often a wife keeps her own depends on her group
+(KEPT_OWN_SURNAME). Children carry the household's surname; other adults their own.
+
 The group is used for nothing else: risk, prices and claims depend on ZIP-level crash and theft data and on the
 driver, never on it. It is written only to the instructor answer key (driver_truth.race_ethnicity), so that a
 fairness audit, for example estimating race from surname and address with BISG (Bayesian Improved Surname
@@ -26,6 +29,12 @@ GROUP_LABELS = ["White (non-Hispanic)", "Black (non-Hispanic)", "Hispanic", "Asi
                 "Other or multiracial (non-Hispanic)"]
 SAME_GROUP_SPOUSE = 0.90        # spouses in the same group (US married couples, Census CPS/ACS: about 10% inter-group)
 SAME_GROUP_OTHER_ADULT = 0.85   # other adults in the household (ASSUMED)
+# Married women who kept their own surname, by the woman's group, in GROUPS order. Pew Research Center (2023,
+# women in opposite-sex marriages): 30% of Hispanic, 10% of White and 9% of Black women kept their name, 14% overall.
+# Pew had too few Asian women to report; 25% is ASSUMED, as Korean, Chinese and Vietnamese wives traditionally keep
+# their surname. Other or multiracial: the overall 14%. Otherwise a couple shares the husband's surname, as their
+# children do; the 5% who hyphenate are not modeled. In a same-sex couple the spouse keeps their name at the same rate.
+KEPT_OWN_SURNAME = np.array([0.10, 0.09, 0.30, 0.25, 0.14])
 
 
 def _cum(w: np.ndarray) -> np.ndarray:

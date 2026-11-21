@@ -29,6 +29,7 @@ def generate(cfg: C.Config) -> dict:
     T["quote"] = quotes.build(cfg, ref, pop, res)
     identifiers.finish(cfg, ref.cal, T, K)       # business keys; surrogate keys renumbered in creation order
     T.update(ledger.build(cfg, ref.cal, T))      # the general ledger and commission statements, from those tables
+    identifiers.surrogate_keys(cfg, ref.cal, T, K)   # every key as its system's counter issued it
     summary = {"seed": cfg.seed, "policies": cfg.n_policies, "start": cfg.start, "valuation": cfg.valuation,
                "rows": {k: len(v) for k, v in T.items()}, "answer_key_rows": {k: len(v) for k, v in K.items()}}
     tables.write(T, K, res.plan, cfg)

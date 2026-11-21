@@ -110,7 +110,13 @@ class GeneratorTest(unittest.TestCase):
         self.assertEqual(set(truth_["race_ethnicity"]) <= set(names.GROUP_LABELS), True)
         adults = set(zip(drv.loc[drv["driver_role"] != "Child", "policy_id"], drv.loc[drv["driver_role"] != "Child", "last_name"]))
         kids = drv[drv["driver_role"] == "Child"]
-        self.assertTrue(all(k in adults for k in zip(kids["policy_id"], kids["last_name"])))     # a child shares an adult's surname
+        apart = kids[[k not in adults for k in zip(kids["policy_id"], kids["last_name"])]]
+        # a child shares an adult's surname, unless their mother has since married and taken her husband's
+        ni = drv[drv["driver_role"] == "Named Insured"].drop_duplicates("policy_id").set_index("policy_id")
+        husband = drv[(drv["driver_role"] == "Spouse") & (drv["gender"] == "M")].drop_duplicates("policy_id", keep="last").set_index("policy_id")
+        p_ = apart["policy_id"]
+        self.assertTrue(((ni["gender"].reindex(p_) == "F").to_numpy() & (husband["added_date"].reindex(p_) >= self.a["start"]).to_numpy()
+                         & (ni["last_name"].reindex(p_) == husband["last_name"].reindex(p_)).to_numpy()).all())
 
     def test_checks_catch_a_corrupted_record(self) -> None:
         """Negative controls: each record-level check passes on the data and fails when one record is made wrong
@@ -170,14 +176,11 @@ class GeneratorTest(unittest.TestCase):
         self.assertIn(who_check, payees(claim=bad))
         p0 = pay[pay["payee_type"] == "Insured"].iloc[0]
         pol0 = clm.set_index("claim_id").loc[p0["claim_id"], "policy_id"]
-        newcomer = drv[(drv["policy_id"] == pol0) & (drv["added_date"] > p0["payment_date"])]
-        bad_drv = drv
-        if newcomer.empty:            # give the policy a driver who joins after the payment, under the payee's name
-            bad_drv = pd.concat([drv, drv.iloc[[0]].assign(driver_id=drv["driver_id"].max() + 1, policy_id=pol0, first_name="Zed",
-                                                         last_name="Later", added_date="2099-01-01", removed_date=None)])
-            newcomer = bad_drv.tail(1)
+        # (a driver who joins the policy after the payment, under a first name no one else on it has)
+        bad_drv = pd.concat([drv, drv.iloc[[0]].assign(driver_id=drv["driver_id"].max() + 1, policy_id=pol0, first_name="Zebulon",
+                                                     last_name="Later", added_date="2099-01-01", removed_date=None)])
         bad = pay.copy()
-        bad.loc[bad["payment_id"] == p0["payment_id"], "payee_name"] = newcomer["first_name"].iloc[0] + " " + newcomer["last_name"].iloc[0]
+        bad.loc[bad["payment_id"] == p0["payment_id"], "payee_name"] = "Zebulon Later"
         self.assertEqual(payees(claim_payment=bad, driver=bad_drv), [who_check])
 
         # a cancellation for non-payment with no unpaid installment behind it
@@ -192,6 +195,36 @@ class GeneratorTest(unittest.TestCase):
         d = pd.Timestamp(bad.loc[i, "receipt_date"])
         bad.loc[i, "receipt_date"] = (d + pd.Timedelta(days=(5 - d.dayofweek) % 7)).strftime("%Y-%m-%d")
         self.assertIn("check and bank-draft receipts, returned drafts and refunds are dated on business days", billing(billing_receipt=bad))
+
+    def test_keys_are_system_counters_not_row_numbers(self) -> None:
+        """Integer keys continue the company's counters: they start well above 1, have gaps for the rest of the
+        company's records, and rise with the day each record was created."""
+        for table, pk, created in (("policy_term", "policy_term_id", "offer_date"), ("exposure", "exposure_id", "rating_date"),
+                                   ("claim", "claim_id", "report_date"), ("claim_payment", "payment_id", "payment_date"),
+                                   ("billing_invoice", "invoice_id", "issue_date"), ("quote", "quote_id", "quote_date")):
+            t = self.read(table).sort_values(pk)
+            self.assertGreater(t[pk].iloc[0], 1_000, table)
+            self.assertGreater(t[pk].diff().mean(), 1.5, table)
+            self.assertTrue(t[created].is_monotonic_increasing, table)
+        self.assertTrue(self.read("customer_contact")["contact_id"].str.fullmatch(r"CM\d{9}").all())
+
+    def test_no_record_is_older_than_the_company(self) -> None:
+        agency = pd.read_csv(self.root / "a" / "agency.csv", dtype={"zip_code": str})
+        self.assertGreaterEqual(self.read("policy")["original_inception_date"].min(), C.FOUNDED)
+        self.assertGreaterEqual(agency["appointment_date"].min(), C.FOUNDED)
+        self.assertGreaterEqual(self.read("producer")["start_date"].min(), C.FOUNDED)
+
+    def test_wives_keep_their_surnames_at_their_groups_rates(self) -> None:
+        """A married couple shares the husband's surname unless the wife kept hers, which Hispanic women do far more
+        often than White women (names.KEPT_OWN_SURNAME)."""
+        drv = self.read("driver").merge(pd.read_csv(self.root / "a" / "answer_key" / "driver_truth.csv"), on="driver_id")
+        ni = drv[drv["driver_role"] == "Named Insured"].drop_duplicates("policy_id")
+        sp = drv[drv["driver_role"] == "Spouse"].merge(ni, on="policy_id", suffixes=("", "_ni"))
+        sp = sp[sp["gender"] != sp["gender_ni"]]
+        wife_group = np.where(sp["gender"] == "F", sp["race_ethnicity"], sp["race_ethnicity_ni"])
+        kept = pd.Series((sp["last_name"] != sp["last_name_ni"]).to_numpy()).groupby(wife_group).mean()
+        self.assertGreater(kept["Hispanic"], kept["White (non-Hispanic)"] + 0.08, kept.to_dict())
+        self.assertLess(kept["White (non-Hispanic)"], 0.2, kept.to_dict())
 
     def test_run_summary_identifies_the_build_and_its_files(self) -> None:
         """run_summary.json records what built the files and hashes that a copy of them can be checked against."""
@@ -478,7 +511,7 @@ class GeneratorTest(unittest.TestCase):
             validate.integrity_identifiers(rep, t["policy"], t["policy_term"], t["driver"], t["insured_vehicle"], t["exposure"],
                                            t["claim"], t["claim_feature"], t["quote"], t["vehicle_model_year"])
             validate.integrity_billing(rep, t["billing_invoice"], t["billing_receipt"], t["policy_term"], t["premium_transaction"],
-                                       t["policy"], self.a["valuation"])
+                                       t["policy"], self.a["valuation"], t["customer_contact"])
             validate.integrity_payments(rep, t["claim_payment"], t["claim"], t["claim_feature"], t["employee"], t["vendor"],
                                         t["premium_transaction"], agency, t["policy"], t["policy_term"])
             validate.integrity_payees(rep, t["claim_payment"], t["claim"], t["claim_feature"], t["insured_vehicle"], t["driver"])
