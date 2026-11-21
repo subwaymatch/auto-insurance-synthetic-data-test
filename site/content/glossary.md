@@ -24,10 +24,10 @@ Calendar year
 :   The year a transaction is booked, whatever year the loss happened. Calendar-year incurred losses are payments in the year plus the change in reserves during it. Compare *accident year*.
 
 Car-year
-:   One car insured for one year, the unit of *exposure*. In the data: `exposure.earned_exposure`.
+:   One car insured for one year, the unit of *exposure*. In the data: an `exposure` row's days of cover inside the extract, over 365.25.
 
 Case reserve
-:   An adjuster’s estimate of what is still to be paid on an open claim. In the data: `claim_feature.case_reserve`, with every change in `claim_reserve_transaction`.
+:   An adjuster’s estimate of what is still to be paid on an open claim. In the data: the latest `outstanding_reserve` of a feature's `Loss` rows in `claim_reserve_transaction`, which records every change.
 
 Catastrophe
 :   A single event, such as a hailstorm, that causes many claims at once. Insurers track catastrophe losses separately. In the data: `catastrophe`, `claim.catastrophe_id`.
@@ -51,13 +51,13 @@ Deductible
 :   The part of a physical damage claim the customer pays before the insurer pays anything. In the data: `exposure.collision_deductible`, `exposure.comprehensive_deductible`.
 
 Defense and cost containment (DCC)
-:   Claim expenses for defending and settling claims, mostly lawyers and experts. In the data: `claim_feature.paid_dcc_expense`.
+:   Claim expenses for defending and settling claims, mostly lawyers and experts. In the data: `DCC Expense` rows of `claim_payment` (`claim_payment.transaction_type`).
 
 Development
 :   The change in an accident year’s losses as time passes, as late claims arrive and reserves are revised. Measured with *development triangles*.
 
 Earned premium
-:   The part of written premium for cover already given. A twelve-month policy earns a twelfth of its premium each month. In the data: `policy_term.earned_premium`, `exposure.earned_premium`.
+:   The part of written premium for cover already given. A twelve-month policy earns a twelfth of its premium each month. In the data: an `exposure` row's `total_premium` times its days of cover inside the extract over its term's days.
 
 Endorsement
 :   A change to a policy during its term, such as adding a car or moving house, which re-rates it from that day. In the data: `exposure.endorsement_number`, `premium_transaction.transaction_type`.
@@ -78,7 +78,7 @@ IBNR (incurred but not reported)
 :   Losses that have happened but haven’t been reported to the insurer yet, plus expected growth on known claims. Actuaries estimate it from development triangles. In the answer key: `unreported_claim`.
 
 Incurred loss
-:   Paid loss plus case reserves. *Net* incurred also deducts salvage and subrogation. In the data: `claim_feature.incurred_loss`, `claim_feature.net_incurred_loss`.
+:   Paid loss plus case reserves. *Net* incurred also deducts salvage and subrogation. In the data: a feature's `Loss` payments in `claim_payment` plus its case reserve; for net, less its `Salvage Recovery` and `Subrogation Recovery` rows.
 
 Installment
 :   One of several payments of a policy’s premium. In the data: `billing_invoice`.
@@ -87,7 +87,7 @@ Insurance score
 :   A score used in rating and underwriting that predicts insurance losses. It is usually based on credit information. In the data: `policy.insurance_score`.
 
 Loss adjustment expense (LAE)
-:   The cost of settling claims: DCC and adjusting and other expense (A&O) booked to claims, plus claims department overhead. In the data: `claim_feature.paid_expense`.
+:   The cost of settling claims: DCC and adjusting and other expense (A&O) booked to claims, plus claims department overhead. In the data: the `Expense` rows of `claim_payment` (DCC and A&O by `transaction_type`).
 
 Loss ratio
 :   Losses as a share of earned premium. A *pure* loss ratio excludes LAE.
@@ -111,7 +111,7 @@ Pure premium
 :   Losses per unit of exposure: frequency times severity. Also called *loss cost*.
 
 Rate level
-:   The overall level of an insurer’s prices, moved by rate changes. In the data: `rate_change`, `policy_term.rate_level_index`.
+:   The overall level of an insurer’s prices, moved by rate changes. In the data: `rate_change`, whose changes compound into the rate level.
 
 Rating date
 :   The day a policy term was priced, using only what the insurer knew by then. In the data: `policy_term.rating_date`, `exposure.rating_date`.
@@ -126,7 +126,7 @@ Retention
 :   The share of renewal offers customers accept.
 
 Salvage
-:   Money recovered by selling a car the insurer has paid as a total loss. In the data: `claim_feature.salvage_recovery`.
+:   Money recovered by selling a car the insurer has paid as a total loss. In the data: `Salvage Recovery` rows of `claim_payment`.
 
 Severity
 :   The average cost of a claim.
@@ -135,7 +135,7 @@ SR-22
 :   A certificate an insurer files with the state to prove a high-risk driver carries insurance, typically after a serious violation. In the data: `driver.sr22_filed_date`.
 
 Subrogation
-:   Recovering what the insurer paid its own customer from the party at fault, usually that party’s insurer. In the data: `claim_feature.subrogation_recovery`.
+:   Recovering what the insurer paid its own customer from the party at fault, usually that party’s insurer. In the data: `Subrogation Recovery` rows of `claim_payment`.
 
 Symbol
 :   A rating of a vehicle model’s damage cost or injury risk. In the data: `vehicle_model_year.physical_damage_symbol`, `vehicle_model_year.liability_symbol`.

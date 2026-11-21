@@ -11,14 +11,38 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import validate  # noqa: E402  (load and rebuild: the totals worked out from the published records)
+
+
+_TABLES: dict = {}
+
 
 def read(folder: Path, name: str, **kw) -> pd.DataFrame:
-    return pd.read_csv(folder / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False, **kw)
+    """A table of the output folder, with the totals validate.rebuild works out from the records (earned exposure and
+    premium, each feature's and claim's paid and incurred amounts, ...) and a few more used below."""
+    folder = Path(folder)
+    if folder.name == "answer_key":
+        return pd.read_csv(folder / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False, **kw)
+    if folder not in _TABLES:
+        summary = json.loads((folder / "run_summary.json").read_text())
+        t = validate.rebuild(validate.load(folder), summary["start"], summary["valuation"])
+        f, term, pol, veh = t["claim_feature"], t["policy_term"], t["policy"], t["insured_vehicle"]
+        f["closed_without_payment"] = np.where((f.feature_status == "Closed") & (f.paid_loss == 0), "Y", "N")
+        ends = term.assign(end=term.cancel_date.fillna(term.expiration_date)).groupby("policy_id")
+        pol["first_effective_date"] = pol.policy_id.map(ends.effective_date.min())
+        pol["latest_expiration_date"] = pol.policy_id.map(ends.end.max())
+        val = summary["valuation"]
+        on = (veh.added_date <= val) & ~(veh.removed_date <= val)
+        pol["number_of_vehicles"] = pol.policy_id.map(veh[on].groupby("policy_id").size()).fillna(0).astype(int)
+        _TABLES[folder] = t
+    return _TABLES[folder][name].copy()
 
 
 def year_overlap(s: pd.Series, e: pd.Series, year: int) -> np.ndarray:
@@ -176,7 +200,8 @@ def operations(out: Path) -> None:
     j = ex.merge(truth[["exposure_id", "expected_loss_total"]], on="exposure_id").merge(
         term[["policy_term_id", "business_type"]], on="policy_term_id").merge(
         pol[["policy_id", "distribution_channel", "payment_plan", "agency_id", "homeowner", "multi_policy", "prior_insurance"]], on="policy_id")
-    j["loss"] = clm.groupby("exposure_id").net_incurred_loss.sum().reindex(j.exposure_id).fillna(0).to_numpy()
+    inside = clm[clm.loss_date >= "2022-01-01"]           # accidents in the extract, against the exposure it earns
+    j["loss"] = inside.groupby("exposure_id").net_incurred_loss.sum().reindex(j.exposure_id).fillna(0).to_numpy()
     j["tenure"] = pd.cut(j.tenure_years, [-1, 0.01, 1, 3, 6, 100], labels=["new", "up to 1 year", "1 to 3", "3 to 6", "6 or more"])
     show = lambda col: "; ".join(f"{k} {g.expected_loss_total.sum() / g.earned_premium.sum():.1%} ({g.loss.sum() / g.earned_premium.sum():.1%})"
                                  for k, g in j.groupby(col, observed=True))
@@ -265,7 +290,8 @@ def market_and_ledger(out: Path) -> None:
     pol, term, ex, clm, feat = read(out, "policy"), read(out, "policy_term"), read(out, "exposure"), read(out, "claim"), read(out, "claim_feature")
     agency, quote, tx, stmt = read(out, "agency"), read(out, "quote"), read(out, "premium_transaction"), read(out, "agency_statement")
     gl, acct, offers = read(out, "gl_journal"), read(out, "gl_account"), read(out, "renewal_offer")
-    val = pd.Timestamp(json.loads((out / "run_summary.json").read_text())["valuation"])
+    summary = json.loads((out / "run_summary.json").read_text())
+    start, val = pd.Timestamp(summary["start"]), pd.Timestamp(summary["valuation"])
     eff, end = pd.to_datetime(term.effective_date), pd.to_datetime(term.cancel_date.fillna(term.expiration_date))
 
     print("AGENCIES")
@@ -324,7 +350,7 @@ def market_and_ledger(out: Path) -> None:
         for k, d in g.groupby(bands, observed=True)))
     f = feat.merge(clm[["claim_id", "loss_date"]], on="claim_id")
     for cov in ("COLL", "COMP"):
-        d = f[(f.coverage_code == cov) & (f.paid_loss > 0) & (f.loss_date < f"{val.year}-01-01")]
+        d = f[(f.coverage_code == cov) & (f.paid_loss > 0) & (f.loss_date >= f"{start.year}-01-01") & (f.loss_date < f"{val.year}-01-01")]
         tl = d[d.total_loss == "Y"]
         p(cov, f"paid claims {len(d):,}; average ${d.paid_loss.mean():,.0f}; total losses {len(tl) / len(d):.1%} averaging ${tl.paid_loss.mean():,.0f}, "
                f"others ${d[d.total_loss != 'Y'].paid_loss.mean():,.0f}; salvage {d.salvage_recovery.sum() / d.paid_loss.sum():.1%} and subrogation "

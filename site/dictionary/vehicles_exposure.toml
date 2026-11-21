@@ -8,7 +8,7 @@ policy_id = "The policy the vehicle is insured on."
 unit_number = "The vehicle's place on its policy in the order vehicles joined: `1` for the first, `2` for the next, and so on. Numbers are not reused when a vehicle leaves."
 vehicle_model_year_id = "The vehicle's make, model and model year."
 primary_driver_id = "The vehicle's main driver at its latest status. The main driver can change (a driver leaves, a car is handed over); `exposure.driver_id` has the driver rated on the car in each period."
-ownership = "`Owned`, `Financed` or `Leased`, at the latest status. A financed car can become `Owned` at a renewal when its loan is paid off."
+ownership = "`Owned`, `Financed` or `Leased`, at the latest status. A financed car can become `Owned` at a renewal when its loan is paid off, or when a total-loss settlement pays off its loan or lease and the owner keeps the wreck. A car that left after a total loss shows its ownership at the loss."
 added_date = "Day the vehicle joined the policy: the policy's first day for new business, the purchase day for a car added or bought as a replacement. For policies already in force on January 1, 2022 it can be many years earlier."
 removed_date = "First day the vehicle was no longer insured on the policy (the day after the loss for a car destroyed or stolen). Blank if it was still on the policy on the valuation date, and also if the whole policy ended (canceled or not renewed) with the car on it: check `policy` for that."
 primary_use = "`Pleasure`, `Commute` or `Business`, as declared when the vehicle joined. A rating variable."
@@ -24,34 +24,33 @@ full_glass_coverage = "`Y` if glass claims are paid without the comprehensive de
 rental_reimbursement = "Rental reimbursement option at the latest status, as daily limit / maximum per claim in dollars: `30/900`, `40/1200` or `50/1500`. Blank when not carried. It needs collision coverage."
 towing_and_labor = "`Y` if towing and labor coverage (up to $100 a tow; needs comprehensive) is carried at the latest status, otherwise `N`."
 vin = "The vehicle's 17-character VIN, with its check digit in position 9."
-vin_prefix = "The first 10 characters of the VIN with the check digit masked as `*`. It equals `vehicle_model_year.vin_pattern`, the way insurers match a VIN to a vehicle table."
 removal_reason = "Why the vehicle left: `Replaced` (traded for another car, which points back through `replaces_insured_vehicle_id`), `Sold`, `Left With Driver` (a driver leaving the policy took it), `Total Loss` (the company paid it as a total loss) or `Destroyed or Stolen` (wrecked or stolen with no company total-loss claim on file by the valuation date). Blank when `removed_date` is blank."
 replaces_insured_vehicle_id = "The vehicle this one replaced, after a trade-in or after a car was destroyed or stolen. Blank for other vehicles."
 
 [vehicle_model_year]
 grain = "Make, model and model year"
-summary = """A catalog of every make, model and model year of car, SUV, pickup and passenger van sold in the US from 1997 to 2026 (8,750 rows of 940 models from 74 makes), whether or not Lakefront insures one, like the vehicle tables insurers license. Engine, drive, fuel and size class describe the model year's most common configuration in EPA fuel economy data. `insured_vehicle`, `exposure` and `claim` point to a row through `vehicle_model_year_id`; price new and the symbols belong to the model year, so they live only here."""
+summary = """A catalog of every make, model and model year of car, SUV, pickup and passenger van sold in the US from 1981 to 2026 (12,176 rows of 1,209 models from 81 makes), whether or not Lakefront insures one, like the vehicle tables insurers license. Engine, drive, fuel and size class describe the model year's most common configuration in EPA fuel economy data; EPA's data starts in 1984, so model years 1981 to 1983 carry the models EPA lists in 1984 back with their 1984 specifications. `insured_vehicle` and `claim` point to a row through `vehicle_model_year_id`; price new and the symbols belong to the model year, so they live only here."""
 
 [vehicle_model_year.columns]
 vehicle_model_year_id = "Primary key."
 make = "Manufacturer, as named in EPA fuel economy data after cleaning, for example `Toyota`, `Ford` or `MINI`."
 model = "Model name, cleaned from EPA's base model names: two- and four-wheel-drive versions and trims are merged, and battery-electric versions of petrol models are their own model (for example `F-150 Lightning`)."
-model_year = "Model year, 1997 to 2026."
+model_year = "Model year, 1981 to 2026."
 body_type = "`SUV`, `Sedan`, `Coupe`, `Pickup`, `Hatchback`, `Convertible`, `Minivan`, `Wagon` or `Van`: the model's most common body, the same in every year."
-vehicle_class = "EPA size class of the model year, for example `Small SUV`, `Standard SUV`, `Compact Car`, `Midsize Car`, `Large Car`, `Two-Seater`, `Minivan`, `Standard Pickup` or `Heavy-Duty Pickup`. Two models carry the value `truck`."
+vehicle_class = "EPA size class of the model year, for example `Small SUV`, `Standard SUV`, `Compact Car`, `Midsize Car`, `Large Car`, `Two-Seater`, `Minivan`, `Standard Pickup` or `Heavy-Duty Pickup`."
 segment = "Rating segment: `Mainstream`, `Economy`, `Luxury`, `Sports`, `Truck`, `Electric` or `Minivan`, set from size class, make, price and fuel (full-size body-on-frame SUVs count as `Truck`). A rating variable."
 fuel_type = "Fuel of the most common configuration: `Gasoline`, `Hybrid`, `Plug-in Hybrid`, `Electric`, `Diesel`, `Flex Fuel`, `Hydrogen` or `Natural Gas`."
 drive_type = "`FWD`, `RWD`, `AWD` or `4WD` for the most common configuration. Blank for five early electric models with no drive in the EPA data."
 engine_cylinders = "Number of engine cylinders of the most common configuration. Blank for electric and most hydrogen fuel-cell models."
 engine_displacement_l = "Engine displacement in liters (the median over the model year's EPA configurations, one decimal). Blank where `engine_cylinders` is blank."
 msrp = "Approximate base price new, in dollars of that model year, rounded to $100: a 2024 base price (curated for about 900 models, estimated for the rest) adjusted by 2.4% a year. Ignores trim and options. The plan rates it in bands, and `exposure.vehicle_value` is derived from it."
-vin_pattern = "Ten-character VIN pattern for the model year: positions 1 to 8 stand for the make and model, position 9 (the check digit) is masked as `*`, and position 10 is the standard model-year code. Joins to `insured_vehicle.vin_prefix`."
+vin_pattern = "Ten-character VIN pattern for the model year: positions 1 to 8 stand for the make and model, position 9 (the check digit) is masked as `*`, and position 10 is the standard model-year code. The first ten characters of `insured_vehicle.vin` match it, apart from the check digit."
 physical_damage_symbol = "This dataset's own physical damage symbol, 1 to 30: one step higher for about every 9% of price new above $9,000, plus 2 for sports and 1 for luxury and electric models. Not ISO's symbols, and not used by the rating plan, which rates price new, segment and vehicle age directly."
 liability_symbol = "This dataset's own liability symbol, 1 to 5, from the accident frequency and severity typical of the model's segment and body type (minivans `1`, sports models `5`). Not ISO's symbols, and not used by the rating plan."
 
 [exposure]
 grain = "Policy term, vehicle and endorsement period"
-summary = """One row per vehicle for each stretch of a policy term with unchanged rating: endorsement 0 starts on the term's effective date, and each mid-term change (a car, driver or address change) ends the policy's rows and starts re-rated ones. It is the effective-dated record of the drivers, address, characteristics, discounts, coverage and premium in force, so use it rather than `policy` or `insured_vehicle` for anything historical. Premium by coverage is the full-term rate, not prorated; only `earned_exposure` and `earned_premium` measure the row's own dates, and only inside the extract (January 1, 2022 to December 31, 2026)."""
+summary = """One row per vehicle for each stretch of a policy term with unchanged rating: endorsement 0 starts on the term's effective date, and each mid-term change (a car, driver or address change) ends the policy's rows and starts re-rated ones. It is the effective-dated record of the drivers, address, characteristics, discounts, coverage and premium in force, so use it rather than `policy` or `insured_vehicle` for anything historical. Premium by coverage is the full-term rate, not prorated. A row earns from its cover start (or January 1, 2022) to its cover end (or January 1, 2027): those days over 365.25 are its earned exposure in car-years, and those days over its term's days times `total_premium` its earned premium. The vehicle's make, model and model year are on `insured_vehicle`."""
 
 [exposure.columns]
 exposure_id = "Primary key."
@@ -60,8 +59,6 @@ policy_id = "The policy the row belongs to."
 endorsement_number = "Period within the term: `0` for rows starting on the term's effective date, then `1`, `2` and so on for each later date in the term on which rows start. A term that began with no vehicle (a replacement still to come) starts at `1`."
 change_reason = "The mid-term change that started the row: `Vehicle Added`, `Vehicle Replaced`, `Replacement Vehicle Added`, `Vehicle Removed`, `Driver Removed`, `Spouse Added`, `Newly Licensed Driver Added` or `Address Change`, joined with `; ` when several fell on one day. It is the policy's change, so every vehicle re-rated that day carries it. Blank for endorsement 0."
 insured_vehicle_id = "The vehicle rated."
-vehicle_model_year_id = "The vehicle's make, model and model year (the same as on `insured_vehicle`)."
-model_year = "The vehicle's model year, repeated as a rated characteristic: the plan rates the vehicle's age from it."
 driver_id = "The driver rated on this vehicle for the period: the car's main driver when the row starts. It can differ from `insured_vehicle.primary_driver_id`, which is the latest."
 location_id = "The garaging ZIP code in force for the period (the household's address then). A move starts new rows; `policy.location_id` is only the latest address."
 rating_date = "Day the row was rated, using only what the insurer knew by then: for endorsement 0, the term's rating date (`policy_term.rating_date`, on or before the term starts); for a mid-term row, the day of the change. Endorsement 0 rows of terms already in force on January 1, 2022 were rated before that date."
@@ -98,20 +95,17 @@ collision_premium = "Collision premium in dollars, on the same full-term basis a
 comprehensive_premium = "Comprehensive premium in dollars, including any full glass charge, on the same full-term basis as `bi_premium` (not prorated to the row's dates). `0` without comprehensive coverage."
 rental_premium = "Rental reimbursement premium in dollars, on the same full-term basis as `bi_premium` but with no telematics discount. `0` when not carried."
 towing_premium = "Towing and labor premium in dollars, on the same full-term basis as `bi_premium` but with no telematics discount. `0` when not carried."
-total_premium = "Sum of the eight coverage premiums: the vehicle's full-term premium in dollars at this row's rating. The premium for the row's own dates is this times the row's days divided by the term's days; `earned_premium` is the part earned inside the extract."
+total_premium = "Sum of the eight coverage premiums: the vehicle's full-term premium in dollars at this row's rating. The premium for the row's own dates is this times the row's days divided by the term's days; its earned premium counts only the days inside the extract."
 coverage_start_date = "First day the row covers: the term's effective date for endorsement 0, otherwise the day of the change or the day a replacement car arrived. Before January 1, 2022 for terms already in force then."
 coverage_end_date = "Day the row's cover stops; the row covers the days before it, and the next row (if any) starts on it. It is the term's expiration date, the next change, the cancellation date, or the day after a total loss or theft, and can be after the valuation date for rows still running."
-earned_exposure = "Car-years earned inside the extract: the row's days from January 1, 2022 (or `coverage_start_date`, if later) up to `coverage_end_date` or through December 31, 2026, whichever comes first, divided by 365.25 (four decimals)."
-earned_premium = "Premium in dollars earned inside the extract: `total_premium` times the days counted in `earned_exposure`, divided by the days in the policy term. Premium earned before January 1, 2022 is not included (`policy_term.earned_premium_before_extract` has it by term), nor is premium still unearned on the valuation date."
 
 [rate_change]
 grain = "Filed rate change"
-summary = """Lakefront's filed overall rate changes that took effect between January 1, 2022 and the valuation date, December 31, 2026: seven changes, the first six raising rates and the last a cut. A change applies to every new and renewal term effective on or after its date, including that term's later endorsements, so a term keeps its rates until it renews. `policy_term.rate_level_index` gives each term's level on the same scale as `cumulative_rate_level`."""
+summary = """Lakefront's filed overall rate changes that took effect between January 1, 2022 and the valuation date, December 31, 2026: seven changes, the first six raising rates and the last a cut. A change applies to every new and renewal term effective on or after its date, including that term's later endorsements, so a term keeps its rates until it renews. Multiplying one plus each change compounds them into a rate level, which puts each term's premium on today's rates (on-leveling)."""
 
 [rate_change.columns]
 effective_date = "Primary key. Day the change takes effect, for terms effective on or after it."
 rate_change_pct = "Overall change in rates, in percent (`4.0` is a 4% increase; negative is a cut). It applies to every coverage and rating cell alike."
-cumulative_rate_level = "Rate level after this change relative to the level in force on January 1, 2022 (1.0): the product of 1 plus each change up to and including this one, four decimals."
 
 [location]
 grain = "ZIP code"
@@ -217,5 +211,5 @@ summary = """Hail, wind and flood events that struck the area between January 1,
 catastrophe_id = "Primary key. `CAT-`, the year and a sequence within the year, for example `CAT-2024-02`."
 event_date = "Day of the event; its claims have this `loss_date`."
 description = "Description of the event and the area it hit."
-peril = "`Hail (catastrophe)`, `Wind or tree damage (catastrophe)` or `Flood (catastrophe)`, the same text as `claim.claim_description` on its claims."
+peril = "`Hail (catastrophe)`, `Wind or tree damage (catastrophe)` or `Flood (catastrophe)`, the description of the cause of loss on its claims (`cause_of_loss`)."
 note = "A note on the event, the same for every row."

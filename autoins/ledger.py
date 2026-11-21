@@ -31,7 +31,9 @@ the receipt or payment date, a reserve change on its transaction date, a write-o
 month's commission is paid to the agency in the middle of the next month.
 
 The books open on the day before the extract begins with one entry: the premiums receivable, unearned premium
-and commissions payable that the policies in force bring with them, cash, and the surplus that balances them.
+and commissions payable that the policies in force bring with them, the case reserves on the claims then open
+(claim payments and reserve changes before the start belong to earlier years), cash, and the surplus that
+balances them.
 Cash and surplus on that day are ASSUMED (config.OPENING_SURPLUS_SHARE); everything else follows from the
 tables. The ledger holds only what the tables support: there are no investments, general expenses, taxes,
 reinsurance or reserves for claims not yet reported, and acquisition costs are expensed as written. Fees are
@@ -205,8 +207,10 @@ def build(cfg: C.Config, cal, T: dict) -> dict:
         receivable = written[c, 0] - collected[c, 0] - written_off[c, 0]
         payable = _agents_commission(tc, tm, com, agency_of, agent, -1, nc)[c]
         surplus = int(round(C.OPENING_SURPLUS_SHARE * annual[c] / 100, -5)) * 100
-        cash = surplus - receivable + upr[c, 0] + payable
-        post("Opening balances", c, 0, [(1000, cash), (1200, receivable), (2100, -upr[c, 0]), (2200, -payable), (3000, -surplus)])
+        reserved = res_loss[c, 0] + res_exp[c, 0]          # case reserves on the claims open when the extract begins
+        cash = surplus - receivable + upr[c, 0] + payable + reserved
+        post("Opening balances", c, 0, [(1000, cash), (1200, receivable), (2100, -upr[c, 0]), (2200, -payable),
+                                        (2500, -res_loss[c, 0]), (2510, -res_exp[c, 0]), (3000, -surplus)])
         for k in range(1, n_months + 1):
             d_upr = upr[c, k] - upr[c, k - 1]
             fees = cash_in[c, k] - collected[c, k]

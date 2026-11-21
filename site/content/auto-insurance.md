@@ -79,7 +79,7 @@ Premium is counted in three ways, and mixing them up is the most common mistake 
 **Exposure** measures how much cover was given, in **car-years**: one car insured for a full year is one car-year; two cars for six months is also one. Claim frequency is claims per car-year, so the denominator of almost every rate in insurance analytics comes from exposure.
 
 <div class="in-the-data" markdown="1">
-`policy_term.written_premium`, `policy_term.endorsement_premium` and `policy_term.return_premium` hold what was written on each term; `policy_term.earned_premium` what was earned in the extract. At a finer level, each `exposure` row has `exposure.earned_exposure` (car-years) and `exposure.earned_premium` for its dates. `premium_transaction` is the written premium journal, dated by `premium_transaction.effective_date` and `premium_transaction.processed_date`.
+`policy_term.written_premium` holds what was written at the start of each term; its endorsements and any return on a cancellation are its rows in `premium_transaction`, the written premium journal, dated by `premium_transaction.effective_date` and `premium_transaction.processed_date`. What was earned is worked out from `exposure`, as an actuary would: a row's days of cover inside the extract over 365.25 are its car-years, and its full-term `exposure.total_premium` times those days over the term's days is its earned premium (the [data model](data-model.html) page has the SQL).
 </div>
 
 ## Selling and keeping customers
@@ -127,7 +127,7 @@ What a claim costs the insurer has several parts:
 - **Loss adjustment expense (LAE)**: the cost of settling claims. Part is booked to individual claims: **defense and cost containment (DCC)**, mostly lawyers and experts, and **adjusting and other (A&O)**, such as independent appraisers. The rest is the claims department’s overhead.
 
 <div class="in-the-data" markdown="1">
-`claim_feature.paid_loss`, `claim_feature.case_reserve`, `claim_feature.salvage_recovery`, `claim_feature.subrogation_recovery`, `claim_feature.net_incurred_loss`, `claim_feature.paid_dcc_expense` and `claim_feature.paid_ao_expense` are all valued at the end of the extract.
+As in a claims system, a feature's amounts are its transactions: its paid loss, expenses and salvage and subrogation recoveries are its rows in `claim_payment`, and its case and expense reserves the latest `claim_reserve_transaction.outstanding_reserve` of each type. Totaled to the valuation date they make the loss run; totaled to an earlier date, the claims as they stood then.
 </div>
 
 ## Measuring results

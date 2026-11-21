@@ -30,7 +30,7 @@ otherwise.
    now compared with national figures on those figures' own definitions.
 5. **Unreleased, Real vehicles, real-data benchmark, telematics and a cleaner schema.** The data is
    compared with a real insurer's portfolio; the 110 hand-picked car models become a catalog of every
-   US make, model and model year since 1997, weighted by Chicago's roads; the fleet ages to match; a
+   US make, model and model year, now back to 1981, weighted by Chicago's roads; the fleet ages to match; a
    telematics program, realistic names and a consistent table layout are added; two external reviews'
    findings are fixed, the second by deciding renewals and telematics scores only on what was known at the
    time and keeping every renewal offer; the default book becomes 43,368 policies over five full years
@@ -41,7 +41,14 @@ otherwise.
    number and an approver. A second round closed what the audit had left: quotes and new business follow the
    season and the company's prices against the market's, customers leave after claims, cars are worth what
    they fetched in 2022 to 2024 so that collision and comprehensive premiums reach Illinois' averages, the
-   independent agencies become 120 of very unequal size, and a general ledger adds the subledgers up.
+   independent agencies become 120 of very unequal size, and a general ledger adds the subledgers up. A
+   dataset realism audit then fixed payees and identities that contradicted the record (lienholders without
+   a loan, attorneys before retention, a later named insured on earlier claims), non-payment cancellations
+   without a bill, and a validator check that could not fail, and the run summary now records provenance.
+   A follow-up made the tables hold records rather than totals, opened the extract with the claims then
+   open, replaced the fictional catastrophes with real storms, made the keys system counters, set case
+   reserves and the rating plan from what the company knows rather than from the truth, and added a
+   benchmark sheet that says how far to trust each figure.
 
 ## Unreleased (in progress)
 
@@ -486,6 +493,122 @@ names (`installment_number`, `check_number`, `license_state`) already did.
 - **Nothing else moved.** Only those labels changed: every number in the default run is as before (content
   hash `7b4b15d1dcb53b95`). The README, this changelog, `docs/`, the messages `validate.py` writes to the
   validation report and the real-data comparison's output use American spelling too.
+
+### Fixes from a dataset realism audit
+
+A realism audit (20 November 2026, at `03c2634`) found records that contradicted their own business context
+although every check passed, and a validator check that could not fail. All are fixed;
+`docs/review_response.md` gives the before-and-after counts for the default run and seed 7.
+
+- **Lenders are paid only when there is a loan.** A total loss was split between a lienholder and the owner
+  at random, whatever the car's ownership: 1,176 of 1,547 lienholder payments went to cars owned outright.
+  The car's ownership at the loss now travels with the claim. A financed car's total loss pays off the loan
+  first (an assumed 35% to 120% of the settlement, never more than the settlement), a leased car's goes to
+  the leasing company, an owned car's to its owner; one lender per car. 578 lienholder payments remain.
+- **Non-payment cancellations always have an unpaid bill.** 17 terms were canceled for non-payment of an
+  installment that a return premium had reduced to nothing, so no bill existed. A household that leaves
+  with no bill to miss is now recorded as canceling at its own request on the same day, and the validator's
+  98% tolerance is a rule every record must meet.
+- **Attorneys are paid only once retained.** 20 joint claimant-and-attorney payments predated the attorney;
+  an injury payment's payee is now decided on its date, and a void follows the check it cancels.
+- **The past keeps its named insured.** A loss with no driver named the policy's final named insured, and so
+  did payments to the insured: 2 claims and 1 payment named someone who joined later, and 95 more claims a
+  later named insured already on the policy. The cause was also in the simulator: its effective-dated
+  histories stored the caller's array rather than a copy, so the named insured recorded for the opening day
+  changed whenever a surviving spouse took a policy over. Histories now keep a copy, and claims and payments
+  use the named insured on their own date. No renewal offer, telematics record or exposure row changed.
+- **Final-balance checks are banked on business days** (83 were dated at a weekend).
+- **Checks that can fail.** `validate.py` compared a claim's policy with itself; it now checks a claim's
+  policy, term, vehicle and model year against its exposure row, and every redundant key against its parent.
+  New checks cover lienholders, attorney payees, identities on the loss and payment dates, and receipts on
+  business days. A new test corrupts one record for each and shows the check fails.
+- **Provenance.** `run_summary.json` now records hashes of the CSVs (`content_hash`, `tables_hash`,
+  `answer_key_hash`, and how they are computed) and, under `build`, the source revision, whether the
+  generator's files had uncommitted changes, the Python, NumPy and pandas versions, and fingerprints of the
+  columns and reference files. It is written after the CSVs, so the hash is in it. `validate.py` recomputes
+  the hashes.
+- **Taken up afterwards.** The audit's modeling suggestions (reserve allocation and pricing that do not see
+  eventual outcomes, independent US tail benchmarks) were taken up after these fixes (see the next
+  subsection); its suggested degraded "messy" edition is still not adopted.
+- **The default run** (content hash `06932bb41e745579`): only payees, 17 cancellation reasons, 97 claims'
+  `involved_driver_id` and some dates changed. Every loss and premium amount, the loss ratio (67.4%),
+  frequencies, severities and retention are as before. Claim payments 60,542 (was 61,678), reserve
+  transactions 124,306 (was 125,378), bills 887,706 and receipts 896,585. 147 checks pass (was 140) on the
+  default run and seed 7; 67 tests (was 64).
+
+### After the dataset realism audit: real storms, older cars, records not totals, reserves and rates from what is known
+
+After the fixes above, the owner asked for further realism changes, and the audit's two remaining modeling
+suggestions (A7 and A8) were taken up. `docs/review_response.md` lists them under "Follow-up changes".
+
+- **Notices of cancellation.** Every cancellation for non-payment now has a notice of cancellation mailed at
+  least ten days before it, as 215 ILCS 5/143.15 requires. A missed bank draft is attempted on its due date
+  and returned, and the notice goes out the day it comes back. `validate.py` checks every one (5,009
+  cancellations whose missed bill fell due in the extract, none without).
+- **Vehicles back to 1981.** The catalog reaches model year 1981, the first year of the 17-character VIN:
+  12,176 model years of 1,209 models from 81 makes (were 8,750, 940 and 74). EPA's data starts in 1984, so
+  1981 to 1983 carry 1984's models and specifications back. Old cars thin out with a scrappage taper
+  (`config.FLEET_AGE`), so they no longer pile up at the first model year: 9 car-years of 1981 cars in the
+  default run, against 10 a year for the next three.
+- **Surnames.** Whether a wife keeps her own surname depends on the household's race and ethnicity group, at
+  the Pew Research Center's 2023 rates: about 10% of white, 9% of Black, 30% of Hispanic and 14% of other
+  wives, and an assumed 25% of Asian wives (Pew had too few to report). Children take their father's surname,
+  or their mother's new husband's when she has remarried.
+- **Identifiers.** Integer keys are the company's system counters, not row numbers (`identifiers.KEY_SYSTEMS`,
+  ASSUMED). The company was founded in 2000; policy, driver, vehicle, exposure, premium transaction, agency,
+  producer, statement, ledger and employee keys count from then, billing from July 2008, claims from October
+  2012, quoting from March 2014, customer correspondence from January 2016 (`contact_id` is `CM` and nine
+  digits) and telematics from April 2018; vendor keys are undated. Keys start far above 1, have gaps, and
+  still rise with the day each record was created.
+- **Real catastrophes.** Ten storms from NOAA's Storm Events Database (Chicago-area counties, 2023 to 2026:
+  hail, flash floods and derechos) replace the nine fictional events (`config.CAT_EVENTS`, derived by
+  `scripts/build_catastrophe_events.py`). Their date, place, peril and relative size are real; the claims and
+  losses on them are simulated. None falls in 2022.
+- **Claims open at the start.** The part of each opening term before 1 January 2022 is simulated as a warm-up,
+  so the extract opens with open claims, case reserves and payments on 2021 accidents (287 claims in the
+  default run), and at-fault claims settled before 2022 appear on the driver's record as "Company Claim
+  (Before Extract)" incidents. The ledger's opening entry carries their case reserves ($1.4 million). There
+  are still no accidents before 2021, so 2022 lacks payments on older accidents, which matters for bodily
+  injury.
+- **Records, not totals.** Derived and aggregated columns were removed, so the tables keep what an insurer's
+  systems record: paid, reserved and incurred amounts and litigation flags on claims and features, earned
+  exposure and premium, endorsement and return premium, counts of drivers and vehicles, the limits on
+  `policy`, rate levels, premium changes, drivers' prior violations and accidents, VIN prefixes and the model
+  year on exposure rows are worked out from the records instead. `docs/schema_changes.md` ("Records, not
+  totals") lists every column and how to rebuild it; `validate.rebuild` does it in pandas, and the website's
+  data model page gives two SQLite views (`earned`, `loss_run`). Two lookup tables are new: `coverage`
+  (`coverage_code`, `coverage_name`) and `cause_of_loss` (`cause_of_loss`, `description`).
+- **Case reserves from what is known (A7).** The claimants of one accident share its per-accident limit from
+  what is known each day (payments to date and current estimates), rebalanced at the end of each business day
+  with news, where before the room was shared using their eventual payments. Property formula reserves now sit
+  near the average paid per claim, glass separately.
+- **A rating plan fitted to experience (A7).** Relativities other than the filed discounts are fitted to
+  three years of simulated claims experience (compound Poisson-gamma around the true expected costs), not to
+  the true expected cost itself. Each level is credibility-weighted (limited fluctuation, full credibility at
+  1,082 claims times one plus the squared coefficient of variation of claim size) with a bureau complement,
+  the true relativity off by a random 5%, and the base rates come from the book's experience.
+- **Rate change dates.** The 2023 increases take effect on 1 January and 1 July 2023 (were 1 March and 1
+  September).
+- **Owner-retained salvage.** A car its owner keeps after a total loss has no further losses in that term: a
+  salvage car may not be driven until it is rebuilt.
+- **Benchmarks (A8).** `docs/benchmarks.md` is a benchmark sheet: each figure's source, year, geography,
+  units and band, and whether the generator was tuned to it, it was checked or held out, or the band is
+  assumed; the spread of every validator band over five seeds; tail and joint diagnostics against CCC, S&P
+  Global Mobility and the WSJ's analysis of NAIC filings; and how the case reserves ran off.
+  `scripts/seed_spread.py` builds several seeds and reports each band's spread and the diagnostics,
+  `scripts/reserve_diagnostics.py` reports case reserve runoff and revision rates by coverage and age, and
+  `validate.py --json` writes the band figures to a file.
+- **The default run** (content hash `963889a73f229de8`): loss ratios by accident year 82.2%, 77.3%, 66.3%,
+  67.3% and 66.1% for 2022 to 2026, of which catastrophes 0.0%, 3.8%, 2.2%, 1.0% and 6.5%; overall 72.1%
+  (was 67.4%; 71.1% to 73.8% across five seeds); annualized retention 81.6% (was 81.9%). 197,003 policy
+  terms (was 198,479), 440,655 exposure rows (was 442,749), $214.3 million earned premium (was $220.8
+  million), 23,135 claims (was 22,392), 40,414 features (was 39,173), 62,875 claim payments (was 60,542),
+  129,559 reserve transactions (was 124,306), 879,257 bills and 890,607 receipts (were 887,706 and 896,585),
+  119,541 quotes and 170,522 renewal offers. 145 checks pass on the default run and on seed 7 (content hash
+  `6718177c0b52ab2e`); there were 147, but the checks on stored totals went with the totals, and new ones
+  cover notices of cancellation, the daily sharing of per-accident limits and the catalog's oldest model
+  years. The test suite has 74 tests (73 pass, and one needs `pyarrow`). The README,
+  `docs/limitations.md`, `docs/real_data_comparison.md` and the website give the new run's figures.
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

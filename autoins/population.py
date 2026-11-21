@@ -113,7 +113,9 @@ def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
         ren[k] = new[k] - c["renewal_cut"]
     ag["commission_new"], ag["commission_renewal"] = new, ren
     # appointed (first contracted) some years before the extract begins
-    ag["appointed_days_before_start"] = np.where(agent, rng.integers(400, 24 * 365, len(ag)), 26 * 365)
+    # (no earlier than the company's founding, when its direct units opened)
+    since_founding = (ref.cal.start.astype("M8[D]") - np.datetime64(C.FOUNDED, "D")).astype(int)
+    ag["appointed_days_before_start"] = np.where(agent, rng.integers(400, since_founding, len(ag)), since_founding)
     return ag
 
 
@@ -205,6 +207,13 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers
     # terms completed before the first term in the data: settled households have been customers for longer
     tenure_mean = 4.5 * np.exp(S["tenure"] * (stab - C.STABILITY_SHIFT["opening"]) - S["tenure"] ** 2 / 2)
     tenure_terms = np.where(is_init, np.floor(r.exponential(tenure_mean) * 12 / term_months), 0).astype(int)
+    # no customer is older than the company (config.FOUNDED): a longer tenure is drawn again
+    founded = (np.datetime64(C.FOUNDED, "M") - cal.start.astype("M8[M]")).astype(int)
+    longest = ((first_month - founded) // term_months).clip(0)
+    over = tenure_terms > longest
+    while over.any():
+        tenure_terms[over] = np.floor(r.exponential(tenure_mean[over]) * 12 / term_months[over]).astype(int)
+        over = tenure_terms > longest
     tenure_terms = np.minimum(tenure_terms, ((ni_age - 18).clip(0) * 12 / term_months).astype(int))
     p_mp = np.where(homeowner, 0.55, 0.20) * np.array([1.0, 1.25, 0.7])[channel]
     odds = p_mp / (1 - p_mp) * np.exp(S["multi_policy"] * stab)
@@ -275,9 +284,19 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers
     group = ns.related_group(nr, hh_group[p_], mix[p_], p_same)
     drv["race_group"] = group
     drv["first_name"] = ns.first_name(nr, group, male, np.floor(cal.year_frac(drv.dob_day.to_numpy())).astype(int))
-    surname = ns.surname(nr, hh_group)
-    own_name = (role == 2) | ((role == 1) & (nr.random(nd) < 0.20))
-    drv["last_name"] = np.where(own_name, ns.surname(nr, group), surname[p_])
+    # everyone has a surname of their own group; a couple shares the husband's unless the wife kept hers, and the
+    # children carry the couple's (names.KEPT_OWN_SURNAME). Other adults keep their own
+    own = ns.surname(nr, group)
+    keep = nr.random(nd) < names.KEPT_OWN_SURNAME[group]
+    ni_of, sp_of = np.full(n, -1), np.full(n, -1)
+    ni_of[p_[role == 0]], sp_of[p_[role == 1]] = np.flatnonzero(role == 0), np.flatnonzero(role == 1)
+    has_sp = sp_of >= 0
+    sp_male = np.where(has_sp, male[np.maximum(sp_of, 0)], False)
+    husband = np.where(has_sp & ~male[ni_of] & sp_male, sp_of, ni_of)        # whose surname the household carries
+    shared = own[husband]
+    partner_male = np.where(role == 0, sp_male[p_], male[ni_of[p_]])
+    may_keep = ((role == 0) & has_sp[p_] & ~male & partner_male) | ((role == 1) & ~(male & ~partner_male))
+    drv["last_name"] = np.where((role == 2) | (may_keep & keep), own, shared[p_])
     n_drv = drv.groupby("pol").size().reindex(range(n)).to_numpy()
     pol["n_drv"] = n_drv
 
@@ -497,7 +516,17 @@ def draw_vehicles(ref: Reference, r: np.random.Generator, pol_idx, year_frac, in
     households, economy models for poorer ones) and by density (pickups where it is less dense)."""
     mdl, s = ref.models, ref.vehicle_sampler
     nv = len(pol_idx)
-    vage = np.minimum(r.gamma(age_shape, age_scale * np.clip(inc_rel, 0.3, 4) ** -0.35), C.FLEET_AGE["cap"])
+    scale = age_scale * np.clip(inc_rel, 0.3, 4) ** -0.35
+    vage = r.gamma(age_shape, scale)
+    # Old cars are scrapped faster than the gamma's tail allows: a car past SCRAP_FROM years is kept with a chance
+    # falling exponentially with its extra years, else drawn again (config.FLEET_AGE). And the ages are truncated
+    # where the catalogue starts: a car drawn older than its first model year is drawn again, not set to that year.
+    oldest = np.minimum(np.broadcast_to(year_frac, nv) + 0.4 - s.first_year, C.FLEET_AGE["cap"])
+    kept = lambda a, u: u < np.exp(-np.maximum(a - C.FLEET_AGE["scrap_from"], 0) / C.FLEET_AGE["scrap_years"])
+    redraw = (vage > oldest) | ~kept(vage, r.random(nv))
+    while redraw.any():
+        vage[redraw] = r.gamma(age_shape, scale[redraw])
+        redraw[redraw] = (vage[redraw] > oldest[redraw]) | ~kept(vage[redraw], r.random(redraw.sum()))
     model_year = np.minimum(np.floor(year_frac - vage + 0.4), np.floor(year_frac)).astype(int)
     model_year = np.clip(model_year, s.first_year, s.last_year)
     yi = model_year - s.first_year
@@ -592,8 +621,9 @@ def _driver_records(cfg, ref, pol, drv, zt, r) -> pd.DataFrame:
     first_day = pol.first_day.to_numpy()[p_]
     t0 = np.maximum(first_day - C.LOOKBACK_DAYS, drv.licensed_day.to_numpy())
     out = [violations(drv, t0, np.full(nd, cal.valuation_day), r, cal)]
-    # accidents before the simulated claims begin (the company's own claims are added during the simulation)
-    t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, 0), first_day)
+    # accidents before the simulated claims begin (the company's own claims are added during the simulation, from
+    # the start of the in-force book's current term when the warm-up reaches back to it: config.warm_up_days)
+    t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, -C.warm_up_days(cfg)), first_day)
     out.append(prior_accidents(r, drv, t0, t1, first_day, zt.true_crash_hazard.to_numpy()[pol.zi.to_numpy()[p_]], cal))
     inc = pd.concat(out, ignore_index=True)
     inc["pol"] = p_[inc.drv.to_numpy()]

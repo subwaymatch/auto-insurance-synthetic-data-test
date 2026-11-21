@@ -41,14 +41,14 @@ That term was written before the extract; only exposure and premium after the st
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
 
 from . import claims
 from . import config as C
-from . import market, names, population, rating, telematics, truth
+from . import market, names, population, rating, refdata, telematics, truth
 from .refdata import day_weight, stream
 
 CANCEL_REASONS = ["", "Underwriting", "Non-Payment", "Insured Request", "Insured Deceased"]
@@ -129,8 +129,9 @@ class History:
         self._t = None
 
     def add(self, ids, day, *values) -> None:
-        ids = np.atleast_1d(np.asarray(ids, dtype=np.int64))
-        self.parts.append((ids, *(np.broadcast_to(np.asarray(x, dtype=np.int64), ids.shape) for x in (day, *values))))
+        # copies: a caller's array (the policies' named insureds, say) may change later, and must not rewrite the past
+        ids = np.atleast_1d(np.array(ids, dtype=np.int64))
+        self.parts.append((ids, *(np.broadcast_to(np.array(x, dtype=np.int64), ids.shape) for x in (day, *values))))
         self._t = None
 
     def table(self) -> list:
@@ -186,6 +187,19 @@ class Sim:
     af_report: list = field(default_factory=list)
     tele: "Tele" = None
     last_change: np.ndarray = None      # per policy: the latest day its drivers, cars or address changed
+    name_changes: list = field(default_factory=list)   # (drv, day, old surname) when a named insured takes a spouse's
+    warm: "Warm" = None                 # the warm-up: losses before the start (see _warm_up)
+
+
+@dataclass
+class Warm:
+    """The warm-up (config.warm_up_days): the in-force book's losses in the part of its term before the start,
+    simulated and developed on a calendar beginning `off` days earlier (so its day numbers are the extract's plus
+    `off`, and every date and working day is right), with draws of their own."""
+    cal: object
+    off: int
+    R: np.random.Generator
+    dev: claims.Development
 
 
 @dataclass
@@ -246,6 +260,12 @@ def run(cfg: C.Config, ref, pop) -> Result:
     sim = Sim(ref=ref, pop=pop, st=st, plan=plan, R=stream(cfg.seed, "simulate"),
               dev=claims.Development(cal, stream(cfg.seed, "claims"), stream(cfg.seed, "claim detail")), recs=recs,
               R_renew=stream(cfg.seed, "renewal"))
+    off = C.warm_up_days(cfg)
+    if off > 0:
+        wcal = refdata.load(replace(cfg, start=str(cal.start - np.timedelta64(off, "D")))).cal
+        sim.warm = Warm(cal=wcal, off=off, R=stream(cfg.seed, "warm-up losses"),
+                        dev=claims.Development(wcal, stream(cfg.seed, "warm-up claims"), stream(cfg.seed, "warm-up claim detail")))
+        sim.warm.dev.n_feat = 10 ** 9           # feature numbers apart from the extract's own
     sim.tele = Tele(R=stream(cfg.seed, "telematics"), eid=np.full(n, -1), last_scored=np.full(n, -10 ** 6),
                     block=np.full(n, -10 ** 6), device=np.zeros(n, dtype=int))
     sim.last_change = np.full(n, -10 ** 6)
@@ -371,6 +391,9 @@ def run(cfg: C.Config, ref, pop) -> Result:
     for c in ("n_drv", "n_veh", "ni_drv", "zi", "homeowner", "bi_opt", "um_opt"):   # the policy as it stands at the end
         pop.pol[c] = st.p[c]
     occ, feat, pays, reserves = sim.dev.result()
+    if sim.warm is not None and sim.warm.dev.occs:
+        occ, feat, pays, reserves = (pd.concat([a_, _shifted(b_, -sim.warm.off)], ignore_index=True)
+                                     for a_, b_ in zip((occ, feat, pays, reserves), sim.warm.dev.result()))
     tl = sim.tele
     enrol = pd.DataFrame(tl.enrol, columns=["eid", "pol", "start", "device"])
     end = enrol.eid.map(lambda e: tl.ended.get(e, (-1, ""))[0])
@@ -503,8 +526,10 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         **{f"prem_{c}": prem[c] for c in C.COVERAGES}, **{f"exp_{c}": exp_loss[c] for c in C.COVERAGES})))
 
     if len(occ):
+        occ["ownership"] = v["ownership"][occ.veh.to_numpy()]         # at the loss: a lender is paid off on a total loss
         kept = occ.occ.isin(feat.occ[feat.retained.to_numpy().astype(bool)])
         v["salvage_title"][V[occ.vrow[kept].to_numpy()]] = True      # owner kept a paid total loss
+        v["ownership"][V[occ.vrow[kept].to_numpy()]] = "Owned"        # the settlement paid off any loan or lease on it
         occ["term"] = T.term_of_pol[occ.pol.to_numpy()]
         occ["row"] = row_ids[occ.pop("vrow").to_numpy()]
         occ = sim.dev.add(occ, feat)
@@ -513,8 +538,11 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         af = occ.at_fault.to_numpy().astype(bool)
         sim.af_pol.append(occ.pol.to_numpy()[af])
         sim.af_report.append(occ.report_day.to_numpy()[af])
-        ch = occ[occ.chargeable_day >= 0]
+        ch = occ[occ.chargeable_day > claims.NO_DAY]
         sim.recs.add(ch.drv, ch.day, np.full(len(ch), KIND["accident"]), ch.chargeable_day)
+
+    if sim.warm is not None:
+        _warm_up(sim, T, V, a, x, row_ids, watched)
 
     # cars destroyed or stolen leave the policy; most households replace them
     old, left = V[gone], x[gone]
@@ -540,6 +568,55 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         np.maximum.at(sim.last_change, op[now], buy[now])
     Vn = np.arange(first_new, len(st.v["pol"]))
     return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), arrivals
+
+
+WARM_DAYS = ["day", "report_day", "chargeable_day", "siu_day", "open_day", "close_day", "attorney_day", "suit_day",
+             "reopen_day", "final_close_day"]
+
+
+def _shifted(frame: pd.DataFrame, by: int) -> pd.DataFrame:
+    """The warm-up's records with their day numbers moved by `by` (claims.NO_DAY stays NO_DAY)."""
+    frame = frame.copy()
+    for c in WARM_DAYS:
+        if c in frame:
+            d = frame[c].to_numpy().astype(np.int64)
+            frame[c] = np.where(d > claims.NO_DAY, d + by, claims.NO_DAY)
+    return frame
+
+
+def _warm_up(sim: Sim, T: Term, V, a, x, row_ids, watched) -> None:
+    """Losses on rows of the in-force book in the part of their term before the start (Warm). They become claims
+    like any other, developed on the warm-up calendar: those still open on the start date, or reported after it,
+    are in the extract (claims.develop); the at-fault ones reach the driver's record when chargeable, and any claim
+    counts in the customer's renewal decision. The book in force on the start date is the cars still insured that
+    day, so a car written off, destroyed or stolen before it is not in it: such losses are left out."""
+    W = sim.warm
+    pre = np.flatnonzero(a < 0)
+    s, e = np.maximum(a[pre], -W.off), np.minimum(x[pre], 0)
+    pre, s, e = pre[e > s], s[e > s], e[e > s]
+    if len(pre) == 0:
+        return
+    st = sim.st
+    ctx = truth.context(st, W.cal, V[pre], s + W.off, e + W.off)
+    for k_ in ("AF_MV", "AF_SV"):
+        ctx["rate"][k_] = ctx["rate"][k_] * watched[pre]
+    occ, feat, wrecks, sim.n_occ = truth.simulate(ctx, st, W.cal, W.R, sim.n_occ)
+    gone = occ.occ.isin(wrecks.occ) | occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool)])
+    occ = occ[~gone.to_numpy()].copy()
+    feat = feat[feat.occ.isin(occ.occ)]
+    if len(occ) == 0:
+        return
+    occ["term"] = T.term_of_pol[occ.pol.to_numpy()]
+    occ["row"] = row_ids[pre][occ.pop("vrow").to_numpy()]
+    occ["ownership"] = st.v["ownership"][occ.veh.to_numpy()]
+    occ = _shifted(W.dev.add(occ, feat), -W.off)
+    sim.clm_pol.append(occ.pol.to_numpy())
+    sim.clm_report.append(occ.report_day.to_numpy())
+    af = occ.at_fault.to_numpy().astype(bool)
+    sim.af_pol.append(occ.pol.to_numpy()[af])
+    sim.af_report.append(occ.report_day.to_numpy()[af])
+    ch = occ[occ.chargeable_day > claims.NO_DAY]
+    sim.recs.add(ch.drv, ch.day, np.full(len(ch), KIND["accident"]), ch.chargeable_day)
 
 
 def _missed_installment(sim: Sim, P: np.ndarray, month0: np.ndarray, new_business: np.ndarray, u: np.ndarray):
@@ -892,7 +969,21 @@ def _stop_at_total_loss(occ: pd.DataFrame, feat: pd.DataFrame, wrecks: pd.DataFr
     """Keep each vehicle's losses up to and including the first that destroys it (a total loss the company
     pays and takes the wreck from, or a wreck nobody pays us for). A vehicle's losses form independent Poisson
     processes, so dropping everything after that loss gives exactly the losses of a vehicle insured until
-    then. Returns (occ, feat, day destroyed or -1, 1 for a company total loss / 2 for another wreck)."""
+    then. A car its owner keeps after a total loss stays on the policy but has no further losses in the term: on a
+    salvage certificate it may not be driven until it is rebuilt and inspected (and at renewal it loses its
+    physical damage cover). Returns (occ, feat, day destroyed or -1, 1 for a company total loss / 2 for another
+    wreck)."""
+    kept = occ[occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool) & feat.retained.to_numpy().astype(bool)])]
+    if len(kept):
+        first = kept.sort_values(["vrow", "day", "occ"], kind="stable").drop_duplicates("vrow")
+        k_day, k_occ = np.full(nv, -1), np.full(nv, -1)
+        k_day[first.vrow.to_numpy().astype(int)], k_occ[first.vrow.to_numpy().astype(int)] = first.day.to_numpy(), first.occ.to_numpy()
+        kd = k_day[occ.vrow.to_numpy()]
+        later = (kd >= 0) & ((occ.day.to_numpy() > kd) | ((occ.day.to_numpy() == kd) & (occ.occ.to_numpy() != k_occ[occ.vrow.to_numpy()])))
+        occ = occ[~later].reset_index(drop=True)
+        feat = feat[feat.occ.isin(occ.occ)].reset_index(drop=True)
+        wd = k_day[wrecks.vrow.to_numpy().astype(int)]
+        wrecks = wrecks[~((wd >= 0) & (wrecks.day.to_numpy() > wd))]
     stop_day, how, first_occ = np.full(nv, -1), np.zeros(nv, dtype=int), np.full(nv, -1)
     company = occ[occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool) & ~feat.retained.to_numpy().astype(bool)])]
     ends = pd.concat([company[["vrow", "day", "occ"]].assign(how=1), wrecks[["vrow", "day", "occ"]].assign(how=2)],
@@ -1154,20 +1245,38 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
     if role == 3:
         employed, commute = np.zeros(m, dtype=bool), np.zeros(m)
     ni = p["ni_drv"][pol]
-    own_name = (role != 3) & (R.random(m) < 0.20)
+    u_keep = R.random(m)
     ids = len(drv) + np.arange(m)
     # a teen takes the household's group and surname; a spouse or other adult usually shares the group (names.py)
     p_same = {1: names.SAME_GROUP_SPOUSE, 2: names.SAME_GROUP_OTHER_ADULT}.get(role, 1.0)
     group = ref.names.related_group(R, drv.race_group.to_numpy()[ni], ref.names.zip_mix(zr), p_same)
+    own = ref.names.surname(R, group)
+    rename = np.zeros(m, dtype=bool)
+    if role == 3:
+        last = _household_surname(drv, pol, ni)
+    else:
+        # a new spouse (names.KEPT_OWN_SURNAME): a wife keeps her surname or takes the named insured's; a husband keeps
+        # his, and a woman named insured takes it from the wedding day unless she keeps her own
+        husband = male & ~drv.male.to_numpy()[ni]
+        keep = u_keep < names.KEPT_OWN_SURNAME[np.where(husband, drv.race_group.to_numpy()[ni], group)]
+        last = np.where(husband | keep, own, drv.last_name.to_numpy()[ni])
+        rename = husband & ~keep
     new = pd.DataFrame(dict(
         pol=pol, role=role, age=age, drv=ids, ord=p["n_drv"][pol], male=male, marital=marital, dob_day=dob,
         licensed_day=licensed, latent=R.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, m) * p["household_factor"][pol],
         good_grades=(role == 3) & (R.random(m) < C.GOOD_STUDENT_GRADES_P),
         school_end_day=dob + (population.school_end_age(R, m) * 365.25).astype(int), commute_miles=commute, employed=employed,
         first_name=ref.names.first_name(R, group, male, np.floor(cal.year_frac(dob)).astype(int)), race_group=group,
-        last_name=np.where(own_name, ref.names.surname(R, group), drv.last_name.to_numpy()[ni]), assigned=False, added_day=day,
+        last_name=last, assigned=False, added_day=day,
         removed_day=-1, removal_reason=0, active=True))
     sim.pop.drv = pd.concat([drv, new[drv.columns]], ignore_index=True)
+    if rename.any():
+        d, who = sim.pop.drv, ni[rename]
+        sim.name_changes.append(pd.DataFrame(dict(drv=who, day=np.broadcast_to(day, m)[rename],
+                                                  old=d.last_name.to_numpy()[who])))
+        last_now = d.last_name.to_numpy().copy()
+        last_now[who] = own[rename]
+        d["last_name"] = last_now
     sim.marital.add(ids, day, marital == "M")
     np.add.at(p["n_drv"], pol, 1)
     t0 = np.maximum(day - C.LOOKBACK_DAYS, licensed)
@@ -1180,6 +1289,18 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
     sim.pop.incidents = pd.concat([sim.pop.incidents, inc[sim.pop.incidents.columns]], ignore_index=True)
     sim.recs.add(inc.drv, inc.day, inc.kind.map(KIND), inc.known_day)
     return ids
+
+
+def _household_surname(drv: pd.DataFrame, pol: np.ndarray, ni: np.ndarray) -> np.ndarray:
+    """The surname a household's children carry: the husband's when a woman named insured is married to him (she
+    may have kept her own), otherwise the named insured's."""
+    last = drv.last_name.to_numpy()[ni].copy()
+    h = drv[(drv.role.to_numpy() == 1) & drv.active.to_numpy() & drv.male.to_numpy()]
+    husband = pd.Series(h.last_name.to_numpy(), index=h.pol.to_numpy())
+    husband = husband[~husband.index.duplicated(keep="last")].reindex(pol).to_numpy()
+    use = ~drv.male.to_numpy()[ni] & pd.notna(husband)
+    last[use] = husband[use]
+    return last
 
 
 def _marry(sim: Sim, pol, day) -> None:

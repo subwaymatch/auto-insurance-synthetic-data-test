@@ -31,6 +31,24 @@ class Config:
 
 
 # --------------------------------------------------------------------------
+# Claims open when the extract begins (simulate._warm_up). The book in force on the start date has been insured
+# since its current term began, up to a year earlier. That part of the term is simulated too, so the extract
+# opens with the claims still open from it (and those reported later), as a real claims system does. Claims from
+# earlier terms are not simulated: their accidents stay in the drivers' histories only. The reference calendars
+# begin on WARM_UP_FROM, which limits how far back the warm-up can reach.
+# --------------------------------------------------------------------------
+WARM_UP_FROM = "2021-01-01"
+
+
+def warm_up_days(cfg: "Config") -> int:
+    """How many days before the start the warm-up covers: a year, or back to WARM_UP_FROM (0: none)."""
+    start = np.datetime64(cfg.start, "D")
+    month = start.astype("M8[M]")
+    first = max((month - np.timedelta64(12, "M")).astype("M8[D]") + (start - month.astype("M8[D]")), np.datetime64(WARM_UP_FROM, "D"))
+    return int(max((start - first).astype(int), 0))
+
+
+# --------------------------------------------------------------------------
 # Book structure (ASSUMED)
 # --------------------------------------------------------------------------
 TERM_MONTHS_P = {6: 0.65, 12: 0.35}
@@ -85,9 +103,13 @@ REPLACE_HAZARD = [0.05, 0.11, 0.13, 0.15, 0.17, 0.20]
 LEASE_END_HAZARD = 0.70              # leased vehicles three or more years old
 # Vehicle ages. The household fleet (gamma, years, before an income tilt: richer households drive newer cars)
 # is TUNED so the cars in force match Chicago personal vehicles in crashes 2021-2025 (City of Chicago Traffic
-# Crashes - Vehicles: mean age 9.4 years in 2021 rising to 10.2 in 2025; 41-48% ten or more years old, about
-# 21% fifteen or more). Replacements are a mix of new and used purchases (ASSUMED).
-FLEET_AGE = dict(shape=2.1, scale=4.8, cap=30.0)
+# Crashes - Vehicles: mean age 8.9 years in 2021 rising to 9.8 in 2025; 41-48% ten or more years old, 20-22%
+# fifteen or more, 5-8% twenty or more, 1-2% twenty-five or more, 0.25-0.4% thirty or more). Past `scrap_from`
+# years a car survives with a chance falling exponentially (`scrap_years` per e-fold), as scrappage thins the
+# oldest cars faster than a gamma's tail (shape ASSUMED, fitted to those shares). The ages are truncated at the
+# vehicle catalogue's first model year (1981): a car drawn older is drawn again. Replacements are a mix of new
+# and used purchases (ASSUMED).
+FLEET_AGE = dict(shape=2.1, scale=5.5, cap=45.0, scrap_from=20.0, scrap_years=6.0)
 REPLACEMENT_AGE = dict(shape=1.6, scale=4.2)   # age of the vehicle bought as a replacement or an added car
 # Model popularity in reference/vehicle_catalogue.csv is measured on vehicles in Chicago crashes, mostly garaged
 # in the city (vehicle-weighted density about 16,000 people per square mile). Pickups are commoner where it is
@@ -386,14 +408,29 @@ LOOKBACK_DAYS = 3 * 365
 # --------------------------------------------------------------------------
 # Rating plan (what the insurer charges)
 # --------------------------------------------------------------------------
-# The plan is fitted to the true expected loss cost by minimum bias, then the
-# deliberate distortions below are applied. They are the "answers" a case study
+# The plan is fitted by minimum bias to the company's own claims experience, credibility-weighted with a
+# bureau complement, then the deliberate distortions below are applied. They are the "answers" a case study
 # can look for; they are also written to answer_key/rating_plan.json.
 TARGET_LOSS_RATIO = 0.825           # at day-one cost levels, before catastrophes: the book starts under-priced,
                                     # as the industry was entering 2022 after pandemic-era rate cuts (TUNED so
                                     # accident-year loss ratios follow the industry: about 80% in 2022, 73-75%
                                     # in 2023, 63-66% in 2024 and about 61% in 2025; see validate.py)
 COMP_CAT_LOAD = 1.16                # catastrophe provision in comprehensive rates
+# The experience the plan is fitted to (ASSUMED shapes). It is simulated: what the book as first written would
+# produce over EXPERIENCE_YEARS of losses at day-one cost levels, each coverage's claim count Poisson around the
+# true expected cost divided by a typical paid claim, each claim gamma-distributed (EXPERIENCE_SEVERITY: mean
+# and coefficient of variation, near the paid severities validate.py compares with). Each rating level's
+# experience gets limited-fluctuation credibility Z = sqrt(claims / standard), the standard being
+# FULL_CREDIBILITY_CLAIMS (the count within 5% of its expected value 90% of the time) times 1 + CV^2 for pure
+# premium (Mahler and Dean, "Credibility", Foundations of Casualty Actuarial Science, 2001). The rest, 1 - Z,
+# comes from the complement: a bureau relativity, here the relativity the true costs indicate off by a random
+# BUREAU_ERROR (lognormal sigma), since an industry book is not this book. The overall rate level is set from
+# the whole book's experience.
+EXPERIENCE_YEARS = 3
+EXPERIENCE_SEVERITY = {"BI": (25_000, 1.5), "PD": (6_500, 1.0), "UM": (25_000, 1.5), "MED": (4_000, 1.3),
+                       "COLL": (6_300, 1.0), "COMP": (2_800, 1.5), "RENT": (800, 0.6), "TOW": (120, 0.5)}
+FULL_CREDIBILITY_CLAIMS = 1082
+BUREAU_ERROR = 0.05
 N_TERRITORIES = 12
 PLANTED_DISTORTIONS = {
     "class": {"16-17 M": 0.80, "16-17 F": 0.80, "18-20 M": 0.82, "18-20 F": 0.82,
@@ -401,7 +438,7 @@ PLANTED_DISTORTIONS = {
     "mileage_exponent": 0.5,        # mileage relativities are flattened (square root of the fitted value)
 }
 # Filed discounts and surcharges (ASSUMED, typical of filed personal auto plans). Unlike the class, territory,
-# vehicle and insurance-score relativities, these are not fitted to the true expected cost: a real carrier files
+# vehicle and insurance-score relativities, these are not fitted to the experience: a real carrier files
 # them as round percentages, partly for marketing and retention, and they are only roughly what the risk
 # justifies. The rest of the plan is fitted around them. (levels in the order of rating.LEVELS; coverages they
 # apply to). The answer key's rating_plan.json gives what each is truly worth beside what is filed.
@@ -419,10 +456,11 @@ FILED_DISCOUNTS = {
     "married": ([1.00, 0.95], DRIVER_COVERAGES),                 # 5% married discount
 }
 
-# Filed rate changes, by effective date (ASSUMED timing; sized to the industry cycle). US private auto rates
-# rose 12.1% in 2022, 16.5% in 2023 and 7.6% in 2024 (S&P Global RateWatch), approved increases slowed to
+# Filed rate changes, by effective date (sized to the industry cycle; timing ASSUMED, and TUNED with the target
+# loss ratio so accident-year loss ratios, catastrophes included, follow the industry path). US private auto
+# rates rose 12.1% in 2022, 16.5% in 2023 and 7.6% in 2024 (S&P Global RateWatch), approved increases slowed to
 # 3.7% in 2025 (AM Best), and Illinois' largest writer cut rates in 2025 (State Farm). Cumulative here: +48%.
-RATE_CHANGES = [("2022-04-01", 0.04), ("2022-10-01", 0.08), ("2023-03-01", 0.10), ("2023-09-01", 0.09),
+RATE_CHANGES = [("2022-04-01", 0.04), ("2022-10-01", 0.08), ("2023-01-01", 0.10), ("2023-07-01", 0.09),
                 ("2024-03-01", 0.08), ("2025-03-01", 0.02), ("2026-06-01", -0.02)]
 
 # --------------------------------------------------------------------------
@@ -469,6 +507,13 @@ SHOPPING_SEASONALITY = [0.98, 1.06, 1.14, 1.08, 1.03, 1.01, 1.00, 1.02, 0.97, 0.
 SHOPPING_YEAR = {2021: 0.90, 2022: 0.92, 2023: 1.00, 2024: 1.12, 2025: 1.08, 2026: 1.02}
 
 # --------------------------------------------------------------------------
+# The company's history (ASSUMED). It was founded in January 2000: no policy, agency appointment or producer is
+# older. Its systems went live over the years (identifiers.KEY_SYSTEMS), and each numbers its records from then.
+# --------------------------------------------------------------------------
+FOUNDED = "2000-01-01"
+COMPANY_SIZE_AT_FOUNDING = 0.25     # its size in 2000 as a share of its size from 2022, growing evenly in between
+
+# --------------------------------------------------------------------------
 # General ledger (ledger.py). The books open the day before the extract begins with surplus of this share of the
 # annual premium then in force (ASSUMED; US personal auto carriers write roughly two dollars of premium per
 # dollar of surplus), held as cash.
@@ -476,19 +521,24 @@ SHOPPING_YEAR = {2021: 0.90, 2022: 0.92, 2023: 1.00, 2024: 1.12, 2025: 1.08, 202
 OPENING_SURPLUS_SHARE = 0.50
 
 # --------------------------------------------------------------------------
-# Catastrophes: FICTIONAL events with realistic seasonality for northern Illinois.
+# Catastrophes: REAL storms in the seven counties, from NOAA's Storm Events Database (scripts/
+# build_catastrophe_events.py, which states the thresholds: hail, flash flooding and wind days big enough to
+# damage many cars). The date, place, peril and footprint are NOAA's reports; how likely a car is to be hit
+# (the peak, at the centre) is ASSUMED, scaled by the storm's severity; the claims are simulated. NOAA's data
+# ran to mid-August 2026 when the list was built.
 # (id, date, description, peril, centre lat, centre lon, radius miles, peak hit probability)
 # --------------------------------------------------------------------------
 CAT_EVENTS = [
-    ("CAT-2021-01", "2021-06-21", "Severe thunderstorm, hail and wind - southwest suburbs", "HAIL_CAT", 41.74, -88.10, 14, 0.040),
-    ("CAT-2022-01", "2022-05-19", "Hailstorm - northern Lake County", "HAIL_CAT", 42.33, -87.95, 12, 0.035),
-    ("CAT-2023-01", "2023-04-04", "Hailstorm - Fox Valley and western DuPage", "HAIL_CAT", 41.90, -88.28, 16, 0.050),
-    ("CAT-2023-02", "2023-07-02", "Flash flooding - West Side and near west suburbs", "FLOOD_CAT", 41.86, -87.76, 7, 0.014),
-    ("CAT-2024-01", "2024-03-13", "Hailstorm - south suburbs and Will County", "HAIL_CAT", 41.53, -87.85, 15, 0.035),
-    ("CAT-2024-02", "2024-07-15", "Derecho, wind and tree damage - metro wide", "WIND_CAT", 41.85, -87.90, 34, 0.012),
-    ("CAT-2025-01", "2025-05-28", "Hailstorm - McHenry County and northwest Cook", "HAIL_CAT", 42.18, -88.20, 15, 0.040),
-    ("CAT-2025-02", "2025-08-16", "Flash flooding - South Side and south suburbs", "FLOOD_CAT", 41.72, -87.62, 8, 0.010),
-    ("CAT-2026-01", "2026-06-09", "Hailstorm - DuPage and west Cook", "HAIL_CAT", 41.88, -87.98, 13, 0.040),
+    ("CAT-2023-01", "2023-04-04", "Large hail - Fox Valley, Kendall County and the North Shore", "HAIL_CAT", 41.91, -88.20, 20.0, 0.0500),
+    ("CAT-2023-02", "2023-07-02", "Record rainfall and flash flooding - Cook County and the west suburbs", "FLOOD_CAT", 41.80, -87.87, 10.0, 0.0140),
+    ("CAT-2024-01", "2024-02-27", "Hail and tornadoes - southwest suburbs", "HAIL_CAT", 41.72, -88.01, 15.7, 0.0370),
+    ("CAT-2024-02", "2024-07-15", "Derecho and 27 tornadoes - metro wide", "WIND_CAT", 41.76, -87.92, 26.5, 0.0120),
+    ("CAT-2025-01", "2025-06-08", "Large hail - Batavia and central Kane County", "HAIL_CAT", 41.85, -88.34, 6.0, 0.0400),
+    ("CAT-2025-02", "2025-07-25", "Flash flooding - southeast DuPage and central Cook", "FLOOD_CAT", 41.73, -88.06, 7.5, 0.0116),
+    ("CAT-2025-03", "2025-08-17", "Flash flooding - Chicago and the south and west suburbs", "FLOOD_CAT", 41.78, -87.87, 10.0, 0.0123),
+    ("CAT-2026-01", "2026-03-10", "Giant hail - Fox Valley, Joliet and Chicago", "HAIL_CAT", 41.74, -88.11, 20.0, 0.0350),
+    ("CAT-2026-02", "2026-06-10", "Derecho - metro wide", "WIND_CAT", 41.79, -88.05, 24.1, 0.0100),
+    ("CAT-2026-03", "2026-07-27", "Hail, wind and flooding - DuPage and the west and southwest suburbs", "HAIL_CAT", 41.80, -87.97, 20.0, 0.0480),
 ]
 
 # --------------------------------------------------------------------------

@@ -3,12 +3,14 @@
 The plan only sees what a real insurer would see (the rating variables below). Its discounts and
 surcharges (multi-car, multi-policy, homeowner, paid in full, prior insurance, tenure, good student,
 married) are filed as round percentages (config.FILED_DISCOUNTS), as real plans file them. Every
-other relativity is fitted around those to the true expected loss cost with the classic minimum-bias
-procedure, so the plan is broadly adequate, and then the deliberate distortions in
-config.PLANTED_DISTORTIONS are applied. Everything the plan cannot see (latent driver risk, household
-stability, the agency's book quality, true mileage, parking, ZIP effects inside a territory, the
-Kia/Hyundai theft wave) is left unpriced, and a filed discount is right only as far as its round
-percentage happens to match what the risk justifies (Plan.indicated holds what it would be).
+other relativity is fitted around those with the classic minimum-bias procedure, to the company's
+claims experience (simulated from the true expected costs: config.EXPERIENCE_YEARS), and each level is
+credibility-weighted with a bureau complement, so the plan is broadly adequate but carries the
+estimation error of a real one. Then the deliberate distortions in config.PLANTED_DISTORTIONS are
+applied. Everything the plan cannot see (latent driver risk, household stability, the agency's book
+quality, true mileage, parking, ZIP effects inside a territory, the Kia/Hyundai theft wave) is left
+unpriced, and a filed discount is right only as far as its round percentage happens to match what the
+risk justifies (Plan.indicated holds what each variable is truly worth).
 """
 from __future__ import annotations
 
@@ -17,7 +19,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from . import config as C
-from . import truth
+from . import refdata, truth
 
 CLASS_LEVELS = ["16-17 M", "16-17 F", "18-20 M", "18-20 F", "21-24 M", "21-24 F",
                 "25-29", "30-39", "40-49", "50-64", "65-74", "75+"]
@@ -195,8 +197,27 @@ def _minimum_bias(variables: dict, y: np.ndarray, sweeps: int = 40, credibility:
     return {k: np.round(a, 3) for k, a in f.items()}
 
 
+def experience(y: dict, R: np.random.Generator) -> tuple[dict, dict]:
+    """The claims experience the plan is fitted to: for each coverage, each vehicle's losses over
+    config.EXPERIENCE_YEARS and how many claims made them, drawn as a compound Poisson-gamma sum around its
+    true expected cost `y`. Returns (losses, claim counts) by coverage."""
+    loss, count = {}, {}
+    for cov in C.COVERAGES:
+        mean, cv = C.EXPERIENCE_SEVERITY[cov]
+        n = R.poisson(np.maximum(y[cov], 0.0) * C.EXPERIENCE_YEARS / mean)
+        loss[cov] = np.where(n > 0, R.gamma(np.maximum(n, 1) / cv ** 2, mean * cv ** 2), 0.0)
+        count[cov] = n
+    return loss, count
+
+
+def credibility(claims: np.ndarray, cv: float) -> np.ndarray:
+    """Limited-fluctuation credibility of a rating level's pure premium from its claim count."""
+    return np.minimum(np.sqrt(claims / (C.FULL_CREDIBILITY_CLAIMS * (1 + cv ** 2))), 1.0)
+
+
 def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: np.ndarray) -> Plan:
-    """Fit the plan on every vehicle as it looks when first written, at day-one cost levels."""
+    """Fit the plan on every vehicle as it looks when first written, at day-one cost levels: to the claims
+    experience those vehicles produce, each level credibility-weighted with the bureau's relativity."""
     cal = ref.cal
     plan = Plan()
     plan.terr_liab, plan.terr_comp = territories(ref)
@@ -212,16 +233,26 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
     for k in C.NEW_CUSTOMER_PERILS:
         ctx["expo"][k] = ctx["expo"][k] * first_year
     y = truth.expected(ctx, cal)
+    R = refdata.stream(cfg.seed, "rating experience")
+    seen, claims = experience(y, R)
     lim = limit_factors(st, V)
     for cov in C.COVERAGES:
         m = lim[cov] > 0
         variables = {k: a[m] for k, a in _variables(plan, cov, cd).items()}
         target = y[cov][m] / lim[cov][m]
         plan.indicated[cov] = _minimum_bias(variables, target)
-        # the filed discounts are taken as given; everything else is fitted around them
+        # the filed discounts are taken as given; everything else is fitted around them, to the experience
         filed = filed_factors(cov)
         offset = np.prod([filed[k][variables[k]] for k in filed], axis=0)
-        fitted = _minimum_bias({k: a for k, a in variables.items() if k not in filed}, target, offset=offset)
+        free = {k: a for k, a in variables.items() if k not in filed}
+        true = _minimum_bias(free, target, offset=offset)
+        observed = _minimum_bias(free, seen[cov][m] / lim[cov][m], offset=offset)
+        fitted = {}
+        for k, code in free.items():
+            z = credibility(np.bincount(code, claims[cov][m], len(LEVELS[k])), C.EXPERIENCE_SEVERITY[cov][1])
+            bureau = true[k] * np.exp(C.BUREAU_ERROR * R.standard_normal(len(z)))
+            blend = z * observed[k] + (1 - z) * bureau
+            fitted[k] = np.round(blend / blend[np.argmax(np.bincount(code, minlength=len(z)))], 3)
         fitted.update({k: np.round(a, 3) for k, a in filed.items()})
         plan.fitted[cov] = fitted
         f = {k: a.copy() for k, a in fitted.items()}
@@ -234,7 +265,7 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
         plan.base[cov] = 1.0
         rel = relativity(plan, cov, cd)[m] * lim[cov][m]
         load = C.COMP_CAT_LOAD if cov == "COMP" else 1.0
-        plan.base[cov] = float(round(y[cov][m].sum() / C.TARGET_LOSS_RATIO * load / rel.sum(), 2))
+        plan.base[cov] = float(round(seen[cov][m].sum() / C.EXPERIENCE_YEARS / C.TARGET_LOSS_RATIO * load / rel.sum(), 2))
     return plan
 
 

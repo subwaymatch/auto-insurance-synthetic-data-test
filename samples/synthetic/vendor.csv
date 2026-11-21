@@ -1,101 +1,101 @@
 vendor_id,vendor_number,vendor_name,vendor_type,city,state,zip_code,in_network
 1,V100036,Hall's Auto Body,Body Shop,Chicago,IL,60630,N
-2,V100058,Keystone Collision Repair,Body Shop,Romeoville,IL,60446,Y
-3,V100066,Davis's Auto Body,Body Shop,Plainfield,IL,60585,N
-4,V100091,Dunlop & Sons Collision,Body Shop,Joliet,IL,60433,N
-5,V100127,Keystone Auto Rebuilders,Body Shop,Wood Dale,IL,60191,N
-6,V100160,Schaumburg Collision Center,Body Shop,Schaumburg,IL,60194,Y
-7,V100194,Lakeland Auto Rebuilders,Body Shop,Chicago,IL,60639,Y
-8,V100197,Joliet Collision Center,Body Shop,Joliet,IL,60435,Y
-9,V100230,Rourke & Sons Collision,Body Shop,Aurora,IL,60506,Y
-10,V100237,Mundelein Collision Center,Body Shop,Mundelein,IL,60060,N
-11,V100252,North Shore Collision Repair,Body Shop,Dolton,IL,60419,N
-12,V100267,Piggott's Auto Body,Body Shop,Chicago,IL,60647,N
-13,V100276,Fox Valley Collision Repair,Body Shop,Waukegan,IL,60085,Y
-14,V100300,Armstrong's Auto Body,Body Shop,Chicago,IL,60618,N
-15,V100306,Chicago Collision Center,Body Shop,Chicago,IL,60653,Y
-16,V100329,Liberty Collision Repair,Body Shop,Chicago,IL,60641,N
-17,V100363,Sterling Collision Repair,Body Shop,Cary,IL,60013,N
-18,V100376,Prairie Collision Repair,Body Shop,Franklin Park,IL,60131,N
-19,V100396,Pioneer Collision Repair,Body Shop,Mundelein,IL,60060,N
-20,V100430,Park's Auto Body,Body Shop,Chicago,IL,60633,Y
-21,V100456,Heartland Auto Rebuilders,Body Shop,Aurora,IL,60505,Y
-22,V100472,Hornsby's Auto Body,Body Shop,Chicago,IL,60656,N
-23,V100484,Meridian Auto Rebuilders,Body Shop,Chicago,IL,60644,N
-24,V100488,Blackhawk Collision Repair,Body Shop,Joliet,IL,60431,N
-25,V100492,North Shore Auto Rebuilders,Body Shop,Chicago,IL,60609,N
-26,V100493,Sanchez's Auto Body,Body Shop,Oak Park,IL,60302,N
-27,V100519,Illini Auto Rebuilders,Body Shop,Bolingbrook,IL,60440,N
-28,V100543,Lake Zurich Collision Center,Body Shop,Lake Zurich,IL,60047,N
-29,V100547,Central Auto Rebuilders,Body Shop,Hoffman Estates,IL,60169,N
-30,V100577,Parkside Collision Repair,Body Shop,Chicago,IL,60633,N
-31,V100601,Anderson & Sons Collision,Body Shop,Mchenry,IL,60051,N
-32,V100609,Redmond & Sons Collision,Body Shop,Lake In The Hills,IL,60156,Y
-33,V100620,Mchone & Sons Collision,Body Shop,Chicago,IL,60657,N
-34,V100634,Summit Collision Repair,Body Shop,Ingleside,IL,60041,N
-35,V100673,Premier Auto Rebuilders,Body Shop,Lyons,IL,60534,N
-36,V100676,Reliable Collision Repair,Body Shop,Mount Prospect,IL,60056,N
-37,V100705,Sy's Auto Body,Body Shop,Chicago,IL,60649,N
-38,V100744,Montalvo's Auto Body,Body Shop,Chicago,IL,60607,Y
-39,V100755,Anchor Auto Rebuilders,Body Shop,Huntley,IL,60142,N
-40,V100775,Riverside Auto Rebuilders,Body Shop,Saint Charles,IL,60174,N
-41,V100808,Lockport Collision Center,Body Shop,Lockport,IL,60441,N
-42,V100837,Miller & Sons Collision,Body Shop,Chicago,IL,60643,Y
-43,V100871,Vanderlinden's Auto Body,Body Shop,Mount Prospect,IL,60056,Y
-44,V100895,Melrose Park Collision Center,Body Shop,Melrose Park,IL,60164,N
-45,V100904,Dufault's Auto Body,Body Shop,Chicago,IL,60618,N
-46,V100932,Orland Park Collision Center,Body Shop,Orland Park,IL,60462,N
-47,V100963,Ross's Auto Body,Body Shop,Chicago,IL,60639,N
-48,V100970,Williams & Sons Collision,Body Shop,Elgin,IL,60124,Y
-49,V100986,Tri-State Collision Repair,Body Shop,Franklin Park,IL,60131,Y
-50,V100989,Reyna & Sons Collision,Body Shop,Oswego,IL,60543,N
-51,V100995,Tri-State Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
-52,V100996,Symington & Sons Collision,Body Shop,Chicago,IL,60623,N
-53,V100997,Sullivan's Auto Body,Body Shop,Chicago,IL,60619,Y
-54,V101022,Romeoville Collision Center,Body Shop,Romeoville,IL,60446,N
-55,V101061,Kriebel & Sons Collision,Body Shop,Evanston,IL,60201,N
-56,V101080,Velasquez's Auto Body,Body Shop,Chicago,IL,60637,N
-57,V101113,Reich's Auto Body,Body Shop,Bolingbrook,IL,60440,N
-58,V101148,Ingram & Sons Collision,Body Shop,Chicago,IL,60657,N
-59,V101159,Central Collision Repair,Body Shop,Chicago,IL,60644,Y
-60,V101192,Frontier Auto Rebuilders,Body Shop,Chicago,IL,60643,N
-61,V101216,Reese's Auto Body,Body Shop,Hampshire,IL,60140,Y
-62,V101235,Sterling Auto Rebuilders,Body Shop,Chicago,IL,60639,N
-63,V101248,Reliable Auto Rebuilders,Body Shop,Chicago,IL,60634,N
-64,V101282,Hillside Collision Center,Body Shop,Hillside,IL,60162,N
-65,V101290,Buffalo Grove Collision Center,Body Shop,Buffalo Grove,IL,60089,N
-66,V101300,Heritage Collision Repair,Body Shop,Joliet,IL,60435,Y
-67,V101328,Des Plaines Collision Center,Body Shop,Des Plaines,IL,60016,N
-68,V101365,Evergreen Auto Rebuilders,Body Shop,Des Plaines,IL,60018,Y
-69,V101374,Pioneer Auto Rebuilders,Body Shop,Barrington,IL,60010,Y
-70,V101393,Oswego Collision Center,Body Shop,Oswego,IL,60543,N
-71,V101415,Gutierrez & Sons Collision,Body Shop,Chicago,IL,60629,N
-72,V101449,Coley's Auto Body,Body Shop,Naperville,IL,60564,N
-73,V101456,Anchor Collision Repair,Body Shop,Downers Grove,IL,60516,N
-74,V101482,Metro Collision Repair,Body Shop,Lincolnwood,IL,60712,N
-75,V101516,Compass Auto Rebuilders,Body Shop,Maywood,IL,60153,Y
-76,V101549,Ferrer & Sons Collision,Body Shop,Maywood,IL,60153,Y
-77,V101576,Galvan & Sons Collision,Body Shop,Ingleside,IL,60041,N
-78,V101599,Hawkins & Sons Collision,Body Shop,Berwyn,IL,60402,Y
-79,V101600,Owens & Sons Collision,Body Shop,Alsip,IL,60803,Y
-80,V101639,Windy City Collision Repair,Body Shop,Mundelein,IL,60060,N
-81,V101656,Illini Collision Repair,Body Shop,Beecher,IL,60401,N
-82,V101686,Santangelo & Sons Collision,Body Shop,Island Lake,IL,60042,Y
-83,V101699,Round Lake Collision Center,Body Shop,Round Lake,IL,60073,Y
-84,V101723,Basham's Auto Body,Body Shop,Bolingbrook,IL,60440,N
-85,V101730,Ferrer's Auto Body,Body Shop,Chicago,IL,60630,N
-86,V101741,Schultz's Auto Body,Body Shop,Chicago,IL,60645,N
-87,V101760,Rasco's Auto Body,Body Shop,Hoffman Estates,IL,60169,N
-88,V101776,Delosrios & Sons Collision,Body Shop,Westchester,IL,60154,N
-89,V101782,Windy City Auto Rebuilders,Body Shop,Chicago,IL,60626,N
-90,V101810,Tinley Park Collision Center,Body Shop,Tinley Park,IL,60477,N
-91,V101835,Allied Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
-92,V101861,Denise's Auto Body,Body Shop,Orland Park,IL,60467,Y
-93,V101868,Deerfield Collision Center,Body Shop,Deerfield,IL,60015,N
-94,V101870,Lu's Auto Body,Body Shop,Romeoville,IL,60446,Y
-95,V101896,Midwest Collision Repair,Body Shop,Downers Grove,IL,60516,Y
-96,V101932,Lakeshore Auto Rebuilders,Body Shop,Chicago,IL,60625,N
-97,V101952,Premier Collision Repair,Body Shop,Des Plaines,IL,60016,N
-98,V101959,Rodgers & Sons Collision,Body Shop,Palatine,IL,60067,N
-99,V101960,Boyle & Sons Collision,Body Shop,Chicago,IL,60621,Y
-100,V101963,Liberty Auto Rebuilders,Body Shop,Chicago,IL,60621,N
+4,V100058,Keystone Collision Repair,Body Shop,Romeoville,IL,60446,Y
+7,V100066,Davis's Auto Body,Body Shop,Plainfield,IL,60585,N
+10,V100091,Dunlop & Sons Collision,Body Shop,Joliet,IL,60433,N
+15,V100127,Keystone Auto Rebuilders,Body Shop,Wood Dale,IL,60191,N
+18,V100160,Schaumburg Collision Center,Body Shop,Schaumburg,IL,60194,Y
+21,V100194,Lakeland Auto Rebuilders,Body Shop,Chicago,IL,60639,Y
+24,V100197,Joliet Collision Center,Body Shop,Joliet,IL,60435,Y
+27,V100230,Rourke & Sons Collision,Body Shop,Aurora,IL,60506,Y
+31,V100237,Mundelein Collision Center,Body Shop,Mundelein,IL,60060,N
+35,V100252,North Shore Collision Repair,Body Shop,Dolton,IL,60419,N
+40,V100267,Piggott's Auto Body,Body Shop,Chicago,IL,60647,N
+44,V100276,Fox Valley Collision Repair,Body Shop,Waukegan,IL,60085,Y
+46,V100300,Armstrong's Auto Body,Body Shop,Chicago,IL,60618,N
+50,V100306,Chicago Collision Center,Body Shop,Chicago,IL,60653,Y
+53,V100329,Liberty Collision Repair,Body Shop,Chicago,IL,60641,N
+56,V100363,Sterling Collision Repair,Body Shop,Cary,IL,60013,N
+60,V100376,Prairie Collision Repair,Body Shop,Franklin Park,IL,60131,N
+65,V100396,Pioneer Collision Repair,Body Shop,Mundelein,IL,60060,N
+70,V100430,Park's Auto Body,Body Shop,Chicago,IL,60633,Y
+72,V100456,Heartland Auto Rebuilders,Body Shop,Aurora,IL,60505,Y
+76,V100472,Hornsby's Auto Body,Body Shop,Chicago,IL,60656,N
+78,V100484,Meridian Auto Rebuilders,Body Shop,Chicago,IL,60644,N
+80,V100488,Blackhawk Collision Repair,Body Shop,Joliet,IL,60431,N
+82,V100492,North Shore Auto Rebuilders,Body Shop,Chicago,IL,60609,N
+87,V100493,Sanchez's Auto Body,Body Shop,Oak Park,IL,60302,N
+89,V100519,Illini Auto Rebuilders,Body Shop,Bolingbrook,IL,60440,N
+92,V100543,Lake Zurich Collision Center,Body Shop,Lake Zurich,IL,60047,N
+97,V100547,Central Auto Rebuilders,Body Shop,Hoffman Estates,IL,60169,N
+99,V100577,Parkside Collision Repair,Body Shop,Chicago,IL,60633,N
+101,V100601,Anderson & Sons Collision,Body Shop,Mchenry,IL,60051,N
+107,V100609,Redmond & Sons Collision,Body Shop,Lake In The Hills,IL,60156,Y
+110,V100620,Mchone & Sons Collision,Body Shop,Chicago,IL,60657,N
+113,V100634,Summit Collision Repair,Body Shop,Ingleside,IL,60041,N
+119,V100673,Premier Auto Rebuilders,Body Shop,Lyons,IL,60534,N
+122,V100676,Reliable Collision Repair,Body Shop,Mount Prospect,IL,60056,N
+124,V100705,Sy's Auto Body,Body Shop,Chicago,IL,60649,N
+130,V100744,Montalvo's Auto Body,Body Shop,Chicago,IL,60607,Y
+133,V100755,Anchor Auto Rebuilders,Body Shop,Huntley,IL,60142,N
+137,V100775,Riverside Auto Rebuilders,Body Shop,Saint Charles,IL,60174,N
+141,V100808,Lockport Collision Center,Body Shop,Lockport,IL,60441,N
+144,V100837,Miller & Sons Collision,Body Shop,Chicago,IL,60643,Y
+146,V100871,Vanderlinden's Auto Body,Body Shop,Mount Prospect,IL,60056,Y
+151,V100895,Melrose Park Collision Center,Body Shop,Melrose Park,IL,60164,N
+154,V100904,Dufault's Auto Body,Body Shop,Chicago,IL,60618,N
+156,V100932,Orland Park Collision Center,Body Shop,Orland Park,IL,60462,N
+158,V100963,Ross's Auto Body,Body Shop,Chicago,IL,60639,N
+167,V100970,Williams & Sons Collision,Body Shop,Elgin,IL,60124,Y
+170,V100986,Tri-State Collision Repair,Body Shop,Franklin Park,IL,60131,Y
+172,V100989,Reyna & Sons Collision,Body Shop,Oswego,IL,60543,N
+176,V100995,Tri-State Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
+179,V100996,Symington & Sons Collision,Body Shop,Chicago,IL,60623,N
+182,V100997,Sullivan's Auto Body,Body Shop,Chicago,IL,60619,Y
+187,V101022,Romeoville Collision Center,Body Shop,Romeoville,IL,60446,N
+190,V101061,Kriebel & Sons Collision,Body Shop,Evanston,IL,60201,N
+193,V101080,Velasquez's Auto Body,Body Shop,Chicago,IL,60637,N
+195,V101113,Reich's Auto Body,Body Shop,Bolingbrook,IL,60440,N
+200,V101148,Ingram & Sons Collision,Body Shop,Chicago,IL,60657,N
+207,V101159,Central Collision Repair,Body Shop,Chicago,IL,60644,Y
+213,V101192,Frontier Auto Rebuilders,Body Shop,Chicago,IL,60643,N
+217,V101216,Reese's Auto Body,Body Shop,Hampshire,IL,60140,Y
+220,V101235,Sterling Auto Rebuilders,Body Shop,Chicago,IL,60639,N
+223,V101248,Reliable Auto Rebuilders,Body Shop,Chicago,IL,60634,N
+227,V101282,Hillside Collision Center,Body Shop,Hillside,IL,60162,N
+231,V101290,Buffalo Grove Collision Center,Body Shop,Buffalo Grove,IL,60089,N
+240,V101300,Heritage Collision Repair,Body Shop,Joliet,IL,60435,Y
+244,V101328,Des Plaines Collision Center,Body Shop,Des Plaines,IL,60016,N
+247,V101365,Evergreen Auto Rebuilders,Body Shop,Des Plaines,IL,60018,Y
+249,V101374,Pioneer Auto Rebuilders,Body Shop,Barrington,IL,60010,Y
+250,V101393,Oswego Collision Center,Body Shop,Oswego,IL,60543,N
+254,V101415,Gutierrez & Sons Collision,Body Shop,Chicago,IL,60629,N
+256,V101449,Coley's Auto Body,Body Shop,Naperville,IL,60564,N
+263,V101456,Anchor Collision Repair,Body Shop,Downers Grove,IL,60516,N
+264,V101482,Metro Collision Repair,Body Shop,Lincolnwood,IL,60712,N
+267,V101516,Compass Auto Rebuilders,Body Shop,Maywood,IL,60153,Y
+268,V101549,Ferrer & Sons Collision,Body Shop,Maywood,IL,60153,Y
+271,V101576,Galvan & Sons Collision,Body Shop,Ingleside,IL,60041,N
+275,V101599,Hawkins & Sons Collision,Body Shop,Berwyn,IL,60402,Y
+276,V101600,Owens & Sons Collision,Body Shop,Alsip,IL,60803,Y
+280,V101639,Windy City Collision Repair,Body Shop,Mundelein,IL,60060,N
+284,V101656,Illini Collision Repair,Body Shop,Beecher,IL,60401,N
+288,V101686,Santangelo & Sons Collision,Body Shop,Island Lake,IL,60042,Y
+291,V101699,Round Lake Collision Center,Body Shop,Round Lake,IL,60073,Y
+295,V101723,Basham's Auto Body,Body Shop,Bolingbrook,IL,60440,N
+298,V101730,Ferrer's Auto Body,Body Shop,Chicago,IL,60630,N
+302,V101741,Schultz's Auto Body,Body Shop,Chicago,IL,60645,N
+304,V101760,Rasco's Auto Body,Body Shop,Hoffman Estates,IL,60169,N
+308,V101776,Delosrios & Sons Collision,Body Shop,Westchester,IL,60154,N
+310,V101782,Windy City Auto Rebuilders,Body Shop,Chicago,IL,60626,N
+314,V101810,Tinley Park Collision Center,Body Shop,Tinley Park,IL,60477,N
+319,V101835,Allied Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
+322,V101861,Denise's Auto Body,Body Shop,Orland Park,IL,60467,Y
+325,V101868,Deerfield Collision Center,Body Shop,Deerfield,IL,60015,N
+329,V101870,Lu's Auto Body,Body Shop,Romeoville,IL,60446,Y
+332,V101896,Midwest Collision Repair,Body Shop,Downers Grove,IL,60516,Y
+337,V101932,Lakeshore Auto Rebuilders,Body Shop,Chicago,IL,60625,N
+342,V101952,Premier Collision Repair,Body Shop,Des Plaines,IL,60016,N
+348,V101959,Rodgers & Sons Collision,Body Shop,Palatine,IL,60067,N
+353,V101960,Boyle & Sons Collision,Body Shop,Chicago,IL,60621,Y
+360,V101963,Liberty Auto Rebuilders,Body Shop,Chicago,IL,60621,N

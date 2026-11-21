@@ -15,6 +15,15 @@ Two things happen here, after every table is built:
   would be. The simulation builds its records in another order (the opening book first, then one pass per
   term), and that order must not show in the data.
 
+* Key counters (surrogate_keys, run last). An integer key is the auto-increment counter of the system that
+  creates the record, shared by the whole company, so it does not start at 1. The company was founded in 2000
+  and its systems went live over the years (KEY_SYSTEMS, ASSUMED); each counter runs from its go-live. Between
+  two records of this book the rest of the company creates records of its own, as many as its size implies
+  (this book's share of new policies, against the SERIALS_PER_DAY the company issues, and the company's growth
+  since 2000), so keys have gaps that track time. Records created before a system went live were migrated into
+  it that day, in their original order. Reference tables (ZIP codes, the vehicle catalogue, the three companies,
+  the claim offices, the chart of accounts) keep their own codes.
+
 Everything is fictional. VINs keep the catalogue's made-up manufacturer prefix (position 1 is "0", which no
 real manufacturer uses); licence numbers are masked and are NOT computed the way Illinois computes real ones
 (from the name, birth date and sex), so no synthetic driver carries a real person's number.
@@ -38,6 +47,25 @@ VIN_VALUE = {**{str(d): d for d in range(10)},
              **dict(zip("STUVWXYZ", range(2, 10)))}
 VIN_WEIGHT = np.array([8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2])
 PLANT_CODES = "ABCDEFGHJKLMNPRSTUVWXYZ"
+
+
+# table: (the column dating each record's creation, the day the system that keys it went live). ASSUMED history:
+# the policy, agency, ledger and personnel systems date from the founding; billing was replaced in 2008 and claims
+# in 2012; comparative-rater and online quoting came in 2014, the correspondence system in 2016 and the telematics
+# program in 2018.
+KEY_SYSTEMS = {
+    "policy": ("written", C.FOUNDED), "policy_term": ("offer_date", C.FOUNDED), "driver": ("added_date", C.FOUNDED),
+    "insured_vehicle": ("added_date", C.FOUNDED), "exposure": ("rating_date", C.FOUNDED),
+    "premium_transaction": ("processed_date", C.FOUNDED), "renewal_offer": ("offer_date", C.FOUNDED),
+    "driver_incident": ("known_date", C.FOUNDED), "agency": ("appointment_date", C.FOUNDED),
+    "producer": ("start_date", C.FOUNDED), "agency_statement": ("payment_date", C.FOUNDED),
+    "gl_journal": ("posting_date", C.FOUNDED), "employee": ("hire_date", C.FOUNDED),
+    "billing_invoice": ("issue_date", "2008-07-01"), "billing_receipt": ("receipt_date", "2008-07-01"),
+    "claim": ("report_date", "2012-10-01"), "claim_feature": ("open_date", "2012-10-01"),
+    "claim_payment": ("payment_date", "2012-10-01"), "claim_reserve_transaction": ("transaction_date", "2012-10-01"),
+    "vendor": (None, "2012-10-01"), "quote": ("quote_date", "2014-03-01"), "customer_contact": ("contact_date", "2016-01-01"),
+    "telematics_enrollment": ("enrollment_date", "2018-04-01"), "telematics_score": ("period_end_date", "2018-04-01"),
+}
 
 
 # ------------------------------------------------------------------------------------------- check digits
@@ -173,6 +201,7 @@ def finish(cfg: C.Config, cal, T: dict, K: dict) -> None:
     make = both["vehicle_model_year"].set_index("vehicle_model_year_id").make.reindex(v.vehicle_model_year_id).to_numpy()
     v.insert(v.columns.get_loc("vin_prefix"), "vin",
              full_vins(v.vin_prefix.to_numpy(), make, v.vehicle_model_year_id.to_numpy(), R))
+    both["insured_vehicle"] = v = v.drop(columns="vin_prefix")       # the catalogue's pattern: the VIN's first ten characters
     _remap(both, "insured_vehicle", _rank(day(v.added_date), v.policy_id.to_numpy(), v.insured_vehicle_id.to_numpy()))
     e = both["exposure"]
     _remap(both, "exposure", _rank(day(e.rating_date), e.policy_term_id.to_numpy(), e.endorsement_number.to_numpy(),
@@ -206,6 +235,62 @@ def finish(cfg: C.Config, cal, T: dict, K: dict) -> None:
     u.insert(1, "company_code", COMPANY_CODE[:len(u)])
     u.insert(2, "naic_style_code", NAIC_STYLE_CODE[:len(u)])
 
+    for name in T:
+        T[name] = both[name]
+    for name in K:
+        K[name] = both[name]
+
+
+def surrogate_keys(cfg: C.Config, cal, T: dict, K: dict) -> None:
+    """Give every table in KEY_SYSTEMS the keys its system's counter would have issued (see the module docstring),
+    carrying them to every foreign key. Runs after every table, the ledger included, is built. Changes T and K."""
+    R = stream(cfg.seed, "key counters")
+    both = {**T, **K}
+    V = cal.valuation_day
+    day = lambda s: (pd.to_datetime(s).to_numpy().astype("M8[D]") - cal.start.astype("M8[D]")).astype(np.int64)
+    # the company's size by day, relative to its size from 2022 on: growing evenly from the founding
+    founded = int(day([C.FOUNDED])[0])
+    days = np.arange(founded, cal.horizon + 2)
+    size = np.where(days < 0, C.COMPANY_SIZE_AT_FOUNDING + (1 - C.COMPANY_SIZE_AT_FOUNDING) * (days - founded) / -founded, 1.0)
+    cum = np.r_[0.0, np.cumsum(size)]                  # company-days from the founding to the start of each day
+    # this book's share of the company: its new policies a day against the serials the company issues
+    pol, term = both["policy"], both["policy_term"]
+    first = term.sort_values(["policy_id", "term_number"], kind="stable").groupby("policy_id").head(1).set_index("policy_id")
+    written = np.where(first.business_type.reindex(pol.policy_id).to_numpy() == "New",
+                       day(first.offer_date.reindex(pol.policy_id)), day(pol.original_inception_date))
+    share = min(((written >= 0) & (written <= V)).sum() / (V + 1) / SERIALS_PER_DAY, 1.0)
+    for table, (col, live) in KEY_SYSTEMS.items():
+        if table not in both:
+            continue
+        t, pk = both[table], schema.PRIMARY_KEYS[table]
+        live = int(day([live])[0])
+        n = len(t)
+        if table == "policy":
+            created = written
+        elif col:
+            created = day(t[col])
+        else:                                                    # undated (the vendor file): spread from go-live on
+            created = live + (np.arange(n) * (V - live) / max(n, 1)).astype(np.int64)
+        created = np.clip(created, live, cal.horizon)            # a record older than its system was migrated in
+        # the company's records a day from 2022 on: from this book's own rate in the extract, or over the system's
+        # life for a table the book rarely adds to (agencies, staff)
+        rate = max(((created >= 0) & (created <= V)).sum() / (V + 1), n / (V + 1 - live)) / share
+        order = np.lexsort((np.arange(n), created))              # tables are in creation order already: ties keep it
+        c = created[order]
+        new_day = np.r_[True, c[1:] != c[:-1]]
+        pos = np.arange(n) - np.maximum.accumulate(np.where(new_day, np.arange(n), 0))
+        per_day = np.bincount(c - live)[c - live]
+        moment = cum[c - founded] + size[c - founded] * (pos + 0.5) / per_day          # a day's records spread over it
+        so_far = rate * (moment - cum[live - founded])           # records the company created since go-live
+        between = np.diff(np.r_[0.0, so_far]) * (1 - share)      # the rest of the company's, between two of this book's
+        key = np.empty(n, dtype=np.int64)
+        key[order] = np.cumsum(1 + R.poisson(between))
+        if pd.api.types.is_integer_dtype(t[pk]):
+            _remap(both, table, key)
+        else:                                                    # a coded key: the counter behind the code
+            prefix = t[pk].astype(str).str.extract(r"^([A-Z]+)")[0].fillna("").to_numpy()
+            t[pk] = [f"{p_}{k:09d}" for p_, k in zip(prefix, key)]
+            both[table] = t.sort_values(pk, kind="stable").reset_index(drop=True)
     for name in T:
         T[name] = both[name]
     for name in K:

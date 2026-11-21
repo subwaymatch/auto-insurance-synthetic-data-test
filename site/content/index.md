@@ -11,7 +11,7 @@ The data covers the whole company, so answering a question means finding the rig
 <div class="feature-grid" markdown="1">
 <div markdown="1">
 ### Places, cars and days
-290 ZIP codes across the seven counties with their Census demographics; every make, model and model year sold in the US since 1997; and claims that rise on Fridays, holidays and snow days, as crashes do.
+290 ZIP codes across the seven counties with their Census demographics; every make, model and model year sold in the US since 1981; and claims that rise on Fridays, holidays and snow days, as crashes do.
 </div>
 <div markdown="1">
 ### Business keys

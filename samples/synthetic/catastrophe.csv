@@ -1,9 +1,11 @@
 catastrophe_id,event_date,description,peril,note
-CAT-2022-01,2022-05-19,Hailstorm - northern Lake County,Hail (catastrophe),Fictional event
-CAT-2023-01,2023-04-04,Hailstorm - Fox Valley and western DuPage,Hail (catastrophe),Fictional event
-CAT-2023-02,2023-07-02,Flash flooding - West Side and near west suburbs,Flood (catastrophe),Fictional event
-CAT-2024-01,2024-03-13,Hailstorm - south suburbs and Will County,Hail (catastrophe),Fictional event
-CAT-2024-02,2024-07-15,"Derecho, wind and tree damage - metro wide",Wind or tree damage (catastrophe),Fictional event
-CAT-2025-01,2025-05-28,Hailstorm - McHenry County and northwest Cook,Hail (catastrophe),Fictional event
-CAT-2025-02,2025-08-16,Flash flooding - South Side and south suburbs,Flood (catastrophe),Fictional event
-CAT-2026-01,2026-06-09,Hailstorm - DuPage and west Cook,Hail (catastrophe),Fictional event
+CAT-2023-01,2023-04-04,"Large hail - Fox Valley, Kendall County and the North Shore",Hail (catastrophe),NOAA Storm Events; losses simulated
+CAT-2023-02,2023-07-02,Record rainfall and flash flooding - Cook County and the west suburbs,Flood (catastrophe),NOAA Storm Events; losses simulated
+CAT-2024-01,2024-02-27,Hail and tornadoes - southwest suburbs,Hail (catastrophe),NOAA Storm Events; losses simulated
+CAT-2024-02,2024-07-15,Derecho and 27 tornadoes - metro wide,Wind or tree damage (catastrophe),NOAA Storm Events; losses simulated
+CAT-2025-01,2025-06-08,Large hail - Batavia and central Kane County,Hail (catastrophe),NOAA Storm Events; losses simulated
+CAT-2025-02,2025-07-25,Flash flooding - southeast DuPage and central Cook,Flood (catastrophe),NOAA Storm Events; losses simulated
+CAT-2025-03,2025-08-17,Flash flooding - Chicago and the south and west suburbs,Flood (catastrophe),NOAA Storm Events; losses simulated
+CAT-2026-01,2026-03-10,"Giant hail - Fox Valley, Joliet and Chicago",Hail (catastrophe),NOAA Storm Events; losses simulated
+CAT-2026-02,2026-06-10,Derecho - metro wide,Wind or tree damage (catastrophe),NOAA Storm Events; losses simulated
+CAT-2026-03,2026-07-27,"Hail, wind and flooding - DuPage and the west and southwest suburbs",Hail (catastrophe),NOAA Storm Events; losses simulated
