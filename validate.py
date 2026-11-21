@@ -447,9 +447,11 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
               veh["vehicle_model_year_id"].isin(known.index).all() and clm["vehicle_model_year_id"].isin(known.index).all()
               and (veh.set_index("insured_vehicle_id")["vehicle_model_year_id"].reindex(clm["insured_vehicle_id"]).to_numpy()
                    == clm["vehicle_model_year_id"].to_numpy()).all())
-    years = risk.groupby("model_year")["earned_exposure"].sum().sort_index()
-    rep.check("no pile-up of older cars at the catalog's first model year", years.iloc[0] <= 1.5 * years.iloc[1],
-              f"{years.index[0]}: {years.iloc[0]:,.0f} car-years, {years.index[1]}: {years.iloc[1]:,.0f}", statistical=True)
+    years = risk.groupby("model_year")["earned_exposure"].sum()
+    first = int(vmy["model_year"].min())
+    at, after = years.get(first, 0.0), years.reindex(range(first + 1, first + 4)).fillna(0).mean()
+    rep.check("no pile-up of older cars at the catalog's first model year", at <= 1.5 * after + 10,
+              f"{first}: {at:,.0f} car-years, the next three years {after:,.0f} each on average", statistical=True)
     drawn = vmy[vmy["vehicle_model_year_id"].isin(veh["vehicle_model_year_id"])]
     print(f"  {drawn.groupby(['make', 'model']).ngroups:,} models from {drawn['make'].nunique()} makes are insured; "
           f"top makes {veh.merge(vmy, on='vehicle_model_year_id')['make'].value_counts(normalize=True).head(6).round(3).to_dict()}")

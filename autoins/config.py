@@ -103,10 +103,13 @@ REPLACE_HAZARD = [0.05, 0.11, 0.13, 0.15, 0.17, 0.20]
 LEASE_END_HAZARD = 0.70              # leased vehicles three or more years old
 # Vehicle ages. The household fleet (gamma, years, before an income tilt: richer households drive newer cars)
 # is TUNED so the cars in force match Chicago personal vehicles in crashes 2021-2025 (City of Chicago Traffic
-# Crashes - Vehicles: mean age 9.4 years in 2021 rising to 10.2 in 2025; 41-48% ten or more years old, about
-# 21% fifteen or more). The ages are truncated at the vehicle catalogue's first model year (1997): a car drawn
-# older is drawn again. Replacements are a mix of new and used purchases (ASSUMED).
-FLEET_AGE = dict(shape=2.1, scale=5.5, cap=30.0)
+# Crashes - Vehicles: mean age 8.9 years in 2021 rising to 9.8 in 2025; 41-48% ten or more years old, 20-22%
+# fifteen or more, 5-8% twenty or more, 1-2% twenty-five or more, 0.25-0.4% thirty or more). Past `scrap_from`
+# years a car survives with a chance falling exponentially (`scrap_years` per e-fold), as scrappage thins the
+# oldest cars faster than a gamma's tail (shape ASSUMED, fitted to those shares). The ages are truncated at the
+# vehicle catalogue's first model year (1981): a car drawn older is drawn again. Replacements are a mix of new
+# and used purchases (ASSUMED).
+FLEET_AGE = dict(shape=2.1, scale=5.5, cap=45.0, scrap_from=20.0, scrap_years=6.0)
 REPLACEMENT_AGE = dict(shape=1.6, scale=4.2)   # age of the vehicle bought as a replacement or an added car
 # Model popularity in reference/vehicle_catalogue.csv is measured on vehicles in Chicago crashes, mostly garaged
 # in the city (vehicle-weighted density about 16,000 people per square mile). Pickups are commoner where it is

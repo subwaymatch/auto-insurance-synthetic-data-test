@@ -518,13 +518,15 @@ def draw_vehicles(ref: Reference, r: np.random.Generator, pol_idx, year_frac, in
     nv = len(pol_idx)
     scale = age_scale * np.clip(inc_rel, 0.3, 4) ** -0.35
     vage = r.gamma(age_shape, scale)
-    # the ages are truncated where the catalogue starts: a car drawn older than its first model year is drawn again,
-    # rather than set to that year (which piled every older car onto one model year)
+    # Old cars are scrapped faster than the gamma's tail allows: a car past SCRAP_FROM years is kept with a chance
+    # falling exponentially with its extra years, else drawn again (config.FLEET_AGE). And the ages are truncated
+    # where the catalogue starts: a car drawn older than its first model year is drawn again, not set to that year.
     oldest = np.minimum(np.broadcast_to(year_frac, nv) + 0.4 - s.first_year, C.FLEET_AGE["cap"])
-    redraw = vage > oldest
+    kept = lambda a, u: u < np.exp(-np.maximum(a - C.FLEET_AGE["scrap_from"], 0) / C.FLEET_AGE["scrap_years"])
+    redraw = (vage > oldest) | ~kept(vage, r.random(nv))
     while redraw.any():
         vage[redraw] = r.gamma(age_shape, scale[redraw])
-        redraw = vage > oldest
+        redraw[redraw] = (vage[redraw] > oldest[redraw]) | ~kept(vage[redraw], r.random(redraw.sum()))
     model_year = np.minimum(np.floor(year_frac - vage + 0.4), np.floor(year_frac)).astype(int)
     model_year = np.clip(model_year, s.first_year, s.last_year)
     yi = model_year - s.first_year

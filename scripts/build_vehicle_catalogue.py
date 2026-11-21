@@ -4,10 +4,14 @@
     python scripts/fetch_public_data.py --only vehicles
     python scripts/build_vehicle_catalogue.py
 
-One row per make, model and model year, 1997 to 2026. Sources:
+One row per make, model and model year, 1981 (the first model year of the 17-character VIN) to 2026. Sources:
 
   * EPA/DOE fuel economy data (fueleconomy.gov, vehicles.csv, public domain): every light-duty car, SUV, pickup
-    and passenger van sold in the US, by model year, with its size class, drive, engine and fuel. Its base
+    and passenger van sold in the US, by model year, with its size class, drive, engine and fuel. Its data
+    begins with model year 1984; for 1981 to 1983 each model EPA lists in 1984 is carried back with its 1984
+    class, body, drive and engine (source "EPA 1984, carried back"), so models discontinued before 1984 are
+    missing and models introduced in 1984 appear a few years early. Those three model years are rare on the
+    road (well under 1% of the cars in Chicago's crashes). Its base
     model names are cleaned (2WD/4WD and trim variants merged, cargo vans, hearses, limousines and test codes
     dropped, battery-electric versions of petrol models split out as their own model).
   * reference/vehicle_supplement.csv: models EPA does not cover because they weigh over 8,500 lb (heavy-duty
@@ -33,7 +37,8 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent
-FIRST_YEAR, LAST_YEAR = 1997, 2026
+FIRST_YEAR, LAST_YEAR = 1981, 2026
+EPA_FIRST_YEAR = 1984           # the first model year in EPA's data; earlier years are carried back from it
 PRICE_GROWTH = 1.024            # nominal growth of a model's base price per model year (ASSUMED, from base MSRPs 1997-2024)
 PERSONAL_USES = {"PERSONAL", "UNKNOWN/NA", "NOT IN USE", "RIDESHARE SERVICE"}
 SMOOTH_TAU = 1.5                # model years; kernel width for smoothing shares across model years
@@ -110,6 +115,32 @@ RENAME: dict[str, list[tuple[str, str | None]]] = {
     "smart": [],
 }
 # name of a battery-electric version of a model that also sells with an engine in the same model year
+# Model years before 1997, whose EPA records name things differently. Makes that are coachbuilders, conversion
+# firms or gray-market importers (hearses, limousines, re-engineered imports) are dropped, and names lose body
+# qualifiers and combined names: "Century Wagon" is the Century, "Impala/Caprice" the Impala, "C10 Pickup" the
+# C/K 1500. Applied to those years only, after the rules above, so later model years keep their names.
+EARLY_YEAR = 1997
+EARLY_DROP_MAKES = {
+    "ASC Incorporated", "Aurora Cars Ltd", "Autokraft Limited", "Avanti Motor Corporation", "Bertone", "Bill Dovell Motor Car Company",
+    "Bitter Gmbh and Co. Kg", "CCC Engineering", "CX Automotive", "Consulier Industries Inc", "Dabryan Coach Builders Inc", "Dacia",
+    "Environmental Rsch and Devp Corp", "Evans Automobiles", "Excalibur Autos", "Federal Coach", "General Motors", "Goldacre",
+    "Grumman Allied Industries", "Grumman Olson", "Import Foreign Auto Sales Inc", "Import Trade Services", "Isis Imports Ltd",
+    "J.K. Motors", "JBA Motorcars, Inc.", "Kenyon Corporation Of America", "Laforza Automobile Inc", "Lambda Control Systems",
+    "London Coach Co Inc", "Mcevoy Motors", "PAS Inc - GMC", "PAS, Inc", "Panos", "Panoz Auto-Development", "Panther Car Company Limited",
+    "Pininfarina", "Red Shift Ltd.", "Ruf Automobile Gmbh", "Saleen", "TVR Engineering Ltd", "Texas Coach Company",
+    "Vixen Motor Company", "Volga Associated Automobile", "Wallace Environmental", "AM General"}
+EARLY_MAKE_FIX = {"American Motors Corporation": "AMC"}
+EARLY_RENAME = [  # (regex on the cleaned name, replacement; None drops the rows), in order
+    (r".*(Coachbuilder|Commercial Chassis|Utility Body|Cab Chassis|Postal|Hearse|Limousine).*", None),
+    (r"^Ferrari (.*)$", r"\1"),
+    (r"^[CKRV]10( Pickup)?$|^V10 \(K10\)( Pickup)?$|^[CK]1500( Pickup)?$", "C/K 1500"),
+    (r"^[CKRV]20( Pickup)?$|^R20 \(C20\)( Pickup)?$|^[CK]2500( Pickup)?$", "C/K 2500"),
+    (r"^T10 \(S10\)( Pickup)?$", "S-10"), (r"^S15( Pickup)?$", "S-15"), (r"^Pickup$", None),
+    (r"^[DW]100/[DW]150( Pickup)?$|^[DW]150( Pickup)?$", "Ram 1500"), (r"^[DW]250( Pickup)?$", "Ram 2500"),
+    (r"^([^/]+?) ?/.*$", r"\1"),                                     # a combined name: its first model
+    (r"^(.*\S) \(.*\)$", r"\1"),
+    (r"^(.*\S) (Pickup|Estate Wagon|Station Wagon|Wagon|Minivan)$", r"\1"),
+]
 EV_NAME = {("Ford", "Focus"): "Focus Electric", ("Hyundai", "Kona"): "Kona Electric", ("Hyundai", "Ioniq"): "Ioniq Electric",
            ("Kia", "Niro"): "Niro EV", ("Kia", "Soul"): "Soul EV", ("Toyota", "RAV4"): "RAV4 EV", ("Chevrolet", "Blazer"): "Blazer EV",
            ("Chevrolet", "Equinox"): "Equinox EV", ("Chevrolet", "Silverado"): "Silverado EV", ("GMC", "Sierra"): "Sierra EV",
@@ -260,6 +291,14 @@ def clean_epa(path: Path) -> pd.DataFrame:
             m = e.name.str.fullmatch(pat) & ((e.make == make) if make != "*" else True)
             e.loc[m, "name"] = None if new is None else e.loc[m, "name"].str.replace(pat, new, regex=True).str.strip()
     e = e[e.name.notna() & (e.name != "")]
+    early = e.year < EARLY_YEAR
+    e = e[~(early & e.make.isin(EARLY_DROP_MAKES))].copy()
+    early = e.year < EARLY_YEAR
+    e.loc[early, "make"] = e.loc[early, "make"].replace(EARLY_MAKE_FIX)
+    for pat, new in EARLY_RENAME:
+        m = early & e.name.notna() & e.name.str.fullmatch(pat).fillna(False) & ~e.name.str.startswith("C/K")
+        e.loc[m, "name"] = None if new is None else e.loc[m, "name"].str.replace(pat, new, regex=True).str.strip()
+    e = e[e.name.notna() & (e.name != "")]
     e = e[~((e.VClass.str.startswith("Vans")) & e.model.str.contains(r"\bVan\b|cargo", case=False, regex=True))]
     # battery-electric versions of a model that also has engines in the same year become their own model
     e["ev"] = e.atvType.eq("EV")
@@ -289,7 +328,10 @@ def clean_epa(path: Path) -> pd.DataFrame:
     left = my.vclass.isna() | my.vclass.isin(["SUV", "Special Purpose"])
     my.loc[left, "vclass"] = np.where(my.displacement[left] >= 4.0, "Standard SUV", "Small SUV")
     my["source"] = "EPA"
-    return my
+    # model years before EPA's data: each model of its first year, carried back with that year's specification
+    first = my[my.model_year == EPA_FIRST_YEAR]
+    back = [first.assign(model_year=y, source=f"EPA {EPA_FIRST_YEAR}, carried back") for y in range(FIRST_YEAR, EPA_FIRST_YEAR)]
+    return pd.concat([my, *back], ignore_index=True)
 
 
 def add_supplement(my: pd.DataFrame, sup: pd.DataFrame) -> pd.DataFrame:
