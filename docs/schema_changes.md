@@ -602,3 +602,51 @@ it is not stored.
 
 The agency table has 136 rows (was 60): 120 independent agencies, 14 exclusive agents' offices and the two
 direct units. Agency names changed with them.
+
+## Records, not totals (the realism audit and its follow-up)
+
+The tables now hold what an insurer's systems record, and leave to the user the totals an analyst works out from
+those records (see CHANGELOG.md, "Fixes from a dataset realism audit" and "Records, not totals"). Every removed
+column can be rebuilt exactly; `validate.rebuild` in `validate.py` does it in pandas, and the website's data model
+page gives the SQL.
+
+### Removed columns
+
+| Table | Removed | Rebuild it from |
+|---|---|---|
+| `claim_feature` | `paid_loss`, `salvage_recovery`, `subrogation_recovery`, `paid_expense`, `paid_dcc_expense`, `paid_ao_expense` | The feature's `claim_payment` rows by `payment_type` (`Loss`, `Salvage Recovery`, `Subrogation Recovery`, `Expense`) and `transaction_type` (`DCC Expense`, `A&O Expense`) |
+| `claim_feature` | `case_reserve`, `expense_reserve` | The latest `outstanding_reserve` of the feature's `Loss` and `Expense` rows in `claim_reserve_transaction` |
+| `claim_feature` | `incurred_loss`, `net_incurred_loss` | Paid loss plus case reserve; for net, less salvage and subrogation |
+| `claim_feature` | `attorney_represented`, `litigation`, `closed_without_payment` | `attorney_date` or `suit_date` present; a closed feature with no `Loss` payment |
+| `claim_feature` | `coverage` | `coverage_code` joined to the new `coverage` table |
+| `claim` | `paid_loss`, `case_reserve`, `recoveries`, `net_incurred_loss`, `paid_expense`, `expense_reserve`, `feature_count`, `litigation` | Its features' totals, count and suits |
+| `claim` | `claim_description`, `siu_referral` | `cause_of_loss` joined to the new `cause_of_loss` table; `siu_referral_date` present |
+| `policy` | `first_effective_date`, `latest_expiration_date`, `status_reason`, `cancel_date` | Its terms in `policy_term` (the first term's `effective_date`; the last term's expiration, `cancel_date`, `cancel_reason` or `nonrenewal_reason`) |
+| `policy` | `number_of_drivers`, `number_of_vehicles` | `driver` and `insured_vehicle` rows on the policy on the date of interest (added on or before it, not removed by it) |
+| `policy` | `bi_limit`, `pd_limit`, `um_limit`, `med_pay_limit` | The policy's `exposure` rows in force on the date of interest |
+| `policy_term` | `endorsement_premium`, `return_premium` | The term's `Endorsement` and `Cancellation` rows in `premium_transaction` |
+| `policy_term` | `earned_premium`, `earned_premium_before_extract`, `vehicles_at_term_start` | The term's `exposure` rows: earned premium as below; rows starting on the term's `effective_date` |
+| `policy_term` | `rate_level_index` | `rate_change`, compounded to the term's `effective_date` |
+| `exposure` | `earned_exposure`, `earned_premium` | Days of cover inside the extract (from `coverage_start_date` or 1 January 2022 to `coverage_end_date` or 1 January 2027) over 365.25; `total_premium` times those days over the term's days |
+| `exposure` | `vehicle_model_year_id`, `model_year` | `insured_vehicle_id` joined to `insured_vehicle` and `vehicle_model_year` |
+| `driver` | `prior_violations`, `prior_accidents` | `driver_incident` rows dated in the three years before `added_date` and known by then |
+| `insured_vehicle` | `vin_prefix` | The first ten characters of `vin` (the catalog's `vin_pattern`, check digit apart) |
+| `renewal_offer` | `premium_change_pct` | `renewal_premium` over `expiring_premium`, less one |
+| `rate_change` | `cumulative_rate_level` | One plus each `rate_change_pct`, compounded |
+
+### Added tables
+
+| Table | One row per | Columns |
+|---|---|---|
+| `coverage` | Coverage | `coverage_code`, `coverage_name` |
+| `cause_of_loss` | Cause of loss | `cause_of_loss`, `description` |
+
+### Changed values
+
+| Table | Column | Change |
+|---|---|---|
+| every table with an integer key, except the reference tables (`location`, `vehicle_model_year`, `underwriting_company`, `claim_office`) | `..._id` | Keys are the company's system counters (founded 2000; billing 2008, claims 2012, quoting 2014, correspondence 2016, telematics 2018): they start far above 1 and have gaps, and still rise with the day each record was created |
+| `customer_contact` | `contact_id` | `CM` and nine digits (was seven) |
+| `catastrophe` | all | Ten real storms from NOAA's Storm Events Database replace the nine fictional events; `note` says so |
+| `claim` | `loss_date` | A few claims from accidents in late 2021 (open on 1 January 2022 or reported later) |
+| `vehicle_model_year` | `model_year` | 1981 to 2026 (was 1997 to 2026) |

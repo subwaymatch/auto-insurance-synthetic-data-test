@@ -24,8 +24,8 @@ commit and "after" from this change, on the default run (content hash `06932bb41
 | A5 | Final-balance checks received at weekends | Confirmed and fixed | 83; 80 | 0; 0 |
 | A6 | A validator check compared a column with itself | Confirmed and fixed | Could not fail | Fails on a claim moved to another policy (unit test) |
 | - | Effective-dated histories stored the caller's array, not a copy | Found while fixing A4; fixed | The opening named insured read as the final one | Each history keeps what was recorded |
-| A7 | Case-reserve allocation and the rating plan know eventual outcomes | Agreed, already documented | | Not changed here |
-| A8 | Tails and joint relationships need independent calibration | Agreed, already documented | | Not changed here |
+| A7 | Case-reserve allocation and the rating plan know eventual outcomes | Agreed and changed | Reserve shares from eventual payments; plan fitted to the true costs | Shares from what is known each day; plan fitted to simulated experience with credibility |
+| A8 | Tails and joint relationships need independent calibration | Agreed and changed | No benchmark sheet or seed spread | [benchmarks.md](benchmarks.md): sources and use of every benchmark, spread across five seeds, tail and reserve diagnostics |
 | A9 | A separately labeled messy extract | Not adopted | | The clean baseline stays the only edition |
 | A10 | `run_summary.json` lacks the source revision, versions and content hash | Confirmed and fixed | Seed, size, dates and counts only | Hashes, source revision, library versions and fingerprints; `validate.py` checks the hashes |
 
@@ -116,15 +116,54 @@ lender paid on a car owned outright or left unpaid on a financed one, a joint pa
 attorney, a claim driver or insured payee who joined later, a non-payment cancellation without its unpaid
 bill, a check banked on a Saturday) and asserts that the check fails (for most, that it is the only one).
 
-### A7 and A8. Information in reserves and pricing; tails and joint relationships
+### A7. Information in reserves and pricing
 
-**Agreed, already documented** in [limitations.md](limitations.md) (section 4: reserve caps use eventual paid
-amounts and true damages; most of the rating plan is fitted to the simulator's expected losses; section 5:
-the comparison with the Spanish portfolio and the national tables). They are modeling projects rather than
-record defects, and were not attempted in this change. The audit's diagnostics are the right yardsticks
-for that work: reserve error by coverage and development age across seeds, rating estimated from simulated
-experience with credibility and filing delays, severity percentiles, limit-hit and total-loss rates from US
-sources, and policy-grouped and time-based holdouts.
+**Agreed and changed.** Both points were documented limitations; on review they were worth fixing.
+
+*Case reserves.* `truth.reserve_caps` gave each injury claimant a static share of the accident's per-accident
+limit computed from their eventual payments and true damages. It is gone. A feature now carries its contractual
+per-person (or per-claim) limit, which stays exact, and the accident's per-accident room. The reserve history
+(`claims._share_accident_limit`) applies the shared limit from what is known on each day: a reserve set during
+the day (a new claimant's formula reserve, say) takes no more than the room left by the accident's payments to
+date and the other claimants' reserves; at the end of each business day with news the adjuster rebalances, so
+if paid to date plus the reserves wanted would exceed the room, the room left after payments is shared in
+proportion to the current estimates, and when a settlement frees room the others get their full estimates back.
+A change made to another claimant's reserve this way is a "Reserve Review" on that day. A new validator check
+holds every accident, on every day with a payment or reserve change, to its per-accident limit; unit tests
+cover a claimant arriving, a settlement freeing room, a weekend report, and random estimates.
+
+The audit's acceptance test (reserve error by coverage and age, revision rates, runoff, spread across seeds)
+is `scripts/reserve_diagnostics.py`; its results are in [benchmarks.md](benchmarks.md), section 4. It found
+one real fault, now fixed: property formula reserves were well below the average claim, so collision,
+comprehensive and property damage claims still on their opening reserve at a year-end went on to pay 1.5 to 2.2
+times that reserve. Formula reserves for property coverages are now set near the average paid per claim opened
+(glass separately), as carriers set average reserves; injury reserves still start low, by design.
+
+*Rating plan.* The relativities were fitted directly to the true expected loss cost. They are now fitted to
+the company's claims experience (`rating.experience`): three years of claims on the book as first written,
+drawn as a compound Poisson-gamma sum around the true expected costs. Each level is credibility-weighted
+(limited fluctuation: full credibility at 1,082 claims times one plus the squared coefficient of variation of
+claim size) with a bureau complement, which is the relativity the true costs indicate off by a random 5%; the
+base rates come from the whole book's experience. Sparse levels now lean on the bureau and well-populated ones
+carry the company's own luck: for example the cheapest bodily injury territory is priced at 0.69 where 0.77 is
+indicated, and a collision territory at 1.03 against 1.17. `relativities_indicated` in the answer key still says
+what each level is worth. Filing lags are already in the data as the rate-change history and the market cycle
+(the book starts under-priced and catches up), so they were not added again.
+
+### A8. Tails and joint relationships
+
+**Agreed and changed.** [benchmarks.md](benchmarks.md) is the benchmark sheet the audit asked for: every
+figure the validator holds the data to, with source, year, geography, units and inclusion rules, band, and
+whether it was used for tuning, checked, assumed or held out. `validate.py --json` writes every band's figure, and
+`scripts/seed_spread.py` builds several seeds and reports each figure's mean and range and how many seeds land
+inside its band (section 2), with tail and joint diagnostics computed from the tables (section 3). New sourced
+comparisons, held out from tuning: CCC's total-loss share of appraisals and the age of total losses, and S&P
+Global Mobility's average vehicle age. They show departures that are reported rather than tuned away: total
+losses are more frequent here than CCC's 22% (about 27% of paid collision and comprehensive claims, glass apart,
+on a narrower definition) and fall on older, cheaper cars; the average written-off car is worth about $10,500
+against CCC's $13,400 to $13,700. Severity percentiles, the share of injury claimants paid the full limit and
+the concentration of cost in the costliest risks have no US figure on matching terms and are reported without a
+target. Policy-grouped and time-based holdouts are left to case studies.
 
 ### A9. A messy extract
 
@@ -150,6 +189,32 @@ transactions 125,378 → 124,306 (fewer split settlements); bills 887,710 → 88
 896,585 (the 17 relabeled cancellations); 97 claims' `involved_driver_id`; payees of 1,547 lienholder,
 20 attorney and some insured payments. `validate.py` runs 147 checks (was 140), all passing on both seeds;
 the test suite has 67 tests (was 64).
+
+### Follow-up changes asked for by the owner
+
+After the fixes above, the owner asked for further realism changes, made in the same pull request:
+
+- **Notices of cancellation.** Every non-payment cancellation now has a notice of cancellation mailed at least
+  ten days before it (215 ILCS 5/143.15), including a missed bank draft, which is attempted and returned first.
+  `validate.py` checks every one (5,009 in the default run, none without).
+- **Vehicles back to 1981.** The catalog reaches model year 1981 (EPA data starts in 1984; earlier years carry
+  1984's specifications back), and old cars thin out with a scrappage taper, so model year 1997 no longer piles
+  up the cars that would be older.
+- **Surnames.** Whether a wife keeps her surname depends on the household's group (Pew Research Center, 2023);
+  children take their father's surname.
+- **Identifiers.** Integer keys are the company's system counters (founded 2000; billing 2008, claims 2012,
+  quoting 2014, correspondence 2016, telematics 2018), so they start far above 1 and have gaps.
+- **Real catastrophes.** Ten storms from NOAA's Storm Events Database for the seven counties (2023 to 2026)
+  replace the fictional events; their losses are simulated.
+- **Claims open at the start.** A warm-up year (2021) is simulated, so the extract opens with claims, reserves
+  and payments on earlier accidents, and the ledger's opening entry carries their reserves.
+- **Records, not totals.** Derived and aggregated columns were removed; [schema_changes.md](schema_changes.md)
+  lists them and how to rebuild each.
+- **A7 and A8**, above.
+
+The default run is now content hash `963889a73f229de8` (seed 7: `6718177c0b52ab2e`); 145 checks pass on both,
+and on seeds 11, 23 and 42, with every calibration figure inside its band on all five. Every record-level
+finding A1 to A5 stays at zero (the validator checks each). The test suite has 74 tests.
 
 ## Third review (18 November 2026)
 

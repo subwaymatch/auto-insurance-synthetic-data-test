@@ -78,7 +78,7 @@ claim_feature_id = "The feature whose reserve changed."
 claim_id = "The claim the feature belongs to."
 transaction_date = "Date of the change."
 reserve_type = "`Loss` (the case loss reserve) or `Expense` (the DCC, defense and cost containment, expense reserve, kept only on features with a lawsuit)."
-transaction_type = "`Initial Reserve` (a formula or nominal reserve when the feature opens, or the expense reserve when suit is filed), `Reserve Review` (a re-estimate every 30 to 90 days), `Payment` (a payment using up reserve), `Reopen`, or `Close` (released to zero)."
+transaction_type = "`Initial Reserve` (a formula or nominal reserve when the feature opens, or the expense reserve when suit is filed), `Reserve Review` (a re-estimate every 30 to 90 days, or a reallocation of a per-accident limit shared with another claimant of the same accident), `Payment` (a payment using up reserve), `Reopen`, or `Close` (released to zero)."
 change_amount = "Signed change in the outstanding reserve, in dollars: positive raises it, negative lowers it. Changes of zero are not recorded, so the change amounts add up to the balance."
 outstanding_reserve = "The reserve balance after this change, in dollars. Reserves are rounded to $50, and an open feature carries a loss reserve of at least $250 unless less is left under the policy limit."
 

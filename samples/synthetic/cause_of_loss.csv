@@ -1,0 +1,17 @@
+cause_of_loss,description
+AF_MV,Collision with another vehicle - insured at fault
+AF_SV,Single-vehicle collision - insured at fault
+NAF,Collision with another vehicle - insured not at fault
+PARKED,Struck while parked or unoccupied
+GLASS,Glass damage
+THEFT_TOTAL,Theft of vehicle
+THEFT_PARTIAL,Theft of parts or contents
+VANDALISM,Vandalism
+ANIMAL,Collision with animal
+WEATHER,"Hail, wind or falling object"
+FLOOD,Flood or water damage
+FIRE,Fire
+OTHER_COMP,Other comprehensive loss
+HAIL_CAT,Hail (catastrophe)
+WIND_CAT,Wind or tree damage (catastrophe)
+FLOOD_CAT,Flood (catastrophe)
