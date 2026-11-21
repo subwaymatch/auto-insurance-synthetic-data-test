@@ -152,6 +152,13 @@ The release fails if a test or an integrity check fails. Calibration bands only 
 claims are too few to hold them. The same seed and settings give byte-identical files on any
 machine with the pinned library versions, so a release can always be rebuilt exactly.
 
+**Provenance.** `run_summary.json` records the seed, size and dates, the row counts, hashes of the CSV
+files (`tables_hash` for the data tables, `answer_key_hash` for the answer key, `content_hash` for both;
+`hash_method` says how they are computed) and, under `build`, the generator's source revision (and whether
+its files had uncommitted changes), the Python, NumPy and pandas versions, a fingerprint of every table's
+columns and of each reference file. Nothing in it depends on when or where the run happened.
+`validate.py` recomputes the hashes, so a copied output folder can be checked on its own.
+
 **Samples.** `.github/workflows/samples.yml` builds the default dataset and commits the first 100
 rows of every CSV file (every table, the answer key and the real portfolio in `real_data/`) to
 [`samples/`](samples/README.md), so the data can be browsed on GitHub. It runs on every push to
@@ -203,11 +210,11 @@ python generate.py --policies 10000 --out classroom
 | Exposure rows / premium transactions | 442,749 (23.9% start at a mid-term change) / 269,766 (62,038 endorsements) |
 | Earned exposure | 176,758 car-years |
 | Earned premium | $220.8 million ($1,249 per car-year, $2,132 per policy-year) |
-| Claims / coverage features / reserve transactions | 22,392 / 39,173 / 125,378 (43% of closed liability and medical features and 16% of closed physical damage features paid nothing) |
-| Claim payments | 61,678 rows, 19,694 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
+| Claims / coverage features / reserve transactions | 22,392 / 39,173 / 124,306 (43% of closed liability and medical features and 16% of closed physical damage features paid nothing) |
+| Claim payments | 60,542 rows, 19,247 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
 | Quotes | 117,297, of which 19.9% bound (21.9% in 2022, 17.5% in 2024, 21.2% in 2026) |
 | Renewal offers | 171,979 (155,111 renewed, 10,500 not renewed by the insured, 1,000 company non-renewals, 1,399 canceled before the renewal date, 3,969 pending at the valuation date) |
-| Bills / receipts | 887,710 / 896,571 (865,656 bills paid, 11,350 canceled, 3,441 written off, 7,263 open at the valuation date) |
+| Bills / receipts | 887,706 / 896,585 (865,663 bills paid, 11,346 canceled, 3,434 written off, 7,263 open at the valuation date) |
 | Commission | $17.4 million on $249.5 million of written premium (independent agents 11.4%, exclusive agents 8.4%, direct none); 7,885 monthly agency statements |
 | General ledger | 19 accounts; 1,605 monthly journals (4,193 lines) for the three companies |
 | Telematics | 12,412 enrollments and 61,537 driving scores; enrolled cars are 14% of car-years in 2022, rising to 26% in 2026 |
@@ -402,7 +409,8 @@ Keys: `policy_id`, `policy_term_id`, `driver_id`, `insured_vehicle_id`, `vehicle
 `location_id`, `exposure_id`, `claim_id`, `claim_feature_id`, `enrollment_id`, `renewal_offer_id`, `agency_id`,
 `producer_id`, `company_id`, `claim_office_id`, `employee_id`, `vendor_id`, `invoice_id`, `statement_id`,
 `account_number`. A claim's
-`involved_driver_id` is the insured driver involved, or the named insured. `autoins/schema.py` lists every
+`involved_driver_id` is the insured driver involved or, for a loss with no driver (a parked car, a theft, the
+weather), the named insured on the loss date. `autoins/schema.py` lists every
 table's primary key and every foreign key; the SQLite release declares them.
 
 ### Identifiers
@@ -688,12 +696,16 @@ Three things the insurer cannot see drive much of what a case study can find. Al
 - **Changes.** An endorsement is spread over the installments not yet issued. With none left, or on the
   paid-in-full plan, an additional premium is billed on its own and a return premium refunded.
 - **Paying.** Drafts are taken on the due date (the next business day at a weekend). Other customers pay by
-  card, online bank payment, check or through their agent, most a few days early; 3.2% of bills are paid
+  card, online bank payment, check or through their agent, most a few days early (a check, including one for a
+  final balance, is banked on a business day); 3.2% of bills are paid
   more than five days late and carry a $10 late fee. About 1% of drafts are returned unpaid and collected
   again with a $25 fee. Less stable households pay late more often.
-- **Non-payment.** A cancellation for non-payment is an installment that was never paid: a past-due notice
-  four days after the due date, a notice of cancellation at seven, and cover ends three to four weeks after
-  the due date. New customers miss their early installments most.
+- **Non-payment.** A cancellation for non-payment is an installment that was billed and never paid: a
+  past-due notice four days after the due date, a notice of cancellation at seven, and cover ends three to
+  four weeks after the due date. New customers miss their early installments most. The simulation picks the
+  installment a leaving household will not pay when the term begins; if a change leaves nothing on it (a car
+  written off and not yet replaced, say), no bill is sent, and the household is recorded as canceling at its
+  own request on the same day instead (17 terms in the default run).
 - **Settling a canceled account.** Unpaid bills are canceled and the account is settled against the
   premium earned: money paid ahead is refunded; a balance still owed is billed, and after a non-payment
   cancellation most of those balances are never collected and are written off 120 days later.
@@ -795,9 +807,11 @@ every figure can be traced back to rows a student can see.
 - **Approval.** Each payment is approved by the adjuster on the file if it is within their authority,
   otherwise by the supervisor or the manager, and always by someone employed that day.
 - **Payees.** First-party repairs are paid to the body shop about half the time, glass mostly to the glass
-  company, rentals and tows mostly to the vendor, total losses to the lienholder and the owner, liability
-  claims to the claimant, their shop or their insurer, represented injury claims to the claimant and attorney
-  jointly, expenses to appraisers, law firms and medical review services. Recoveries come from salvage
+  company, rentals and tows mostly to the vendor, total losses to the owner (a financed or leased car's
+  lender or lessor is paid off first, one lender per car), liability claims to the claimant, their shop or
+  their insurer, represented injury claims to the claimant and attorney jointly from the day the attorney is
+  retained (an advance before that goes to the claimant alone), payments to the insured to the named insured
+  on the payment date, expenses to appraisers, law firms and medical review services. Recoveries come from salvage
   auctions and other insurers.
 - **Vendors** are fictional. Local trades are placed in the area's ZIP codes and used by nearby claimants;
   the company's repair network gets more of the work; a few vendors take most of each trade's business.
@@ -885,8 +899,10 @@ every figure can be traced back to rows a student can see.
   per-accident limit. Repair, medical and rental payments follow their bills to the cent.
 - **Payments.** Glass and most injury claims settle in one payment. Physical damage is often
   paid on the first estimate and topped up later; property damage may pay loss of use first;
-  injury claims sometimes get an advance; medical payments follow the bills. Total losses may be
-  split between lienholder and owner, with fees paid later. A few payments are voided and
+  injury claims sometimes get an advance; medical payments follow the bills. A total loss on a
+  financed car pays off the loan first (never more than the settlement; about a quarter of loans
+  owe more than the car is worth, and gap cover pays the rest) and the owner gets the balance; a
+  leased car's settlement all goes to the leasing company; title and fees may be paid later. A few payments are voided and
   reissued, and about 2% of paid features reopen for a supplement. Payments always add up to the
   feature's paid loss to the cent.
 - **Claims that pay nothing.** As in real claim files, many features close without payment:

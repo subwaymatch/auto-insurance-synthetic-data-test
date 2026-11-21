@@ -41,7 +41,10 @@ otherwise.
    number and an approver. A second round closed what the audit had left: quotes and new business follow the
    season and the company's prices against the market's, customers leave after claims, cars are worth what
    they fetched in 2022 to 2024 so that collision and comprehensive premiums reach Illinois' averages, the
-   independent agencies become 120 of very unequal size, and a general ledger adds the subledgers up.
+   independent agencies become 120 of very unequal size, and a general ledger adds the subledgers up. A
+   dataset realism audit then fixed payees and identities that contradicted the record (lienholders without
+   a loan, attorneys before retention, a later named insured on earlier claims), non-payment cancellations
+   without a bill, and a validator check that could not fail, and the run summary now records provenance.
 
 ## Unreleased (in progress)
 
@@ -486,6 +489,48 @@ names (`installment_number`, `check_number`, `license_state`) already did.
 - **Nothing else moved.** Only those labels changed: every number in the default run is as before (content
   hash `7b4b15d1dcb53b95`). The README, this changelog, `docs/`, the messages `validate.py` writes to the
   validation report and the real-data comparison's output use American spelling too.
+
+### Fixes from a dataset realism audit
+
+A realism audit (20 November 2026, at `03c2634`) found records that contradicted their own business context
+although every check passed, and a validator check that could not fail. All are fixed;
+`docs/review_response.md` gives the before-and-after counts for the default run and seed 7.
+
+- **Lenders are paid only when there is a loan.** A total loss was split between a lienholder and the owner
+  at random, whatever the car's ownership: 1,176 of 1,547 lienholder payments went to cars owned outright.
+  The car's ownership at the loss now travels with the claim. A financed car's total loss pays off the loan
+  first (an assumed 35% to 120% of the settlement, never more than the settlement), a leased car's goes to
+  the leasing company, an owned car's to its owner; one lender per car. 578 lienholder payments remain.
+- **Non-payment cancellations always have an unpaid bill.** 17 terms were canceled for non-payment of an
+  installment that a return premium had reduced to nothing, so no bill existed. A household that leaves
+  with no bill to miss is now recorded as canceling at its own request on the same day, and the validator's
+  98% tolerance is a rule every record must meet.
+- **Attorneys are paid only once retained.** 20 joint claimant-and-attorney payments predated the attorney;
+  an injury payment's payee is now decided on its date, and a void follows the check it cancels.
+- **The past keeps its named insured.** A loss with no driver named the policy's final named insured, and so
+  did payments to the insured: 2 claims and 1 payment named someone who joined later, and 95 more claims a
+  later named insured already on the policy. The cause was also in the simulator: its effective-dated
+  histories stored the caller's array rather than a copy, so the named insured recorded for the opening day
+  changed whenever a surviving spouse took a policy over. Histories now keep a copy, and claims and payments
+  use the named insured on their own date. No renewal offer, telematics record or exposure row changed.
+- **Final-balance checks are banked on business days** (83 were dated at a weekend).
+- **Checks that can fail.** `validate.py` compared a claim's policy with itself; it now checks a claim's
+  policy, term, vehicle and model year against its exposure row, and every redundant key against its parent.
+  New checks cover lienholders, attorney payees, identities on the loss and payment dates, and receipts on
+  business days. A new test corrupts one record for each and shows the check fails.
+- **Provenance.** `run_summary.json` now records hashes of the CSVs (`content_hash`, `tables_hash`,
+  `answer_key_hash`, and how they are computed) and, under `build`, the source revision, whether the
+  generator's files had uncommitted changes, the Python, NumPy and pandas versions, and fingerprints of the
+  columns and reference files. It is written after the CSVs, so the hash is in it. `validate.py` recomputes
+  the hashes.
+- **Not done.** The audit's modeling suggestions (reserve allocation and pricing that do not see eventual
+  outcomes, independent US tail benchmarks) are agreed and stay in `docs/limitations.md`; its suggested
+  degraded "messy" edition is not adopted.
+- **The default run** (content hash `06932bb41e745579`): only payees, 17 cancellation reasons, 97 claims'
+  `involved_driver_id` and some dates changed. Every loss and premium amount, the loss ratio (67.4%),
+  frequencies, severities and retention are as before. Claim payments 60,542 (was 61,678), reserve
+  transactions 124,306 (was 125,378), bills 887,706 and receipts 896,585. 147 checks pass (was 140) on the
+  default run and seed 7; 67 tests (was 64).
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

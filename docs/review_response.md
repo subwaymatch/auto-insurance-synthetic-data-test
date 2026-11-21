@@ -1,9 +1,155 @@
 # Responses to the external reviews of November 2026
 
-An outside reviewer (another AI coding assistant) has reviewed the generator three times. The third review,
-at commit `9fe6062`, is answered first; the first two follow. Each finding is answered:
+An outside reviewer (another AI coding assistant) has reviewed the generator three times, and a dataset
+realism audit followed on 20 November 2026. The audit, at commit `03c2634`, is answered first, then the third
+review at `9fe6062`; the first two follow. Each finding is answered:
 **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
 now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Dataset realism audit (20 November 2026)
+
+The audit regenerated the default run at `03c2634` (content hash `7b4b15d1dcb53b95`) and a second full-size
+seed (7), found the economics, coverage mix, risk relationships and keys credible, and listed records that
+contradict their own business context although every check passed. All five record-level findings and the
+validator defect reproduce exactly and are **confirmed and fixed**. "Before" figures are from the audited
+commit and "after" from this change, on the default run (content hash `06932bb41e745579`) and seed 7
+(`1addd020a2ad50c6`).
+
+| # | Finding | Verdict | Before (default; seed 7) | After |
+|---|---|---|---|---|
+| A1 | Lienholders paid on total losses of cars owned outright | Confirmed and fixed | 1,176 of 1,547 lienholder payments ($6,603,284.68); 1,240 | 0; a lender is paid on every paid total loss of a financed or leased car and on no other (578 payments) |
+| A2 | Non-payment cancellations with no unpaid installment behind them | Confirmed and fixed | 17 of 5,267; 15 of 5,395 | 0 of 5,250; 0 of 5,380 |
+| A3 | Joint claimant-and-attorney payments before the attorney was retained | Confirmed and fixed | 20 payments ($251,604.23); 23 | 0; 0 |
+| A4 | Claims and payments naming a named insured who joined the policy later | Confirmed and fixed | 2 claims and 1 payment; 1 claim | 0; 0 (and 95 more claims named a later named insured who was already a driver) |
+| A5 | Final-balance checks received at weekends | Confirmed and fixed | 83; 80 | 0; 0 |
+| A6 | A validator check compared a column with itself | Confirmed and fixed | Could not fail | Fails on a claim moved to another policy (unit test) |
+| - | Effective-dated histories stored the caller's array, not a copy | Found while fixing A4; fixed | The opening named insured read as the final one | Each history keeps what was recorded |
+| A7 | Case-reserve allocation and the rating plan know eventual outcomes | Agreed, already documented | | Not changed here |
+| A8 | Tails and joint relationships need independent calibration | Agreed, already documented | | Not changed here |
+| A9 | A separately labeled messy extract | Not adopted | | The clean baseline stays the only edition |
+| A10 | `run_summary.json` lacks the source revision, versions and content hash | Confirmed and fixed | Seed, size, dates and counts only | Hashes, source revision, library versions and fingerprints; `validate.py` checks the hashes |
+
+### A1. Lienholder payments ignored whether a loan existed
+
+**What we found.** Confirmed: a total loss was split between a lienholder and the owner at random (45% of
+settlements of $200 or more), whatever the car's ownership, and the lienholder was picked per payment.
+
+**Fix.** The car's ownership at the loss (owned, financed or leased) now travels with the claim
+(`simulate._simulate_rows` to `claims.Development`). A total loss on a financed car pays off the loan first:
+the balance is an assumed share of the settlement, from 35% to 120% (`claims.LOAN_PAYOFF_SHARE`); above
+100% the loan is worth more than the car, the lender takes the whole settlement and gap cover, not this
+policy, pays the rest (20% of the default run's financed payoffs). A leased car's settlement all goes to the
+leasing company, which owns it. The owner gets the balance; a car owned outright is paid to its owner only.
+When the lender takes the whole settlement its payment is the final one. Each car has one lender or lessor
+(`payments.details`). A car whose owner keeps the wreck after a total loss has had its loan or lease paid off
+by the settlement, and is shown as owned from then on.
+
+**Checks.** `validate.py`: "a lienholder or lessor is paid only on a total loss of a financed or leased car,
+never more than the settlement and one lender per car; every closed, paid total loss of a financed or leased
+car pays one". Seed 7 turned up a financed car whose settlement was $72.25, which the old $200 threshold
+had paid to the owner alone; the lender is now paid first whatever the amount.
+
+### A2. Non-payment cancellation without an unpaid bill
+
+**What we found.** Confirmed, and the cause is as the audit describes: the simulation chooses the
+installment a leaving household will not pay when the term begins, before the term's changes are known. In
+15 of the 17 terms a car left the policy before that installment was issued (in 13 it was written off,
+destroyed or stolen) and the return premium left nothing on it; the other 2 began with no car while a
+replacement was awaited, and the installment was issued before the replacement's premium was added. Either
+way no bill was sent.
+
+**Fix.** Moving a cancellation later would mean simulating cover, claims and changes the term never had, so
+the rule is applied where the bills are known (`billing.without_a_bill_to_miss`, called by `tables.build`):
+a household that leaves when it has no bill to miss is recorded as canceling at its own request on the same
+day. Its cancellation is then keyed by staff, its unpaid bills are canceled and its balance settled like any
+other request. In the default run these are the same 17 terms; the remaining 5,250 non-payment
+cancellations each follow a billed, unpaid installment by 21 to 28 days.
+
+**Checks.** The validator's 98% tolerance is replaced by a record-level rule: "every cancellation for
+non-payment follows an unpaid installment, billed and due three to four weeks before it".
+
+### A3. Attorney payees before the attorney was retained
+
+**Fix.** The payee of an injury payment is decided on its own date (`payments.details`): before the attorney
+is retained it is the claimant alone, from that day jointly with the attorney, the same law firm every time.
+A void is made out like the check it cancels; its reissue goes to whoever is paid on the reissue date. In
+the default run 20 advances now go to the claimant alone; 853 joint payments remain.
+
+**Checks.** "a claimant is paid jointly with an attorney only on or after the day the attorney was retained,
+and always after it".
+
+### A4. Current insured identity rewrote historical records
+
+**What we found.** Confirmed, and the cause was deeper than the extraction step. `tables.build` used the
+policy's final named insured for a loss with no driver and for payments to the insured. Switching to the
+simulation's effective-dated history of named insureds did not fix it at first: `History.add` stored the
+array it was given rather than a copy, and the opening record had been given the policies' live
+named-insured array, which the simulation later changes when a named insured dies and the spouse takes
+over. So "the named insured before any change" always read as the final one. The same history is read when
+a renewal offer decides whether to offer telematics to a young named insured, so a change after the offer
+date could in principle have leaked into it; in the default run no offer or enrollment changed (the
+`renewal_offer`, `telematics_enrollment` and `exposure` files are byte-identical before and after).
+
+**Fix.** `History.add` copies what it is given. A loss with no driver is recorded against the named insured
+on the loss date, and a payment to the insured is made out to the named insured on the payment date.
+`involved_driver_id` changed on 97 claims: the 2 the audit found, and 95 that named a later named insured
+who was already a driver on the policy at the loss (so no check could see it).
+
+**Checks.** "each claim's driver was on the policy on the loss date, and each payment to the insured names
+someone on the policy on the payment date" (every claim, not only at-fault ones). A unit test changes the
+caller's array after recording it.
+
+### A5. Final-balance check receipts at weekends
+
+**Fix.** A check paying a final balance is banked on a business day, like every other check
+(`billing.build`). **Checks.** "check and bank-draft receipts, returned drafts and refunds are dated on
+business days"; card, online and agency payments can be made any day.
+
+### A6. A validator check compared a column with itself
+
+**Fix.** The key checks are now one function, `validate.integrity_links`, and test agreement as well as
+existence: a claim's policy, term, vehicle and model year against its exposure row; each exposure row's
+policy against its term's and its vehicle's; each payment's and reserve change's claim against its
+feature's. **Negative controls.** A new test (`test_checks_catch_a_corrupted_record`) makes one record wrong
+for each new or repaired check (a claim moved to another policy, a payment filed under another claim, a
+lender paid on a car owned outright or left unpaid on a financed one, a joint payment a day before the
+attorney, a claim driver or insured payee who joined later, a non-payment cancellation without its unpaid
+bill, a check banked on a Saturday) and asserts that the check fails (for most, that it is the only one).
+
+### A7 and A8. Information in reserves and pricing; tails and joint relationships
+
+**Agreed, already documented** in [limitations.md](limitations.md) (section 4: reserve caps use eventual paid
+amounts and true damages; most of the rating plan is fitted to the simulator's expected losses; section 5:
+the comparison with the Spanish portfolio and the national tables). They are modeling projects rather than
+record defects, and were not attempted in this change. The audit's diagnostics are the right yardsticks
+for that work: reserve error by coverage and development age across seeds, rating estimated from simulated
+experience with credibility and filing delays, severity percentiles, limit-hit and total-loss rates from US
+sources, and policy-grouped and time-based holdouts.
+
+### A9. A messy extract
+
+**Not adopted.** The tables are clean by design and stay the only edition; the owner does not want
+deliberately degraded data. [limitations.md](limitations.md) (section 6) suggests pairing the data with the
+real portfolio in `real_data/` for cleaning exercises.
+
+### A10. Provenance inside each generated dataset
+
+**Fix.** `pipeline.generate` writes `run_summary.json` after the CSVs, with `content_hash` (every CSV, as
+the generator prints it), `tables_hash` (the data tables) and `answer_key_hash`, `hash_method`, and under
+`build` the source revision and whether the generator's files had uncommitted changes, the Python, NumPy and
+pandas versions, a fingerprint of every table's columns and of each reference file. Nothing in it depends
+on when or where the run happened. `validate.py` recomputes the hashes ("the CSV files are the ones the
+generator wrote"), checking the answer key only when it is present, so a student's copy can be checked too.
+
+### What changed in the data
+
+Only who is paid, how a few records are labeled and a few dates. Every loss and premium amount, every
+exposure row, claim feature, renewal offer and telematics record is as before; the loss ratio (67.4%),
+frequencies, severities, premiums and retention are unchanged. Claim payments 61,678 → 60,542 and reserve
+transactions 125,378 → 124,306 (fewer split settlements); bills 887,710 → 887,706 and receipts 896,571 →
+896,585 (the 17 relabeled cancellations); 97 claims' `involved_driver_id`; payees of 1,547 lienholder,
+20 attorney and some insured payments. `validate.py` runs 147 checks (was 140), all passing on both seeds;
+the test suite has 67 tests (was 64).
 
 ## Third review (18 November 2026)
 

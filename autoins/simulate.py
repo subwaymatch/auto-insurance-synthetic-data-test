@@ -129,8 +129,9 @@ class History:
         self._t = None
 
     def add(self, ids, day, *values) -> None:
-        ids = np.atleast_1d(np.asarray(ids, dtype=np.int64))
-        self.parts.append((ids, *(np.broadcast_to(np.asarray(x, dtype=np.int64), ids.shape) for x in (day, *values))))
+        # copies: a caller's array (the policies' named insureds, say) may change later, and must not rewrite the past
+        ids = np.atleast_1d(np.array(ids, dtype=np.int64))
+        self.parts.append((ids, *(np.broadcast_to(np.array(x, dtype=np.int64), ids.shape) for x in (day, *values))))
         self._t = None
 
     def table(self) -> list:
@@ -503,8 +504,10 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         **{f"prem_{c}": prem[c] for c in C.COVERAGES}, **{f"exp_{c}": exp_loss[c] for c in C.COVERAGES})))
 
     if len(occ):
+        occ["ownership"] = v["ownership"][occ.veh.to_numpy()]         # at the loss: a lender is paid off on a total loss
         kept = occ.occ.isin(feat.occ[feat.retained.to_numpy().astype(bool)])
         v["salvage_title"][V[occ.vrow[kept].to_numpy()]] = True      # owner kept a paid total loss
+        v["ownership"][V[occ.vrow[kept].to_numpy()]] = "Owned"        # the settlement paid off any loan or lease on it
         occ["term"] = T.term_of_pol[occ.pol.to_numpy()]
         occ["row"] = row_ids[occ.pop("vrow").to_numpy()]
         occ = sim.dev.add(occ, feat)

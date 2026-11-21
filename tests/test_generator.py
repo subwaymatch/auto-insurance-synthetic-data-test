@@ -4,6 +4,8 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import json
+import shutil
 import sqlite3
 import sys
 import tempfile
@@ -79,6 +81,8 @@ class GeneratorTest(unittest.TestCase):
         r_end = r_start + np.round(t["exposure"]["earned_exposure"].to_numpy() * 365.25).astype("timedelta64[D]")
         rep, out = validate.Report(), io.StringIO()
         with contextlib.redirect_stdout(out):
+            validate.integrity_links(rep, t["exposure"], t["policy_term"], t["insured_vehicle"], t["driver"], t["claim"],
+                                     t["claim_feature"], t["claim_payment"], self.read("claim_reserve_transaction"))
             validate.integrity_lifecycle(rep, *t.values(), r_start, r_end, self.a["valuation"])
             validate.integrity_claims_and_quotes(rep, t["policy_term"], t["insured_vehicle"], t["claim"],
                                                  t["claim_feature"], self.read("claim_reserve_transaction"), self.read("quote"))
@@ -107,6 +111,104 @@ class GeneratorTest(unittest.TestCase):
         adults = set(zip(drv.loc[drv["driver_role"] != "Child", "policy_id"], drv.loc[drv["driver_role"] != "Child", "last_name"]))
         kids = drv[drv["driver_role"] == "Child"]
         self.assertTrue(all(k in adults for k in zip(kids["policy_id"], kids["last_name"])))     # a child shares an adult's surname
+
+    def test_checks_catch_a_corrupted_record(self) -> None:
+        """Negative controls: each record-level check passes on the data and fails when one record is made wrong
+        (a check that cannot fail proves nothing)."""
+        def failed(fn, *args) -> list:
+            rep, out = validate.Report(), io.StringIO()
+            with contextlib.redirect_stdout(out):
+                fn(rep, *args)
+            return [line.split("] ", 1)[1].split(":")[0] for line in out.getvalue().splitlines() if "[FAIL]" in line]
+
+        names = ("exposure", "policy_term", "insured_vehicle", "driver", "claim", "claim_feature", "claim_payment",
+                 "claim_reserve_transaction", "billing_invoice", "billing_receipt", "premium_transaction", "policy")
+        t = {n: self.read(n) for n in names}
+        links = lambda **x: failed(validate.integrity_links, *[x.get(n, t[n]) for n in names[:8]])
+        payees = lambda **x: failed(validate.integrity_payees, *[x.get(n, t[n]) for n in
+                                                                  ("claim_payment", "claim", "claim_feature", "insured_vehicle", "driver")])
+        billing = lambda **x: failed(validate.integrity_billing, *[x.get(n, t[n]) for n in
+                                                                   ("billing_invoice", "billing_receipt", "policy_term",
+                                                                    "premium_transaction", "policy")], self.a["valuation"])
+        self.assertEqual(links() + payees() + billing(), [])
+        clm, pay, feat, veh, drv = t["claim"], t["claim_payment"], t["claim_feature"], t["insured_vehicle"], t["driver"]
+
+        # a claim pointing at another (existing) policy; a payment filed under another claim than its feature's
+        bad = clm.copy()
+        bad.loc[0, "policy_id"] = bad.loc[bad["policy_id"] != bad.loc[0, "policy_id"], "policy_id"].iloc[0]
+        self.assertEqual(links(claim=bad), ["claim policy, term, vehicle and model year match the risk row"])
+        bad = pay.copy()
+        bad.loc[0, "claim_id"] = bad.loc[bad["claim_id"] != bad.loc[0, "claim_id"], "claim_id"].iloc[0]
+        self.assertEqual(links(claim_payment=bad), ["each payment's and reserve change's claim is its feature's claim"])
+
+        # a lender paid on a car owned outright; a financed car's total loss paid without its lender
+        lien = pay[pay["payee_type"] == "Lienholder"].merge(clm[["claim_id", "insured_vehicle_id"]], on="claim_id")
+        lien = lien.merge(veh[["insured_vehicle_id", "ownership"]], on="insured_vehicle_id")
+        self.assertGreater(len(lien), 0)
+        car = lien.loc[lien["ownership"] != "Owned", "insured_vehicle_id"].iloc[0]
+        lender_check = ("a lienholder or lessor is paid only on a total loss of a financed or leased car, never more than the "
+                        "settlement and one lender per car; every closed, paid total loss of a financed or leased car pays one")
+        self.assertEqual(payees(insured_vehicle=veh.assign(ownership=veh["ownership"].where(veh["insured_vehicle_id"] != car, "Owned"))),
+                         [lender_check])
+        self.assertEqual(payees(claim_payment=pay[pay["payment_id"] != lien["payment_id"].iloc[0]]), [lender_check])
+
+        # a joint payment to a claimant and attorney dated before the attorney was retained
+        joint = pay[pay["payee_type"] == "Claimant and Attorney"].iloc[0]
+        late = (pd.Timestamp(joint["payment_date"]) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        bad = feat.copy()
+        bad.loc[bad["claim_feature_id"] == joint["claim_feature_id"], "attorney_date"] = late
+        self.assertEqual(payees(claim_feature=bad),
+                         ["a claimant is paid jointly with an attorney only on or after the day the attorney was retained, and always after it"])
+
+        # a claim's driver who joined the policy after the loss; a payment to the insured naming someone who joined later
+        who_check = ("each claim's driver was on the policy on the loss date, and each payment to the insured names someone on "
+                     "the policy on the payment date")
+        c0 = clm.iloc[0]
+        later = drv[drv["added_date"] > c0["loss_date"]].iloc[0]
+        bad = clm.copy()
+        bad.loc[0, ["policy_id", "involved_driver_id"]] = [later["policy_id"], later["driver_id"]]
+        self.assertIn(who_check, payees(claim=bad))
+        p0 = pay[pay["payee_type"] == "Insured"].iloc[0]
+        pol0 = clm.set_index("claim_id").loc[p0["claim_id"], "policy_id"]
+        newcomer = drv[(drv["policy_id"] == pol0) & (drv["added_date"] > p0["payment_date"])]
+        bad_drv = drv
+        if newcomer.empty:            # give the policy a driver who joins after the payment, under the payee's name
+            bad_drv = pd.concat([drv, drv.iloc[[0]].assign(driver_id=drv["driver_id"].max() + 1, policy_id=pol0, first_name="Zed",
+                                                         last_name="Later", added_date="2099-01-01", removed_date=None)])
+            newcomer = bad_drv.tail(1)
+        bad = pay.copy()
+        bad.loc[bad["payment_id"] == p0["payment_id"], "payee_name"] = newcomer["first_name"].iloc[0] + " " + newcomer["last_name"].iloc[0]
+        self.assertEqual(payees(claim_payment=bad, driver=bad_drv), [who_check])
+
+        # a cancellation for non-payment with no unpaid installment behind it
+        inv, rec = t["billing_invoice"], t["billing_receipt"]
+        np_term = t["policy_term"].loc[t["policy_term"]["cancel_reason"] == "Non-Payment", "policy_term_id"].iloc[0]
+        missed = (inv["policy_term_id"] == np_term) & (inv["invoice_status"] == "Canceled") & (inv["invoice_type"] == "Installment")
+        self.assertIn("every cancellation for non-payment follows an unpaid installment, billed and due three to four weeks before it",
+                      billing(billing_invoice=inv[~missed]))
+        # a check banked on a Saturday
+        bad = rec.copy()
+        i = bad.index[(bad["payment_method"] == "Check") & (bad["receipt_type"] == "Payment")][0]
+        d = pd.Timestamp(bad.loc[i, "receipt_date"])
+        bad.loc[i, "receipt_date"] = (d + pd.Timedelta(days=(5 - d.dayofweek) % 7)).strftime("%Y-%m-%d")
+        self.assertIn("check and bank-draft receipts, returned drafts and refunds are dated on business days", billing(billing_receipt=bad))
+
+    def test_run_summary_identifies_the_build_and_its_files(self) -> None:
+        """run_summary.json records what built the files and hashes that a copy of them can be checked against."""
+        out = self.root / "a"
+        summary = json.loads((out / "run_summary.json").read_text())
+        self.assertEqual(summary["content_hash"], self.a["content_hash"])
+        self.assertEqual(validate.payload_hash(out, "*.csv"), summary["tables_hash"])
+        self.assertEqual(validate.payload_hash(out / "answer_key", "*.csv"), summary["answer_key_hash"])
+        build = summary["build"]
+        self.assertEqual((build["numpy"], build["pandas"]), (np.__version__, pd.__version__))
+        self.assertEqual(set(build["reference_data"]), {f.name for f in C.REFERENCE_DIR.glob("*.csv")})
+        self.assertIn("source_revision", build)
+        with tempfile.TemporaryDirectory() as tmp:                     # a changed file no longer matches
+            shutil.copytree(out, tmp, dirs_exist_ok=True)
+            with open(Path(tmp) / "claim.csv", "a") as f:
+                f.write("\n")
+            self.assertNotEqual(validate.payload_hash(Path(tmp), "*.csv"), summary["tables_hash"])
 
     def test_key_map_covers_every_table(self) -> None:
         """autoins/schema.py names a primary key for every table and a key for every ..._id column."""
@@ -379,6 +481,7 @@ class GeneratorTest(unittest.TestCase):
                                        t["policy"], self.a["valuation"])
             validate.integrity_payments(rep, t["claim_payment"], t["claim"], t["claim_feature"], t["employee"], t["vendor"],
                                         t["premium_transaction"], agency, t["policy"], t["policy_term"])
+            validate.integrity_payees(rep, t["claim_payment"], t["claim"], t["claim_feature"], t["insured_vehicle"], t["driver"])
         self.assertEqual(rep.failures, 0, out.getvalue())
 
     def test_general_ledger_balances_and_ties_to_the_subledgers(self) -> None:
@@ -485,6 +588,16 @@ class GeneratorTest(unittest.TestCase):
         q = self.read("quote")
         self.assertEqual(set(q["telematics_opt_in"]), {"Y", "N"})
         self.assertTrue((q.loc[q["bound"] == "N", "telematics_opt_in"] == "Y").any())
+
+
+class HistoryTest(unittest.TestCase):
+    def test_a_later_change_to_the_callers_array_does_not_rewrite_the_past(self) -> None:
+        h = simulate.History()
+        ni = np.array([5, 6])
+        h.add([0, 1], simulate.OPENING, ni)
+        ni[0] = 9                         # the policy's named insured changes in place, as the simulation does
+        h.add(0, 100, ni[0])
+        self.assertEqual(h.at([0, 0, 1], [50, 100, 50])[0].tolist(), [5, 9, 6])
 
 
 class CalendarTest(unittest.TestCase):

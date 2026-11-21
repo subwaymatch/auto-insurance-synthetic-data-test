@@ -210,10 +210,11 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     """Payee, method, cheque number, clearing and approval for every payment row of `pays` (as cut off at the
     valuation date and sorted for the claim_payment table), and each claim's current adjuster.
 
-    feats: the reported features (feature_id, claim_id, cvg, claimant, attorney, litigated, total). claims: the
-    reported claims in claim_id order (peril), with `office`, `claim_zi` (ZIP index at the loss), `insured_name`
-    and `close_day` (the claim's close, or beyond the horizon if open) aligned to them. Returns (columns for the
-    payment table, adjuster employee index per claim)."""
+    feats: the reported features (feature_id, claim_id, cvg, claimant, attorney, attorney_day, litigated, total).
+    claims: the reported claims in claim_id order (peril, veh), with `office`, `claim_zi` (ZIP index at the loss)
+    and `close_day` (the claim's close, or beyond the horizon if open) aligned to them. `insured_name` is aligned to
+    the payments: the policy's named insured on each payment's date, so a later change of named insured leaves an
+    earlier payment alone. Returns (columns for the payment table, adjuster employee index per claim)."""
     R = stream(cfg.seed, "payment detail")
     V = cal.valuation_day
     nC, nF = len(claims), len(feats)
@@ -273,9 +274,18 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     payee = kind[fi].copy()
     pv = vendor[fi].copy()
     pzi = zi[fi]
+    # an injury claimant is paid jointly with their attorney only once the attorney is retained; an advance before
+    # that goes to the claimant alone (the same person, and the same law firm on every later joint payment)
+    early = (payee == "Claimant and Attorney") & (p.day.to_numpy() < f.attorney_day.to_numpy()[fi])
+    payee[early], pv[early] = "Claimant", -1
+    # a total loss on a financed or leased car pays its lender (claims.py decides that and the amount): one
+    # lender or lessor per car, whatever else is paid on the claim
     lien = role == "lien"
     payee[lien] = "Lienholder"
-    pv[lien] = _pick_vendor(vend, "Lienholder", pzi[lien], ref, R)
+    car = claims.veh.to_numpy()[pc]
+    cars, first = np.unique(car[lien], return_index=True)
+    lender = _pick_vendor(vend, "Lienholder", pzi[lien][first], ref, R)
+    pv[lien] = lender[np.searchsorted(cars, car[lien])]
     ex = pk == "Expense"
     lit = f.litigated.to_numpy().astype(bool)[fi]
     for m, t in ((ex & (txn == "A&O Expense"), "Independent Appraiser"), (ex & (txn == "DCC Expense") & lit, "Defense Law Firm"),
@@ -283,9 +293,15 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
                  (pk == "Subrogation Recovery", "Other Insurer")):
         payee[m] = "Other Insurer" if t == "Other Insurer" else "Vendor"
         pv[m] = _pick_vendor(vend, t, pzi[m], ref, R)
+    # a void is made out to the payee of the cheque it cancels (its reissue goes to whoever is paid on its own date)
+    pair = pd.MultiIndex.from_arrays([p.fid.to_numpy(), p.ref.to_numpy()])
+    cheque = np.flatnonzero((p.ref.to_numpy() >= 0) & ~np.isin(txn, ["Void", "Reissue"]))
+    vrow = np.flatnonzero(txn == "Void")
+    src = pd.Series(cheque, index=pair[cheque]).reindex(pair[vrow]).to_numpy()
+    payee[vrow], pv[vrow] = payee[src], pv[src]
     vname = vend.set_index("vendor").name.reindex(np.where(pv >= 0, pv, 0)).to_numpy()
     name = np.select([payee == "Insured", payee == "Claimant", payee == "Claimant and Attorney"],
-                     [insured_name[pc], claimant_name[fi], claimant_name[fi] + " and " + vname], default=vname)
+                     [insured_name, claimant_name[fi], claimant_name[fi] + " and " + vname], default=vname)
 
     # method: one per payee per feature; a voided payment and its reissue are cheques
     incoming = np.isin(pk, ["Salvage Recovery", "Subrogation Recovery"])

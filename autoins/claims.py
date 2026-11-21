@@ -9,10 +9,11 @@ reported are left out of the extract entirely and written to the answer key inst
 Payment patterns (ASSUMED, by coverage). Glass and most injury claims settle in one payment.
 Physical damage is often paid on the first estimate and topped up by supplements; property
 damage liability may pay loss of use before the repair; injury claims sometimes get an advance;
-medical payments follow the bills. Total losses may be split between the lienholder and the
-owner, with title and fee costs paid later. A few payments are voided and reissued, and a few
-closed features reopen for a supplemental payment. Every feature's payments add up to its
-ultimate paid loss to the cent.
+medical payments follow the bills. A total loss on a financed or leased car pays off the lender
+first (a leasing company, which owns the car, takes the whole settlement) and the owner gets what
+is left; a car owned outright is paid to its owner. Title and fee costs may be paid later. A few
+payments are voided and reissued, and a few closed features reopen for a supplemental payment.
+Every feature's payments add up to its ultimate paid loss to the cent.
 """
 from __future__ import annotations
 
@@ -46,7 +47,10 @@ EXPENSE = {"PD": (0.60, 220), "COLL": (0.80, 260), "COMP": (0.40, 120), "MED": (
 # Interim payments before the final one: (probability of a first, probability of a second)
 INTERIM_P = {"PD": (0.30, 0.10), "COLL": (0.28, 0.07), "COMP": (0.15, 0.04), "BI": (0.12, 0.0), "UM": (0.12, 0.0)}
 MED_BILLS_MEAN = 1.6                  # extra medical-payments bills beyond the first (Poisson, at most 6)
-TOTAL_LOSS_SPLIT_P = 0.45             # settlement paid partly to a lienholder
+# A financed car's loan payoff at a total loss, as a share of the settlement (ASSUMED). Above 1 the loan is
+# worth more than the car (negative equity, about a quarter of loans here): the lender takes the whole
+# settlement and gap cover, not this policy, pays the rest. A leased car's settlement all goes to the lessor.
+LOAN_PAYOFF_SHARE = (0.35, 1.20)
 TOTAL_LOSS_FEES_P = 0.20              # title, tax and fees paid after the settlement
 REOPEN_P = {"PD": 0.03, "COLL": 0.04, "COMP": 0.02, "BI": 0.04, "UM": 0.04, "MED": 0.05}
 VOID_P = 0.012                        # an interim payment is voided and reissued
@@ -107,7 +111,9 @@ class Development:
         # is held over to the next business day
         notice = self.cal.intake_day(occ.day.to_numpy() + lag.astype(int), R.random(len(occ)))
 
-        f = feat.merge(occ[["occ", "day", "peril", "cat", "at_fault"]].assign(notice=notice), on="occ", how="left")
+        # the car's ownership at the loss (Owned, Financed or Leased) decides whether a lender is paid
+        keep = ["occ", "day", "peril", "cat", "at_fault"] + (["ownership"] if "ownership" in occ else [])
+        f = feat.merge(occ[keep].assign(notice=notice), on="occ", how="left")
         n = len(f)
         f["fid"] = self.n_feat + np.arange(n)
         self.n_feat += n
@@ -377,7 +383,10 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     k = np.where(cvg == "MED", np.minimum(R.poisson(MED_BILLS_MEAN, n), 6), k)
     k = np.where(total | (peril == "GLASS"), 0, k)
     k = np.where(has, np.minimum(k, np.maximum(main // 5_000 - 1, 0)), 0)      # at least ~$50 a payment
-    split = has & total & (R.random(n) < TOTAL_LOSS_SPLIT_P) & (main >= 20_000)
+    # a total loss on a financed or leased car pays off the lender (the ownership at the loss, from the vehicle)
+    loan = f["ownership"].to_numpy() if "ownership" in f else np.full(n, "Owned")
+    R.random(n)        # (once drew whether a lender was paid; still drawn so the draws after it do not move)
+    split = has & total & (loan != "Owned")
     fees = has & total & (R.random(n) < TOTAL_LOSS_FEES_P) & (final_day - od >= 10) & (main >= 50_000)
 
     # interim payments: physical damage is paid early on the estimate, injury advances mid-way, bills throughout
@@ -405,12 +414,16 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     int_cents = np.where(injury[i], int_cents // 10_000 * 10_000, int_cents)    # an injury advance is a round amount
     fee_cents = np.where(fees, np.floor(main * g_fee), 0).astype(np.int64)
     fin_cents = main - np.bincount(i, int_cents, n).astype(np.int64) - fee_cents
-    # a lienholder payoff and the owner's balance go out on the settlement day
-    lien = np.where(split, np.floor(fin_cents * R.uniform(0.4, 0.9, n)), 0).astype(np.int64)
+    # the lender's payoff and the owner's balance go out on the settlement day. The payoff is the loan balance,
+    # never more than the settlement; a lessor owns the car and takes all of it. When the lender takes the whole
+    # settlement its payment is the final one (unless title and fees follow)
+    owed = np.where(loan == "Leased", 1.0, np.minimum(R.uniform(*LOAN_PAYOFF_SHARE, n), 1.0))
+    lien = np.where(split, np.minimum(np.ceil(fin_cents * owed), fin_cents), 0).astype(np.int64)    # at least a cent
+    lien_txn = np.where(split & (lien == fin_cents) & ~fees, "Final Payment", "Partial Payment")
 
     legs = [
         _legs(i, interim_day, int_cents, "Partial Payment", ref=np.arange(len(i))),
-        _legs(np.flatnonzero(split), settle_day[split], lien[split], "Partial Payment", role="lien"),
+        _legs(np.flatnonzero(split), settle_day[split], lien[split], lien_txn[split], role="lien"),
         _legs(np.flatnonzero(has), settle_day[has], (fin_cents - lien)[has],
               np.where(fees[has], "Partial Payment", "Final Payment")),
         _legs(np.flatnonzero(fees), final_day[fees], fee_cents[fees], "Final Payment"),

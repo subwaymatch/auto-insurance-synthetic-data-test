@@ -155,9 +155,10 @@ Those synthetic figures are plausible but unverified.
   causes follow monthly seasonality only, and nothing bunches at month or quarter ends.
 - Billing is stylized: two monthly plans and paid in full, fixed fees, late payment and returned drafts at
   assumed rates that depend on household stability, balances after cancellation collected or written off at
-  assumed rates. A cancellation for non-payment follows a missed installment by three to four weeks; in a
-  handful of terms the installment that would have been missed had been reduced to nothing by a return
-  premium, and no unpaid bill exists.
+  assumed rates. A cancellation for non-payment follows a billed, unpaid installment by three to four weeks.
+  The simulation picks the installment a household will not pay when the term begins; when a later change
+  leaves nothing on it, the household is recorded as canceling at its own request on that day instead (17
+  terms in the default run) rather than having its cancellation moved later.
 - Agencies are stylized: 120 independent and 14 exclusive, with assumed long-tailed sizes, commission
   schedules, hidden book quality and hold on customers, and names built from the area's surnames and towns
   (any resemblance to a real agency is accidental).
@@ -166,7 +167,9 @@ Those synthetic figures are plausible but unverified.
   unreported claims, acquisition costs are expensed as written, and fees are income when collected. One
   receivable account nets premium not yet collected against premium paid ahead and refunds on their way.
 - Claim payment detail is stylized: who is paid (shop, person, lienholder, other insurer), by check or
-  electronically, how fast it clears, staffing, turnover and payment authority are assumed. Vendors are
+  electronically, how fast it clears, staffing, turnover and payment authority are assumed. A financed car's
+  loan balance at a total loss is an assumed share of the settlement, not an amortized loan, and the vehicle
+  table shows only each car's latest ownership (loans paid off at renewal are not dated). Vendors are
   fictional and their shares of the work are assumed. None of this changes an amount or a date.
 - Injury settlements are rounded to negotiated-looking figures by an assumed rule.
 

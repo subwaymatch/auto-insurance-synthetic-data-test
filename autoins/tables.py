@@ -106,6 +106,13 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                                   earned=("earned_premium", "sum"), before=("before", "sum"), vehicles=("at_start", "sum"))
     terms = terms.join(tg, on="term")
     terms[list(tg.columns)] = terms[list(tg.columns)].fillna(0)
+    # A household that stops paying is cancelled for non-payment a few weeks after the instalment it does not pay
+    # (simulate._missed_installment chooses it when the term begins). If nothing was left on that instalment (a
+    # car written off and not yet replaced, say), no bill was sent and there was nothing to miss: the household,
+    # which was leaving, is recorded as cancelling at its own request on the same day.
+    quiet = terms.term.isin(billing.without_a_bill_to_miss(cal, pol, terms, _transactions(cfg, cal, pol, ag, terms, rows, veh, D, polno)[1]))
+    terms.loc[quiet, "cancel_reason"] = "Insured Request"
+    terms.loc[quiet, "missed_installment"] = -1
     cancelled = terms.cancel_day >= 0
     T["policy_term"] = pd.DataFrame({
         "policy_term_id": terms.term + 1, "policy_id": polno(terms.pol), "term_number": terms.term_no,
@@ -303,12 +310,18 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     peril = claims.peril.to_numpy()
     branch = np.select([claims.cat.to_numpy() >= 0, cg.injury.to_numpy(), (peril == "THEFT_TOTAL") | cg.total.to_numpy(),
                         peril == "GLASS", city], [6, 3, 5, 4, 1], default=2)
-    claimant = np.where(claims.drv >= 0, claims.drv, ni_drv[claims.pol]) + 1
+    # A loss with no driver (a parked car, a theft, the weather) is recorded against the named insured on the loss
+    # date, and a payment to the insured is made out to the named insured on the payment date: the policy's named
+    # insured can change later (a surviving spouse takes the policy over), and that does not rewrite the past.
+    ni_hist = res.sim.ni
+    ni_at_loss = ni_hist.at(claims.pol.to_numpy(), claims.day.to_numpy())[0]
+    claimant = np.where(claims.drv >= 0, claims.drv, ni_at_loss) + 1
     cat_id = np.where(claims.cat >= 0, np.array([e[0] for e in C.CAT_EVENTS])[claims.cat.clip(0)], "")
     # who handles each claim and who each payment goes to (payments.py)
     emp, desks = payments.employees(cfg, cal, ref, pd.Series(branch).value_counts())
     vend = payments.vendors(cfg, ref)
-    insured = (drv.first_name.astype(str) + " " + drv.last_name.astype(str)).to_numpy()[ni_drv[claims.pol.to_numpy()]]
+    full_name = (drv.first_name.astype(str) + " " + drv.last_name.astype(str)).to_numpy()
+    insured = full_name[ni_hist.at(claims.pol.to_numpy()[pays.claim_id.to_numpy() - 1], pays.day.to_numpy())[0]]
     detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured,
                                         np.where(cg.open.to_numpy(), cal.horizon + 1, cg.close_day.to_numpy()), emp, desks, vend)
     T["employee"], T["vendor"] = _employee_table(emp, desks, V, D), _vendor_table(vend)
@@ -696,7 +709,9 @@ def _any_date(day: np.ndarray, D, none: int = billing.NO_DAY) -> np.ndarray:
     return out
 
 
-def write(tables: dict, key: dict, plan, cfg: C.Config, summary: dict) -> None:
+def write(tables: dict, key: dict, plan, cfg: C.Config) -> None:
+    """The tables, the answer key and the rating plan (pipeline.generate adds run_summary.json, which records the
+    files' hashes)."""
     out = Path(cfg.out_dir)
     (out / "answer_key").mkdir(parents=True, exist_ok=True)
     for name, df in tables.items():
@@ -704,4 +719,3 @@ def write(tables: dict, key: dict, plan, cfg: C.Config, summary: dict) -> None:
     for name, df in key.items():
         df.to_csv(out / "answer_key" / f"{name}.csv", index=False, lineterminator="\n")
     (out / "answer_key" / "rating_plan.json").write_text(json.dumps(rating.to_json(plan), indent=1) + "\n")
-    (out / "run_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
