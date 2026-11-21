@@ -3,7 +3,7 @@ title: Data model
 nav: 4
 nav_title: Data Model
 eyebrow: The data
-lede: How the 32 tables fit together, which ones hold history, and how to join them without counting anything twice.
+lede: How the 34 tables fit together, which ones hold history, and how to join them without counting anything twice.
 wide: true
 description: The Lakefront data model: a diagram of how the tables link, their keys, current versus historical values, dates and the valuation cut-off, and safe ways to join them.
 ---
@@ -26,7 +26,7 @@ The first question to ask of any table is what one row represents: its **grain**
 
 Every record has two kinds of identifier:
 
-- **Integer keys** (`..._id`) join the tables. A key has the same name in every table that holds it: `policy_id` in `policy`, `driver`, `claim` and so on. Keys are numbered in the order records were created and say nothing else about a record.
+- **Integer keys** (`..._id`) join the tables. A key has the same name in every table that holds it: `policy_id` in `policy`, `driver`, `claim` and so on. Keys are the company’s system counters, so they start far above 1 and have gaps; they rise with the day each record was created and say nothing else about a record.
 - **Business keys** are what the company prints on documents: `policy.policy_number` (`0830512-LFM-47`, with check digits), `claim.claim_number` (`24-0022944`), `quote.quote_number`, `billing_invoice.invoice_number`, `claim_payment.check_number`, and each car’s `insured_vehicle.vin`, with its check digit.
 
 Join on the integer keys. The business keys are for reading, validating and searching.
@@ -35,13 +35,13 @@ Join on the integer keys. The business keys are for reading, validating and sear
 
 This is the most important thing to understand about the data.
 
-`policy`, `driver` and `insured_vehicle` describe each policy, driver and car **as it stands at its latest status**: on the valuation date if the policy is in force, otherwise on its last day of cover. A policy’s address, limits and number of cars are today’s; a car’s coverages and deductibles are today’s.
+`policy`, `driver` and `insured_vehicle` describe each policy, driver and car **as it stands at its latest status**: on the valuation date if the policy is in force, otherwise on its last day of cover. A policy’s address and named insured are today’s; a car’s coverages and deductibles are today’s.
 
 `exposure` is the **effective-dated** record. A policy gets new exposure rows at every renewal and every mid-term change, and each row keeps the address, rated driver, characteristics, limits, deductibles, discounts and premium that were in force for its dates (`exposure.coverage_start_date` to `exposure.coverage_end_date`). Use it for anything historical.
 
 Two consequences:
 
-- **Join claims through `exposure_id`, not `policy_id`.** `claim.exposure_id` is the row in force on the loss date. Joining a claim straight to `policy` gives the address and limits the policy has now, not those on the day of the accident.
+- **Join claims through `exposure_id`, not `policy_id`.** `claim.exposure_id` is the row in force on the loss date. Joining a claim straight to `policy` gives the address the policy has now, not the one on the day of the accident.
 - **Totals are worked out, not stored.** As in an insurer's own systems, the tables hold the records (payments, reserve changes, premium transactions, dates of cover) and not the totals an analyst makes from them: a claim's paid and incurred loss, a term's earned premium, a policy's count of cars. [Working out totals](#working-out-totals) below shows how.
 
 ## Dates and what was known when

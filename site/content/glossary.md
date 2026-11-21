@@ -51,7 +51,7 @@ Deductible
 :   The part of a physical damage claim the customer pays before the insurer pays anything. In the data: `exposure.collision_deductible`, `exposure.comprehensive_deductible`.
 
 Defense and cost containment (DCC)
-:   Claim expenses for defending and settling claims, mostly lawyers and experts. In the data: `claim_feature.paid_dcc_expense`.
+:   Claim expenses for defending and settling claims, mostly lawyers and experts. In the data: `DCC Expense` rows of `claim_payment` (`claim_payment.transaction_type`).
 
 Development
 :   The change in an accident year’s losses as time passes, as late claims arrive and reserves are revised. Measured with *development triangles*.

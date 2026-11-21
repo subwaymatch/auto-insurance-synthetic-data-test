@@ -10,19 +10,22 @@ still leaves out or simplifies, and what it should and should not be used for.
 Everything about people, policies, premiums and claims is simulated. No record describes a
 real person. The geography is real (ZIP codes, Census demographics, and Chicago police crash
 and vehicle-theft counts), and so are the vehicles (every make, model and model year sold in
-the US since 1997, weighted by how often each appears on Chicago's roads) and the calendar
+the US since 1981, weighted by how often each appears on Chicago's roads) and the calendar
 (crashes and thefts follow Chicago's own counts day by day, so Fridays, holidays and snow days
 are where they really fell).
 
 **The insurer.** "Lakefront" is a small regional group: three underwriting companies
 (preferred, standard and non-standard) selling through 120 independent agencies (most of them small),
 14 exclusive agents' offices and direct. The default book writes 43,368 policies over five years (2022
-to 2026), about 22,600 of them in force at the end with some 39,000 cars and $54 million of premium a
+to 2026), about 22,500 of them in force at the end with some 39,000 cars and $52 million of premium a
 year: roughly 1% of the area's household vehicles. Read it as the Chicago-area part of a regional
 carrier, not a national one.
 
 **Built to look like an operating company's data.** Policies, claims and vehicles carry business
-keys (a policy number with check digits, a claim number, a full VIN with a valid check digit).
+keys (a policy number with check digits, a claim number, a full VIN with a valid check digit), and
+the integer keys are the company's system counters. The tables hold records, not totals: paid losses,
+reserves and earned premium are worked out from payments, reserve changes and dates of cover. The
+extract opens with the claims then open, and its catastrophes are real Chicago-area storms.
 Staff, banks and courts work business days only. Discounts are filed as round percentages and are
 only roughly right. New customers, installment payers and some agencies cost more than they are
 charged. Quotes and new business follow the season and the company's prices against the market's, and
@@ -65,7 +68,7 @@ python generate.py
 python validate.py
 ```
 
-`generate.py` writes 32 CSV tables to `output/` and an instructor answer key (9 tables and the
+`generate.py` writes 34 CSV tables to `output/` and an instructor answer key (9 tables and the
 rating plan) to `output/answer_key/` in about a minute and a half. `output/` is ignored by git: the
 published copy of the data is the releases above. `validate.py` re-reads those files and checks them
 for record-level consistency (vehicle lifecycles, what was known when each term was rated, policy
@@ -74,7 +77,8 @@ the telematics program, identifiers and their check digits, the working calendar
 the premium ledger and the cash, check numbers and payment approvals, and the general ledger against
 every subledger) and against the calibration targets, including an approximate comparison with
 national figures on their published definitions (the source does not publish every counting rule, so
-the match is close but not exact) and with Illinois' average premiums by coverage.
+the match is close but not exact) and with Illinois' average premiums by coverage. `python validate.py
+--json figures.json` also writes every calibration band's figure to a file.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -121,10 +125,10 @@ Each release carries, for each format:
 | `chicago-auto-insurance-data-<tag>-<format>.zip` | The tables, `run_summary.json`, this README, the changelog and `docs/`. Give this to students. |
 | `chicago-auto-insurance-answer-key-<tag>-<format>.zip` | The answer key, `rating_plan.json` and the same documents. Instructors only. In the SQLite format the database also holds every data table, linked to the answer key. |
 
-The formats are `csv` (one CSV file per table, about 97 MB zipped and 419 MB unzipped), `sqlite`
-(one database with every table, about 164 MB zipped and 536 MB unzipped for students; 183 MB
-and 589 MB for instructors) and `parquet` (one Parquet file per table, about 70 MB zipped and 103 MB
-unzipped; 10 MB and 15 MB for the answer key). The two billing tables are about a third of each. See
+The formats are `csv` (one CSV file per table, about 94 MB zipped and 402 MB unzipped), `sqlite`
+(one database with every table, about 162 MB zipped and 519 MB unzipped for students; 181 MB
+and 573 MB for instructors) and `parquet` (one Parquet file per table, about 70 MB zipped and 103 MB
+unzipped; 10 MB and 15 MB for the answer key). The two billing tables are about two-fifths of each. See
 "File sizes, and a smaller build for the classroom" below.
 
 and once:
@@ -171,9 +175,9 @@ python scripts/make_samples.py --rows 100 --out samples synthetic=output real_da
 
 ### File sizes, and a smaller build for the classroom
 
-The default build is 419 MB of CSV. That is small for Python, R, SQL or Power BI, and awkward for
-Excel: `exposure` (443,000 rows, 104 MB), `billing_invoice` (888,000 rows, 100 MB) and
-`billing_receipt` (897,000 rows, 55 MB) are most of it, and although no table passes Excel's 1,048,576
+The default build is 402 MB of CSV. That is small for Python, R, SQL or Power BI, and awkward for
+Excel: `exposure` (441,000 rows, 95 MB), `billing_invoice` (879,000 rows, 101 MB) and
+`billing_receipt` (891,000 rows, 58 MB) are most of it, and although no table passes Excel's 1,048,576
 rows, the billing tables come close. Three ways to make it lighter without leaving anything out:
 
 - **Parquet, for anyone working in code.** The Parquet release is 103 MB unzipped (70 MB to download)
@@ -196,28 +200,28 @@ python generate.py --policies 10000 --out classroom
 
 | Build | CSV | Zipped CSV | Parquet | Zipped Parquet | Largest table | Claims |
 |---|---|---|---|---|---|---|
-| Default (43,368 policies) | 419 MB | 97 MB | 103 MB | 70 MB | 897,000 rows | 22,392 |
+| Default (43,368 policies) | 402 MB | 94 MB | 103 MB | 70 MB | 891,000 rows | 23,135 |
 | `--policies 10000` | 97 MB | 23 MB | 27 MB | 19 MB | 209,000 rows | about 5,200 |
 
 ## What the default run produces
 
 | | |
 |---|---|
-| Policies / policy terms | 43,368 / 198,479 (19,745 of the terms were already in force on the start date) |
-| Policies in force at each year end | 19,745 at the start; 20,429 (2022), 20,089 (2023), 20,261 (2024), 21,475 (2025), 22,640 (2026) |
-| Drivers / vehicles | 76,787 / 110,309 (3,438 drivers left a policy; 24,123 vehicles traded in, 5,215 sold, 6,209 destroyed or stolen, 1,188 taken by a leaving driver) |
-| Vehicle models | 746 of the catalog's 940 models (59 makes) are insured |
-| Exposure rows / premium transactions | 442,749 (23.9% start at a mid-term change) / 269,766 (62,038 endorsements) |
-| Earned exposure | 176,758 car-years |
-| Earned premium | $220.8 million ($1,249 per car-year, $2,132 per policy-year) |
-| Claims / coverage features / reserve transactions | 22,392 / 39,173 / 124,306 (43% of closed liability and medical features and 16% of closed physical damage features paid nothing) |
-| Claim payments | 60,542 rows, 19,247 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
-| Quotes | 117,297, of which 19.9% bound (21.9% in 2022, 17.5% in 2024, 21.2% in 2026) |
-| Renewal offers | 171,979 (155,111 renewed, 10,500 not renewed by the insured, 1,000 company non-renewals, 1,399 canceled before the renewal date, 3,969 pending at the valuation date) |
-| Bills / receipts | 887,706 / 896,585 (865,663 bills paid, 11,346 canceled, 3,434 written off, 7,263 open at the valuation date) |
-| Commission | $17.4 million on $249.5 million of written premium (independent agents 11.4%, exclusive agents 8.4%, direct none); 7,885 monthly agency statements |
-| General ledger | 19 accounts; 1,605 monthly journals (4,193 lines) for the three companies |
-| Telematics | 12,412 enrollments and 61,537 driving scores; enrolled cars are 14% of car-years in 2022, rising to 26% in 2026 |
+| Policies / policy terms | 43,368 / 197,003 (19,745 of the terms were already in force on the start date) |
+| Policies in force at each year end | 19,745 at the start; 20,586 (2022), 19,525 (2023), 20,101 (2024), 21,385 (2025), 22,514 (2026) |
+| Drivers / vehicles | 76,793 / 110,931 (3,332 drivers left a policy; 24,723 vehicles traded in, 5,096 sold, 6,315 destroyed or stolen, 1,151 taken by a leaving driver) |
+| Vehicle models | 786 of the catalog's 1,209 models (57 makes) are insured |
+| Exposure rows / premium transactions | 440,655 (24.1% start at a mid-term change) / 268,626 (62,490 endorsements) |
+| Earned exposure | 175,283 car-years |
+| Earned premium | $214.3 million ($1,223 per car-year, $2,086 per policy-year) |
+| Claims / coverage features / reserve transactions | 23,135 / 40,414 / 129,559 (287 of the claims from accidents in 2021, the warm-up year; 42% of closed liability and medical features and 16% of closed physical damage features paid nothing) |
+| Claim payments | 62,875 rows, 20,030 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
+| Quotes | 119,541, of which 19.5% bound (22.0% in 2022, 17.5% in 2024, 21.2% in 2026) |
+| Renewal offers | 170,522 (153,635 renewed, 10,799 not renewed by the insured, 944 company non-renewals, 1,336 canceled before the renewal date, 3,808 pending at the valuation date) |
+| Bills / receipts | 879,257 / 890,607 (857,445 bills paid, 11,151 canceled, 3,375 written off, 7,286 open at the valuation date) |
+| Commission | $17.0 million on $242.3 million of written premium (independent agents 11.4%, exclusive agents 8.4%, direct none); 7,866 monthly agency statements |
+| General ledger | 19 accounts; 1,609 monthly journals (4,237 lines) for the three companies |
+| Telematics | 12,357 enrollments and 61,220 driving scores; enrolled cars are 14% of car-years in 2022, rising to 26% in 2026 |
 
 ### Frequency and severity against national figures, like for like
 
@@ -244,22 +248,22 @@ premiums came out a third below Illinois'.
 
 | Coverage | Year | Claims per 100 car-years | National | Average paid | National |
 |---|---|---|---|---|---|
-| Bodily injury (with LAE) | 2022 | 0.40 | 0.70 | $19,528 | $24,681 |
-| | 2023 | 0.70 | 0.78 | $23,120 | $26,178 |
-| | 2024 | 0.88 | 0.80 | $25,811 | $28,278 |
-| Property damage (with LAE) | 2022 | 2.60 | 2.54 | $6,091 | $6,024 |
-| | 2023 | 2.76 | 2.59 | $6,584 | $6,554 |
-| | 2024 | 2.74 | 2.50 | $7,060 | $6,770 |
-| Collision ($500 deductible, net of recoveries) | 2022 | 5.51 | 4.48 | $5,479 | $5,377 |
-| | 2023 | 5.78 | 4.48 | $5,131 | $5,521 |
-| | 2024 | 5.79 | 4.16 | $5,000 | $5,489 |
-| Comprehensive ($500 deductible, no wind or water, net of recoveries) | 2022 | 4.61 | 3.78 | $2,294 | $2,175 |
-| | 2023 | 4.88 | 4.08 | $2,459 | $2,305 |
-| | 2024 | 4.64 | 3.95 | $2,253 | $2,306 |
+| Bodily injury (with LAE) | 2022 | 0.49 | 0.70 | $18,703 | $24,681 |
+| | 2023 | 0.89 | 0.78 | $27,076 | $26,178 |
+| | 2024 | 0.85 | 0.80 | $28,089 | $28,278 |
+| Property damage (with LAE) | 2022 | 2.69 | 2.54 | $6,198 | $6,024 |
+| | 2023 | 2.89 | 2.59 | $6,574 | $6,554 |
+| | 2024 | 2.81 | 2.50 | $6,576 | $6,770 |
+| Collision ($500 deductible, net of recoveries) | 2022 | 5.79 | 4.48 | $5,231 | $5,377 |
+| | 2023 | 6.17 | 4.48 | $4,664 | $5,521 |
+| | 2024 | 5.84 | 4.16 | $5,018 | $5,489 |
+| Comprehensive ($500 deductible, no wind or water, net of recoveries) | 2022 | 4.46 | 3.78 | $2,186 | $2,175 |
+| | 2023 | 5.08 | 4.08 | $2,225 | $2,305 |
+| | 2024 | 4.73 | 3.95 | $2,379 | $2,306 |
 
-Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.00
-times national for bodily injury, 1.06 for property damage, 1.30 for collision and 1.20 for
-comprehensive, and severity 0.90, 1.02, 0.95 and 1.03 times national. `validate.py` prints this table
+Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.10
+times national for bodily injury, 1.10 for property damage, 1.36 for collision and 1.21 for
+comprehensive, and severity 1.01, 1.00, 0.91 and 1.00 times national. `validate.py` prints this table
 for any run and holds frequency to 0.85 to 1.45 times national and severity to 0.85 to 1.15 times.
 
 What still differs, and how to read it:
@@ -268,22 +272,27 @@ What still differs, and how to read it:
   metropolitan area, so it is tuned to run above national on frequency, most of all for collision.
   National figures set a reasonable scale. They are not a Chicago benchmark or a single carrier's
   experience, and nothing here has been checked against either.
-- **Bodily injury in 2022.** The extract has no claims from accidents before its start date, so the
-  first calendar year's payments are too few (injury claims take a year or more to settle). That
-  year is shown but not held to a band.
-- **Sampling.** A year has 240 to 300 paid bodily injury claims and 700 comprehensive claims in the
+- **Bodily injury in 2022.** The extract holds the claims of 2021, a warm-up year, that were still open
+  on its start date or reported later, but nothing from earlier accidents, so the first calendar year's
+  payments are still too few (injury claims can take several years to settle). That year is shown but
+  not held to a band.
+- **Sampling.** A year has about 300 paid bodily injury claims and 700 comprehensive claims in the
   $500 slice, so single-year severities move 10% or more by chance.
 - **An older fleet.** Vehicles are about nine years old on average, as on Chicago's roads, so more
-  collision claims end as total losses than nationally (30% of paid collision claims, against the 22%
-  to 23% of all appraisals that CCC reports for 2024 and 2025).
+  collision claims end as total losses than nationally (31% of paid collision claims, against the 22%
+  to 23% of all appraisals that CCC reports for 2024 and 2025; see
+  [docs/benchmarks.md](docs/benchmarks.md)).
 - **Glass.** Glass claims under full glass cover carry no deductible here and are counted.
 - **Counting rules.** The source does not publish how it counts a claim (per claimant or per accident,
   or when a claim counts as paid).
 
-Whole-extract figures on the dataset's own basis (every deductible and cause, loss only), which
-`validate.py` also holds to bands so that the book stays stable from seed to seed: bodily injury 0.76
-paid claims per 100 car-years at $24,779; property damage 2.68 at $6,624; collision 5.33 at $6,738;
-comprehensive 5.66 at $2,790. These are not comparable with the national table.
+Figures for the accidents in the extract on the dataset's own basis (every deductible and cause, loss
+only), which `validate.py` also holds to bands so that the book stays stable from seed to seed: bodily
+injury 0.76 paid claims per 100 car-years at $26,301; property damage 2.69 at $6,643; collision 5.42 at
+$6,438; comprehensive 6.06 at $2,956. These are not comparable with the national table.
+[docs/benchmarks.md](docs/benchmarks.md) lists every benchmark with its source, year, geography and
+units, says which ones the generator was tuned to and which were held out, and shows how far each figure
+moves across five seeds (`scripts/seed_spread.py`).
 
 ### Premiums and coverage against Illinois
 
@@ -292,12 +301,12 @@ and the share of insured cars carrying collision and comprehensive. Against Illi
 
 | | 2022 | 2023 | 2024 | Illinois 2022 | 2023 | 2024 |
 |---|---|---|---|---|---|---|
-| Liability (bodily injury, property damage, uninsured motorist, medical payments) | $550 | $620 | $722 | $524 | $598 | $649 |
-| Collision, per car carrying it | $332 | $377 | $443 | $384 | $440 | $473 |
-| Comprehensive, per car carrying it | $167 | $191 | $223 | $172 | $219 | $261 |
+| Liability (bodily injury, property damage, uninsured motorist, medical payments) | $537 | $615 | $703 | $524 | $598 | $649 |
+| Collision, per car carrying it | $318 | $371 | $432 | $384 | $440 | $473 |
+| Comprehensive, per car carrying it | $164 | $191 | $221 | $172 | $219 | $261 |
 
-Collision is carried on 83.5% of 2023 car-years and comprehensive on 88.4% (Illinois: 82.6% and 87.5%).
-Liability runs 7% above the state over the three years and collision and comprehensive 11% below.
+Collision is carried on 83.5% of 2023 car-years and comprehensive on 88.3% (Illinois: 82.6% and 87.5%).
+Liability runs 5% above the state over the three years, collision 14% below and comprehensive 12% below.
 `validate.py` holds each to a band around the state's figure. The book is the Chicago area and one
 carrier, not the state, so an exact match is not the aim; the point is that a student comparing these
 premiums with public figures finds them in the right place.
@@ -305,9 +314,9 @@ premiums with public figures finds them in the right place.
 What a car is worth drives the physical damage figures. A car's value is its model year's base price
 run down a depreciation curve and lifted by each year's used-car prices (the Manheim index: half as
 high again as before the pandemic in 2022, a third higher since 2024). The average insured car is worth
-$15,700 in 2022 and $14,500 in 2024; a ten-year-old car about 40% of its base price. Paid collision
-claims average $6,542 ($4,896 for repairs and $10,414 for the 30% that are total losses), with salvage
-returning 10.9% and subrogation 13.1% of what is paid.
+$15,200 in 2022 and $14,300 in 2024; a ten-year-old car about 40% of its base price. Paid collision
+claims average $6,310 ($4,740 for repairs and $9,748 for the 31% that are total losses), with salvage
+returning 11.1% and subrogation 13.3% of what is paid.
 
 ### Loss ratios
 
@@ -317,22 +326,23 @@ calendar year):
 
 | | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---|---|---|---|---|
-| This dataset, actual | 80.1% | 72.5% | 66.5% | 61.2% | 62.4% |
-| This dataset, expected (answer key, free of claim luck; excludes catastrophes) | 79.8% | 75.5% | 65.2% | 62.6% | 63.8% |
-| This dataset, catastrophe losses | 0.6% | 2.4% | 1.9% | 1.0% | 1.5% |
+| This dataset, actual | 82.2% | 77.3% | 66.3% | 67.3% | 66.1% |
+| This dataset, expected (answer key, free of claim luck; excludes catastrophes) | 81.2% | 74.7% | 65.9% | 63.9% | 65.0% |
+| This dataset, catastrophe losses | 0.0% | 3.8% | 2.2% | 1.0% | 6.5% |
 | US private passenger auto | 80.2% | 75.4% | 66.1% | 61.5% | 60.4% (Q1) |
 | Illinois private passenger auto | 79.6% | 72.8% | 63.4% | 60.1% | |
 
 The book enters 2022 under-priced, as the industry did after pandemic-era rate cuts, and rate
 increases (+48% cumulative, close to the industry's +12.1% in 2022, +16.5% in 2023, +7.6% in 2024
-and +3.7% in 2025) bring it back. Overall it runs 67.4%, against about 70% for the US and 68% for
+and +3.7% in 2025) bring it back. Overall it runs 72.1%, against about 70% for the US and 68% for
 Illinois over 2022 to 2025. The expected loss ratio plus each year's catastrophe losses is held to the
-industry path by `validate.py`. Telematics discounts take 1.7% off the premium in 2022, rising to 3.4%
-in 2026, so later years run a little above the industry figures. The actual figures move several points
-a year on large injury claims alone (one standard deviation of a year's bodily injury total is 1.3 to 2.0
-points of premium).
-In this run every full year came in at or below its expected (2022: 79.5% against 79.8%, both without
-catastrophes; 2023: 70.0% against 75.5%); other seeds and sizes give different years their luck. `validate.py`
+industry path by `validate.py`. Catastrophes are the real storms of each year (none in 2022; hail in April
+2023 and two hailstorms in 2026 cost the most), so they vary from year to year as real ones do.
+Telematics discounts take 1.7% off the premium in 2022, rising to 3.3% in 2026, so later years run a
+little above the industry figures. The actual figures move several points a year on large injury claims
+alone (one standard deviation of a year's bodily injury total is 1.7 to 2.6 points of premium).
+In this run each full year came within 4% of its expected, without catastrophes (2023: 73.5% against
+74.7%; 2025: 66.3% against 63.9%); other seeds and sizes give different years their luck. `validate.py`
 holds each full year's actual loss ratio, without catastrophes, to 0.85 to 1.15 times its expected one.
 The 2026 figure is immature: young injury claims are reserved low and late-reported claims are missing.
 
@@ -340,8 +350,8 @@ These are pure loss ratios. Three different ratios are easy to confuse:
 
 - **Pure loss ratio** (above): losses only.
 - **Loss and LAE ratio**: add loss adjustment expense. The expense booked to individual claims in
-  this dataset is 3.6% to 5.5% of premium for accident years 2022 to 2024 (`claim.paid_expense`, shown
-  beside each year by `validate.py`). Industry LAE, which also includes claim department overhead not
+  this dataset is 3.9% to 5.5% of premium for accident years 2022 to 2024 (the `Expense` rows of
+  `claim_payment`, shown beside each year by `validate.py`). Industry LAE, which also includes claim department overhead not
   booked to any claim, ran 8.0% to 10.2% of premium in 2022 to 2025.
 - **Combined ratio**: also adds commissions, other underwriting expenses and dividends. The general
   ledger holds commission (about 7% of earned premium) but no other underwriting expense, so nothing in
@@ -358,7 +368,7 @@ portfolio (a Spanish insurer, 2015 to 2018, published on Mendeley Data under CC 
 the synthetic data looks realistic: young and newly licensed drivers, urban vehicles and vehicle value
 carry similar relativities, and claim costs and premiums spread in the same way. Installment payers, newer
 customers and independent-agent business run worse in both books, more strongly in the real one, and a
-contract with a claim is more likely to end (1.45 times as likely in the real book, 1.40 in this one). It
+contract with a claim is more likely to end (1.45 times as likely in the real book, 1.44 in this one). It
 also lists what the synthetic data still lacks, most of all the messiness of a real extract. Rerun it on
 any build:
 
@@ -374,23 +384,23 @@ column of the previous layout (`risk_fact`, `claims_fact`, "Policy Number" and s
 
 | File | One row per | Notes |
 |---|---|---|
-| `policy` | Policy | Policy number, location, agency and producer, company, limits, insurance score, status, and the drivers and vehicles on it at its latest status |
-| `policy_term` | Policy term (6 or 12 months) | Dates (including the rating date), cancellation, vehicles at the term start, written, endorsement, return and earned premium, rate level |
+| `policy` | Policy | Policy number, location, agency and producer, company, original inception date, named insured, homeowner, multi-policy and prior-insurance flags, insurance score, payment plan and status, at its latest status |
+| `policy_term` | Policy term (6 or 12 months) | Dates (including the offer and rating dates), cancellation or non-renewal and its reason, and the premium written at the start of the term |
 | `premium_transaction` | Premium transaction | New business, renewal, endorsement or cancellation, with effective and processed dates (the later of the two is the accounting date), the written premium booked, and the commission rate and amount |
 | `billing_invoice` | Bill | Each bill sent: paid in full, down payment, installment, endorsement or final balance; issue and due dates, premium, installment and late fees, status (paid, open, canceled, written off), paid and write-off dates |
 | `billing_receipt` | Cash movement | Each payment received (with its method), bank draft returned unpaid, and refund, tied to its bill |
 | `quote` | Quote | Every new-business quote, bound or not: quote number, prospect profile, quoted premium, the competing premium on independent-agent quotes, and the policy it became |
-| `driver` | Driver | Driver number on the policy, demographics, license state and masked license number; violations and accidents in the 3 years before joining; good-student status when added; removed date and reason; SR-22 filing |
-| `driver_incident` | Violation or at-fault accident | Motor vehicle record, prior carrier, or the company's own claim, with the conviction date and the date the insurer learned of it |
-| `vehicle_model_year` | Make, model and model year | 8,750 model years of 940 models from 74 makes: body type, size class, segment, fuel, drive, engine, price new, VIN pattern and rating symbols |
+| `driver` | Driver | Driver number and role on the policy, demographics, license state and masked license number, date first licensed; good-student status when added; added and removed dates and reason; SR-22 filing |
+| `driver_incident` | Violation or at-fault accident | Motor vehicle record, prior carrier, or the company's own claim (including at-fault claims settled before the extract), with the conviction date and the date the insurer learned of it |
+| `vehicle_model_year` | Make, model and model year | 12,176 model years (1981 to 2026) of 1,209 models from 81 makes: body type, size class, segment, fuel, drive, engine, price new, VIN pattern and rating symbols |
 | `insured_vehicle` | Insured vehicle | Unit number on the policy, make, model and model year (`vehicle_model_year_id`), VIN, use, mileage, parking, current coverages (including rental and towing) and deductibles, added and removed dates, why it left, the vehicle it replaced |
-| `exposure` | Policy term, vehicle and endorsement period | Endorsement number and change reason, garaging location, rating date, rated characteristics and discounts (including telematics), the coverage terms in force (limits, deductibles, full glass, rental option, towing), premium by coverage, cover dates, earned exposure |
+| `exposure` | Policy term, vehicle and endorsement period | Endorsement number and change reason, garaging location, rating date, rated characteristics and discounts (including telematics), the coverage terms in force (limits, deductibles, full glass, rental option, towing), full-term premium by coverage, cover dates |
 | `telematics_enrollment` | Enrollment in the telematics program | Device, enrollment date, participation discount, when and why it ended |
 | `telematics_score` | Vehicle, driver and scoring period | Miles, trips, hard braking, rapid acceleration, speeding, phone use, night driving, the driving score and the discount it earned, and the term it applies to |
-| `renewal_offer` | Renewal evaluated (renewed or not) | Offer date, vehicles offered, expiring and renewal premium for a full term, premium change, telematics opt-in, underwriting decision, revised offer date, outcome, and the term it renewed into |
-| `claim` | Claim | Claim number, loss date and time, report and close dates, cause, police report, the insured's share of fault, fraud referral, paid, reserves, recoveries, expense, handling office and adjuster |
-| `claim_feature` | Coverage (and injured claimant) on a claim | Feature number, paid, case and expense reserves, salvage, subrogation, expense by type (DCC and A&O), uninsured or underinsured motorist type and the other insurer's payment, injury type, attorney and suit dates, reopen date, owner-retained salvage |
-| `claim_payment` | Payment or recovery | Payment type and transaction type; payee type and name, vendor, method (check, EFT or deposit), check number, status (cleared, outstanding, voided) and cleared date, and who approved it; supports paid development triangles |
+| `renewal_offer` | Renewal evaluated (renewed or not) | Offer date, vehicles offered, expiring and renewal premium for a full term, telematics opt-in, underwriting decision, revised offer date, outcome, and the term it renewed into |
+| `claim` | Claim | Claim number, loss date and time, report and close dates, status, cause, catastrophe, police report, the insured's share of fault, fraud referral date, handling office and adjuster |
+| `claim_feature` | Coverage (and injured claimant) on a claim | Feature number, coverage, claimant number, status, open, close and reopen dates, uninsured or underinsured motorist type and the other insurer's payment, injury type, attorney and suit dates, total loss and owner-retained salvage |
+| `claim_payment` | Payment or recovery | Loss and expense payments (expense split into DCC and A&O) and salvage and subrogation recoveries; payee type and name, vendor, method (check, EFT or deposit), check number, status (cleared, outstanding, voided) and cleared date, and who approved it; supports paid development triangles |
 | `claim_reserve_transaction` | Reserve change | Every change to a feature's loss or expense reserve, with the balance after it; with the payments, supports incurred development triangles |
 | `employee` | Claims employee | Adjusters, supervisors, the claims manager and investigators: office, title, hire and termination dates, payment authority, supervisor |
 | `vendor` | Vendor | Body shops, glass, rental and towing companies, medical providers, appraisers, law firms, salvage auctions, lienholders and other insurers (all fictional), with type, place and repair-network flag |
@@ -401,7 +411,8 @@ column of the previous layout (`risk_fact`, `claims_fact`, "Policy Number" and s
 | `gl_account` | General ledger account | The chart of accounts: number, name, type, normal balance, financial statement |
 | `gl_journal` | Journal line | Monthly journal entries by underwriting company: accounting period, posting date, journal type, the subledger table it summarizes, account, debit and credit |
 | `underwriting_company`, `claim_office` | | Fictional names; each company's code and NAIC-style number |
-| `catastrophe` | Catastrophe | Fictional hail, wind and flood events |
+| `coverage`, `cause_of_loss` | Coverage; cause of loss | The name of each `coverage_code` and the description of each `cause_of_loss` |
+| `catastrophe` | Catastrophe | Ten real storms from NOAA's Storm Events Database (hail, derechos and flash floods); the claims on them are simulated |
 | `rate_change` | Rate change | Filed overall changes |
 | `customer_contact` | Customer contact | Tied to renewals, policy changes, billing (past-due and cancellation notices), cancellations and claims |
 
@@ -413,14 +424,27 @@ Keys: `policy_id`, `policy_term_id`, `driver_id`, `insured_vehicle_id`, `vehicle
 weather), the named insured on the loss date. `autoins/schema.py` lists every
 table's primary key and every foreign key; the SQLite release declares them.
 
+**Records, not totals.** As in an insurer's own systems, the tables hold the records (payments, reserve
+changes, premium transactions, dates of cover) and not the totals an analyst works out from them: a
+feature's paid loss and case reserve, a term's earned premium, a row's earned car-years, a policy's count of
+cars. The website's data model page (`site/content/data-model.md`, "Working out totals") gives two SQLite
+views that rebuild them, `earned` and `loss_run`, and `rebuild` in `validate.py` does the same in pandas.
+[docs/schema_changes.md](docs/schema_changes.md) lists every column that was removed and how to rebuild it.
+
 ### Identifiers
 
 Each record has two kinds of identifier, as in an insurer's warehouse:
 
-- **Integer keys** (`..._id`) join the tables. They are numbered in the order records were created: a
-  policy by the day it was written, a term by the day it was offered, a driver or vehicle by the day it
-  joined, an exposure row by the day it was rated, a claim by the day it was reported. They say nothing
-  else about a record.
+- **Integer keys** (`..._id`) join the tables. They are the company's system counters, not row numbers.
+  Lakefront was founded in 2000, and its policy, driver, vehicle, exposure, premium transaction, agency,
+  producer, statement, general ledger and employee keys count from then; billing keys from July 2008,
+  claim keys from October 2012, quote keys from March 2014, customer correspondence from January 2016
+  (`contact_id` is `CM` and nine digits) and telematics from April 2018; vendor keys are undated. The rest
+  of the company draws from the same counters, so keys start far above 1, have gaps, and rise with the day
+  each record was created: a policy by the day it was written, a term by the day it was offered, a driver
+  or vehicle by the day it joined, an exposure row by the day it was rated, a claim by the day it was
+  reported. They say nothing else about a record. Reference tables (`location`, `vehicle_model_year`,
+  `underwriting_company`, `claim_office`) keep their own codes.
 - **Business keys** are what the company prints on documents:
 
 | Key | Example | How it is built |
@@ -483,27 +507,29 @@ command line, DB Browser for SQLite, DBeaver, DuckDB, Python's `sqlite3`, R's `R
   example `exposure_truth.exposure_id` references `exposure.exposure_id`.
 
 ```sql
-SELECT l.region, SUM(e.earned_exposure) AS car_years, SUM(e.earned_premium) AS premium
-FROM exposure AS e JOIN location AS l ON l.location_id = e.location_id
+-- uses the earned view from the website's data model page ("Working out totals")
+SELECT l.region, SUM(x.car_years) AS car_years, SUM(x.earned_premium) AS premium
+FROM exposure AS e
+JOIN earned AS x ON x.exposure_id = e.exposure_id
+JOIN location AS l ON l.location_id = e.location_id
 GROUP BY l.region;
 ```
 
 **Current versus historical values.** The dimensions describe each policy, driver and vehicle as it
 stands at its latest status: on the valuation date if the policy is in force, otherwise on its last day
-of cover. That covers `policy` (location, homeowner, named insured, limits, `number_of_drivers`,
-`number_of_vehicles`) and the coverages on `insured_vehicle`. `exposure` is the effective-dated record:
-each row keeps the location, rated characteristics, limits, deductibles, full glass, rental option,
-towing and telematics discount that were in force for its dates. Use it, through `exposure_id`, for
-anything historical. Joining a claim straight to `policy` gives today's address and limits, not those on
-the loss date. `policy_term.vehicles_at_term_start` is the count when the term began (its endorsement 0
-rows); `policy.number_of_vehicles` is the count now. For a policy in force the two differ whenever a car
-was added or removed during the latest term.
+of cover. That covers `policy` (location, homeowner, named insured, payment plan) and the coverages on
+`insured_vehicle`. `exposure` is the effective-dated record: each row keeps the location, rated
+characteristics, limits, deductibles, full glass, rental option, towing and telematics discount that were
+in force for its dates. Use it, through `exposure_id`, for anything historical. Joining a claim straight
+to `policy` gives today's address, not the one on the loss date. The cars on a policy on any date are its
+`insured_vehicle` rows added by then and not yet removed; the cars at a term's start are its endorsement 0
+rows in `exposure`.
 
 **Vehicles.** `vehicle_model_year` is a catalog, like the vehicle tables insurers license: one row for
 every make, model and model year, whether or not this book insures one, including rare and exotic
 models. Price new (`msrp`), the VIN pattern and both rating symbols belong to the model year, so they
-live there; an insured vehicle points to its row. `exposure.model_year` repeats the model year as a
-rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash value when rated.
+live there; an insured vehicle points to its row, and an exposure row reaches it through
+`insured_vehicle_id`. `exposure.vehicle_value` is the vehicle's actual cash value when rated.
 
 ## How it works
 
@@ -516,16 +542,19 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
    their homes, bundle other policies, have had continuous insurance, pay in full and stay
    longer, and they claim less and miss fewer payments (see "Hidden traits").
 3. **Vehicles.** Each car's model year comes from a vehicle-age distribution tuned to the cars on
-   Chicago's roads; its make and model are drawn among those sold that year, in proportion to how often
-   they appear in Chicago crash records, with luxury and electric models commoner in richer households
-   and pickups commoner where it is less dense (see "The vehicle catalog").
+   Chicago's roads, thinning out for the oldest cars as scrappage does (so none pile up at the
+   catalog's first model year, 1981); its make and model are drawn among those sold that year, in
+   proportion to how often they appear in Chicago crash records, with luxury and electric models
+   commoner in richer households and pickups commoner where it is less dense (see "The vehicle
+   catalog").
 4. **True risk.** Every driver has a hidden risk factor. Claim frequency depends on it and on
    age, experience, mileage, vehicle, parking and ZIP, on the household's stability, on the channel
    and agency the policy came through, and on how new the customer is. Prior violations and
    accidents are generated from the same hidden factor, so they predict claims, imperfectly.
 5. **Rating plan.** Premiums come from a rating plan that only sees what an insurer would see.
-   Its discounts are filed as round percentages; the rest is fitted to the true expected loss
-   cost, then deliberately distorted (see "The rating plan" and "What a case study can find").
+   Its discounts are filed as round percentages; the rest is fitted to the company's (simulated)
+   claims experience with credibility, then deliberately distorted (see "The rating plan" and "What a
+   case study can find").
 6. **Policy life.** Each term is rated at the rate level in force, on a rating date before it
    starts, using only what the insurer knows by then. Customers renew or leave (more often
    after a price increase, after a claim, and when the company is dearer than the market) or cancel
@@ -540,15 +569,17 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
 8. **Claims.** Losses are simulated by cause, on days that follow Chicago's daily crash and theft
    counts, then split into coverages with limits and deductibles applied. Each claim is developed
    as it happens: report and close dates, payments, expenses, salvage, subrogation, occasional
-   reopenings, and a case reserve if still open.
+   reopenings, and a case reserve if still open. The opening terms' months before the start date (2021,
+   a warm-up year) are simulated too, so the extract opens with claims still open; catastrophes are real
+   storms (see "Dates and timing" and "Assumptions and limits").
 9. **The working calendar.** Staff, banks and courts work business days: payments, closes, reserve
    reviews, suits, convictions, renewal offers and letters never fall on a weekend or a holiday
    (see "The working calendar").
 10. **Billing and payments.** Every premium transaction is billed and collected (see "Billing and
     commission"), and every claim payment gets a payee, a method, a check number and an approver
     (see "Claim payments, vendors and staff").
-11. **Identifiers.** Business keys are issued and the integer keys numbered in creation order (see
-    "Identifiers").
+11. **Identifiers.** Business keys are issued, and integer keys are taken from the company's system
+    counters in the order records were created (see "Identifiers").
 12. **General ledger.** The premium, billing, commission and claim subledgers are summarized into
     monthly journal entries (see "The general ledger").
 13. **Valuation cut-off.** Payments after the valuation date have not happened, and claims not
@@ -564,10 +595,10 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
 | Factor | Filed | Applies to | What the risk would justify (bodily injury) |
 |---|---|---|---|
 | Multi-car | 10% discount | Liability, medical, collision, comprehensive | 7% |
-| Multi-policy | 8% discount | The same | 6% |
+| Multi-policy | 8% discount | The same | 5% |
 | Homeowner | 5% discount | Liability, medical, collision | 1% |
-| Paid in full | 6% discount | Liability, medical, collision, comprehensive | 8% |
-| No prior insurance | 8% surcharge | Liability, medical, collision | None: the company these customers are placed with already charges for it |
+| Paid in full | 6% discount | Liability, medical, collision, comprehensive | 9% |
+| No prior insurance | 8% surcharge | Liability, medical, collision | 4%: the company these customers are placed with already charges for most of it |
 | Tenure | 2%, 4% and 6% off at 1, 3 and 6 years | Liability, medical, collision, comprehensive | 12%, 18% and 21% |
 | Good student | 10% discount | Bodily injury, property damage, medical, collision | None (1% more) |
 | Married | 5% discount | The same | None (1% more) |
@@ -575,8 +606,16 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
   "What the risk would justify" is `relativities_indicated` in the same file: every factor fitted freely to
   the true expected cost. A discount is a finding when the two differ.
 - **Everything else** (driver class, record, insurance score, company, vehicle, mileage, use, territory) is
-  fitted around the filed discounts to the true expected loss cost by minimum bias, then the planted
+  fitted around the filed discounts by minimum bias to the company's claims experience, then the planted
   distortions are applied (young drivers and drivers over 75 under-priced, mileage relativities flattened).
+  The experience is simulated: three years of claims on the book as first written, drawn around the true
+  expected costs (Poisson claim counts, gamma-distributed claim sizes). Each level's fitted relativity is
+  credibility-weighted with a bureau relativity, by limited-fluctuation credibility (full credibility at
+  1,082 claims times one plus the squared coefficient of variation of claim size); the bureau's is what the
+  true costs indicate, off by a random 5%, since an industry book is not this book. The base rates come from
+  the whole book's experience. So the plan carries the estimation error of a real one: sparse levels lean on
+  the bureau, and well-populated ones on the company's own luck. `relativities_before_distortion` is the
+  fitted plan, `relativities_indicated` what each level is truly worth.
 
 ### The vehicle catalog
 
@@ -589,7 +628,10 @@ rated characteristic, and `exposure.vehicle_value` is the vehicle's actual cash 
   vans, hearses, limousines and test codes dropped; battery-electric versions of petrol models, such
   as the Kona Electric or F-150 Lightning, kept as their own models). Heavier vehicles EPA does not
   list (heavy-duty pickups, Hummer H1 and H2, Ford Excursion) come from
-  `reference/vehicle_supplement.csv`.
+  `reference/vehicle_supplement.csv`. The catalog runs from model year 1981, the first with the
+  17-character VIN, to 2026. EPA's list starts in 1984, so for 1981 to 1983 each model it lists in 1984 is
+  carried back with its 1984 specifications: models dropped before 1984 are missing. Cars that old are
+  rare on the road (well under 1% of those in Chicago's crashes).
 - **How common each is.** The City of Chicago's Traffic Crashes - Vehicles records (2021 to 2025) give
   the make, model and model year of about 1.1 million vehicles in crashes. Only vehicles in personal
   use are counted (police cars, taxis, buses and delivery vans would otherwise inflate the Explorer,
@@ -657,23 +699,24 @@ Three things the insurer cannot see drive much of what a case study can find. Al
   business (it has been selected by years of renewals), and exclusive-agent customers more than direct ones.
 - **New customers claim more.** For the first weeks of a policy there is a burst of claims (damage that was
   already there, claims soon after buying cover), and for two or three years a slower fade as customers who
-  shopped around settle in. Claims per 100 policy-years run 27.4 in a new policy's first 30 days, about 24 for
-  the rest of its first year and 21 to 23 after that. The rating plan sees only its loyalty discount.
+  shopped around settle in. Claims per 100 policy-years run 28.6 in a new policy's first 30 days, about 25 for
+  the rest of its first year and 23 to 24.5 after that. The rating plan sees only its loyalty discount.
 - **Agencies differ.** Each agency writes a better or worse book than its rating variables show
   (`agency_truth.book_quality_factor`), and keeps its customers better or worse (`retention_effect`).
   Independent agents place somewhat harder risks; direct customers shop more at renewal. Agencies also
-  differ greatly in size, as a carrier's appointments do: the 120 independent agencies have a median of 47
-  policies in force and the largest has 491; they wrote $23 million in 2026, a mean of $192,000 and a
-  median of $116,000 each, and the largest tenth wrote 36% of it. The 14 exclusive agents' offices average
-  437 policies. An independent agency is named for its owner, its town or a trade name; an exclusive
+  differ greatly in size, as a carrier's appointments do: the 120 independent agencies have a median of 48
+  policies in force and the largest has 493; they wrote $22 million in 2026, a mean of $187,000 and a
+  median of $111,000 each, and the largest tenth wrote 36% of it. The 14 exclusive agents' offices average
+  439 policies. An independent agency is named for its owner, its town or a trade name; an exclusive
   agent's office carries the agent's name, and that person is its first producer.
 
 ### The working calendar
 
 - **Losses** fall on days in proportion to Chicago's daily counts of crashes and of vehicle thefts
-  (`reference/daily_index.csv`): 15.3% of crash claims happen on a Friday and 13.4% on a Sunday, and real
-  bad-weather days stand out (11 crash claims on 14 January 2026, the worst day in Chicago's counts, against 5.7 on an average day). `claim.loss_time` is the time the insured reported:
-  crashes peak in the late afternoon, thefts overnight, and minutes bunch on the hour and half hour.
+  (`reference/daily_index.csv`): 15.7% of crash claims happen on a Friday and 12.5% on a Sunday, and real
+  bad-weather days stand out (19 crash claims on 14 January 2026, the worst day in Chicago's counts,
+  against 5.5 on an average day). `claim.loss_time` is the time the insured reported: crashes peak in the
+  late afternoon, thefts overnight, and minutes bunch on the hour and half hour.
 - **First notice** arrives every day, but about half of a weekend's or a holiday's is held over: 21% of
   claims are reported on a Monday and 16% at a weekend.
 - **Business days only** (weekdays that are not US federal holidays or the day after Thanksgiving): claim
@@ -681,7 +724,7 @@ Three things the insurer cannot see drive much of what a case study can find. Al
   posting to the driving record, SR-22 filings, renewal offers, keyed policy changes and letters. Work that
   falls due on a weekend is spread over the following week, not piled on the Monday.
 - **Quotes and new policies**: agents quote on weekdays (5% of agent quotes on a Saturday, 1.5% on a Sunday);
-  the website quotes every day. 8.8% of new policies start on the 1st of a month.
+  the website quotes every day. 8.9% of new policies start on the 1st of a month.
 - **Not on the calendar**: loss dates of other causes (glass, animal, weather, vandalism) follow monthly
   seasonality only, and there is no month-end or quarter-end bunching of closes or reserve changes.
 
@@ -697,15 +740,18 @@ Three things the insurer cannot see drive much of what a case study can find. Al
   paid-in-full plan, an additional premium is billed on its own and a return premium refunded.
 - **Paying.** Drafts are taken on the due date (the next business day at a weekend). Other customers pay by
   card, online bank payment, check or through their agent, most a few days early (a check, including one for a
-  final balance, is banked on a business day); 3.2% of bills are paid
+  final balance, is banked on a business day); 3.3% of bills are paid
   more than five days late and carry a $10 late fee. About 1% of drafts are returned unpaid and collected
   again with a $25 fee. Less stable households pay late more often.
 - **Non-payment.** A cancellation for non-payment is an installment that was billed and never paid: a
-  past-due notice four days after the due date, a notice of cancellation at seven, and cover ends three to
-  four weeks after the due date. New customers miss their early installments most. The simulation picks the
-  installment a leaving household will not pay when the term begins; if a change leaves nothing on it (a car
-  written off and not yet replaced, say), no bill is sent, and the household is recorded as canceling at its
-  own request on the same day instead (17 terms in the default run).
+  past-due notice four days after the due date, a notice of cancellation at seven, and cover ends three
+  to four weeks after the due date. A missed bank draft is attempted on the due date and returned, and
+  its returned-payment notice and notice of cancellation go out the day it comes back. Either way the
+  notice of cancellation is mailed at least ten days before cover ends, as Illinois requires (215 ILCS
+  5/143.15). New customers miss their early installments most. The simulation picks the installment a
+  leaving household will not pay when the term begins; if a change leaves nothing on it (a car written
+  off and not yet replaced, say), no bill is sent, and the household is recorded as canceling at its own
+  request on the same day instead (a handful of terms in a run).
 - **Settling a canceled account.** Unpaid bills are canceled and the account is settled against the
   premium earned: money paid ahead is refunded; a balance still owed is billed, and after a non-payment
   cancellation most of those balances are never collected and are written off 120 days later.
@@ -717,7 +763,7 @@ Three things the insurer cannot see drive much of what a case study can find. Al
   premium takes its commission back. `agency_statement` adds each agency's month up (written premium and
   commission booked in the month, on the accounting date) and gives the day it was paid: the 15th of the
   next month, or the next business day. A month in which return commission exceeds commission earned shows
-  a negative amount, which the agency repays (123 of 7,885 statements; in practice it would usually be set
+  a negative amount, which the agency repays (126 of 7,866 statements; in practice it would usually be set
   against the next statement). December 2026's statements are unpaid at the valuation date.
 
 ### The market: quotes, new business and renewals
@@ -731,21 +777,21 @@ Three things the insurer cannot see drive much of what a case study can find. Al
   in 2024, 3.7% in 2025), while the company's own increases land on their effective dates. After each
   increase the company is dearer than its competitors until they catch up. Every quote's competitive
   position (`quoted_annual_premium` against `competitor_annual_premium`, on independent-agent quotes) is
-  spread around that gap: the median quote is 1% below the best competitor in 2022, 5.5% above in 2024
+  spread around that gap: the median quote is 1% below the best competitor in 2022, 6% above in 2024
   and 1% above in 2026.
-- **Conversion and growth.** The share of quotes that bind falls as the gap opens: 21.9% in 2022, 17.5% in
-  2024 and 21.2% in 2026, and from 21.5% in the two months before a rate increase of 5% or more to 17.0%
-  in the two months after. So quotes rose 18% from 2022 to 2024 while policies written fell 6%, and the
-  book shrank in 2023 (20,429 policies in force at the end of 2022, 20,089 a year later) before growing
-  again to 22,640.
+- **Conversion and growth.** The share of quotes that bind falls as the gap opens: 22.0% in 2022, 17.5% in
+  2024 and 21.2% in 2026, and from 20.1% in the two months before a rate increase of 5% or more to 16.8%
+  in the two months after. So quotes rose 19% from 2022 to 2024 while policies written fell 5%, and the
+  book shrank in 2023 (20,586 policies in force at the end of 2022, 19,525 a year later) before growing
+  again to 22,514.
 - **Renewals.** A customer who had a claim since the last offer is likelier to leave, more so if it was
-  at fault or the second: offers are taken up 94.4% of the time with no claim in the expiring term, 87.5%
-  with one and 79.7% with an at-fault one, and a term with a claim is 1.39 times as likely to end the
+  at fault or the second: offers are taken up 94.3% of the time with no claim in the expiring term, 86.9%
+  with one and 78.3% with an at-fault one, and a term with a claim is 1.42 times as likely to end the
   policy as one without (1.45 times in the real portfolio of `real_data/`). Being dearer than the market
   on the offer day also costs a little retention.
 - **Company non-renewals.** The underwriting review flags a policy whose drivers have, in the three years
   before the renewal and known on the offer day, two or more at-fault accidents, two or more major
-  violations, or one of each; half of those flagged are not renewed (1,000 of 11,500 non-renewals).
+  violations, or one of each; half of those flagged are not renewed (944 of 11,743 non-renewals).
 
 ### The general ledger
 
@@ -756,7 +802,7 @@ every figure can be traced back to rows a student can see.
   reserves, surplus, premiums written, the change in unearned premium, fees, losses and adjustment expenses
   paid, recoveries, reserve changes, commission expense, premiums written off).
 - **`gl_journal`**: one balanced journal entry for each month, underwriting company and kind of activity
-  (4,193 lines in 1,605 journals). `journal_number` is `JE-2024-03-LFM-PW`: period, company, journal.
+  (4,237 lines in 1,609 journals). `journal_number` is `JE-2024-03-LFM-PW`: period, company, journal.
 
 | Journal | Subledger | Entry |
 |---|---|---|
@@ -769,7 +815,7 @@ every figure can be traced back to rows a student can see.
 | Claim payments (`LP`) | `claim_payment` | Dr losses paid, Dr adjustment expenses paid, Cr cash |
 | Claim recoveries (`LR`) | `claim_payment` | Dr cash, Cr salvage and subrogation recoveries |
 | Case reserve changes (`RS`) | `claim_reserve_transaction` | Dr change in case reserves, Cr case reserves |
-| Opening balances (`OB`) | | Dr cash, Dr premiums receivable, Cr unearned premium, Cr commissions payable, Cr surplus |
+| Opening balances (`OB`) | | Dr cash, Dr premiums receivable, Cr unearned premium, Cr commissions payable, Cr case reserves, Cr surplus |
 
 - **Dating.** A premium transaction is booked on its accounting date, the later of its effective and
   processed dates: a renewal keyed in November for January is January's premium. Each transaction earns
@@ -777,23 +823,24 @@ every figure can be traced back to rows a student can see.
   left to earn of everything booked by then. Cash moves on the receipt or payment date, a reserve change
   on its transaction date, a write-off on its write-off date.
 - **What ties.** Premiums written and commission expense are the transactions booked in the extract.
-  Written premium less the change in unearned premium is the policy terms' earned premium ($220.8
+  Written premium less the change in unearned premium is the policy terms' earned premium ($214.3
   million, to within a few hundred dollars of rounding). Case reserves are the reserves outstanding on
-  the claim features ($13.3 million and $0.9 million of expense reserves). Commissions payable is the
-  unpaid statements. Premiums receivable ($9.8 million) is premium written less premium collected,
+  the claim features ($13.0 million and $0.7 million of expense reserves). Commissions payable is the
+  unpaid statements. Premiums receivable ($9.7 million) is premium written less premium collected,
   refunded and written off: bills not yet paid, installments not yet billed, less premium paid ahead.
   Fees are income when collected. `validate.py` checks each of these and that every journal balances.
 - **Calendar-year results** from the ledger: losses incurred (paid, less recoveries, plus the change in
-  case reserves) are 74.9% of earned premium in 2022, 74.8% in 2023, 63.2% in 2024, 63.2% in 2025 and
-  64.9% in 2026; adjustment expenses 3.7% to 4.5%; commission about 7.2%; fees $0.4 million a year.
+  case reserves) are 79.2% of earned premium in 2022, 78.7% in 2023, 65.6% in 2024, 66.7% in 2025 and
+  69.3% in 2026; adjustment expenses 3.8% to 5.2%; commission about 7.2%; fees $0.4 million a year.
   These are calendar-year figures and differ from the accident-year loss ratios above.
 - **Opening balances.** The books open on the day before the extract with what the policies in force
-  bring (premiums receivable $5.9 million, unearned premium $10.9 million, December's commissions
-  payable), cash and surplus. Surplus is ASSUMED at half the annual premium then in force ($16.1 million),
-  and cash is the balancing figure.
+  bring (premiums receivable $5.8 million, unearned premium $10.6 million, December's commissions
+  payable), the case reserves on claims then open ($1.4 million, from the warm-up year), cash and surplus.
+  Surplus is ASSUMED at half the annual premium then in force ($15.7 million), and cash is the balancing
+  figure.
 - **What is not there.** No investments or investment income, general expenses, taxes, dividends,
   reinsurance, or reserve for claims not yet reported (estimating one from the triangles is an exercise);
-  acquisition costs are expensed as written. Cash therefore only accumulates ($87 million by the end).
+  acquisition costs are expensed as written. Cash therefore only accumulates ($76 million by the end).
   The ledger is a summary by month: there is no journal line per transaction, and no planted error.
 
 ### Claim payments, vendors and staff
@@ -824,10 +871,15 @@ every figure can be traced back to rows a student can see.
 
 - **Opening book.** Policies in force on the start date enter with the term that spans it,
   which was written before the extract. Their exposure and premium count only from the start
-  date: `earned_premium` is earned inside the extract, `earned_premium_before_extract` before it, and
-  `exposure` gives each row's `coverage_start_date` (which can be before the start, as can
-  `policy.first_effective_date`, the start of a policy's first term in the data). Policies already in
-  the telematics program then carry an enrollment date and a first score from before the start.
+  date: an `exposure` row's `coverage_start_date` can be before it, and only the days from the start
+  date are earned in the extract (see "Records, not totals"). Policies already in the telematics
+  program then carry an enrollment date and a first score from before the start.
+- **Claims open at the start.** The simulation also runs a warm-up: the part of each opening term
+  before the start date (up to a year, all in 2021). Claims from those accidents that were still open on
+  1 January 2022, or reported later, are in the data with their earlier payments and reserve changes, so
+  the extract opens with open claims, case reserves and payments on earlier accidents (287 claims in the
+  default run). At-fault claims settled before 2022 appear only on the driver's record, as "Company Claim
+  (Before Extract)" incidents in `driver_incident`. There are no accidents before 2021.
 - **Anniversaries.** Policies can be written on any day, including the 29th to 31st. In a
   shorter month the term starts on the last day, and the next one returns to the original day
   (a policy written on 31 August renews on 28 or 29 February, then on 31 August).
@@ -880,7 +932,8 @@ every figure can be traced back to rows a student can see.
   destroyed or stolen, and a car lost on the valuation date itself is still on the policy.
   A few owners keep a car the company paid as a total loss (`owner_retained_salvage`); as Illinois
   law requires, only for hail damage or a car nine or more model years old. The salvage value
-  comes off the settlement and the car loses physical damage cover at the next renewal.
+  comes off the settlement and the car loses physical damage cover at the next renewal. It has no
+  further losses in that term: a salvage car may not be driven until it is rebuilt.
 - **Premium.** Changes mid-term are endorsements charged or returned pro rata to the end of the
   term. `premium_transaction` books each transaction on a processed date: a new policy when it is
   quoted and bound, a renewal when it is offered (30 to 45 days ahead, so before its effective date;
@@ -888,14 +941,14 @@ every figure can be traced back to rows a student can see.
   change the day it takes effect if that is a business day (four in ten) and otherwise within a week
   or two, a non-payment cancellation the day it takes effect. Transactions not processed by the
   valuation date are not in the extract. For every
-  finished term, written + endorsement + return premium = earned before the extract + earned
-  premium, and the ledger adds up to the same.
+  finished term, its written, endorsement and return premium add up to the premium its exposure rows
+  earn, before the extract and in it, and the ledger adds up to the same.
 - **Good student.** The discount applies while a driver with B grades is still in full-time
   school and under 25, judged on each term's effective date; `exposure.rated_good_student`
   keeps the status each term was rated with.
 - **Injury settlements are round.** A bodily injury or uninsured motorist settlement is a negotiated
-  figure: $7,500 or $22,250, not $7,512.38. 85% of paid bodily injury features are whole-dollar amounts
-  and 72% multiples of $250; the rest settled for their exact medical bills or were cut pro rata by a
+  figure: $7,500 or $22,250, not $7,512.38. 87% of paid bodily injury features are whole-dollar amounts
+  and 74% multiples of $250; the rest settled for their exact medical bills or were cut pro rata by a
   per-accident limit. Repair, medical and rental payments follow their bills to the cent.
 - **Payments.** Glass and most injury claims settle in one payment. Physical damage is often
   paid on the first estimate and topped up later; property damage may pay loss of use first;
@@ -903,19 +956,25 @@ every figure can be traced back to rows a student can see.
   financed car pays off the loan first (never more than the settlement; about a quarter of loans
   owe more than the car is worth, and gap cover pays the rest) and the owner gets the balance; a
   leased car's settlement all goes to the leasing company; title and fees may be paid later. A few payments are voided and
-  reissued, and about 2% of paid features reopen for a supplement. Payments always add up to the
-  feature's paid loss to the cent.
+  reissued, and about 2% of paid features reopen for a supplement. A feature's paid loss is the sum
+  of its payments.
 - **Claims that pay nothing.** As in real claim files, many features close without payment:
   liability claims against an insured who was not at fault, injury claims opened as a precaution
   and never pursued, and damage reported then withdrawn. They carry a nominal reserve while open.
-  About 43% of closed liability and medical features and 16% of closed collision and comprehensive
+  About 42% of closed liability and medical features and 16% of closed collision and comprehensive
   features pay nothing (industry 2025: about 45% and just under 25%).
 - **Reserves.** Each feature opens with a formula reserve and is re-estimated on a review cycle (every
-  90 days for injury, 30 for physical damage). Early injury estimates average about 86% of ultimate and
-  improve as claims mature, so bodily injury incurred develops upward (12-to-24-month factors of about
-  1.03 to 1.22) while collision barely moves; payments erode reserves, closing releases them, and
+  90 days for injury, 30 for physical damage). Property formula reserves are near the average paid per
+  claim, as average reserves are set; injury ones start low. Early injury estimates average about 86% of
+  ultimate and improve as claims mature, so bodily injury incurred develops upward (12-to-24-month factors
+  of about 1.06 to 1.18) while collision barely moves; payments erode reserves, closing releases them, and
   precautionary injury claims carry a nominal reserve. Litigated features also carry an expense
-  reserve. `claim_reserve_transaction` records every change, so incurred can be rebuilt as of any date.
+  reserve. Paid plus reserve stays within each claimant's per-person limit, and where several claimants
+  share a per-accident limit, the adjuster works from what is known that day: a new claimant's reserve
+  takes only the room the others leave, and at the end of each business day with news the room left after
+  payments is shared among the open reserves in proportion to the estimates (restored in full when a
+  settlement frees room). `claim_reserve_transaction` records every change, so incurred can be rebuilt as
+  of any date; `scripts/reserve_diagnostics.py` shows how the reserves ran off (docs/benchmarks.md).
 - **Claim detail.** About half of paid bodily injury claimants are represented by an attorney (57%
   industry-wide in 2022, Insurance Research Council), mostly within days or weeks of the accident.
   A litigated feature follows an ordered timeline: the attorney is retained, suit is filed after
@@ -942,8 +1001,9 @@ every figure can be traced back to rows a student can see.
   level, about 12% direct, 22% through independent agents and 38% through exclusive agents) and falls
   as the quote rises above the best competing premium, which independent agents see on their
   comparative raters (see "The market").
-- **Cancellations.** For non-payment, cover ends three to four weeks after an installment goes unpaid (see
-  "Billing and commission"); new customers miss early installments most. Underwriting cancels new business in
+- **Cancellations.** For non-payment, cover ends three to four weeks after an installment goes unpaid,
+  at least ten days after a notice of cancellation is mailed (see "Billing and commission"); new
+  customers miss early installments most. Underwriting cancels new business in
   its first 60 days. Other cancellations are at the insured's request, on any day.
 - **Reporting lags.** Injury claims are often presented weeks or months after the accident, and a
   few near Illinois' two-year statute of limitations. Lags follow a US insurer's experience: 84% of
@@ -964,36 +1024,36 @@ Deliberate and emergent findings in the default run:
 
 | Finding | What the data shows |
 |---|---|
-| New business costs more than it is charged | Expected loss ratio 76.1% for new business against 66.8% for renewals, falling with tenure: 70.7% in the first year after, 67.1% at one to three years, 65.1% at six or more. The loyalty discount (2% to 6%) is a fraction of what the risk justifies (12% to 21%) |
-| New policies claim early | 27.4 claims per 100 policy-years in a new policy's first 30 days, against about 24 for the rest of the first year and 21 to 23 after that |
-| Channels differ | Expected loss ratio 70.8% for independent-agent business, 67.1% direct, 65.6% exclusive agents; renewal rates 93.8%, 91.8% and 95.7% |
-| Some agencies write a worse book | Among the 61 agencies with 500 or more car-years (books of 108 to 1,446 policies), expected loss ratio runs from 57% to 90% (10th to 90th percentile: 63% to 79%); `agency_truth` says which differences are real and which are claim luck. The other 73 agencies are too small to judge on their own results: that is a finding too |
-| A few agencies write most of the premium | The largest tenth of the 120 independent agencies write 36% of their premium; half of them have 47 or fewer policies in force |
-| Billed installment payers run worse | Expected loss ratio 70.0% on the monthly bill plan, 66.7% by bank draft, 68.9% paid in full; renewal rates 90.8%, 93.2% and 95.4%; non-payment cancellations and write-offs concentrate there |
-| Some discounts are not earned | The good-student and married discounts (10% and 5%) have no support once class and record are rated (good students run an expected loss ratio of 83%); the no-prior-insurance surcharge is more than those customers cost; the multi-car discount is more than those households save and the paid-in-full discount less (see "The rating plan") |
-| Rate increases cost new business | Conversion falls from 21.5% in the two months before an increase of 5% or more to 17.0% in the two months after, and recovers as the market's rates catch up; quotes rise 18% from 2022 to 2024 while new policies fall 6% (see "The market") |
+| New business costs more than it is charged | Expected loss ratio 76.8% for new business against 67.6% for renewals, falling with tenure: 71.4% in the first year after, 67.9% at one to three years, 65.8% at six or more. The loyalty discount (2% to 6%) is a fraction of what the risk justifies (12% to 21%) |
+| New policies claim early | 28.6 claims per 100 policy-years in a new policy's first 30 days, against about 25 for the rest of the first year and 23 to 24.5 after that |
+| Channels differ | Expected loss ratio 71.7% for independent-agent business, 67.7% direct, 66.5% exclusive agents; renewal rates 93.6%, 91.5% and 95.6% |
+| Some agencies write a worse book | Among the 62 agencies with 500 or more car-years (books of 108 to 1,446 policies), expected loss ratio runs from 59% to 94% (10th to 90th percentile: 63% to 80%); `agency_truth` says which differences are real and which are claim luck. The other 72 agencies are too small to judge on their own results: that is a finding too |
+| A few agencies write most of the premium | The largest tenth of the 120 independent agencies write 36% of their premium; half of them have 48 or fewer policies in force |
+| Billed installment payers run worse | Expected loss ratio 70.8% on the monthly bill plan, 67.5% by bank draft, 69.8% paid in full; renewal rates 90.7%, 92.7% and 95.3%; non-payment cancellations and write-offs concentrate there |
+| Some discounts are not earned | The good-student and married discounts (10% and 5%) have no support once class and record are rated (good students run an expected loss ratio of 87%); the no-prior-insurance surcharge is more than those customers cost; the multi-car discount is more than those households save and the paid-in-full discount less (see "The rating plan") |
+| Rate increases cost new business | Conversion falls from 20.1% in the two months before an increase of 5% or more to 16.8% in the two months after, and recovers as the market's rates catch up; quotes rise 19% from 2022 to 2024 while new policies fall 5% (see "The market") |
 | Shopping is seasonal | March has a third more quotes than December |
-| Claims cost customers | Renewal offers are taken up 94.4% of the time with no claim in the expiring term, 87.5% with a claim and 79.7% with an at-fault claim; 1,000 renewals were refused by the company for the drivers' records |
-| Young drivers are under-priced | Expected loss ratio 75% to 90% for classes under 25, against 67% for ages 25 to 64 |
-| Mileage is under-used | Expected loss ratio rises from 63% under 5,000 reported miles to 83% at 16,000+ |
-| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for affected models peak at 7.5 in 2023, against 0.7 to 1.7 for others; the counts are small, so the year of the peak moves from run to run |
-| Automatic emergency braking is unpriced | Expected loss ratio 65.7% with it, 70.0% without |
-| Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 62.3%, against 69.6% for the rest; selection and the 7% behavior effect can be separated only with the answer key |
-| The telematics discount under-reacts to the score | Expected loss ratio 66% for cars earning 10% or less, 52% for those earning 21% to 30% |
+| Claims cost customers | Renewal offers are taken up 94.3% of the time with no claim in the expiring term, 86.9% with a claim and 78.3% with an at-fault claim; 944 renewals were refused by the company for the drivers' records |
+| Young drivers are under-priced | Expected loss ratio 77% to 89% for classes under 25, against 68% for ages 25 to 64 |
+| Mileage is under-used | Expected loss ratio rises from 64% under 5,000 reported miles to 83% at 16,000+ |
+| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for affected models peak at 10.6 in 2023, against 1.0 to 1.6 for others; the counts are small, so the year of the peak moves from run to run |
+| Automatic emergency braking is unpriced | Expected loss ratio 65.3% with it, 71.5% without |
+| Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 63.1%, against 70.4% for the rest; selection and the 7% behavior effect can be separated only with the answer key |
+| The telematics discount under-reacts to the score | Expected loss ratio 66% for cars earning 10% or less, 53% for those earning 21% to 30% |
 | Telematics mileage exposes under-reporting | Annualized `telematics_score.miles_driven` is above the car's reported `insured_vehicle.annual_mileage` for two cars in three (10% above for the median car) |
-| Rates lagged costs, then caught up | Expected loss ratio falls from 80% (2022) and 75% (2023) to 65% and 63% (2024, 2025), as the industry's did |
-| Case reserves develop | Bodily injury incurred grows by 3% to 22% from 12 to 24 months as early, low reserves are corrected; collision moves 2% to 4% |
+| Rates lagged costs, then caught up | Expected loss ratio falls from 81% (2022) and 75% (2023) to 66% and 64% (2024, 2025), as the industry's did |
+| Case reserves develop | Bodily injury incurred grows by 6% to 18% from 12 to 24 months as early, low reserves are corrected; collision moves 2% or less (scripts/reserve_diagnostics.py follows each year-end's reserves to their outcome) |
 | New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 38% of the time, those above 14% |
-| Insurance score is priced roughly right | Premium per car-year falls by more than half from scores under 600 ($2,204) to 800 and above ($893); expected loss ratio drifts only from 66% to 71%, partly because telematics discounts go mostly to good-score customers |
+| Insurance score is priced roughly right | Premium per car-year falls by more than half from scores under 600 ($2,259) to 800 and above ($858); expected loss ratio drifts only from 65% to 73%, partly because telematics discounts go mostly to good-score customers |
 | The newest year is not fully known | Late-reported claims are missing, open claims carry imperfect reserves, and closed claims can reopen |
-| Price increases cost retention | In `renewal_offer`, offers the insurer was willing to renew are taken up 95% of the time when the premium changes by 5% or less, 87% at a 10% to 20% increase and 74% above 20% |
-| First renewals are the weakest | On six-month terms, 90.7% of first renewals are taken up against 95.4% of later ones |
+| Price increases cost retention | In `renewal_offer`, offers the insurer was willing to renew are taken up 95% of the time when the premium changes by 5% or less, 88% at a 10% to 20% increase and 73% above 20% |
+| First renewals are the weakest | On six-month terms, 90.6% of first renewals are taken up against 95.2% of later ones |
 | Records reach the insurer late | A violation or chargeable claim shortly before a renewal's rating date is surcharged a term later |
 | Exposure moves | Moves, trade-ins and new drivers change a policy's territory, vehicles and rated drivers mid-term; a vehicle's history spans several exposure rows and sometimes several ZIP codes |
-| Cash follows premium, late | Receivables by age, late payers, returned drafts, refunds and write-offs can all be built from `billing_invoice` and `billing_receipt`: $1.64 million was owed on 7,263 bills at the valuation date, and $0.68 million had been written off |
+| Cash follows premium, late | Receivables by age, late payers, returned drafts, refunds and write-offs can all be built from `billing_invoice` and `billing_receipt`: $1.59 million was owed on 7,286 bills at the valuation date, and $0.67 million had been written off |
 | The books tie to the subledgers | Written and earned premium, unearned premium, receivables, commissions payable, paid losses and case reserves in `gl_journal` can each be rebuilt from the tables behind them, by month and company; calendar-year results differ from accident-year ones for reasons a student can explain |
-| Physical damage follows the used-car market | Vehicle values, and with them total-loss payments, peak in 2022 and fall as used-car prices ease; total losses rise from 26% of paid collision claims in 2022 to 32% in 2026 as repair costs climb and values fall |
-| Payments leave an audit trail | Check sequence, voids, outstanding checks, payments by approver against authority, vendor concentration (the ten busiest body shops take 29% of body-shop payments) and Benford's law can all be tested; the data holds no planted errors or fraud, so every test should come back clean |
+| Physical damage follows the used-car market | Vehicle values, and with them total-loss payments, peak in 2022 and fall as used-car prices ease; total losses rise from 29% of paid collision claims in 2022 to 34% in 2026 as repair costs climb and values fall |
+| Payments leave an audit trail | Check sequence, voids, outstanding checks, payments by approver against authority, vendor concentration (the ten busiest body shops take 30% of body-shop payments) and Benford's law can all be tested; the data holds no planted errors or fraud, so every test should come back clean |
 
 Reported mileage is understated relative to true mileage, on-street parking raises theft and
 hit-while-parked claims, and each ZIP has a hazard component the territories do not capture.
@@ -1012,7 +1072,10 @@ ethnicity group drawn from its ZIP code's Census mix (spouses share it about 90%
 come from the Census 2010 surname table for that group, and first names from Social Security first-name
 frequencies for the driver's sex and decade of birth, weighted to the group with Tzioumis' (2018) data
 (`autoins/names.py`): a man born in the 1950s is likely a Robert or a David, a woman born in the 2000s an
-Olivia or an Emily. The group is used for nothing else: risk,
+Olivia or an Emily. A married couple usually shares the husband's surname. How often a wife keeps her own
+follows the Pew Research Center (2023): about 10% of white, 9% of Black and 30% of Hispanic wives, 25% of
+Asian wives (assumed; Pew had too few to report) and 14% of others. Children take their father's surname,
+or their mother's new husband's when she has remarried. Beyond names the group is used for nothing: risk,
 prices and claims depend on ZIP-level crash and theft data and on the driver, never on it. It appears
 only in the answer key (`driver_truth.race_ethnicity`), so instructors can set a fairness audit: estimate
 each driver's race from surname and address with BISG (Bayesian Improved Surname Geocoding, the method
@@ -1041,6 +1104,9 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgment). The ones t
   and physical damage take-up with Illinois' averages, which shows the overall scale is reasonable. It
   does not validate anything finer: results by subgroup, how variables depend on each other, large-loss
   tails or local geography are assumed or tuned, not checked against data.
+  [docs/benchmarks.md](docs/benchmarks.md) says, benchmark by benchmark, which were tuned and which held
+  out, and how far the tails (total losses, claims closed without payment, the largest claims) sit from
+  published figures.
 - **Physical damage rests on a reading of the benchmark.** The national table is taken to be net of
   salvage and subrogation (see that section for why). If it is not, collision and comprehensive payments
   here are about a quarter too high against it, and they would then sit below Illinois' premiums at
@@ -1056,11 +1122,12 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgment). The ones t
 - **The ledger is a summary.** It holds what the published tables support and nothing else (see "The
   general ledger"): opening cash and surplus are assumed, there are no investments, expenses other than
   commission, taxes, reinsurance or reserve for unreported claims, and entries are monthly totals.
-- **Most of the rating plan is fitted to the truth.** Apart from the filed discounts, relativities are
-  fitted directly to the simulator's true expected losses on the opening book, then distorted on purpose.
-  A real carrier estimates its costs from noisy past losses, with filing and implementation lags, so the
-  plan here is cleaner and more adequate than a real one. It is a teaching design, not evidence about a
-  real carrier.
+- **The rating plan's experience is simulated from the truth.** Apart from the filed discounts,
+  relativities are fitted to three years of claims drawn around the true expected losses on the opening
+  book, credibility-weighted with a bureau relativity that is the truth off by a random 5%, then distorted
+  on purpose. A real carrier's experience also carries changes in its book, reporting and development, and
+  its rates take effect a year or more after the experience period with trend and lags estimated, so the
+  plan here is still cleaner than a real one. It is a teaching design, not evidence about a real carrier.
 - **The hidden traits are assumed.** Household stability, the new-customer effect, and the channel and
   agency effects (sizes, shapes and what each drives) are ASSUMED. The new-customer effect is sized to a
   published gap between new and renewal loss ratios (13 points across 25 books; Wu and Lin 2009); nothing
@@ -1086,18 +1153,24 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgment). The ones t
   not change what is paid. Liability settlements are not reduced for a claimant's own share of fault,
   and there is no allocation of fault among several parties. Treat it as a scenario attribute, not
   as a comparative-negligence model.
-- **No claims from before the start date.** Loss events begin on the start date, even for policies
-  already in force. There is no opening inventory of open claims and no payments or reserve changes
-  on earlier accident years. Development triangles for accident years 2022 onward are complete;
-  whole-company calendar-year payments and reserves are not (the first calendar year pays too
-  little). Moving the start date does not create that history.
+- **Claims before the start date go back one year.** The simulation runs a warm-up year (2021): the
+  part of each opening term before the start date. The extract opens with the claims then open, their
+  reserves and their later payments, and at-fault claims settled before it are on the drivers' records.
+  Earlier terms' claims are not simulated, so the first calendar year still lacks payments on older
+  accidents, which matters for bodily injury, and whole-company calendar-year figures for 2022 are a
+  little low. Development triangles for accident years 2022 onward are complete. The warm-up reaches back
+  a year at most, and no earlier than 2021, where the reference calendars begin.
 - **The rate schedule is stylized**: +48% cumulative between April 2022 and March 2025, then a 2%
   cut in June 2026. Telematics discounts are not offset in the base rates.
 - **Telematics is a stylized program.** Take-up, discounts, drop-out, the score formula and the 7%
   behavior effect are ASSUMED, shaped on published descriptions of US programs. A member who leaves
   mid-term keeps the discount until the renewal, and the behavior effect applies until then too.
-- **Catastrophes are fictional.** Dates and footprints are plausible for northern Illinois but
-  do not correspond to actual storms.
+- **Catastrophes are real storms with simulated losses.** The ten catastrophes are storms from NOAA's
+  Storm Events Database for the seven counties, 2023 to 2026 (hail, flash floods and derechos):
+  their date, place, peril and relative size are real, and the claims and losses on them are simulated
+  (`scripts/build_catastrophe_events.py` derives them; `autoins/config.py`, `CAT_EVENTS`). How likely a
+  car near a storm's center is to be hit is ASSUMED. NOAA publishes with a lag of a few months, so the
+  latest storms may be missing.
 - **Household dynamics are partly sourced.** Mover, divorce, marriage, mortality, licensing and
   vehicle-ownership rates come from public data (see "Dates and timing"); how often households add
   or sell cars, how often a leaving driver takes a car, and the shapes by age are judgment calls.
@@ -1108,10 +1181,11 @@ figure), TUNED (set to hit an anchored target) or ASSUMED (judgment). The ones t
 - **Timing assumptions** (rating lead times, driving-record posting lags, replacement delays,
   payment patterns, endorsement processing lags) are judgment calls, marked ASSUMED in
   `autoins/config.py` and `autoins/claims.py`.
-- **Identifiers and symbols are fictional.** VINs have a valid check digit but begin with `0`, which
-  no manufacturing region uses; policy, claim, quote, invoice and check numbers follow this dataset's
-  own formats; license numbers are masked; company codes only look like NAIC codes; and the vehicle
-  symbols are this dataset's own scales, not ISO's licensed ones.
+- **Identifiers and symbols are fictional.** VINs have a valid check digit but begin with `0`, which no
+  manufacturing region uses; policy, claim, quote, invoice and check numbers follow this dataset's own
+  formats; the dates the company's systems went live, from which integer keys count, are ASSUMED; license
+  numbers are masked; company codes only look like NAIC codes; and the vehicle symbols are this dataset's
+  own scales, not ISO's licensed ones.
 - **Claimants are not people.** A liability or injury feature has a claimant number within its claim,
   the payments name a (fictional) claimant, and `claim.involved_driver_id` is the insured driver involved.
   There is no table of third-party claimants who can be followed from one claim to another.
@@ -1145,7 +1219,7 @@ policies are written; there are no license plates, which insurers meet mostly in
 It also has what reserving, claims and pricing work rely on: case reserve history (`claim_reserve_transaction`,
 as in claim systems' reserve transactions and statistical plans' outstanding-loss records), expense
 split into defense and cost containment versus adjusting and other with expense reserves, limits and
-deductibles on each rating record, VIN prefixes and vehicle symbols (fictional, in the shape
+deductibles on each rating record, VIN patterns and vehicle symbols (fictional, in the shape
 statistical plans use), underinsured motorist, rental and towing coverages, claim detail (attorney and
 suit dates, fault percentage, injury type, police report, fraud referral), applied discounts, SR-22
 filings, telematics scores, and a quote funnel with quotes that never bound.
@@ -1154,7 +1228,7 @@ Real data would still have, and this dataset does not:
 
 | Gap | Real-world source |
 |---|---|
-| Claims open on the start date and their later payments (an opening claim inventory) | Claim systems |
+| Claims from before the warm-up year still open on the start date (the rest of the opening claim inventory) | Claim systems |
 | Third-party claimants as people who can be followed across claims | Claim systems |
 | Reinstatements after a lapse; billing accounts that span several policies | Billing systems |
 | Journal entries for each transaction; investments, expenses, taxes, reinsurance and a reserve for unreported claims in the ledger | Accounting systems |
@@ -1201,6 +1275,9 @@ vehicle symbols.
 | Check digits | VIN: 49 CFR 565. Policy number: ISO 7064 MOD 97-10, as IBANs use |
 | Claims closed without payment | WSJ analysis of insurer filings with the NAIC, 2025 |
 | Statutes of limitations, owner-retained salvage | 735 ILCS 5/13-202 and 13-205; 625 ILCS 5/3-117.1 |
+| Notice of cancellation for non-payment (at least ten days) | 215 ILCS 5/143.15 |
+| Catastrophes | NOAA National Centers for Environmental Information, Storm Events Database (hail, wind, tornado and flood reports for the seven counties) |
+| Married women who keep their surname | Pew Research Center (2023), by race and ethnicity |
 | Moves, living with parents, marriage and divorce | US Census Bureau ACS 2024 1-year (B07013, B07201, B12001, B12503) and CPS ASEC 2025 (table AD-1) |
 | Mortality | CDC NCHS Data Brief 548 (2024 death rates by age) |
 | Teen licensing | FHWA Highway Statistics 2024, table DL-20 |
@@ -1245,7 +1322,8 @@ autoins/config.py        every assumption
 autoins/population.py    households (and their hidden stability), agencies, drivers, vehicles, coverages
 autoins/names.py         driver names from ZIP-level Census make-up (used for nothing else)
 autoins/truth.py         true frequency and severity, expected loss, claim simulation
-autoins/rating.py        the insurer's rating plan: filed discounts, and the rest fitted around them
+autoins/rating.py        the insurer's rating plan: filed discounts, and the rest fitted around them to simulated
+                         claims experience with credibility
 autoins/telematics.py    the Lakefront DriveCheck usage-based program
 autoins/simulate.py      term-by-term simulation: rating, telematics, retention (price, claims, the market),
                          underwriting review, household changes, claims
@@ -1255,7 +1333,8 @@ autoins/market.py        the market: seasonal shopping, the company's rates agai
 autoins/ledger.py        the general ledger and agency commission statements, from the published tables
 autoins/billing.py       bills and cash: installments, late and returned payments, refunds, write-offs
 autoins/payments.py      claims staff, vendors, and each claim payment's payee, check and approver
-autoins/identifiers.py   business keys (policy, claim and quote numbers, VINs) and creation-order IDs
+autoins/identifiers.py   business keys (policy, claim and quote numbers, VINs) and integer keys from the company's
+                         system counters, in creation order
 autoins/refdata.py       reference data and the calendar: seasonality, real crash days, business days
 autoins/tables.py        output tables and answer key
 autoins/schema.py        each table's primary key and foreign keys (declared in the SQLite release)
@@ -1264,10 +1343,13 @@ samples/                 first 100 rows of every table (written by the samples w
 reference/               ZIP reference data, vehicle catalog and its curation, names, Chicago's daily crash and
                          theft index and hour-of-day profiles
 real_data/               a real motor insurance portfolio, for comparison (CC BY 4.0)
-docs/                    limitations; comparison with the real portfolio; old-to-new schema map; review response
-scripts/                 build reference/ from public sources (ZIPs, vehicles, names, calendar); package releases (CSV,
-                         SQLite, Parquet); samples; real-data comparison; readme_figures.py prints the run figures the
-                         documentation quotes
+docs/                    limitations; comparison with the real portfolio; benchmarks; old-to-new schema map; review
+                         response
+scripts/                 build reference/ from public sources (ZIPs, vehicles, names, calendar) and the catastrophe
+                         list from NOAA (build_catastrophe_events.py); package releases (CSV, SQLite, Parquet);
+                         samples; real-data comparison; readme_figures.py prints the run figures the documentation
+                         quotes; seed_spread.py builds several seeds and reports each validator band's spread;
+                         reserve_diagnostics.py shows case reserve runoff and revisions by coverage and age
 .github/workflows/       release and samples workflows
 tests/                   python -m unittest discover tests
 CHANGELOG.md             what changed, and why, since the first version

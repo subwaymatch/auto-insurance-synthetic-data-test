@@ -29,15 +29,15 @@ replaces_insured_vehicle_id = "The vehicle this one replaced, after a trade-in o
 
 [vehicle_model_year]
 grain = "Make, model and model year"
-summary = """A catalog of every make, model and model year of car, SUV, pickup and passenger van sold in the US from 1997 to 2026 (8,750 rows of 940 models from 74 makes), whether or not Lakefront insures one, like the vehicle tables insurers license. Engine, drive, fuel and size class describe the model year's most common configuration in EPA fuel economy data. `insured_vehicle`, `exposure` and `claim` point to a row through `vehicle_model_year_id`; price new and the symbols belong to the model year, so they live only here."""
+summary = """A catalog of every make, model and model year of car, SUV, pickup and passenger van sold in the US from 1981 to 2026 (12,176 rows of 1,209 models from 81 makes), whether or not Lakefront insures one, like the vehicle tables insurers license. Engine, drive, fuel and size class describe the model year's most common configuration in EPA fuel economy data; EPA's data starts in 1984, so model years 1981 to 1983 carry the models EPA lists in 1984 back with their 1984 specifications. `insured_vehicle` and `claim` point to a row through `vehicle_model_year_id`; price new and the symbols belong to the model year, so they live only here."""
 
 [vehicle_model_year.columns]
 vehicle_model_year_id = "Primary key."
 make = "Manufacturer, as named in EPA fuel economy data after cleaning, for example `Toyota`, `Ford` or `MINI`."
 model = "Model name, cleaned from EPA's base model names: two- and four-wheel-drive versions and trims are merged, and battery-electric versions of petrol models are their own model (for example `F-150 Lightning`)."
-model_year = "Model year, 1997 to 2026."
+model_year = "Model year, 1981 to 2026."
 body_type = "`SUV`, `Sedan`, `Coupe`, `Pickup`, `Hatchback`, `Convertible`, `Minivan`, `Wagon` or `Van`: the model's most common body, the same in every year."
-vehicle_class = "EPA size class of the model year, for example `Small SUV`, `Standard SUV`, `Compact Car`, `Midsize Car`, `Large Car`, `Two-Seater`, `Minivan`, `Standard Pickup` or `Heavy-Duty Pickup`. Two models carry the value `truck`."
+vehicle_class = "EPA size class of the model year, for example `Small SUV`, `Standard SUV`, `Compact Car`, `Midsize Car`, `Large Car`, `Two-Seater`, `Minivan`, `Standard Pickup` or `Heavy-Duty Pickup`."
 segment = "Rating segment: `Mainstream`, `Economy`, `Luxury`, `Sports`, `Truck`, `Electric` or `Minivan`, set from size class, make, price and fuel (full-size body-on-frame SUVs count as `Truck`). A rating variable."
 fuel_type = "Fuel of the most common configuration: `Gasoline`, `Hybrid`, `Plug-in Hybrid`, `Electric`, `Diesel`, `Flex Fuel`, `Hydrogen` or `Natural Gas`."
 drive_type = "`FWD`, `RWD`, `AWD` or `4WD` for the most common configuration. Blank for five early electric models with no drive in the EPA data."
