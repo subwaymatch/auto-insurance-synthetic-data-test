@@ -1,6 +1,6 @@
 [claim]
 grain = "Claim (one reported loss event)"
-summary = """One row for every loss reported to the company by the valuation date (December 31, 2026), with its cause, dates, handling office and adjuster, and amounts summed from its features in `claim_feature`. Amounts are cumulative to the valuation date, and `net_incurred_loss` excludes expense. Losses not yet reported are missing, so the latest accident months look light; the answer key's `unreported_claim` holds them."""
+summary = """One row for every loss reported to the company by the valuation date (December 31, 2026), with its cause, dates, handling office and adjuster. Its paid and reserved amounts are its features' rows in `claim_payment` and `claim_reserve_transaction`, to be totaled as of any date (a loss run). A few claims come from accidents in late 2021: the extract opens with the claims then still open on policies in force on January 1, 2022, and those reported later. Losses not yet reported are missing, so the latest accident months look light; the answer key's `unreported_claim` holds them."""
 
 [claim.columns]
 claim_id = "Primary key. Numbered in order of report date."
@@ -17,58 +17,34 @@ report_date = "First notice of loss: the earliest `open_date` among the claim's 
 close_date = "Date the last feature closed. Blank while any feature is open or reopened. A closed claim can still reopen, or gain a late injury feature, after the valuation date."
 claim_status = "`Open` if any feature is open or reopened on the valuation date, otherwise `Closed`."
 cause_of_loss = "Cause code. Crashes: `AF_MV` (multi-vehicle, insured at fault), `AF_SV` (single vehicle, insured at fault), `NAF` (insured not at fault), `PARKED`. Comprehensive: `GLASS`, `THEFT_TOTAL`, `THEFT_PARTIAL`, `VANDALISM`, `ANIMAL`, `WEATHER`, `FLOOD`, `FIRE`, `OTHER_COMP`, and the catastrophe perils `HAIL_CAT`, `WIND_CAT`, `FLOOD_CAT`."
-claim_description = "Plain-English text for `cause_of_loss`, for example `Struck while parked or unoccupied` or `Hail (catastrophe)`."
 at_fault = "`Y` for at-fault crashes (`AF_MV`, `AF_SV`), otherwise `N`. An at-fault claim reaches the driver's record (`driver_incident`) the day after its liability and collision payments total $1,000."
 catastrophe_id = "The catastrophe event that caused the loss, for example `CAT-2023-01`. Blank for ordinary losses. The answer key's expected losses leave these claims out."
-feature_count = "Number of features on the claim at the valuation date: one per coverage, with each injured claimant counted separately."
-paid_loss = "Loss paid to the valuation date, in dollars, summed over the features: net of voided payments, before salvage and subrogation, and excluding expense."
-case_reserve = "Case reserve outstanding on the valuation date, in dollars: the adjusters' estimate of loss still to be paid on the known features. Zero on closed claims."
-recoveries = "Salvage and subrogation received to the valuation date, in dollars, as a positive number. Salvage is money from selling a total-loss wreck; subrogation is money recovered from the at-fault party's insurer."
-net_incurred_loss = "`paid_loss` plus `case_reserve` minus `recoveries`, in dollars, on the valuation date. Excludes expense and IBNR (losses incurred but not yet reported)."
-paid_expense = "Loss adjustment expense paid to the valuation date, in dollars: DCC (defense and cost containment) plus A&O (adjusting and other). Not part of `paid_loss` or `net_incurred_loss`."
-expense_reserve = "Outstanding DCC expense reserve on the valuation date, in dollars. Nonzero only while a feature with a lawsuit is open."
-litigation = "`Y` if a lawsuit had been filed on any feature by the valuation date, otherwise `N`."
 claim_office_id = "The handling office, by the first rule that applies: catastrophes to office 6, claims with a bodily injury or uninsured motorist feature to 3, vehicle thefts and total losses to 5, glass to 4, cars garaged in Chicago to 1, the rest to 2. Judged on features known at the valuation date."
 adjuster_id = "The employee holding the claim's desk: on the close date for a closed claim, on the valuation date for an open one. While the desk is vacant, the office supervisor or the claims manager. Earlier handlers are not recorded."
 police_report = "`Y` if a police report was filed. Nearly all vehicle thefts have one and few glass or hail claims do; claims with a paid injury are likelier to."
 insured_fault_pct = "The insured driver's share of fault for the accident, 0 to 100: at-fault multi-vehicle crashes 51 to 100, single-vehicle crashes 100, not-at-fault crashes mostly 0, otherwise 5 to 49. Blank for parked-car and comprehensive losses. Payments are not reduced by it."
-siu_referral = "`Y` if the claim was referred to the special investigations unit (SIU, which looks into possible fraud) by the valuation date. Referrals are likelier for vehicle thefts, late reports and large represented injury claims."
 siu_referral_date = "Date of the SIU referral, 5 to 45 days after the report and on a business day. Blank if not referred."
 
 [claim_feature]
 grain = "Coverage (and injured claimant) on a claim"
-summary = """One row for each coverage claimed on a claim, with a separate row for each injured person under bodily injury or uninsured motorist cover. Amounts are cumulative to the valuation date (December 31, 2026) and add up to the claim's; `paid_loss` matches the feature's `Loss` rows in `claim_payment` and `case_reserve` its latest `Loss` balance in `claim_reserve_transaction`. Many features close without payment, so a feature is not the same as a paid claim when counting frequency."""
+summary = """One row for each coverage claimed on a claim, with a separate row for each injured person under bodily injury or uninsured motorist cover. As in a claims system, its amounts are not stored on it: its paid loss, expenses and recoveries are its rows in `claim_payment`, and its case and expense reserves the latest `outstanding_reserve` of each type in `claim_reserve_transaction`, all as of whatever date you choose (the valuation date, December 31, 2026, for a loss run). Coverage names are in `coverage`. Many features close without payment, so a feature is not the same as a paid claim when counting frequency."""
 
 [claim_feature.columns]
 claim_feature_id = "Primary key. Numbered in the order features were opened."
 claim_id = "The claim the feature belongs to."
 feature_number = "The claim number plus a two-digit suffix in the order features were opened on the claim, for example `24-0022944-02`."
 coverage_code = "`BI` (bodily injury liability), `PD` (property damage liability), `UM` (uninsured/underinsured motorist bodily injury), `MED` (medical payments), `COLL` (collision), `COMP` (comprehensive), `RENT` (rental reimbursement) or `TOW` (towing and labor)."
-coverage = "The coverage name for `coverage_code`, for example `Bodily Injury Liability` or `Uninsured/Underinsured Motorist BI`."
 um_uim_type = "For `UM` features: `Uninsured` (the at-fault driver had no insurance or could not be identified) or `Underinsured` (their limit was too low). Blank for other coverages."
 claimant_number = "The injured person on a `BI` or `UM` feature, numbered from 1 within the claim; each claimant is a separate feature. Always 1 for other coverages. Numbers can skip a claimant who has no claim under this coverage or has not yet presented one."
 feature_status = "`Open`, `Closed`, or `Reopened` (closed once, reopened, and still open on the valuation date). A feature that reopened and closed again shows `Closed` with a `reopen_date`."
 open_date = "Date the coverage was set up: usually the claim's first notice, but injury claimants often present weeks or months later, up to the two-year statute of limitations."
 close_date = "Date the feature closed (its latest close if it reopened). Blank while open or reopened."
 reopen_date = "Date the feature reopened for a supplemental payment, if it did by the valuation date. Blank otherwise."
-paid_loss = "Loss paid to the valuation date, in dollars: net of voided payments, before salvage and subrogation, and excluding expense."
-case_reserve = "Case reserve outstanding on the valuation date, in dollars: the adjuster's estimate of loss still to be paid. Zero once closed."
-incurred_loss = "`paid_loss` plus `case_reserve`, in dollars: incurred loss before recoveries."
-salvage_recovery = "Salvage received to the valuation date, in dollars, as a positive number: the proceeds of selling a total-loss wreck at auction."
-subrogation_recovery = "Subrogation received to the valuation date, in dollars, as a positive number: money recovered from the at-fault party's insurer after the company paid its own customer. Occurs only on collision features."
-net_incurred_loss = "`incurred_loss` minus `salvage_recovery` and `subrogation_recovery`, in dollars. Excludes expense."
 other_insurer_payment = "For `Underinsured` features, what the at-fault driver's insurer paid this claimant, in dollars; the company pays the damages up to its own limit less this amount. Not a company payment. Blank for all other features."
-paid_expense = "Loss adjustment expense paid to the valuation date, in dollars: `paid_dcc_expense` plus `paid_ao_expense`."
-paid_dcc_expense = "Defense and cost containment (DCC) expense paid to the valuation date, in dollars: defense lawyers on litigated features, medical bill and records review otherwise. Only on `BI`, `UM` and `MED` features."
-paid_ao_expense = "Adjusting and other (A&O) expense paid to the valuation date, in dollars: independent appraisals. Only on `PD`, `COLL` and `COMP` features."
-expense_reserve = "Outstanding DCC expense reserve on the valuation date, in dollars. Set when a suit is filed, reduced as legal bills are paid and released at close; 0 on features without a suit."
 injury_type = "On `BI`, `UM` and `MED` features: `Soft Tissue`, `Laceration`, `Fracture`, `Head or Spinal Injury` or `Fatality`. Blank on other coverages. It is set from the feature's eventual cost, so on an open claim it signals how large the claim will become."
-attorney_represented = "`Y` if the injured claimant had hired an attorney by the valuation date, otherwise `N`. Only injury features (`BI`, `UM`, `MED`) can be `Y`."
 attorney_date = "Date the attorney was retained, often within days of the accident and so possibly before `open_date`. Blank if not represented."
-litigation = "`Y` if a lawsuit had been filed on this feature by the valuation date, otherwise `N`."
 suit_date = "Date the suit was filed: after the attorney was retained and the claim presented, and within Illinois' two-year limit. Blank if there is no suit."
 total_loss = "`Y` if the company pays the insured car as a total loss on this collision or comprehensive feature. Flagged from the start, even while the feature is open. `N` otherwise."
-closed_without_payment = "`Y` if the feature is closed with no loss paid (expense may still have been paid): liability denied, an injury claim never pursued, damage below the deductible, or a claim withdrawn. `N` for open features."
 owner_retained_salvage = "`Y` if the owner kept a car the company paid as a total loss: the salvage value came off the settlement, so there is no salvage recovery. Illinois allows this only for hail damage or cars nine or more model years old."
 
 [claim_payment]
@@ -82,7 +58,7 @@ claim_id = "The claim the payment belongs to."
 payment_date = "Date the payment was issued or the recovery received, always a business day."
 payment_type = "`Loss`, `Expense`, `Salvage Recovery` (proceeds from selling a total-loss wreck) or `Subrogation Recovery` (money recovered from the at-fault party's insurer)."
 transaction_type = "For `Loss`: `Partial Payment` (interim payments, lienholder payoffs, and a total-loss settlement later topped up with fees), `Final Payment` (completes the settlement), `Supplemental Payment` (after a reopening), `Void` or `Reissue`. For `Expense`: `DCC Expense` (defense and cost containment) or `A&O Expense` (adjusting and other). For recoveries: `Recovery`."
-amount = "Dollars, signed. Positive for payments and reissues; negative for voids and recoveries (money coming in). A feature's `Loss` rows add up to `claim_feature.paid_loss`. Dropping only the `Void` rows double counts voided payments."
+amount = "Dollars, signed. Positive for payments and reissues; negative for voids and recoveries (money coming in). A feature's `Loss` rows add up to its paid loss. Dropping only the `Void` rows double counts voided payments."
 payee_type = "Who is paid: `Insured`, `Claimant`, `Claimant and Attorney` (a joint check, from the day the attorney is retained), `Vendor`, `Lienholder` (the lender or leasing company on a total loss of a financed or leased car) or `Other Insurer`. On recoveries it is who paid the company: `Vendor` (a salvage auction) or `Other Insurer`."
 payee_name = "The name on the payment: the named insured on the payment date, the claimant, the claimant and their law firm jointly, or the vendor."
 vendor_id = "The vendor paid or recovered from, including the law firm on a joint payment, the lienholder and the other insurer. Blank for payments to the insured or to a claimant alone."
@@ -135,6 +111,22 @@ city = "The vendor's city. Body shops, glass vendors, towing companies and medic
 state = "Two-letter state: `IL` for local vendors; for the others the state of `city` (`IL`, `IN`, `WI`, `OH`, `IA` or `MO`)."
 zip_code = "ZIP code of a local vendor (body shops, glass vendors, towing companies, medical providers). Blank for the other types."
 in_network = "`Y` for body shops (about 35%) and glass vendors (about 60%) in the company's repair network, which receive about three times the work. Always `N` for other types."
+
+[coverage]
+grain = "Coverage"
+summary = """The eight coverages a claim feature can be under, by the code `claim_feature.coverage_code` and the answer key's `unreported_claim.coverage_code` carry. Bodily injury, property damage, uninsured motorist and medical payments are policy-level liability and injury coverages; collision, comprehensive, rental and towing cover the insured car."""
+
+[coverage.columns]
+coverage_code = "Primary key. `BI`, `PD`, `UM`, `MED`, `COLL`, `COMP`, `RENT` or `TOW`."
+coverage_name = "The coverage's name, as on the policy."
+
+[cause_of_loss]
+grain = "Cause of loss"
+summary = """The causes of loss a claim is coded with (`claim.cause_of_loss`): three kinds of collision (by who was at fault), a car struck while parked, glass, theft, vandalism, animal strikes, weather, flood, fire and other comprehensive losses, and the three catastrophe perils of `catastrophe`."""
+
+[cause_of_loss.columns]
+cause_of_loss = "Primary key. The code, such as `AF_MV` (a collision with another vehicle, the insured at fault) or `HAIL_CAT`."
+description = "What the code means."
 
 [claim_office]
 grain = "Claim office"
@@ -222,7 +214,7 @@ summary = """Each feature in `claim_feature` as it finally develops, including p
 
 [claim_feature_truth.columns]
 claim_feature_id = "Primary key, and the `claim_feature` described."
-ultimate_paid_loss = "Total loss the feature will have paid once settled, in dollars, including payments after the valuation date; before salvage and subrogation, excluding expense. Equals `claim_feature.paid_loss` when nothing is left to pay."
+ultimate_paid_loss = "Total loss the feature will have paid once settled, in dollars, including payments after the valuation date; before salvage and subrogation, excluding expense. Equals the feature's `Loss` payments to the valuation date when nothing is left to pay."
 ultimate_recovery = "Total salvage and subrogation the feature will eventually recover, in dollars, as a positive number. Ultimate net loss is `ultimate_paid_loss` minus this."
 ultimate_expense = "Total DCC (defense and cost containment) plus A&O (adjusting and other) expense the feature will eventually pay, in dollars."
 eventual_reopen_date = "Date the feature reopens for a supplemental payment, even if after the valuation date. Blank if it never reopens. A date after the valuation date marks a closed feature that the data cannot yet show will reopen."
@@ -239,7 +231,7 @@ race_ethnicity = "The driver's race and ethnicity group. The insurer never recor
 
 [exposure_truth]
 grain = "Exposure row (policy term, vehicle and endorsement period)"
-summary = """The true expected loss of each `exposure` row by coverage, in dollars, over the part of its cover inside the extract (the same period as its `earned_exposure` and `earned_premium`). Figures are pure loss after limits and deductibles: no adjustment expense, no catastrophe events, and claims counted however late they are reported. Expected loss over earned premium gives a loss ratio free of claim luck, the cleanest test of where the rating plan over- or under-charges."""
+summary = """The true expected loss of each `exposure` row by coverage, in dollars, over the part of its cover inside the extract: from its cover start (or January 1, 2022) to its cover end (or the day after the valuation date), the days its exposure and premium are earned. Figures are pure loss after limits and deductibles: no adjustment expense, no catastrophe events, and claims counted however late they are reported. Expected loss over earned premium gives a loss ratio free of claim luck, the cleanest test of where the rating plan over- or under-charges."""
 
 [exposure_truth.columns]
 exposure_id = "Primary key, and the `exposure` row described."
@@ -251,7 +243,7 @@ expected_loss_coll = "Expected collision loss, in dollars, after the deductible 
 expected_loss_comp = "Expected comprehensive loss, in dollars, after the deductibles and net of expected salvage, leaving out catastrophe events. 0 without comprehensive cover."
 expected_loss_rent = "Expected rental reimbursement loss, in dollars, within the daily and per-claim limits. 0 without the cover."
 expected_loss_tow = "Expected towing and labor loss, in dollars, within the towing limit. 0 without the cover."
-expected_loss_total = "Sum of the eight coverages, rounded on its own, so it can differ from the sum of the rounded columns by a few cents. Coverage premiums in `exposure` are full-term rates: scale them by `earned_premium` over `total_premium` before comparing coverage by coverage."
+expected_loss_total = "Sum of the eight coverages, rounded on its own, so it can differ from the sum of the rounded columns by a few cents. Coverage premiums in `exposure` are full-term rates: scale them by the row's earned days over its term's days before comparing coverage by coverage."
 
 [insured_vehicle_truth]
 grain = "Insured vehicle"

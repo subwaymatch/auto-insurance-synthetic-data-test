@@ -78,37 +78,110 @@ OVERALL_LOSS_RATIO_BAND = (0.62, 0.76)
 INDUSTRY_LOSS_RATIO_BAND = {2022: (0.74, 0.85), 2023: (0.68, 0.80), 2024: (0.59, 0.70), 2025: (0.55, 0.67)}
 
 
+def load(out: Path) -> dict:
+    """Every table of an output folder, read exactly as a user of the data would read the CSV files."""
+    read = lambda f: pd.read_csv(f, keep_default_na=False, na_values=[""], low_memory=False, dtype={"zip_code": str, "change_reason": str})
+    return {f.stem: read(f) for f in sorted(Path(out).glob("*.csv"))}
+
+
+def rebuild(t: dict, start, valuation) -> dict:
+    """Add back the totals the tables leave to their users, worked out from the records they hold, so the checks
+    below can use them. The tables keep what an insurer's systems record (payments, reserve changes, premium
+    transactions, coverage dates) and leave out what an analyst totals from them; this is how:
+
+    * a feature's paid loss, recoveries, expenses and case and expense reserves as of the valuation date are its
+      claim_payment rows and its last claim_reserve_transaction balance of each type (a loss run); a claim's are
+      the sum of its features';
+    * an exposure row earns from its cover start (or the extract start) to its cover end (or the day after the
+      valuation date): its earned exposure in years and its premium pro rata over the term's days;
+    * a term's endorsement and return premium are its premium transactions of those types, its earned premium
+      that of its exposure rows, its vehicles at the start the rows beginning on its effective date;
+    * a driver's prior violations and at-fault accidents are those in driver_incident dated in the three years
+      before joining and known by then.
+    Changes and returns `t` (a dict of the tables by name)."""
+    start, valuation = pd.Timestamp(start), pd.Timestamp(valuation)
+    dt = lambda x: pd.to_datetime(x)
+    feat, pay, res = t["claim_feature"], t["claim_payment"], t["claim_reserve_transaction"]
+    fid = feat["claim_feature_id"]
+    total = lambda m: pay[m].groupby("claim_feature_id")["amount"].sum().reindex(fid).fillna(0).round(2).to_numpy()
+    kind, txn = pay["payment_type"], pay["transaction_type"]
+    feat["paid_loss"] = total(kind == "Loss")
+    feat["salvage_recovery"] = -total(kind == "Salvage Recovery") + 0.0
+    feat["subrogation_recovery"] = -total(kind == "Subrogation Recovery") + 0.0
+    feat["paid_dcc_expense"], feat["paid_ao_expense"] = total(txn == "DCC Expense"), total(txn == "A&O Expense")
+    feat["paid_expense"] = (feat["paid_dcc_expense"] + feat["paid_ao_expense"]).round(2)
+    last = res.sort_values(["claim_feature_id", "reserve_type", "transaction_date", "reserve_transaction_id"], kind="stable") \
+        .groupby(["claim_feature_id", "reserve_type"])["outstanding_reserve"].last().unstack()
+    for col, rtype in (("case_reserve", "Loss"), ("expense_reserve", "Expense")):
+        feat[col] = last[rtype].reindex(fid).fillna(0).to_numpy() if rtype in last else 0.0
+    feat["incurred_loss"] = (feat["paid_loss"] + feat["case_reserve"]).round(2)
+    feat["net_incurred_loss"] = (feat["incurred_loss"] - feat["salvage_recovery"] - feat["subrogation_recovery"]).round(2)
+    clm = t["claim"]
+    by_claim = feat.groupby("claim_id")
+    for col in ("paid_loss", "case_reserve", "net_incurred_loss", "paid_expense", "expense_reserve"):
+        clm[col] = by_claim[col].sum().reindex(clm["claim_id"]).fillna(0).round(2).to_numpy()
+    clm["recoveries"] = (by_claim["salvage_recovery"].sum() + by_claim["subrogation_recovery"].sum()).reindex(clm["claim_id"]).fillna(0).to_numpy()
+
+    risk, term = t["exposure"], t["policy_term"]
+    tm = term.set_index("policy_term_id")
+    span = (dt(tm["expiration_date"]) - dt(tm["effective_date"])).dt.days.reindex(risk["policy_term_id"]).to_numpy()
+    s_ = np.maximum(dt(risk["coverage_start_date"]), start)
+    e_ = np.minimum(dt(risk["coverage_end_date"]), valuation + pd.Timedelta(days=1))
+    days = (e_ - s_).dt.days.clip(lower=0).to_numpy()
+    risk["earned_exposure"] = days / 365.25
+    risk["earned_premium"] = (risk["total_premium"] * days / span).round(2)
+    before = (np.minimum(dt(risk["coverage_end_date"]), start) - dt(risk["coverage_start_date"])).dt.days.clip(lower=0).to_numpy()
+    veh, vmy = t["insured_vehicle"], t["vehicle_model_year"]
+    risk["vehicle_model_year_id"] = veh.set_index("insured_vehicle_id")["vehicle_model_year_id"].reindex(risk["insured_vehicle_id"]).to_numpy()
+    risk["model_year"] = vmy.set_index("vehicle_model_year_id")["model_year"].reindex(risk["vehicle_model_year_id"]).to_numpy()
+    tx = t["premium_transaction"].groupby(["policy_term_id", "transaction_type"])["written_premium"].sum().unstack()
+    tid = term["policy_term_id"]
+    term["endorsement_premium"] = tx.get("Endorsement", pd.Series(dtype=float)).reindex(tid).fillna(0).round(2).to_numpy()
+    term["return_premium"] = tx.get("Cancellation", pd.Series(dtype=float)).reindex(tid).fillna(0).round(2).to_numpy()
+    term["earned_premium"] = risk.groupby("policy_term_id")["earned_premium"].sum().reindex(tid).fillna(0).round(2).to_numpy()
+    term["earned_premium_before_extract"] = pd.Series(risk["total_premium"].to_numpy() * before / span) \
+        .groupby(risk["policy_term_id"].to_numpy()).sum().reindex(tid).fillna(0).round(2).to_numpy()
+    at_start = dt(risk["coverage_start_date"]).to_numpy() == dt(tm["effective_date"]).reindex(risk["policy_term_id"]).to_numpy()
+    term["vehicles_at_term_start"] = risk[at_start].groupby("policy_term_id").size().reindex(tid).fillna(0).astype(int).to_numpy()
+
+    drv, inc = t["driver"], t["driver_incident"]
+    j = inc.merge(drv[["driver_id", "added_date"]], on="driver_id")
+    j = j[(dt(j["incident_date"]) <= dt(j["added_date"])) & (dt(j["incident_date"]) > dt(j["added_date"]) - pd.Timedelta(days=3 * 365))
+          & (dt(j["known_date"]) <= dt(j["added_date"]))]
+    count = lambda m: j[m].groupby("driver_id").size().reindex(drv["driver_id"]).fillna(0).astype(int).to_numpy()
+    drv["prior_violations"] = count(j["incident_type"] != "At-Fault Accident")
+    drv["prior_accidents"] = count(j["incident_type"] == "At-Fault Accident")
+    return t
+
+
 def integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes) -> None:
     """Reserve history, claim detail, vehicle identifiers and the quote funnel."""
     r = reserves.sort_values(["claim_feature_id", "reserve_type", "transaction_date", "reserve_transaction_id"], kind="stable")
     running = r.groupby(["claim_feature_id", "reserve_type"])["change_amount"].cumsum()
     last = r.groupby(["claim_feature_id", "reserve_type"])["outstanding_reserve"].last().unstack()
     at_val = lambda kind: (last[kind] if kind in last else pd.Series(dtype=float)).reindex(feat["claim_feature_id"]).fillna(0).to_numpy()
-    rep.check("reserve history balances, and ends at each feature's case and expense reserve",
+    rep.check("each reserve balance is the running total of the changes before it, and a closed feature has none left",
               np.allclose(running, r["outstanding_reserve"], atol=0.01)
-              and np.allclose(at_val("Loss"), feat["case_reserve"], atol=0.01)
-              and np.allclose(at_val("Expense"), feat["expense_reserve"], atol=0.01),
+              and np.allclose(at_val("Loss")[(feat["feature_status"] == "Closed").to_numpy()], 0, atol=0.01),
               f"{len(reserves):,} reserve transactions")
     dt = lambda x: pd.to_datetime(x)
     f = feat.merge(clm[["claim_id", "loss_date", "at_fault", "insured_fault_pct", "report_date", "siu_referral_date"]], on="claim_id")
-    suits = f[f["litigation"] == "Y"]
+    suits = f[f["suit_date"].notna()]
     rep.check("suits follow the attorney and the claim, precede the close, and fall within Illinois' two-year limit",
               (dt(suits["suit_date"]) >= dt(suits["attorney_date"])).all()
               and (dt(suits["suit_date"]) >= dt(suits["open_date"])).all()
               and (suits["close_date"].isna() | (dt(suits["suit_date"]) < dt(suits["close_date"]))).all()
               and ((dt(suits["suit_date"]) - dt(suits["loss_date"])).dt.days <= 730).all(),
-              f"{(feat['attorney_represented'] == 'Y').sum():,} represented claimants, {len(suits):,} suits")
+              f"{feat['attorney_date'].notna().sum():,} represented claimants, {len(suits):,} suits")
     fault = clm.dropna(subset=["insured_fault_pct"])
-    att = f[f["attorney_represented"] == "Y"]
+    att = f[f["attorney_date"].notna()]
     rep.check("attorneys are retained after the loss and before the feature closes",
               (dt(att["attorney_date"]) >= dt(att["loss_date"])).all()
               and (att["close_date"].isna() | (dt(att["attorney_date"]) <= dt(att["close_date"]))).all())
     rep.check("an insured at fault is over 50% at fault, and one not at fault is under 51%",
               ((fault["at_fault"] == "Y") == (fault["insured_fault_pct"] > 50)).all())
-    siu = clm[clm["siu_referral"] == "Y"]
+    siu = clm[clm["siu_referral_date"].notna()]
     rep.check("fraud referrals come after the claim is reported", (siu["siu_referral_date"] >= siu["report_date"]).all())
-    rep.check("VIN prefixes are consistent for each make, model and model year",
-              (veh.groupby("vehicle_model_year_id")["vin_prefix"].nunique() == 1).all())
     b = quotes[quotes["bound"] == "Y"].merge(term[term["business_type"] == "New"], on="policy_id")
     rep.check("every bound quote is a new-business policy starting on the quoted date",
               (b["proposed_effective_date"] == b["effective_date"]).all() and (quotes["quote_date"] <= quotes["proposed_effective_date"]).all(),
@@ -167,8 +240,7 @@ def integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy
     vin = veh["vin"]
     rep.check("every VIN is unique, has 17 characters and a valid check digit, and follows its model year's pattern",
               vin.is_unique and (vin.str.len() == 17).all() and (vin.str[8] == vin_check_digit(vin)).all()
-              and (vin.str[:8] == pd.Series(pattern).str[:8]).all() and (vin.str[9] == pd.Series(pattern).str[9]).all()
-              and (veh["vin_prefix"] == pattern).all())
+              and (vin.str[:8] == pd.Series(pattern).str[:8]).all() and (vin.str[9] == pd.Series(pattern).str[9]).all())
     number = clm.set_index("claim_id")["claim_number"].reindex(feat["claim_id"]).to_numpy()
     rep.check("claim, feature and quote numbers are unique; a feature's number extends its claim's",
               clm["claim_number"].is_unique and feat["feature_number"].is_unique and quotes["quote_number"].is_unique
@@ -371,11 +443,10 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
               not vmy.duplicated(["make", "model", "model_year"]).any() and vmy["vehicle_model_year_id"].is_unique,
               f"{len(vmy):,} model years of {vmy.groupby(['make', 'model']).ngroups:,} models from {vmy['make'].nunique()} makes")
     known = vmy.set_index("vehicle_model_year_id")
-    rep.check("insured vehicles, exposure rows and claims point to catalog rows",
-              veh["vehicle_model_year_id"].isin(known.index).all() and risk["vehicle_model_year_id"].isin(known.index).all()
-              and clm["vehicle_model_year_id"].isin(known.index).all())
-    rep.check("each exposure row's model year is its catalog row's",
-              (known["model_year"].reindex(risk["vehicle_model_year_id"]).to_numpy() == risk["model_year"].to_numpy()).all())
+    rep.check("insured vehicles and claims point to catalog rows, a claim to its vehicle's",
+              veh["vehicle_model_year_id"].isin(known.index).all() and clm["vehicle_model_year_id"].isin(known.index).all()
+              and (veh.set_index("insured_vehicle_id")["vehicle_model_year_id"].reindex(clm["insured_vehicle_id"]).to_numpy()
+                   == clm["vehicle_model_year_id"].to_numpy()).all())
     years = risk.groupby("model_year")["earned_exposure"].sum().sort_index()
     rep.check("no pile-up of older cars at the catalog's first model year", years.iloc[0] <= 1.5 * years.iloc[1],
               f"{years.index[0]}: {years.iloc[0]:,.0f} car-years, {years.index[1]}: {years.iloc[1]:,.0f}", statistical=True)
@@ -483,10 +554,6 @@ def integrity_renewals(rep, offers, term, risk, valuation) -> None:
               (g["n"].to_numpy() == o["vehicles_offered"].to_numpy()).all()
               and np.allclose(g["prem"].to_numpy(), o["expiring_premium"].to_numpy(), atol=0.05),
               f"{(o['vehicles_offered'] == 0).sum():,} offers with no vehicle on the policy that day (a replacement to come)")
-    has = o["expiring_premium"] > 0
-    pct = np.round((o.loc[has, "renewal_premium"] / o.loc[has, "expiring_premium"] - 1) * 100, 1)
-    rep.check("the premium change is the renewal premium against the expiring premium",
-              (np.abs(pct - o.loc[has, "premium_change_pct"]) <= 0.11).all() and o.loc[~has, "premium_change_pct"].isna().all())
     # outcomes
     ren = o[o["outcome"] == "Renewed"]
     new = t.reindex(ren["renewal_policy_term_id"].astype(int))
@@ -645,27 +712,29 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
                    (feat, "open_date"), (feat, "close_date"), (feat, "suit_date"), (feat, "attorney_date"),
                    (pay, "payment_date"), (inc, "known_date"), (term, "cancel_date"), (risk, "coverage_start_date"))))
 
-    # the policy as it stands: on the valuation date if in force, else on its last day of cover
-    as_at = np.where(pol["policy_status"] == "In Force", valuation, dt(pol["latest_expiration_date"]) - pd.Timedelta(days=1))
+    # the policy as it stands: its status is its latest term's; on the valuation date if in force, else on its last
+    # day of cover, the cars its exposure rows cover are the cars the vehicle table lists
+    latest = term.assign(es=dt(term["effective_date"])).sort_values(["policy_id", "es"], kind="stable").groupby("policy_id").tail(1) \
+        .set_index("policy_id").reindex(pol["policy_id"])
+    status = np.where(latest["cancel_date"].notna(), "Canceled", np.where(latest["nonrenewal_reason"].notna(), "Non-Renewed", "In Force"))
+    rep.check("each policy's status is its latest term's (canceled, not renewed or in force)",
+              (pol["policy_status"].to_numpy() == status).all(), f"{pol['policy_status'].value_counts().to_dict()}")
+    end = dt(latest["cancel_date"].fillna(latest["expiration_date"])).to_numpy()
+    as_at = np.where(status == "In Force", valuation.to_datetime64(), end - np.timedelta64(1, "D"))
     as_at = pd.Series(np.minimum(as_at, valuation.to_datetime64()), index=pol["policy_id"].to_numpy())
     day = as_at.reindex(risk["policy_id"]).to_numpy()
     covered = risk[(cov_s.to_numpy() <= day) & (cov_e.to_numpy() > day)].groupby("policy_id")["insured_vehicle_id"].nunique()
     day = as_at.reindex(veh["policy_id"]).to_numpy()
     listed = veh[(dt(veh["added_date"]).to_numpy() <= day) & ~(dt(veh["removed_date"]).to_numpy() <= day)].groupby("policy_id").size()
-    day = as_at.reindex(drv["policy_id"]).to_numpy()
-    drivers = drv[(dt(drv["added_date"]).to_numpy() <= day) & ~(dt(drv["removed_date"]).to_numpy() <= day)].groupby("policy_id").size()
     count = lambda g: g.reindex(pol["policy_id"]).fillna(0).to_numpy()
-    in_force = (pol["policy_status"] == "In Force").to_numpy()
-    rep.check("each policy's vehicle count is the vehicles covered at its latest status (risk rows and vehicle dates agree)",
-              (pol["number_of_vehicles"].to_numpy() == count(covered)).all() and (count(covered) == count(listed)).all(),
-              f"{pol['number_of_vehicles'][in_force].sum():,} vehicles on {in_force.sum():,} policies in force, "
-              f"{(pol['number_of_vehicles'][in_force] == 0).sum():,} of them waiting for a replacement car")
-    rep.check("each policy's driver count is the drivers on it at its latest status",
-              (pol["number_of_drivers"].to_numpy() == count(drivers)).all())
+    in_force = (status == "In Force")
+    rep.check("the cars covered at each policy's latest status are the cars the vehicle table lists on it then",
+              (count(covered) == count(listed)).all(),
+              f"{count(covered)[in_force].sum():,.0f} vehicles on {in_force.sum():,} policies in force, "
+              f"{(count(covered)[in_force] == 0).sum():,} of them waiting for a replacement car")
     at_start = cov_s.to_numpy() == dt(term.set_index("policy_term_id")["effective_date"]).reindex(risk["policy_term_id"]).to_numpy()
-    opening = risk[at_start].groupby("policy_term_id").size().reindex(term["policy_term_id"]).fillna(0).to_numpy()
-    rep.check("each term's opening vehicle count is its risk rows at the term start (endorsement 0)",
-              (term["vehicles_at_term_start"].to_numpy() == opening).all() and ((risk["endorsement_number"] == 0) == at_start).all())
+    rep.check("a term's first exposure rows (endorsement 0) are the ones starting on its effective date",
+              ((risk["endorsement_number"] == 0) == at_start).all())
 
     # information timing: every rated record is exactly the incidents with a known date on or before the
     # row's rating date (the term's rating date, before it takes effect, or the day of a mid-term change),
@@ -737,8 +806,11 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
               and (nxt.isna() | (nxt == tt["expiration_date"])).all(),
               f"{(es.dt.day >= 29).mean():.1%} of terms start on the 29th to 31st")
 
-    # premium: written + endorsements + returns = earned before the extract + earned in it, for finished terms
-    done = term["cancel_date"].notna() | (dt(term["expiration_date"]) <= valuation)
+    # premium: written + endorsements + returns = earned before the extract + earned in it, for terms finished long
+    # enough before the valuation date that every change to them has been processed (premium_transaction holds only
+    # transactions processed by then)
+    ended = dt(term["cancel_date"].fillna(term["expiration_date"]))
+    done = ended <= valuation - pd.Timedelta(days=90)
     gap = (term["written_premium"] + term["endorsement_premium"] + term["return_premium"]
            - term["earned_premium_before_extract"] - term["earned_premium"])[done]
     rep.check("finished terms' written, endorsement and return premium equal their earned premium",
@@ -979,21 +1051,21 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent / "output")
     out = ap.parse_args().out
-    read = lambda name, **kw: pd.read_csv(out / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False, **kw)
-    pol, term, risk = read("policy"), read("policy_term"), read("exposure")
-    drv, veh, loc = read("driver"), read("insured_vehicle"), read("location")
-    clm, feat, pay = read("claim"), read("claim_feature"), read("claim_payment")
-    inc, ledger = read("driver_incident"), read("premium_transaction")
-    reserves, quotes, vmy = read("claim_reserve_transaction"), read("quote"), read("vehicle_model_year")
-    enrol, tscores = read("telematics_enrollment"), read("telematics_score")
-    offers = read("renewal_offer")
-    inv, rec, emp, vend = read("billing_invoice"), read("billing_receipt"), read("employee"), read("vendor")
-    agency, contact = read("agency", dtype={"zip_code": str}), read("customer_contact")
-    gl, acct, stmt, rates = read("gl_journal"), read("gl_account"), read("agency_statement"), read("rate_change")
-    truth = pd.read_csv(out / "answer_key" / "exposure_truth.csv")
-    plan = json.loads((out / "answer_key" / "rating_plan.json").read_text())
     summary = json.loads((out / "run_summary.json").read_text())
     start, valuation = np.datetime64(summary["start"]), np.datetime64(summary["valuation"])
+    t = rebuild(load(out), start, valuation)          # the totals an analyst works out from the records
+    pol, term, risk = t["policy"], t["policy_term"], t["exposure"]
+    drv, veh, loc = t["driver"], t["insured_vehicle"], t["location"]
+    clm, feat, pay = t["claim"], t["claim_feature"], t["claim_payment"]
+    inc, ledger = t["driver_incident"], t["premium_transaction"]
+    reserves, quotes, vmy = t["claim_reserve_transaction"], t["quote"], t["vehicle_model_year"]
+    enrol, tscores = t["telematics_enrollment"], t["telematics_score"]
+    offers = t["renewal_offer"]
+    inv, rec, emp, vend = t["billing_invoice"], t["billing_receipt"], t["employee"], t["vendor"]
+    agency, contact = t["agency"], t["customer_contact"]
+    gl, acct, stmt, rates = t["gl_journal"], t["gl_account"], t["agency_statement"], t["rate_change"]
+    truth = pd.read_csv(out / "answer_key" / "exposure_truth.csv")
+    plan = json.loads((out / "answer_key" / "rating_plan.json").read_text())
     pd.set_option("display.width", 200)
     rep = Report(calibrate=len(pol) >= MIN_POLICIES_FOR_CALIBRATION)
     if not rep.calibrate:
@@ -1028,10 +1100,6 @@ def main() -> None:
     rep.check("every loss date falls inside its policy term", ((c["loss_date"] >= c["effective_date"]) & (c["loss_date"] < end)).all())
     rep.check("report date is on or after loss date", (clm["report_date"] >= clm["loss_date"]).all())
     rep.check("no negative premiums", (risk[[x for x in risk.columns if x.endswith("_premium")]] >= 0).all().all())
-    paid = pay[pay["payment_type"] == "Loss"].groupby("claim_feature_id").amount.sum().reindex(feat["claim_feature_id"]).fillna(0)
-    rep.check("loss payments add up to paid loss on every feature", np.allclose(paid.to_numpy(), feat["paid_loss"].to_numpy(), atol=0.02))
-    rep.check("claim totals equal the sum of their features",
-              np.allclose(feat.groupby("claim_id")["net_incurred_loss"].sum().reindex(clm["claim_id"]).to_numpy(), clm["net_incurred_loss"].to_numpy(), atol=0.05))
     cov_ok = feat.merge(clm[["claim_id", "exposure_id", "cause_of_loss"]], on="claim_id").merge(risk, on="exposure_id")
     rep.check("physical damage, rental and towing claims only on risk rows carrying that coverage",
               all((cov_ok.loc[cov_ok["coverage_code"] == k, col] > 0).all() for k, col in
@@ -1057,14 +1125,10 @@ def main() -> None:
                                                                   else [1.0] * len(d["factors"]))
                   for k, d in filed.items() for cov in plan["relativities"]),
               "; ".join(f"{k} {list(d['factors'].values())}" for k, d in filed.items()))
-    old = term[pd.to_datetime(term["expiration_date"]) < pd.Timestamp(valuation) - pd.Timedelta(days=90)]
-    written = ledger[ledger["transaction_type"] != "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
-    returned = ledger[ledger["transaction_type"] == "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
-    gap_w = old["written_premium"] + old["endorsement_premium"] - written.reindex(old["policy_term_id"]).fillna(0).to_numpy()
-    gap_r = old["return_premium"] - returned.reindex(old["policy_term_id"]).fillna(0).to_numpy()
-    rep.check("the transaction ledger adds up to each completed term's written, endorsement and return premium",
-              (gap_w.abs() <= 0.01 * old["vehicles_at_term_start"] + 0.05).all() and (gap_r.abs() <= 0.05).all(),
-              f"{ledger['transaction_type'].value_counts().to_dict()}")
+    first_tx = ledger[ledger["transaction_type"].isin(["New Business", "Renewal"])].groupby("policy_term_id")["written_premium"].sum()
+    gap = term["written_premium"] - first_tx.reindex(term["policy_term_id"]).fillna(0).to_numpy()
+    rep.check("each term's written premium is its new-business or renewal transaction",
+              (gap.abs() <= 0.005).all(), f"{ledger['transaction_type'].value_counts().to_dict()}")
 
     print("\nFREQUENCY AND SEVERITY (paid claims by coverage: accidents in the extract, every deductible and cause, loss only)")
     f_all = feat.merge(clm[["claim_id", "exposure_id", "loss_date", "catastrophe_id", "cause_of_loss"]], on="claim_id")
@@ -1154,7 +1218,8 @@ def main() -> None:
         vmy.set_index("vehicle_model_year_id")["model_year"].reindex(veh["vehicle_model_year_id"]).to_numpy()
     print(f"  vehicles: mean age {vage.mean():.1f} years, {(veh['collision_coverage'] == 'Y').mean():.1%} with collision, "
           f"{(veh['comprehensive_coverage'] == 'Y').mean():.1%} with comprehensive, {(veh['removed_date'].isna()).sum() / len(pol):.2f} per policy, removals {veh['removal_reason'].value_counts().to_dict()}")
-    print(f"  BI limits: {pol['bi_limit'].value_counts(normalize=True).round(3).to_dict()}")
+    now = risk[(pd.to_datetime(risk["coverage_start_date"]) <= valuation) & (pd.to_datetime(risk["coverage_end_date"]) > valuation)]
+    print(f"  BI limits of the cars in force at the valuation date: {now['bi_limit'].value_counts(normalize=True).round(3).to_dict()}")
     print(f"  underwriting company mix: {pol['company_id'].value_counts(normalize=True).sort_index().round(3).to_dict()}")
     ended = term[(pd.to_datetime(term["expiration_date"]) <= pd.Timestamp(valuation))]
     lapsed = ended["cancel_date"].notna() | ended["nonrenewal_reason"].notna()

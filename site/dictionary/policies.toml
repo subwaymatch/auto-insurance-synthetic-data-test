@@ -10,29 +10,19 @@ agency_id = "The agency that wrote the policy. Direct business points to one of 
 producer_id = "The licensed agent at the agency who services the policy. Blank for direct business."
 company_id = "The underwriting company the policy is placed with: Lakefront Preferred, Lakefront Mutual (standard) or Prairie Path Casualty (non-standard). Set when the policy is written, from its insurance score, driving record and prior insurance."
 distribution_channel = "How the policy was sold: `Independent Agent`, `Exclusive Agent` or `Direct`."
-original_inception_date = "The date the policy was first written. For policies in force on January 1, 2022 it can be decades earlier; for new business it equals `first_effective_date`."
-first_effective_date = "The effective date of the policy's first term in the data. For policies in force on January 1, 2022 this is the term then running, so it falls on or before that date."
-latest_expiration_date = "The end of the policy's cover: the expiration date of its latest term, or the cancellation date if it was canceled. For a policy in force it is after the valuation date."
+original_inception_date = "The date the policy was first written. For policies in force on January 1, 2022 it can be decades earlier; for new business it equals its first term's `effective_date`."
 term_months = "Term length in months: `6` or `12`."
-policy_status = "Status on the valuation date: `In Force`, `Canceled` or `Non-Renewed`. A company non-renewal counts once its notice is sent, so a few `Non-Renewed` policies are still covered until a `latest_expiration_date` after the valuation date."
-status_reason = "Why the policy ended. For `Canceled`: `Underwriting`, `Non-Payment`, `Insured Request` or `Insured Deceased`. For `Non-Renewed`: `Company Non-Renewal` or `Insured Did Not Renew`. Blank for policies in force."
-cancel_date = "The date the cancellation took effect. Blank unless `policy_status` is `Canceled`."
+policy_status = "Status on the valuation date: `In Force`, `Canceled` or `Non-Renewed`. A company non-renewal counts once its notice is sent, so a few `Non-Renewed` policies are still covered until their last term expires after the valuation date. Why and when a policy ended is on its last term in `policy_term`."
 named_insured_driver_id = "The current named insured. If the named insured dies and a spouse takes over the policy, this points to the spouse; the original named insured stays in `driver` as removed."
-number_of_drivers = "Drivers on the policy at its latest status (the valuation date if in force, otherwise the last day of cover), counted from each driver's added and removed dates."
-number_of_vehicles = "Vehicles on the policy at its latest status, counted the same way. It differs from `policy_term.vehicles_at_term_start` when a car was added or removed during the latest term."
 homeowner = "`Y` if the named insured owns their home, at the latest status, otherwise `N`. It can change only when the household moves."
 multi_policy = "`Y` if the household also holds another policy with the company (bundling), which earns the multi-policy discount, otherwise `N`. Fixed for the policy's life."
 prior_insurance = "`Y` if the household had continuous insurance before the policy was written, otherwise `N`. Without it, liability, medical and collision premiums carry an 8% surcharge. Always `Y` for policies in force on January 1, 2022."
 insurance_score = "The household's insurance score used in rating and company placement, from 350 to 900 (higher is better). Blank for a no-hit (no score available), which is rated as its own tier. Fixed for the policy's life."
 payment_plan = "How the premium is paid: `Paid in Full`, `Monthly EFT` (monthly bank draft) or `Monthly Bill`. Fixed for the policy's life."
-bi_limit = "Bodily injury liability limits at the latest status, in thousands of dollars per person / per accident: `25/50`, `50/100`, `100/300`, `250/500` or `500/500`. Limits can change at renewal; `exposure.bi_limit` has those in force on each date."
-pd_limit = "Property damage liability limit in dollars at the latest status: `20000`, `50000`, `100000` or `250000`. It goes with the bodily injury option (`100/300` and `250/500` both carry `100000`)."
-um_limit = "Uninsured/underinsured motorist bodily injury limits at the latest status, in thousands of dollars per person / per accident. Same values as `bi_limit` and never higher than it."
-med_pay_limit = "Medical payments limit in dollars: `0` (no medical payments cover), `1000`, `2000`, `5000` or `10000`."
 
 [policy_term]
 grain = "Policy term (6 or 12 months)"
-summary = """One row per policy term, from the term in force on January 1, 2022 (for policies already on the books) through every term that started by the valuation date. It holds each term's dates, its cancellation or non-renewal, and its premium: written at the start, endorsements, the return on cancellation, and premium earned before and inside the extract. Terms in force on January 1, 2022 began earlier, and only the part after that date counts in `earned_premium`."""
+summary = """One row per policy term, from the term in force on January 1, 2022 (for policies already on the books) through every term that started by the valuation date. It holds each term's dates, its cancellation or non-renewal, and the premium written at its start. Its endorsements and the return on a cancellation are its rows in `premium_transaction`, and the premium earned is its `exposure` rows' (each row's full-term premium times its days inside the extract over the term's days). Terms in force on January 1, 2022 began earlier, and only the part after that date is earned in the extract."""
 
 [policy_term.columns]
 policy_term_id = "Primary key."
@@ -46,13 +36,7 @@ rating_date = "Date the term was last rated, using only what was known that day.
 cancel_date = "Date a cancellation took effect during the term. Blank if the term was not canceled. Only cancellations on or before the valuation date appear."
 cancel_reason = "`Underwriting` (new business canceled in its first 60 days), `Non-Payment` (three to four weeks after a billed installment went unpaid), `Insured Request` (including a policy whose last car went with no replacement) or `Insured Deceased`. Blank if the term was not canceled."
 nonrenewal_reason = "On the last term of a policy that did not renew: `Company Non-Renewal` or `Insured Did Not Renew`. Blank otherwise."
-vehicles_at_term_start = "Vehicles on the policy on the term's effective date (0 if the term began while a replacement car was still to come). `policy.number_of_vehicles` is the count at the latest status instead."
 written_premium = "Full-term premium in dollars for the vehicles on the policy at the term start, as rated on `rating_date`. For terms in force on January 1, 2022 it was written before the extract."
-endorsement_premium = "Net premium in dollars added (positive) or returned (negative) by mid-term changes, pro rata to the end of the term. It excludes the premium returned on cancellation."
-return_premium = "Premium in dollars returned when the term was canceled, as a negative number; 0 if it was not canceled."
-earned_premium_before_extract = "Premium in dollars earned before January 1, 2022. Non-zero only for terms in force on that date."
-earned_premium = "Premium in dollars earned from January 1, 2022 through the valuation date or the end of cover. For a finished term, written + endorsement + return premium equals the two earned columns added; a term still running also has unearned premium."
-rate_level_index = "The company's filed rate level in force for the term's effective date, relative to January 1, 2022 (1.0). Terms effective earlier also show 1.0. It matches `rate_change.cumulative_rate_level`."
 
 [premium_transaction]
 grain = "Premium transaction"
@@ -78,7 +62,7 @@ summary = """One row per new-business quote given between January 1, 2022 and th
 quote_id = "Primary key."
 quote_number = "The quote number given to the customer: `Q`, the two-digit year and a seven-digit sequence that restarts each year and has gaps, for example `Q24-0067681`."
 quote_date = "Date the quote was given. Agents quote mostly on weekdays; the website quotes every day."
-proposed_effective_date = "Requested start date of cover, 0 to 14 days after `quote_date`. For a bound quote it is the policy's `first_effective_date`."
+proposed_effective_date = "Requested start date of cover, 0 to 14 days after `quote_date`. For a bound quote it is the `effective_date` of the policy's first term."
 distribution_channel = "How the quote came in: `Independent Agent`, `Exclusive Agent` or `Direct`."
 agency_id = "The agency that gave the quote; for a direct quote, one of the company's two direct units."
 location_id = "The garaging ZIP code quoted."
@@ -109,7 +93,6 @@ renewal_effective_date = "Date the renewal term would start: the expiring term's
 vehicles_offered = "Vehicles on the policy on the offer date (the expiring term's exposure rows in force that day)."
 expiring_premium = "Full-term premium in dollars for the vehicles offered, at the expiring term's rates and rating. It differs from the expiring term's written premium when cars changed during that term."
 renewal_premium = "Full-term premium in dollars offered for the same vehicles for the renewal term, as rated on the offer date (also calculated for company non-renewals). The renewal term's written premium can differ after a revised offer or a coverage change at renewal."
-premium_change_pct = "Percent change from `expiring_premium` to `renewal_premium`, to one decimal (`-3.6` means 3.6% lower). Blank when `expiring_premium` is 0 because no vehicle was in force on the offer date."
 telematics_opt_in = "Whether the policy joined the DriveCheck telematics program with this renewal: `Y` joined, `N` declined. Blank when it was not offered: the policy was already enrolled, had left the program within two years, or was being non-renewed."
 underwriting_decision = "`Renew` or `Non-Renew`. The underwriting review flags drivers with two or more at-fault accidents, two or more major violations, or one of each, in the three years before the renewal and known by the offer date; half of those flagged get `Non-Renew`."
 revised_offer_date = "Date the pending renewal was re-rated after a household change (a move, or a car or driver added or removed) between the offer date and the effective date. Blank if there was none. For a renewal that took effect it equals the renewal term's `rating_date`."
@@ -129,7 +112,7 @@ purpose = "What the contact was about: `New Business Welcome`, `Policy Change Co
 
 [driver]
 grain = "Driver on a policy"
-summary = """One row for every driver ever listed on a policy, including drivers who joined long before 2022 and drivers later removed; each driver belongs to one policy. Role, marital status and removal fields show the latest record, while `good_student`, `prior_violations` and `prior_accidents` are as of the day the driver was added. `exposure` has the characteristics each term was rated with, and `driver_incident` has the dated record."""
+summary = """One row for every driver ever listed on a policy, including drivers who joined long before 2022 and drivers later removed; each driver belongs to one policy. Role, marital status and removal fields show the latest record, while `good_student` is as of the day the driver was added; their violations and accidents before then are in `driver_incident`. `exposure` has the characteristics each term was rated with, and `driver_incident` has the dated record."""
 
 [driver.columns]
 driver_id = "Primary key."
@@ -149,8 +132,6 @@ removed_date = "Date the driver left the policy. Blank if the driver was still l
 removal_reason = "Why the driver left: `Moved Out`, `Divorce` or `Deceased`. Blank when `removed_date` is blank."
 good_student = "`Y` if the driver qualified for the good-student discount (B grades, in full-time school, under 25) on the day they were added, otherwise `N`. Not updated later; `exposure.rated_good_student` has the status each term was rated with."
 miles_to_work = "One-way commute distance by car, in whole miles. `0` for drivers who do not drive to work."
-prior_violations = "Traffic violations dated in the three years before the driver was added and known to the insurer by then. Usually 0 for drivers added long before 2022, because incident histories start three years before the policy's first term in the data."
-prior_accidents = "At-fault accidents dated in the three years before the driver was added and known to the insurer by then. Usually 0 for drivers added long before 2022, for the same reason as `prior_violations`."
 sr22_filed_date = "Date of the driver's latest SR-22 filing (proof of insurance the state requires after a conviction for DUI, driving while suspended or leaving the scene), made within about a week after the conviction reached the driving record, or after the driver joined if later. Blank if none."
 sr22_end_date = "Date the latest SR-22 filing ends, three years after the conviction reached the driving record. It can be after the valuation date. Blank if there is no filing."
 

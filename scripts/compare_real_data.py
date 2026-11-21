@@ -30,10 +30,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import validate  # noqa: E402  (load and rebuild: the totals worked out from the published records)
 
 REAL_FILE = "motor_vehicle_insurance_data.csv"
 REAL_TYPES_FILE = "sample_type_claim.csv"
@@ -43,7 +47,8 @@ SEED = 20240730
 
 # Every synthetic table, column and value this script reads, in one place. Keys on the left are the names used
 # below; the strings on the right are the file (without .csv, relative to the generate.py output folder) and
-# column names in the published tables.
+# column names in the published tables, or the totals validate.rebuild works out from them (earned exposure and
+# premium, a claim's or feature's net incurred loss, a vehicle's model year).
 SYN_SUMMARY = "run_summary.json"                  # keys used: seed, policies, start, valuation
 SYN_TABLES = {
     "exposure": ("exposure", {
@@ -146,12 +151,16 @@ def load_real(folder: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
 def load_synthetic(folder: Path) -> tuple[pd.DataFrame, dict]:
     """One row per policy term and insured vehicle, with exposure, premium and claims inside the extract."""
+    summary = json.loads((folder / SYN_SUMMARY).read_text())
+    tabs = validate.rebuild(validate.load(folder), summary["start"], summary["valuation"])
+    tabs["claim_feature"]["coverage"] = tabs["claim_feature"].coverage_code.map(tabs["coverage"].set_index("coverage_code").coverage_name)
+    tabs["claim"] = tabs["claim"][tabs["claim"].loss_date >= summary["start"]]       # accidents inside the extract
+
     def read(table: str) -> pd.DataFrame:
         file, cols = SYN_TABLES[table]
-        df = pd.read_csv(folder / f"{file}.csv", usecols=list(cols.values()), keep_default_na=False, na_values=[""], low_memory=False)
-        return df.rename(columns={v: k for k, v in cols.items()})
+        df = tabs[file] if file in tabs else pd.read_csv(folder / f"{file}.csv", keep_default_na=False, na_values=[""], low_memory=False)
+        return df[list(cols.values())].rename(columns={v: k for k, v in cols.items()})
 
-    summary = json.loads((folder / SYN_SUMMARY).read_text())
     rf = read("exposure").sort_values(["term_id", "vehicle_id", "endorsement"], kind="stable")
     key = ["term_id", "vehicle_id"]
     g = rf.groupby(key, sort=False)
@@ -218,8 +227,10 @@ def load_synthetic(folder: Path) -> tuple[pd.DataFrame, dict]:
         s["true_el"] = s.true_el / s.expo
     s = bands(s)
     extra = {"summary": summary, "terms": terms, "claims": cl, "features": features, "drivers": drv, "risk_rows": len(rf)}
-    if (folder / "renewal_offer.csv").exists():     # every renewal offered, declined ones included
-        extra["offers"] = pd.read_csv(folder / "renewal_offer.csv", usecols=["premium_change_pct", "outcome"])
+    if "renewal_offer" in tabs:                      # every renewal offered, declined ones included
+        o = tabs["renewal_offer"]
+        pct = np.where(o.expiring_premium > 0, (o.renewal_premium / o.expiring_premium.where(o.expiring_premium > 0) - 1) * 100, np.nan)
+        extra["offers"] = pd.DataFrame({"premium_change_pct": pct, "outcome": o.outcome})
     return s, extra
 
 

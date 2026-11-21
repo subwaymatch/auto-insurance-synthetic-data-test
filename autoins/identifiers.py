@@ -201,6 +201,7 @@ def finish(cfg: C.Config, cal, T: dict, K: dict) -> None:
     make = both["vehicle_model_year"].set_index("vehicle_model_year_id").make.reindex(v.vehicle_model_year_id).to_numpy()
     v.insert(v.columns.get_loc("vin_prefix"), "vin",
              full_vins(v.vin_prefix.to_numpy(), make, v.vehicle_model_year_id.to_numpy(), R))
+    both["insured_vehicle"] = v = v.drop(columns="vin_prefix")       # the catalogue's pattern: the VIN's first ten characters
     _remap(both, "insured_vehicle", _rank(day(v.added_date), v.policy_id.to_numpy(), v.insured_vehicle_id.to_numpy()))
     e = both["exposure"]
     _remap(both, "exposure", _rank(day(e.rating_date), e.policy_term_id.to_numpy(), e.endorsement_number.to_numpy(),

@@ -44,7 +44,7 @@ claim = pd.read_parquet("claim.parquet", dtype_backend="pyarrow")
 
 # CSV: read ZIP codes as text and parse the dates you need
 policy = pd.read_csv("policy.csv", dtype={"zip_code": str},
-                     parse_dates=["original_inception_date", "first_effective_date"])
+                     parse_dates=["original_inception_date"])
 
 # SQLite
 import sqlite3
@@ -68,10 +68,13 @@ dbGetQuery(con, "SELECT region, COUNT(*) FROM location GROUP BY region")
 DuckDB queries Parquet and CSV files where they are, with no loading step:
 
 ```sql
+-- car-years and premium earned in the extract (1 January 2022 to 31 December 2026), by region
 SELECT l.region,
-       SUM(e.earned_exposure) AS car_years,
-       SUM(e.earned_premium)  AS earned_premium
-FROM 'exposure.parquet' AS e
+       SUM(days) / 365.25 AS car_years,
+       SUM(e.total_premium * days / term_days) AS earned_premium
+FROM (SELECT e.*, t.expiration_date - t.effective_date AS term_days,
+             GREATEST(LEAST(e.coverage_end_date, DATE '2027-01-01') - GREATEST(e.coverage_start_date, DATE '2022-01-01'), 0) AS days
+      FROM 'exposure.parquet' AS e JOIN 'policy_term.parquet' AS t USING (policy_term_id)) AS e
 JOIN 'location.parquet' AS l USING (location_id)
 GROUP BY l.region
 ORDER BY earned_premium DESC;

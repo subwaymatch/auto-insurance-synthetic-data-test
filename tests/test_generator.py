@@ -44,8 +44,10 @@ class GeneratorTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def read(self, name: str) -> pd.DataFrame:
-        return pd.read_csv(self.root / "a" / f"{name}.csv", keep_default_na=False, na_values=[""], low_memory=False,
-                           dtype={"change_reason": str})
+        """A table of run "a", with the totals an analyst works out from its records (validate.rebuild)."""
+        if not hasattr(type(self), "tables"):
+            type(self).tables = validate.rebuild(validate.load(self.root / "a"), self.a["start"], self.a["valuation"])
+        return type(self).tables[name].copy()
 
     def test_same_seed_is_byte_identical(self) -> None:
         files = sorted(p.relative_to(self.root / "a") for p in (self.root / "a").rglob("*") if p.is_file())
@@ -270,7 +272,7 @@ class GeneratorTest(unittest.TestCase):
         con = sqlite3.connect(db)
         for name, path in tables.items():
             self.assertEqual(con.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0], len(pd.read_csv(path)), name)
-        self.assertEqual(len(con.execute('PRAGMA foreign_key_list("claim")').fetchall()), 9)
+        self.assertEqual(len(con.execute('PRAGMA foreign_key_list("claim")').fetchall()), 10)
         self.assertEqual(con.execute("SELECT DISTINCT typeof(zip_code) FROM vendor WHERE zip_code IS NOT NULL").fetchall(), [("text",)])
         self.assertEqual(con.execute("SELECT DISTINCT typeof(zip_code) FROM location").fetchall(), [("text",)])
         con.execute("PRAGMA foreign_keys = ON")
@@ -307,21 +309,25 @@ class GeneratorTest(unittest.TestCase):
         self.assertGreater(quote.column("policy_id").null_count, 0)
         self.assertTrue(pa.types.is_string(loc.schema.field("zip_code").type))
         self.assertTrue(pa.types.is_string(pol.schema.field("policy_number").type))
-        self.assertTrue(pa.types.is_float64(risk.schema.field("earned_premium").type))
+        self.assertTrue(pa.types.is_float64(risk.schema.field("total_premium").type))
         e = pd.read_csv(tables["exposure"])
-        self.assertAlmostEqual(risk.column("earned_premium").to_pandas().sum(), e["earned_premium"].sum(), places=6)
+        self.assertAlmostEqual(risk.column("total_premium").to_pandas().sum(), e["total_premium"].sum(), places=6)
         self.assertEqual(risk.column("coverage_start_date").to_pandas().astype(str).tolist(), e["coverage_start_date"].tolist())
 
-    def test_policy_counts_are_as_at_the_latest_status(self) -> None:
-        """Number of Vehicles is the cars on the policy now (or on its last day of cover), not at the term start."""
-        pol, veh, term = self.read("policy"), self.read("insured_vehicle"), self.read("policy_term")
-        live = pol[pol["policy_status"] == "In Force"].set_index("policy_id")
-        on_now = veh[veh["removed_date"].isna()].groupby("policy_id").size().reindex(live.index).fillna(0)
-        self.assertTrue((live["number_of_vehicles"] == on_now).all())
-        self.assertFalse((veh["removed_date"].dropna() > self.a["valuation"]).any())
-        # the latest term's opening count is kept under its own name, and differs when a car came or went mid-term
-        opening = term.sort_values("effective_date").groupby("policy_id")["vehicles_at_term_start"].last().reindex(live.index)
-        self.assertGreater((opening != live["number_of_vehicles"]).sum(), 10)
+    def test_no_column_repeats_what_other_records_hold(self) -> None:
+        """The tables hold what an insurer's systems record; totals an analyst works out from those records (a loss
+        run, earned premium, counts, labels that restate a code) are not stored."""
+        cols = {p.stem: set(pd.read_csv(p, nrows=0).columns) for p in (self.root / "a").glob("*.csv")}
+        derived = {"claim": {"paid_loss", "case_reserve", "net_incurred_loss", "feature_count", "claim_description"},
+                   "claim_feature": {"paid_loss", "case_reserve", "incurred_loss", "coverage", "closed_without_payment"},
+                   "policy": {"number_of_vehicles", "number_of_drivers", "latest_expiration_date", "bi_limit"},
+                   "policy_term": {"earned_premium", "endorsement_premium", "vehicles_at_term_start", "rate_level_index"},
+                   "exposure": {"earned_exposure", "earned_premium", "model_year"}, "driver": {"prior_violations"},
+                   "rate_change": {"cumulative_rate_level"}, "renewal_offer": {"premium_change_pct"}}
+        for table, gone in derived.items():
+            self.assertFalse(cols[table] & gone, table)
+        self.assertTrue({"coverage", "cause_of_loss"} <= set(cols))
+        self.assertFalse((self.read("insured_vehicle")["removed_date"].dropna() > self.a["valuation"]).any())
 
     def test_same_day_events_have_a_defined_order(self) -> None:
         """A company claim reaches the driving record the day after the payment that makes it chargeable, so
@@ -384,14 +390,15 @@ class GeneratorTest(unittest.TestCase):
         f = first.reindex(old["policy_id"])
         self.assertTrue(((f["effective_date"] <= start) & (f["expiration_date"] > start)).all())
         opening = term[term["effective_date"] < start]
-        self.assertTrue((opening["earned_premium_before_extract"] > 0).all())
+        self.assertTrue((opening["earned_premium_before_extract"] > 0).all())   # (rebuilt from the exposure rows)
         r = risk[risk["policy_term_id"].isin(opening["policy_term_id"])]
         days = (pd.to_datetime(r["coverage_end_date"]).clip(upper=pd.Timestamp(self.a["valuation"]) + pd.Timedelta(days=1))
                 - pd.to_datetime(r["coverage_start_date"]).clip(lower=pd.Timestamp(start))).dt.days / 365.25
         self.assertTrue(np.allclose(r["earned_exposure"], days, atol=1e-3))      # only the part after the start is earned
         # new business is exactly the first term of a policy
         self.assertTrue(((term["business_type"] == "New") == (term["term_number"] == 1)).all())
-        self.assertTrue((pol["original_inception_date"] <= pol["first_effective_date"]).all())
+        first_effective = term.groupby("policy_id")["effective_date"].min().reindex(pol["policy_id"]).to_numpy()
+        self.assertTrue((pol["original_inception_date"].to_numpy() <= first_effective).all())
 
     def test_rating_uses_only_information_known_on_the_rating_date(self) -> None:
         term, inc = self.read("policy_term"), self.read("driver_incident")
@@ -433,10 +440,13 @@ class GeneratorTest(unittest.TestCase):
         ledger, term = self.read("premium_transaction"), self.read("policy_term")
         self.assertTrue({"New Business", "Renewal", "Endorsement", "Cancellation"} <= set(ledger["transaction_type"]))
         self.assertTrue((ledger["processed_date"] <= self.a["valuation"]).all())
-        done = term[term["expiration_date"] < "2026-04-01"].set_index("policy_term_id")
-        w = ledger[ledger["transaction_type"] != "Cancellation"].groupby("policy_term_id")["written_premium"].sum()
-        gap = (done["written_premium"] + done["endorsement_premium"] - w.reindex(done.index).fillna(0)).abs()
-        self.assertLess(gap.max(), 0.05 + 0.01 * done["vehicles_at_term_start"].max())
+        w = ledger[ledger["transaction_type"].isin(["New Business", "Renewal"])].groupby("policy_term_id")["written_premium"].sum()
+        gap = (term.set_index("policy_term_id")["written_premium"] - w).abs()
+        self.assertLess(gap.max(), 0.005)
+        done = term[term["expiration_date"] < "2026-04-01"]          # every change to these terms has been processed
+        earned = done["earned_premium_before_extract"] + done["earned_premium"]
+        booked = done["written_premium"] + done["endorsement_premium"] + done["return_premium"]
+        self.assertLess((earned - booked).abs().max(), 0.05 + 0.01 * done["vehicles_at_term_start"].max())
 
     def test_reserve_history_rebuilds_past_incurred(self) -> None:
         feat, res, pay = self.read("claim_feature"), self.read("claim_reserve_transaction"), self.read("claim_payment")
@@ -476,8 +486,6 @@ class GeneratorTest(unittest.TestCase):
         loss = pay[pay["payment_type"] == "Loss"]
         n = loss.groupby("claim_feature_id").size()
         self.assertGreater(n.max(), 2)
-        paid = loss.groupby("claim_feature_id").amount.sum().reindex(feat["claim_feature_id"]).fillna(0)
-        self.assertTrue(np.allclose(paid.to_numpy(), feat["paid_loss"].to_numpy(), atol=0.005))
         self.assertTrue(set(loss["transaction_type"]) >= {"Partial Payment", "Final Payment"})
 
     def test_conviction_and_sr22_dates_before_the_start_are_kept(self) -> None:

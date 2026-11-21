@@ -42,40 +42,73 @@ This is the most important thing to understand about the data.
 Two consequences:
 
 - **Join claims through `exposure_id`, not `policy_id`.** `claim.exposure_id` is the row in force on the loss date. Joining a claim straight to `policy` gives the address and limits the policy has now, not those on the day of the accident.
-- **Counts differ by design.** `policy_term.vehicles_at_term_start` is how many cars the term began with; `policy.number_of_vehicles` is how many the policy has now.
+- **Totals are worked out, not stored.** As in an insurer's own systems, the tables hold the records (payments, reserve changes, premium transactions, dates of cover) and not the totals an analyst makes from them: a claim's paid and incurred loss, a term's earned premium, a policy's count of cars. [Working out totals](#working-out-totals) below shows how.
 
 ## Dates and what was known when
 
 The data is an **extract** taken on a valuation date, 31 December 2026, and covers 1 January 2022 onward. As in any extract:
 
 - **Nothing after the valuation date exists.** Payments not yet made, claims not yet reported and renewals not yet effective are missing or shown as pending. Open claims carry a case reserve.
-- **Policies in force on 1 January 2022** enter with the term that spans that day. Their premium before the extract is in `policy_term.earned_premium_before_extract`, and some exposure rows start before 2022. There are no claims from losses before 2022.
+- **Policies in force on 1 January 2022** enter with the term that spans that day. Some of their exposure rows start before 2022, and only the days from 1 January 2022 are earned in the extract. The claims those policies still had open on that day (or reported later) from losses in late 2021 are in the data, with their earlier payments; claims settled before then are not, though an at-fault one stays on the driver's record in `driver_incident`.
 - **Information arrives late.** A term is rated on its `policy_term.rating_date` with only what was known by then; `driver_incident.known_date` says when each violation or accident reached the insurer, which can be months after it happened.
 - **Several dates for one event.** A claim has a `claim.loss_date` and a later `claim.report_date`; a premium transaction an `premium_transaction.effective_date` and a `premium_transaction.processed_date`; a bill a `billing_invoice.issue_date`, `billing_invoice.due_date` and `billing_invoice.paid_date`. Pick the one your question is about.
 
 Dates are written `YYYY-MM-DD`. Staff, banks and courts work business days, so payments, closes and letters never fall on weekends or holidays; losses can happen any day.
 
+## Working out totals
+
+The tables keep what the insurer's systems record, so a few totals are worked out from them. These two SQLite views (the same SQL runs in DuckDB with `GREATEST`, `LEAST` and date subtraction in place of `MAX`, `MIN` and `julianday`) give the car-years and premium each exposure row earned inside the extract, and each claim feature's amounts at the valuation date, a loss run. `validate.py` (`rebuild`) works them out the same way in pandas.
+
+```sql
+-- Car-years and premium each exposure row earned in the extract (1 January 2022 to 31 December 2026):
+-- its days of cover inside it, and its full-term premium pro rata over its term's days
+CREATE VIEW earned AS
+SELECT e.exposure_id,
+       MAX(0, julianday(MIN(e.coverage_end_date, '2027-01-01')) - julianday(MAX(e.coverage_start_date, '2022-01-01'))) AS days,
+       MAX(0, julianday(MIN(e.coverage_end_date, '2027-01-01')) - julianday(MAX(e.coverage_start_date, '2022-01-01'))) / 365.25 AS car_years,
+       e.total_premium * MAX(0, julianday(MIN(e.coverage_end_date, '2027-01-01')) - julianday(MAX(e.coverage_start_date, '2022-01-01')))
+         / (julianday(t.expiration_date) - julianday(t.effective_date)) AS earned_premium
+FROM exposure AS e
+JOIN policy_term AS t ON t.policy_term_id = e.policy_term_id;
+
+-- Each claim feature at the valuation date: payments by type, and the latest reserve balance of each type
+CREATE VIEW loss_run AS
+SELECT f.claim_feature_id, f.claim_id, f.coverage_code,
+       COALESCE(SUM(CASE WHEN p.payment_type = 'Loss' THEN p.amount END), 0) AS paid_loss,
+       -COALESCE(SUM(CASE WHEN p.payment_type IN ('Salvage Recovery', 'Subrogation Recovery') THEN p.amount END), 0) AS recoveries,
+       COALESCE(SUM(CASE WHEN p.payment_type = 'Expense' THEN p.amount END), 0) AS paid_expense,
+       COALESCE((SELECT r.outstanding_reserve FROM claim_reserve_transaction AS r
+                 WHERE r.claim_feature_id = f.claim_feature_id AND r.reserve_type = 'Loss'
+                 ORDER BY r.transaction_date DESC, r.reserve_transaction_id DESC LIMIT 1), 0) AS case_reserve
+FROM claim_feature AS f
+LEFT JOIN claim_payment AS p ON p.claim_feature_id = f.claim_feature_id
+GROUP BY f.claim_feature_id;
+```
+
+Incurred loss is `paid_loss + case_reserve`, net incurred that less `recoveries`. For a past date, add `p.payment_date <= :date` and `r.transaction_date <= :date`: that is how a development triangle is built.
+
 ## Joining without double counting
 
 Two habits prevent most errors.
 
-**Aggregate each table at its own grain, then join the results.** Joining `exposure` to `claim` and then summing `exposure.earned_exposure` counts a car-year once for every claim on it. Sum exposure and claims separately, then join the totals:
+**Aggregate each table at its own grain, then join the results.** Joining `exposure` to `claim` and then summing car-years counts a car-year once for every claim on it. Sum exposure and claims separately, then join the totals:
 
 ```sql
--- Collision claims per 100 car-years, by liability territory
+-- Collision claims per 100 car-years, by liability territory (accidents inside the extract)
 WITH cover AS (
-  SELECT l.liability_territory AS territory, SUM(e.earned_exposure) AS car_years
+  SELECT l.liability_territory AS territory, SUM(x.car_years) AS car_years
   FROM exposure AS e
+  JOIN earned AS x ON x.exposure_id = e.exposure_id
   JOIN location AS l ON l.location_id = e.location_id
   WHERE e.collision_deductible > 0          -- only cars with collision cover
   GROUP BY 1
 ), claims AS (
-  SELECT l.liability_territory AS territory, COUNT(DISTINCT f.claim_id) AS claims
-  FROM claim_feature AS f
-  JOIN claim AS c ON c.claim_id = f.claim_id
+  SELECT l.liability_territory AS territory, COUNT(DISTINCT r.claim_id) AS claims
+  FROM loss_run AS r
+  JOIN claim AS c ON c.claim_id = r.claim_id
   JOIN exposure AS e ON e.exposure_id = c.exposure_id
   JOIN location AS l ON l.location_id = e.location_id
-  WHERE f.coverage_code = 'COLL' AND f.paid_loss > 0
+  WHERE r.coverage_code = 'COLL' AND r.paid_loss > 0 AND c.loss_date >= '2022-01-01'
   GROUP BY 1
 )
 SELECT cover.territory, car_years, claims,
@@ -84,16 +117,16 @@ FROM cover LEFT JOIN claims USING (territory)
 ORDER BY cover.territory;
 ```
 
-**Use the table that matches your question.** Claim totals are on both `claim` and `claim_feature`; premium is on `policy_term`, `exposure` and `premium_transaction`. They agree, but at different grains:
+**Use the table that matches your question.**
 
 | Question | Use |
 |---|---|
-| Losses by coverage, claimant or injury type | `claim_feature` |
-| Losses by claim, cause or day | `claim` |
-| Losses as of a past date (development) | `claim_payment` and `claim_reserve_transaction`, summed up to that date |
-| Earned premium and car-years by any rated characteristic | `exposure` |
+| Losses by coverage, claimant or injury type | `claim_feature` with its payments and reserves (the loss run) |
+| Losses by claim, cause or day | `claim`, with its features' loss run |
+| Losses as of a past date (development) | `claim_payment` and `claim_reserve_transaction`, up to that date |
+| Earned premium and car-years by any rated characteristic | `exposure` (and its term's dates) |
 | Written premium by month, channel or transaction type | `premium_transaction` |
-| Premium by policy term, renewal or cancellation | `policy_term` |
+| Premium by policy term, renewal or cancellation | `policy_term` and its `premium_transaction` rows |
 | Cash collected, receivables and write-offs | `billing_invoice` and `billing_receipt` |
 | The company’s books by month | `gl_journal` |
 
