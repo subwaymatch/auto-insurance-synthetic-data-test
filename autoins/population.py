@@ -619,8 +619,9 @@ def _driver_records(cfg, ref, pol, drv, zt, r) -> pd.DataFrame:
     first_day = pol.first_day.to_numpy()[p_]
     t0 = np.maximum(first_day - C.LOOKBACK_DAYS, drv.licensed_day.to_numpy())
     out = [violations(drv, t0, np.full(nd, cal.valuation_day), r, cal)]
-    # accidents before the simulated claims begin (the company's own claims are added during the simulation)
-    t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, 0), first_day)
+    # accidents before the simulated claims begin (the company's own claims are added during the simulation, from
+    # the start of the in-force book's current term when the warm-up reaches back to it: config.warm_up_days)
+    t1 = np.where(pol.is_initial.to_numpy()[p_], np.maximum(first_day, -C.warm_up_days(cfg)), first_day)
     out.append(prior_accidents(r, drv, t0, t1, first_day, zt.true_crash_hazard.to_numpy()[pol.zi.to_numpy()[p_]], cal))
     inc = pd.concat(out, ignore_index=True)
     inc["pol"] = p_[inc.drv.to_numpy()]

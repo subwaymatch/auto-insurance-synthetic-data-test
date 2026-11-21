@@ -902,7 +902,7 @@ def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm,
               abs(earned - term["earned_premium"].sum()) <= 2e-5 * term["earned_premium"].sum(),
               f"${earned:,.0f} against ${term['earned_premium'].sum():,.0f}; unearned at the valuation date ${-get(balance, 2100):,.0f}")
     r_in = (pd.to_datetime(rec["receipt_date"]).to_numpy() >= start)
-    p_ = pay.assign(day=pd.to_datetime(pay["payment_date"]))
+    p_ = pay[pd.to_datetime(pay["payment_date"]).to_numpy() >= start]        # earlier payments belong to earlier years
     kinds = p_.groupby("payment_type")["amount"].sum()
     paid_stmt = stmt[stmt["payment_date"].notna()]
     cash = rec.loc[r_in, "amount"].sum() - kinds.get("Loss", 0) - kinds.get("Expense", 0) \
@@ -1066,8 +1066,11 @@ def main() -> None:
               (gap_w.abs() <= 0.01 * old["vehicles_at_term_start"] + 0.05).all() and (gap_r.abs() <= 0.05).all(),
               f"{ledger['transaction_type'].value_counts().to_dict()}")
 
-    print("\nFREQUENCY AND SEVERITY (paid claims by coverage: whole extract, every deductible and cause, loss only)")
-    f = feat.merge(clm[["claim_id", "exposure_id", "loss_date", "catastrophe_id", "cause_of_loss"]], on="claim_id")
+    print("\nFREQUENCY AND SEVERITY (paid claims by coverage: accidents in the extract, every deductible and cause, loss only)")
+    f_all = feat.merge(clm[["claim_id", "exposure_id", "loss_date", "catastrophe_id", "cause_of_loss"]], on="claim_id")
+    # claims open when the extract begins come from accidents before it, outside the exposure it earns: measures by
+    # accident leave them out; the calendar-year benchmark counts their payments, as the published figures do
+    f = f_all[pd.to_datetime(f_all["loss_date"]).to_numpy() >= start]
     has = {"BI": risk["bi_premium"] > 0, "PD": risk["pd_premium"] > 0, "UM": risk["um_premium"] > 0,
            "MED": risk["med_pay_premium"] > 0, "COLL": risk["collision_premium"] > 0, "COMP": risk["comprehensive_premium"] > 0,
            "RENT": risk["rental_premium"] > 0, "TOW": risk["towing_premium"] > 0}
@@ -1095,7 +1098,7 @@ def main() -> None:
 
     print("\nBENCHMARK COMPARISON (Triple-I / ISO definitions: paid claims by calendar year, liability with LAE, "
           f"physical damage at a ${BENCHMARK_DEDUCTIBLE} deductible net of salvage and subrogation, comprehensive without wind and water)")
-    benchmark(rep, risk, f, pay, r_start, r_end, pd.Timestamp(valuation).year - 1)
+    benchmark(rep, risk, f_all, pay, r_start, r_end, pd.Timestamp(valuation).year - 1)
     illinois(rep, risk, r_start, r_end)
 
     print("\nLOSS RATIO BY ACCIDENT YEAR (net incurred as of the valuation date / earned premium; losses exclude LAE,\n"
@@ -1103,7 +1106,7 @@ def main() -> None:
     s, e, days = r_start, r_end, r_days
     rate = np.divide(risk["earned_premium"].to_numpy(), days, out=np.zeros(len(risk)), where=days > 0)
     loss_year = pd.to_datetime(clm["loss_date"]).dt.year
-    years = sorted(loss_year.unique())
+    years = sorted(loss_year[loss_year >= pd.Timestamp(start).year].unique())
     lr, cat_lr = {}, {}
     for y in years:
         a, b = np.datetime64(f"{y}-01-01"), np.datetime64(f"{y + 1}-01-01")

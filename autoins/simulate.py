@@ -41,14 +41,14 @@ That term was written before the extract; only exposure and premium after the st
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
 
 from . import claims
 from . import config as C
-from . import market, names, population, rating, telematics, truth
+from . import market, names, population, rating, refdata, telematics, truth
 from .refdata import day_weight, stream
 
 CANCEL_REASONS = ["", "Underwriting", "Non-Payment", "Insured Request", "Insured Deceased"]
@@ -188,6 +188,18 @@ class Sim:
     tele: "Tele" = None
     last_change: np.ndarray = None      # per policy: the latest day its drivers, cars or address changed
     name_changes: list = field(default_factory=list)   # (drv, day, old surname) when a named insured takes a spouse's
+    warm: "Warm" = None                 # the warm-up: losses before the start (see _warm_up)
+
+
+@dataclass
+class Warm:
+    """The warm-up (config.warm_up_days): the in-force book's losses in the part of its term before the start,
+    simulated and developed on a calendar beginning `off` days earlier (so its day numbers are the extract's plus
+    `off`, and every date and working day is right), with draws of their own."""
+    cal: object
+    off: int
+    R: np.random.Generator
+    dev: claims.Development
 
 
 @dataclass
@@ -248,6 +260,12 @@ def run(cfg: C.Config, ref, pop) -> Result:
     sim = Sim(ref=ref, pop=pop, st=st, plan=plan, R=stream(cfg.seed, "simulate"),
               dev=claims.Development(cal, stream(cfg.seed, "claims"), stream(cfg.seed, "claim detail")), recs=recs,
               R_renew=stream(cfg.seed, "renewal"))
+    off = C.warm_up_days(cfg)
+    if off > 0:
+        wcal = refdata.load(replace(cfg, start=str(cal.start - np.timedelta64(off, "D")))).cal
+        sim.warm = Warm(cal=wcal, off=off, R=stream(cfg.seed, "warm-up losses"),
+                        dev=claims.Development(wcal, stream(cfg.seed, "warm-up claims"), stream(cfg.seed, "warm-up claim detail")))
+        sim.warm.dev.n_feat = 10 ** 9           # feature numbers apart from the extract's own
     sim.tele = Tele(R=stream(cfg.seed, "telematics"), eid=np.full(n, -1), last_scored=np.full(n, -10 ** 6),
                     block=np.full(n, -10 ** 6), device=np.zeros(n, dtype=int))
     sim.last_change = np.full(n, -10 ** 6)
@@ -373,6 +391,9 @@ def run(cfg: C.Config, ref, pop) -> Result:
     for c in ("n_drv", "n_veh", "ni_drv", "zi", "homeowner", "bi_opt", "um_opt"):   # the policy as it stands at the end
         pop.pol[c] = st.p[c]
     occ, feat, pays, reserves = sim.dev.result()
+    if sim.warm is not None and sim.warm.dev.occs:
+        occ, feat, pays, reserves = (pd.concat([a_, _shifted(b_, -sim.warm.off)], ignore_index=True)
+                                     for a_, b_ in zip((occ, feat, pays, reserves), sim.warm.dev.result()))
     tl = sim.tele
     enrol = pd.DataFrame(tl.enrol, columns=["eid", "pol", "start", "device"])
     end = enrol.eid.map(lambda e: tl.ended.get(e, (-1, ""))[0])
@@ -517,8 +538,11 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         af = occ.at_fault.to_numpy().astype(bool)
         sim.af_pol.append(occ.pol.to_numpy()[af])
         sim.af_report.append(occ.report_day.to_numpy()[af])
-        ch = occ[occ.chargeable_day >= 0]
+        ch = occ[occ.chargeable_day > claims.NO_DAY]
         sim.recs.add(ch.drv, ch.day, np.full(len(ch), KIND["accident"]), ch.chargeable_day)
+
+    if sim.warm is not None:
+        _warm_up(sim, T, V, a, x, row_ids, watched)
 
     # cars destroyed or stolen leave the policy; most households replace them
     old, left = V[gone], x[gone]
@@ -544,6 +568,55 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         np.maximum.at(sim.last_change, op[now], buy[now])
     Vn = np.arange(first_new, len(st.v["pol"]))
     return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), arrivals
+
+
+WARM_DAYS = ["day", "report_day", "chargeable_day", "siu_day", "open_day", "close_day", "attorney_day", "suit_day",
+             "reopen_day", "final_close_day"]
+
+
+def _shifted(frame: pd.DataFrame, by: int) -> pd.DataFrame:
+    """The warm-up's records with their day numbers moved by `by` (claims.NO_DAY stays NO_DAY)."""
+    frame = frame.copy()
+    for c in WARM_DAYS:
+        if c in frame:
+            d = frame[c].to_numpy().astype(np.int64)
+            frame[c] = np.where(d > claims.NO_DAY, d + by, claims.NO_DAY)
+    return frame
+
+
+def _warm_up(sim: Sim, T: Term, V, a, x, row_ids, watched) -> None:
+    """Losses on rows of the in-force book in the part of their term before the start (Warm). They become claims
+    like any other, developed on the warm-up calendar: those still open on the start date, or reported after it,
+    are in the extract (claims.develop); the at-fault ones reach the driver's record when chargeable, and any claim
+    counts in the customer's renewal decision. The book in force on the start date is the cars still insured that
+    day, so a car written off, destroyed or stolen before it is not in it: such losses are left out."""
+    W = sim.warm
+    pre = np.flatnonzero(a < 0)
+    s, e = np.maximum(a[pre], -W.off), np.minimum(x[pre], 0)
+    pre, s, e = pre[e > s], s[e > s], e[e > s]
+    if len(pre) == 0:
+        return
+    st = sim.st
+    ctx = truth.context(st, W.cal, V[pre], s + W.off, e + W.off)
+    for k_ in ("AF_MV", "AF_SV"):
+        ctx["rate"][k_] = ctx["rate"][k_] * watched[pre]
+    occ, feat, wrecks, sim.n_occ = truth.simulate(ctx, st, W.cal, W.R, sim.n_occ)
+    gone = occ.occ.isin(wrecks.occ) | occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool)])
+    occ = occ[~gone.to_numpy()].copy()
+    feat = feat[feat.occ.isin(occ.occ)]
+    if len(occ) == 0:
+        return
+    occ["term"] = T.term_of_pol[occ.pol.to_numpy()]
+    occ["row"] = row_ids[pre][occ.pop("vrow").to_numpy()]
+    occ["ownership"] = st.v["ownership"][occ.veh.to_numpy()]
+    occ = _shifted(W.dev.add(occ, feat), -W.off)
+    sim.clm_pol.append(occ.pol.to_numpy())
+    sim.clm_report.append(occ.report_day.to_numpy())
+    af = occ.at_fault.to_numpy().astype(bool)
+    sim.af_pol.append(occ.pol.to_numpy()[af])
+    sim.af_report.append(occ.report_day.to_numpy()[af])
+    ch = occ[occ.chargeable_day > claims.NO_DAY]
+    sim.recs.add(ch.drv, ch.day, np.full(len(ch), KIND["accident"]), ch.chargeable_day)
 
 
 def _missed_installment(sim: Sim, P: np.ndarray, month0: np.ndarray, new_business: np.ndarray, u: np.ndarray):

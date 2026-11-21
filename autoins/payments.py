@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
+from .claims import NO_DAY
 from .refdata import stream
 
 # ------------------------------------------------------------------------------------------- staffing
@@ -338,5 +339,5 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     status = np.where(voided, "Voided", np.where(incoming, "Deposited", np.where(is_cleared, "Cleared", "Outstanding")))
     approver = roster.approver(desk[pc], office[pc], p.day.to_numpy(), p.amount.to_numpy())
     cols = dict(payee_type=payee, payee_name=name, vendor=pv, method=method, check=check,
-                cleared=np.where(is_cleared, cleared, -1), status=status, approver=approver)
+                cleared=np.where(is_cleared, cleared, NO_DAY), status=status, approver=approver)
     return cols, adjuster

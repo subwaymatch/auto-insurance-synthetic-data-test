@@ -31,6 +31,24 @@ class Config:
 
 
 # --------------------------------------------------------------------------
+# Claims open when the extract begins (simulate._warm_up). The book in force on the start date has been insured
+# since its current term began, up to a year earlier. That part of the term is simulated too, so the extract
+# opens with the claims still open from it (and those reported later), as a real claims system does. Claims from
+# earlier terms are not simulated: their accidents stay in the drivers' histories only. The reference calendars
+# begin on WARM_UP_FROM, which limits how far back the warm-up can reach.
+# --------------------------------------------------------------------------
+WARM_UP_FROM = "2021-01-01"
+
+
+def warm_up_days(cfg: "Config") -> int:
+    """How many days before the start the warm-up covers: a year, or back to WARM_UP_FROM (0: none)."""
+    start = np.datetime64(cfg.start, "D")
+    first = max((start.astype("M8[M]") - 12).astype("M8[D]") + (start - start.astype("M8[M]").astype("M8[D]")),
+                np.datetime64(WARM_UP_FROM, "D"))
+    return int(max((start - first).astype(int), 0))
+
+
+# --------------------------------------------------------------------------
 # Book structure (ASSUMED)
 # --------------------------------------------------------------------------
 TERM_MONTHS_P = {6: 0.65, 12: 0.35}

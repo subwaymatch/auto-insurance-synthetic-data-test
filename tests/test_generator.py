@@ -63,7 +63,20 @@ class GeneratorTest(unittest.TestCase):
         self.assertTrue(((m["loss_date"] >= m["effective_date"]) & (m["loss_date"] < end)).all())
         self.assertTrue((clm["report_date"] >= clm["loss_date"]).all())
         self.assertTrue((clm["loss_date"] <= self.a["valuation"]).all())
-        self.assertTrue((clm["loss_date"] >= self.a["start"]).all())
+
+    def test_the_extract_opens_with_the_claims_then_open(self) -> None:
+        """Claims from accidents before the start come from the in-force book's current term, and each was still
+        open on the start date or had something happen on it later; a claim settled and closed before then is not
+        in the extract."""
+        clm, term, pay = self.read("claim"), self.read("policy_term"), self.read("claim_payment")
+        early = clm[clm["loss_date"] < self.a["start"]].merge(term[["policy_term_id", "effective_date", "expiration_date"]],
+                                                                 on="policy_term_id")
+        self.assertGreater(len(early), 0)
+        self.assertTrue(((early["effective_date"] < self.a["start"]) & (early["expiration_date"] > self.a["start"])).all())
+        later_pay = pay[pay["payment_date"] >= self.a["start"]].groupby("claim_id").size()
+        active = (early["report_date"] >= self.a["start"]) | early["close_date"].isna() | (early["close_date"] >= self.a["start"]) \
+            | early["claim_id"].isin(later_pay.index)
+        self.assertTrue(active.all())
 
     def test_premium_and_exposure_are_sane(self) -> None:
         risk = self.read("exposure")

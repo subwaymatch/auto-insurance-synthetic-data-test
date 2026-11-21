@@ -88,6 +88,9 @@ POLICE_REPORT_P = {"AF_MV": 0.60, "AF_SV": 0.55, "NAF": 0.60, "PARKED": 0.35, "T
                    "WEATHER": 0.05, "FLOOD": 0.10, "OTHER_COMP": 0.20, "HAIL_CAT": 0.01, "WIND_CAT": 0.03, "FLOOD_CAT": 0.05}
 SIU_REFERRAL_P = 0.012               # base rate of referral to the special investigations unit
 INJURY_TYPES = ["Soft Tissue", "Laceration", "Fracture", "Head or Spinal Injury", "Fatality"]
+# "No such day" for a claim's optional dates (attorney, suit, reopening, fraud referral, chargeable). Not -1: claims
+# open when the extract begins have real dates before its first day, which are negative day numbers.
+NO_DAY = -10 ** 9
 
 
 class Development:
@@ -102,7 +105,7 @@ class Development:
 
     def add(self, occ: pd.DataFrame, feat: pd.DataFrame) -> pd.DataFrame:
         """Develop a batch of new claims. Returns occ with report_day (first notice the company has of any
-        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or -1)."""
+        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or NO_DAY)."""
         R = self.R
         occ = occ.copy()
         lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
@@ -157,7 +160,7 @@ class Development:
         occ["report_day"] = occ.occ.map(f.groupby("occ").open_day.min()).to_numpy()
         # a claim goes on the driver's record the day after the payment that makes it chargeable is booked
         posted = _chargeable(f, pays) + C.CHARGEABLE_POSTING_DAYS
-        occ["chargeable_day"] = occ.occ.map(posted).fillna(-1).astype(int).to_numpy()
+        occ["chargeable_day"] = occ.occ.map(posted).fillna(NO_DAY).astype(np.int64).to_numpy()
         occ = _claim_detail(occ, f, self.R2, self.cal)
         self.reserves.append(_reserve_history(f, pays, self.cal, self.R2))
         self.occs.append(occ)
@@ -213,8 +216,8 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     att = np.where(lit, att_lit, np.minimum(day + lag, np.maximum(cd - 1, day)))
     f["close_day"] = cd
     f["attorney"] = attorney
-    f["attorney_day"] = np.where(attorney, att, -1)
-    f["suit_day"] = np.where(lit, suit, -1)
+    f["attorney_day"] = np.where(attorney, att, NO_DAY)
+    f["suit_day"] = np.where(lit, suit, NO_DAY)
     return f
 
 
@@ -231,7 +234,7 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, ca
     big_attorney = occ.occ.isin(f.occ[f.attorney.to_numpy() & (f.paid.to_numpy() > 50_000)]).to_numpy()
     p_siu = SIU_REFERRAL_P + 0.07 * (peril == "THEFT_TOTAL") + 0.06 * (occ.report_day.to_numpy() - occ.day.to_numpy() > 30) \
         + 0.04 * big_attorney
-    occ["siu_day"] = np.where(R.random(n) < p_siu, cal.spread_business(occ.report_day.to_numpy() + R.integers(5, 46, n), R.random(n)), -1)
+    occ["siu_day"] = np.where(R.random(n) < p_siu, cal.spread_business(occ.report_day.to_numpy() + R.integers(5, 46, n), R.random(n)), NO_DAY)
     return occ
 
 
@@ -272,7 +275,7 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     est = np.minimum(est, cap[i])
     parts = [pd.DataFrame(dict(fid=fid[i], day=day, order=0, est=est, pay=0.0,
                                txn=np.where(k == 0, "Initial Reserve", "Reserve Review")))]
-    ro = np.flatnonzero(f.reopen_day.to_numpy() >= 0)
+    ro = np.flatnonzero(f.reopen_day.to_numpy() > NO_DAY)
     supp = f.supp.to_numpy()[ro]
     parts.append(pd.DataFrame(dict(fid=fid[ro], day=f.reopen_day.to_numpy()[ro], order=0,
                                    est=np.minimum(U[ro] - supp + supp * np.exp(0.3 * R.standard_normal(len(ro))), cap[ro]),
@@ -284,7 +287,7 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE, pd.Series(cap, index=fid))]
 
     # expense reserve on litigated features: set when the suit is filed, eroded by legal bills, closed with the feature
-    li = np.flatnonzero(f.suit_day.to_numpy() >= 0)
+    li = np.flatnonzero(f.suit_day.to_numpy() > NO_DAY)
     if len(li):
         ep = pays[(pays.kind == "Expense") & pays.fid.isin(fid[li])]
         e_est = f.expense.to_numpy()[li] * np.exp(0.3 * R.standard_normal(len(li)))
@@ -441,7 +444,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
 
     # expenses: appraisal fees early on physical damage, others at close, litigation costs as the suit runs
     exp_c = np.round(f.expense.to_numpy() * 100).astype(np.int64)
-    lit = f.suit_day.to_numpy() >= 0
+    lit = f.suit_day.to_numpy() > NO_DAY
     early = np.isin(cvg, ["PD", "COLL", "COMP"])
     e_day = cal.business_between(np.where(early, od + np.floor(R.uniform(0.05, 0.6, n) * dur).astype(int), cd), od, cd, R.random(n))
     e_legs = [_legs(np.flatnonzero((exp_c > 0) & ~lit), e_day[(exp_c > 0) & ~lit], exp_c[(exp_c > 0) & ~lit], "")]
@@ -468,7 +471,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     pays["amount"] = pays.cents / 100
     pays = pays.sort_values(["fid", "day", "kind", "cents"], kind="stable").reset_index(drop=True)
     pays["seq"] = np.arange(len(pays))
-    f = f.assign(paid=P / 100, reopen_day=np.where(reopen, reopen_day, -1), final_close_day=np.where(reopen, final_close, cd),
+    f = f.assign(paid=P / 100, reopen_day=np.where(reopen, reopen_day, NO_DAY), final_close_day=np.where(reopen, final_close, cd),
                  supp=supp / 100)
     return pays[["fid", "day", "kind", "txn", "amount", "seq", "role", "ref"]], f
 
@@ -478,6 +481,16 @@ def develop(cfg: C.Config, ref, res) -> dict:
     cal = ref.cal
     V = cal.valuation_day
     occ, f, pay_all = res.occ.copy(), res.feat.copy().reset_index(drop=True), res.pays
+    # a claim from before the start (the warm-up) is in the extract only if something happened on it on or after the
+    # start date: still open then, reported later, or paid, recovered or re-reserved later. Claims settled and
+    # closed before the start are not
+    acts = [pay_all[["fid", "day"]], res.reserves[["fid", "day"]], f[["fid", "final_close_day"]].rename(columns={"final_close_day": "day"})]
+    last = pd.concat(acts, ignore_index=True).groupby("fid").day.max()
+    over = f.assign(last=f.fid.map(last).to_numpy()).groupby("occ")["last"].max()
+    f = f[~f.occ.isin(over.index[over < 0])].reset_index(drop=True)
+    # (an at-fault one stays on the driver's record: tables.py lists it as a company claim before the extract)
+    settled = occ[~occ.occ.isin(f.occ) & (occ.chargeable_day > NO_DAY) & (occ.drv >= 0)]
+    occ, pay_all = occ[occ.occ.isin(f.occ)], pay_all[pay_all.fid.isin(f.fid)]
     n = len(f)
     pos = pd.Series(np.arange(n), index=f.fid.to_numpy())
 
@@ -489,7 +502,7 @@ def develop(cfg: C.Config, ref, res) -> dict:
     f["paid_dcc"], f["paid_ao"] = tot(txn == "DCC Expense"), tot(txn == "A&O Expense")
     f["salvage_rec"], f["subro_rec"] = np.abs(tot(kind == "Salvage Recovery")), np.abs(tot(kind == "Subrogation Recovery"))
     f["reported"] = f.open_day <= V
-    reopened = (f.reopen_day >= 0) & (f.reopen_day <= V)
+    reopened = (f.reopen_day > NO_DAY) & (f.reopen_day <= V)
     f["reopened"] = reopened
     f["closed"] = np.where(reopened, f.final_close_day <= V, f.close_day <= V)
     f["status_close_day"] = np.where(reopened, f.final_close_day, f.close_day)
@@ -499,7 +512,7 @@ def develop(cfg: C.Config, ref, res) -> dict:
     f["case_reserve"] = last.xs("Loss", level="rtype").reindex(f.fid).fillna(0).to_numpy() if len(last) else 0.0
     f["expense_reserve"] = (last.xs("Expense", level="rtype").reindex(f.fid).fillna(0).to_numpy()
                             if "Expense" in last.index.get_level_values("rtype") else 0.0)
-    f["litigated"] = (f.suit_day >= 0) & (f.suit_day <= V)          # a suit not yet filed is not known
+    f["litigated"] = (f.suit_day > NO_DAY) & (f.suit_day <= V)          # a suit not yet filed is not known
     f["attorney"] = f.attorney & (f.attorney_day <= V)
 
     rep = f[f.reported].copy()
@@ -508,8 +521,8 @@ def develop(cfg: C.Config, ref, res) -> dict:
     claims["report_day"] = claims.report_day.astype(int)
     claims = claims.sort_values(["report_day", "occ"], kind="stable").reset_index(drop=True)
     claims["claim_id"] = np.arange(1, len(claims) + 1)
-    claims["chargeable"] = (claims.chargeable_day >= 0) & (claims.chargeable_day <= V)
-    claims["siu_day"] = np.where(claims.siu_day <= V, claims.siu_day, -1)
+    claims["chargeable"] = (claims.chargeable_day > NO_DAY) & (claims.chargeable_day <= V)
+    claims["siu_day"] = np.where(claims.siu_day <= V, claims.siu_day, NO_DAY)
     rep["claim_id"] = rep.occ.map(claims.set_index("occ").claim_id)
     order = {k: i for i, k in enumerate(C.COVERAGES)}
     rep["cvg_order"] = rep.cvg.map(order)
@@ -526,4 +539,5 @@ def develop(cfg: C.Config, ref, res) -> dict:
     reserves["reserve_id"] = np.arange(1, len(reserves) + 1)
 
     unreported = f[~f.reported].merge(occ[["occ", "pol", "veh", "row"]], on="occ")
-    return dict(claims=claims, features=rep, payments=payments, reserves=reserves, unreported=unreported)
+    return dict(claims=claims, features=rep, payments=payments, reserves=reserves, unreported=unreported,
+                settled_before=settled[["drv", "day", "chargeable_day"]])

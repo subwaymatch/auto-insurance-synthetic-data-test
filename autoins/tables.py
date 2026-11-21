@@ -10,6 +10,7 @@ import pandas as pd
 
 from . import config as C
 from . import billing, names, payments, rating, telematics, truth
+from .claims import NO_DAY
 from .refdata import stream
 from .simulate import DRIVER_REMOVAL_REASONS, END_ENDORSED, END_GONE, REMOVAL_REASONS
 
@@ -32,6 +33,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     terms, rows = res.terms, res.rows
     claims, feats, pays = dev["claims"], dev["features"], dev["payments"]
     opt_date = lambda day: np.where(np.asarray(day) >= 0, D(np.clip(np.asarray(day), 0, None)), "")
+    # a claim's dates can fall before the start (a claim open when the extract begins); NO_DAY means none
+    claim_date = lambda day: _any_date(np.asarray(day, dtype=np.int64), D, NO_DAY)
     V = cal.valuation_day
     D = lambda day: pd.Series(cal.date(np.asarray(day))).dt.strftime("%Y-%m-%d").to_numpy()
     polno = lambda p: POLICY_BASE + np.asarray(p) + 1
@@ -183,6 +186,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     # driving record, an earlier accident when it appears on a claims-history report, and the company's own
     # claim when its payments make it chargeable. Rating uses an incident only from that day on.
     own = claims[claims.chargeable & (claims.drv >= 0)]
+    early = dev["settled_before"]                  # company claims settled and closed before the extract (warm-up)
     acc = (inc.kind == "accident").to_numpy()
     # An accident in a driver's history was a claim with this company only if it happened while the driver was on
     # this policy and before the extract starts (later ones are simulated claims). Earlier ones, and the
@@ -199,7 +203,10 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                       "claim_id": pd.array([pd.NA] * len(inc), dtype="Int64")}),
         pd.DataFrame({"drv": own.drv, "day": own.day, "known": own.chargeable_day, "incident_type": "At-Fault Accident",
                       "description": "At-fault accident (company claim)", "source": "Company Claim",
-                      "claim_id": own.claim_id.astype("Int64")})], ignore_index=True)
+                      "claim_id": own.claim_id.astype("Int64")}),
+        pd.DataFrame({"drv": early.drv, "day": early.day, "known": early.chargeable_day, "incident_type": "At-Fault Accident",
+                      "description": "At-fault accident (company claim before the extract)", "source": "Company Claim (Before Extract)",
+                      "claim_id": pd.array([pd.NA] * len(early), dtype="Int64")})], ignore_index=True)
     records = records[(records.day <= V) & (records.known <= V)].sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
     T["driver_incident"] = pd.DataFrame({
         "incident_id": np.arange(1, len(records) + 1), "driver_id": records.drv + 1, "incident_date": D(records.day),
@@ -285,7 +292,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "coverage": f.cvg.map(C.COVERAGE_NAMES), "um_uim_type": f.um_type, "claimant_number": f.claimant,
         "feature_status": np.where(f.closed, "Closed", np.where(f.reopened, "Reopened", "Open")), "open_date": D(f.open_day),
         "close_date": np.where(f.closed, D(f.status_close_day.clip(upper=V)), ""),
-        "reopen_date": np.where(f.reopened, D(f.reopen_day.clip(0)), ""),
+        "reopen_date": np.where(f.reopened, claim_date(f.reopen_day), ""),
         "paid_loss": f.paid_loss.round(2), "case_reserve": f.case_reserve.round(2), "incurred_loss": f.incurred.round(2),
         "salvage_recovery": f.salvage_rec.round(2), "subrogation_recovery": f.subro_rec.round(2),
         "net_incurred_loss": f.net_incurred.round(2),
@@ -294,8 +301,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "paid_dcc_expense": f.paid_dcc.round(2), "paid_ao_expense": f.paid_ao.round(2),
         "expense_reserve": f.expense_reserve.round(2),
         "injury_type": f.injury_type, "attorney_represented": YN[f.attorney.astype(int)],
-        "attorney_date": np.where(f.attorney, opt_date(f.attorney_day), ""),
-        "litigation": YN[f.litigated.astype(int)], "suit_date": np.where(f.litigated, opt_date(f.suit_day), ""),
+        "attorney_date": np.where(f.attorney, claim_date(f.attorney_day), ""),
+        "litigation": YN[f.litigated.astype(int)], "suit_date": np.where(f.litigated, claim_date(f.suit_day), ""),
         "total_loss": YN[f.total.astype(int)],
         "closed_without_payment": YN[(f.closed & (f.paid_loss == 0)).astype(int)],
         "owner_retained_salvage": YN[f.retained.astype(bool).astype(int)]})
@@ -349,7 +356,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "litigation": YN[cg.lit.to_numpy().astype(int)], "claim_office_id": branch, "adjuster_id": adjuster + 1,
         "police_report": YN[claims.police_report.astype(int)],
         "insured_fault_pct": pd.array(np.where(claims.fault_pct >= 0, claims.fault_pct, 0), dtype="Int64"),
-        "siu_referral": YN[(claims.siu_day >= 0).astype(int)], "siu_referral_date": opt_date(claims.siu_day)})
+        "siu_referral": YN[(claims.siu_day > NO_DAY).astype(int)], "siu_referral_date": claim_date(claims.siu_day)})
     T["claim"].loc[claims.fault_pct.to_numpy() < 0, "insured_fault_pct"] = pd.NA
     T["claim_payment"] = pd.DataFrame({
         "payment_id": pays.payment_id, "claim_feature_id": pays.feature_id, "claim_id": pays.claim_id,
@@ -358,7 +365,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "vendor_id": pd.array(np.where(detail["vendor"] >= 0, detail["vendor"] + 1, pd.NA), dtype="Int64"),
         "payment_method": detail["method"],
         "check_number": pd.array(np.where(detail["check"] >= 0, detail["check"], pd.NA), dtype="Int64"),
-        "payment_status": detail["status"], "cleared_date": opt_date(detail["cleared"]),
+        "payment_status": detail["status"], "cleared_date": claim_date(detail["cleared"]),
         "approved_by_employee_id": detail["approver"] + 1})
     rs = dev["reserves"]
     T["claim_reserve_transaction"] = pd.DataFrame({
@@ -402,7 +409,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     K["claim_feature_truth"] = pd.DataFrame({
         "claim_feature_id": fu.feature_id, "ultimate_paid_loss": fu.paid.round(2),
         "ultimate_recovery": (fu.salvage + fu.subro).round(2), "ultimate_expense": fu.expense.round(2),
-        "eventual_reopen_date": np.where(fu.reopen_day >= 0, D(fu.reopen_day.clip(0)), ""),
+        "eventual_reopen_date": claim_date(fu.reopen_day),
         "eventual_close_date": D(fu.final_close_day)})
     return T, K
 
