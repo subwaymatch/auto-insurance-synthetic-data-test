@@ -83,7 +83,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["catastrophe"] = pd.DataFrame(
         [(e[0], e[1], e[2], C.PERIL_DESCRIPTION[e[3]]) for e in C.CAT_EVENTS
          if cfg.start <= e[1] <= cfg.valuation],
-        columns=["catastrophe_id", "event_date", "description", "peril"]).assign(note="Fictional event")
+        columns=["catastrophe_id", "event_date", "description", "peril"]).assign(note="NOAA Storm Events; losses simulated")
     level, out = 1.0, []
     for d, chg in C.RATE_CHANGES:
         if cfg.start <= d <= cfg.valuation:

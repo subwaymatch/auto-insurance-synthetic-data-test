@@ -484,19 +484,24 @@ COMPANY_SIZE_AT_FOUNDING = 0.25     # its size in 2000 as a share of its size fr
 OPENING_SURPLUS_SHARE = 0.50
 
 # --------------------------------------------------------------------------
-# Catastrophes: FICTIONAL events with realistic seasonality for northern Illinois.
+# Catastrophes: REAL storms in the seven counties, from NOAA's Storm Events Database (scripts/
+# build_catastrophe_events.py, which states the thresholds: hail, flash flooding and wind days big enough to
+# damage many cars). The date, place, peril and footprint are NOAA's reports; how likely a car is to be hit
+# (the peak, at the centre) is ASSUMED, scaled by the storm's severity; the claims are simulated. NOAA's data
+# ran to mid-August 2026 when the list was built.
 # (id, date, description, peril, centre lat, centre lon, radius miles, peak hit probability)
 # --------------------------------------------------------------------------
 CAT_EVENTS = [
-    ("CAT-2021-01", "2021-06-21", "Severe thunderstorm, hail and wind - southwest suburbs", "HAIL_CAT", 41.74, -88.10, 14, 0.040),
-    ("CAT-2022-01", "2022-05-19", "Hailstorm - northern Lake County", "HAIL_CAT", 42.33, -87.95, 12, 0.035),
-    ("CAT-2023-01", "2023-04-04", "Hailstorm - Fox Valley and western DuPage", "HAIL_CAT", 41.90, -88.28, 16, 0.050),
-    ("CAT-2023-02", "2023-07-02", "Flash flooding - West Side and near west suburbs", "FLOOD_CAT", 41.86, -87.76, 7, 0.014),
-    ("CAT-2024-01", "2024-03-13", "Hailstorm - south suburbs and Will County", "HAIL_CAT", 41.53, -87.85, 15, 0.035),
-    ("CAT-2024-02", "2024-07-15", "Derecho, wind and tree damage - metro wide", "WIND_CAT", 41.85, -87.90, 34, 0.012),
-    ("CAT-2025-01", "2025-05-28", "Hailstorm - McHenry County and northwest Cook", "HAIL_CAT", 42.18, -88.20, 15, 0.040),
-    ("CAT-2025-02", "2025-08-16", "Flash flooding - South Side and south suburbs", "FLOOD_CAT", 41.72, -87.62, 8, 0.010),
-    ("CAT-2026-01", "2026-06-09", "Hailstorm - DuPage and west Cook", "HAIL_CAT", 41.88, -87.98, 13, 0.040),
+    ("CAT-2023-01", "2023-04-04", "Large hail - Fox Valley, Kendall County and the North Shore", "HAIL_CAT", 41.91, -88.20, 20.0, 0.0500),
+    ("CAT-2023-02", "2023-07-02", "Record rainfall and flash flooding - Cook County and the west suburbs", "FLOOD_CAT", 41.80, -87.87, 10.0, 0.0140),
+    ("CAT-2024-01", "2024-02-27", "Hail and tornadoes - southwest suburbs", "HAIL_CAT", 41.72, -88.01, 15.7, 0.0370),
+    ("CAT-2024-02", "2024-07-15", "Derecho and 27 tornadoes - metro wide", "WIND_CAT", 41.76, -87.92, 26.5, 0.0120),
+    ("CAT-2025-01", "2025-06-08", "Large hail - Batavia and central Kane County", "HAIL_CAT", 41.85, -88.34, 6.0, 0.0400),
+    ("CAT-2025-02", "2025-07-25", "Flash flooding - southeast DuPage and central Cook", "FLOOD_CAT", 41.73, -88.06, 7.5, 0.0116),
+    ("CAT-2025-03", "2025-08-17", "Flash flooding - Chicago and the south and west suburbs", "FLOOD_CAT", 41.78, -87.87, 10.0, 0.0123),
+    ("CAT-2026-01", "2026-03-10", "Giant hail - Fox Valley, Joliet and Chicago", "HAIL_CAT", 41.74, -88.11, 20.0, 0.0350),
+    ("CAT-2026-02", "2026-06-10", "Derecho - metro wide", "WIND_CAT", 41.79, -88.05, 24.1, 0.0100),
+    ("CAT-2026-03", "2026-07-27", "Hail, wind and flooding - DuPage and the west and southwest suburbs", "HAIL_CAT", 41.80, -87.97, 20.0, 0.0480),
 ]
 
 # --------------------------------------------------------------------------
