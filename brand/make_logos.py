@@ -11,9 +11,9 @@ Needs fonttools, uharfbuzz, resvg-py (for the PNG and ICO files) and the Inter 4
     pip install fonttools uharfbuzz resvg-py
     python brand/make_logos.py --fonts /path/to/inter/otf
 
-Writes brand/logo/ (the chosen logo and favicons), brand/candidates/, brand/type-study/, brand/sunrise/ and the preview pages
-brand/preview.html and brand/sunrise/preview.html (every SVG inlined as a data URI, so each page
-works on its own).
+Writes brand/logo/ (the chosen logo and favicons), brand/candidates/, brand/type-study/, brand/sunrise/,
+brand/waves/ and the preview pages brand/preview.html, brand/sunrise/preview.html and
+brand/waves/preview.html (every SVG inlined as a data URI, so each page works on its own).
 """
 from __future__ import annotations
 
@@ -461,6 +461,125 @@ def apple_touch_svg(size=180, share=0.68) -> str:
                f'<g transform="translate({f(off)} {f(off)}) scale({f(s)})">{body}</g>', defs)
 
 
+# --------------------------------------------------------------------------- wave variations
+# The chosen o (variation B) with waves in its lower half: the outline of the o and the ink above the
+# horizon stay as they are; only the lake bands change from straight to wavy.
+
+
+@dataclass
+class Waves:
+    slug: str
+    name: str
+    note: str
+    # Lake bands as (top, bottom, wave on the top edge, wave on the bottom edge, wavelength, phase).
+    # Heights and wavelengths are in 28ths of the o's half-height (as the sunrise bands); a wave is its
+    # crest height above the edge's mean line, 0 for a straight edge. Waves are centred on the o: phase
+    # 0 puts a trough (the lowest point) on its vertical axis, 0.5 a crest; phase is in wavelengths. A
+    # band ending at 28 runs flat off the bottom of the o.
+    bands: list
+
+
+WAVES = [
+    Waves("a-three-waves", "Three waves",
+          "The logo's three bands, each turned into a ribbon of the same thickness that rises and falls "
+          "in step with the others: about one and a half waves across the o.",
+          [(3, 10.5, 1.5, 1.5, 35, 0), (13.5, 20, 1.5, 1.5, 35, 0), (23, 28, 1.5, 0, 35, 0)]),
+    Waves("b-two-waves", "Two waves",
+          "Two broad ribbons with deeper, longer waves. The boldest, and the one most likely to keep "
+          "its waves at small sizes.",
+          [(3.5, 14.5, 2.2, 2.2, 44, 0), (18, 28, 2.2, 0, 44, 0)]),
+    Waves("c-staggered", "Staggered waves",
+          "Three ribbons, the middle one half a wave out of step, so crests sit over troughs like "
+          "ripples on open water.",
+          [(3.5, 10.5, 1.2, 1.2, 35, 0), (14, 20, 1.2, 1.2, 35, 0.5), (23.5, 28, 1.2, 0, 35, 0)]),
+    Waves("d-perspective", "Waves in perspective",
+          "Small, short waves near the horizon growing larger and longer towards the bottom, as waves "
+          "look from the shore.",
+          [(2.5, 8.5, 0.6, 0.9, 22, 0), (11.5, 18, 1.2, 1.6, 30, 0), (21, 28, 1.9, 0, 40, 0)]),
+    Waves("e-one-wave", "One wave",
+          "A solid lake crossed by a single wave line: the straight horizon above it is kept, so the "
+          "sun still reads as rising.",
+          [(3.5, 13.5, 0, 1.8, 40, 0), (16.5, 28, 1.8, 0, 40, 0)]),
+    Waves("f-surface", "Wave-topped lake",
+          "No bands: one solid lake whose surface is a wave. The simplest, and the clearest at 16 px.",
+          [(4.5, 28, 2.0, 0, 36, 0)]),
+]
+
+
+def wave_edge(x_from: float, x_to: float, y: float, amp: float, length: float, phase: float, centre: float):
+    """Start point and quadratic segments of a wave along y covering x_from..x_to, its crests `amp`
+    above and below y, `length` long, with a trough at x=centre shifted by `phase` wavelengths (a
+    straight line when amp is 0)."""
+    start = centre + length / 4 + phase * length       # each wavelength starts by rising to a crest
+    start -= (int((start - x_from) / length) + 1) * length
+    if amp == 0:
+        return (start, y), [((start, y), (x_to + length, y))]
+    segs, x, k = [], start, 0
+    while x < x_to + length:
+        half = length / 2
+        segs.append(((x + half / 2, y + (-1 if k % 2 == 0 else 1) * 2 * amp), (x + half, y)))
+        x, k = x + half, k + 1
+    return (start, y), segs
+
+
+def wave_lake(bands, left: float, right: float, horizon: float, unit: float, bottom: float) -> str:
+    """The lake bands of a Waves variation as one path, between x=left and x=right, below `horizon`,
+    centred on the middle of left..right."""
+    centre = (left + right) / 2
+    d = ""
+    for top, bot, amp_t, amp_b, length, phase in bands:
+        if bot >= 28:
+            bot, amp_b = bot + (bottom - horizon) / unit * 0.2 + 1, 0  # run flat off the bottom
+        (x0, y0), upper = wave_edge(left, right, horizon + top * unit, amp_t * unit, length * unit, phase, centre)
+        _, lower = wave_edge(left, right, horizon + bot * unit, amp_b * unit, length * unit, phase, centre)
+        x_end = upper[-1][1][0]
+        lower = [(c, e) for c, e in lower if c[0] <= x_end + 1e-9] or lower
+        y_low = horizon + bot * unit
+        d += f"M{f(x0)} {f(y0)}{seg_d(upper)}L{f(x_end)} {f(y_low)}"
+        d += f"{seg_d(reverse((x0, y_low), [(c, e) for c, e in lower if e[0] <= x_end + 1e-9]))}Z"
+    return d
+
+
+def waves_o(c, uid, o: Glyph, v: Waves):
+    """The o of the logo (Inter's outline, filled) with the wave bands of `v` below the horizon."""
+    x0, y0, x1, y1 = o.bbox
+    cy, half = (y0 + y1) / 2, (y1 - y0) / 2
+    clip = f"{uid}-o"
+    sky = rect(x0 - 1, y0 - 1, x1 - x0 + 2, cy - y0 + 1)
+    lake = wave_lake(v.bands, x0 - 1, x1 + 1, cy, half / 28, y1)
+    return (f'<clipPath id="{clip}"><path d="{outer_outline(o)}"/></clipPath>',
+            f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{sky}"/>'
+            f'<path fill="{c["lake"]}" d="{lake}"/></g>')
+
+
+def waves_lockup(v: Waves, c, uid):
+    line, o = wordmark_o()
+    x0, y0, x1, y1 = line.bbox
+    defs, sun = waves_o(c, uid, o, v)
+    body = (wordmark_body(line, c["ink"], -x0, -y0, skip={"o"})
+            + f'<g transform="translate({f(-x0)} {f(-y0)})">{sun}</g>')
+    return svg(x1 - x0, y1 - y0, body, defs)
+
+
+def waves_mark(v: Waves, c, uid, height=56):
+    """The o alone, centred in the 64-unit box."""
+    _, o = wordmark_o()
+    x0, y0, x1, y1 = o.bbox
+    s = height / (y1 - y0)
+    defs, body = waves_o(c, uid, o, v)
+    move = f"translate({f(32 - (x0 + x1) / 2 * s)} {f(32 - (y0 + y1) / 2 * s)}) scale({f(s)})"
+    return defs, f'<g transform="{move}">{body}</g>'
+
+
+def waves_favicon(v: Waves, c=LIGHT) -> str:
+    """The favicon's plain circle (32-unit grid, no tile) with the waves of `v`."""
+    clip = f"fav-{v.slug}"
+    defs = f'<clipPath id="{clip}"><circle cx="16" cy="16" r="15"/></clipPath>'
+    lake = wave_lake(v.bands, -1, 33, 16, 15 / 28, 31)
+    return svg(32, 32, f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{rect(0, 0, 32, 16)}"/>'
+                       f'<path fill="{c["lake"]}" d="{lake}"/></g>', defs)
+
+
 def png(svg_text: str, size: int, height: int | None = None) -> bytes:
     import resvg_py  # only needed for the PNG and ICO files
     return bytes(resvg_py.svg_to_bytes(svg_string=svg_text, width=size, height=height or size))
@@ -603,6 +722,16 @@ def build(out: Path) -> dict:
         defs, body = sunrise_mark(v, LIGHT, v.slug)
         write(sun_dir / f"{v.slug}-mark.svg", svg(64, 64, body, defs))
         write(sun_dir / f"{v.slug}-icon.svg", icon(lambda c, uid, v=v: sunrise_mark(v, c, uid), v.slug))
+
+    wave_dir = out / "waves"
+    wave_dir.mkdir(parents=True, exist_ok=True)
+    for v in WAVES:
+        write(wave_dir / f"{v.slug}-lockup.svg", waves_lockup(v, LIGHT, v.slug))
+        write(wave_dir / f"{v.slug}-lockup-dark.svg", waves_lockup(v, DARK, v.slug))
+        defs, body = waves_mark(v, LIGHT, v.slug)
+        write(wave_dir / f"{v.slug}-mark.svg", svg(64, 64, body, defs))
+        write(wave_dir / f"{v.slug}-icon.svg", icon(lambda c, uid, v=v: waves_mark(v, c, uid), v.slug))
+        write(wave_dir / f"{v.slug}-favicon.svg", waves_favicon(v))
     return files
 
 
@@ -663,7 +792,10 @@ def page(title: str, lede: str, body: str) -> str:
   figcaption {{ font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 10px; color: var(--muted); }}
   figcaption b {{ color: var(--ink); font-weight: 600; }}
   figcaption em {{ flex-basis: 100%; font-style: normal; }}
-  .glance {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }}
+  .glance {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }}
+  .favs {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }}
+  figure.fav {{ margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 10px 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }}
+  figure.fav figcaption {{ flex-basis: 100%; justify-content: center; font-size: 12px; }}
   figure.o {{ margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 10px 10px; text-align: center; }}
   figure.o img {{ display: block; margin: 0 auto 10px; }}
   figure.o figcaption {{ display: block; font-size: 12px; line-height: 1.35; }}
@@ -742,6 +874,34 @@ def sunrise_preview(files: dict) -> str:
   {rows}""")
 
 
+def waves_preview(files: dict) -> str:
+    glance = []
+    defs, body = sunrise_mark(LOGO, LIGHT, "now")
+    glance.append(f'<figure class="o before">{img(svg(64, 64, body, defs), 112)}'
+                  f"<figcaption>Now: straight bands</figcaption></figure>")
+    for v in WAVES:
+        defs, body = waves_mark(v, LIGHT, v.slug)
+        glance.append(f'<figure class="o">{img(svg(64, 64, body, defs), 112)}'
+                      f"<figcaption>{v.slug[0].upper()}. {v.name}</figcaption></figure>")
+    favs = [("Now", favicon_svg())] + [(v.slug[0].upper(), files[f"waves/{v.slug}-favicon.svg"]) for v in WAVES]
+    fav_row = "".join(f'<figure class="fav">{img(svg_text, 48)}{img(svg_text, 32)}{img(svg_text, 16)}'
+                      f"<figcaption>{label}</figcaption></figure>" for label, svg_text in favs)
+    rows = "".join(
+        section(v.slug[0].upper(), v.name, v.note, files[f"waves/{v.slug}-lockup.svg"],
+                files[f"waves/{v.slug}-lockup-dark.svg"], files[f"waves/{v.slug}-icon.svg"])
+        for v in WAVES)
+    return page(
+        "Lakefront: wave variations",
+        "The logo's o (variation B: Inter's o, filled) with waves in its lower half. The outline of the o "
+        "and the ink above the horizon are unchanged. Icons at 64, 32 and 16 px.",
+        f"""<h3>The o, close up</h3>
+  <div class="glance">{''.join(glance)}</div>
+  <h3>As favicons (the plain circle, at 48, 32 and 16 px)</h3>
+  <div class="favs">{fav_row}</div>
+  <h3>Variations</h3>
+  {rows}""")
+
+
 def main():
     global FONT_DIR
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -752,7 +912,8 @@ def main():
     files = build(args.out)
     (args.out / "preview.html").write_text(preview(files))
     (args.out / "sunrise" / "preview.html").write_text(sunrise_preview(files))
-    print(f"wrote {len(files)} SVG files, preview.html and sunrise/preview.html to {args.out}")
+    (args.out / "waves" / "preview.html").write_text(waves_preview(files))
+    print(f"wrote {len(files)} SVG files, preview.html, sunrise/preview.html and waves/preview.html to {args.out}")
     print("wrote logo/:", ", ".join(build_logo(args.out)))
 
 

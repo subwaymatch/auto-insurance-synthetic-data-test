@@ -70,6 +70,29 @@ the outline of Inter's o over each version.
 | D | Inter's o, two bands | Bolder; still works as a favicon |
 | E | Inter's o, horizon only | Ink above the horizon, lake below; the quietest, and the clearest at small sizes |
 
+### Wave variations
+
+[`waves/`](waves/) tries waves in the lower half of the logo's o, keeping its outline (Inter's o, filled) and
+the ink above the horizon. The waves are centered on the o, so each version is symmetric. Open
+[`waves/preview.html`](waves/preview.html), or look at the picture below. Its second row shows each
+version in the favicon's plain circle at 48, 32 and 16 px.
+
+![Wave variations](waves/preview.png)
+
+| | Variation | The lake |
+|---|---|---|
+| A | Three waves | The logo's three bands as ribbons rising and falling together, about one and a half waves across |
+| B | Two waves | Two broad ribbons with deeper, longer waves; the boldest |
+| C | Staggered waves | Three ribbons, the middle one half a wave out of step, like ripples on open water |
+| D | Waves in perspective | Small, short waves near the horizon growing larger towards the bottom |
+| E | One wave | A solid lake crossed by a single wave line under a straight horizon |
+| F | Wave-topped lake | No bands: one lake whose surface is a wave; the only one that keeps its wave at 16 px |
+
+Waves need room: at header size (about 22 px tall) A, C and D read as textured bands rather than
+waves, and at 16 px only F keeps its shape. None has replaced the logo in [`logo/`](logo/) yet; the
+bands are the `WAVES` list in `make_logos.py`, set like the sunrise bands with a wave height,
+wavelength and phase for each edge.
+
 ### Files
 
 Each candidate in [`candidates/`](candidates/) has four SVG files:
@@ -81,7 +104,8 @@ Each candidate in [`candidates/`](candidates/) has four SVG files:
 | `NN-name-mark.svg` | The mark alone, 64 x 64 |
 | `NN-name-icon.svg` | The mark on a rounded tile, for an app icon |
 
-[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `e-...`.
+[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `e-...`, and
+[`waves/`](waves/) the same, named `a-...` to `f-...`, plus a `-favicon.svg` (the plain 32-unit circle).
 [`type-study/`](type-study/) holds the six wordmark settings shown at the top of the preview.
 
 All text is converted to outlines, so the files need no font and render the same everywhere. The
@@ -123,7 +147,7 @@ python brand/make_logos.py --fonts /path/to/inter/otf
 
 `make_logos.py` needs the Inter 4 OTF files from [rsms.me/inter](https://rsms.me/inter/) (both
 `Inter-*.otf` and `InterDisplay-*.otf`). It sets the text with HarfBuzz so the font's kerning
-applies, then writes every SVG, both preview pages, and `logo/` (resvg renders its PNG and ICO
+applies, then writes every SVG, the three preview pages, and `logo/` (resvg renders its PNG and ICO
 files). The wordmark used by the lockups, the palette and
 each mark's geometry are near the top of the script; the sunrise variations are the `SUNRISE`
 list, where each band is given in 28ths of the o's half-height below the horizon.
