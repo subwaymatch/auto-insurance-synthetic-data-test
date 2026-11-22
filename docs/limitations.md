@@ -49,7 +49,7 @@ business is accidental; vehicle symbols are this dataset's own scales.
 | Reinstatements after a lapse; billing accounts spanning several policies | A canceled policy never comes back; each term is billed on its own | Billing systems |
 | Bills and receipts from before 2022, except for terms in the data | Receivables cannot be aged for the whole company before the start date | Billing systems |
 | A journal entry for each transaction; investments, expenses other than commission, taxes, reinsurance and a reserve for unreported claims | The general ledger is monthly totals of the premium, cash, commission and claim subledgers, with assumed opening cash and surplus; it supports reconciliation and roll-forwards, not a full set of financial statements or journal-entry testing | Accounting systems |
-| Agency appointments and terminations; agency statements netted from month to month | All 134 agencies are there throughout; a statement with more return commission than commission is repaid by the agency | Agency management systems |
+| Agency terminations, producer departures and transfers of books between producers; agency statements netted from month to month | All 134 agencies are there throughout; producers are hired over the years but none leaves, and a policy keeps the producer who wrote it; a statement with more return commission than commission is repaid by the agency | Agency management systems |
 | License plates | Vehicles are identified by VIN and unit number, as policies are written; plates would appear in claim files | Claim systems |
 | Planted errors, irregularities or fraud | Audit tests (duplicate payments, payments over authority, gaps in check numbers) all come back clean | Real data has them |
 | Named competitors, advertising and marketing spend | Quotes and new business follow an assumed season and one market rate level; nothing explains them further | Marketing systems |
@@ -59,6 +59,9 @@ business is accidental; vehicle symbols are this dataset's own scales.
 | Claim handling history: reassignments and status changes | Each claim shows its current adjuster only; status changes show only as open, close and reopen dates | Claim systems |
 | Quote revisions, underwriting referrals and declines | One quote per prospect, bound or not; a renewal has one offer (`renewal_offer`) and at most one revision after a household change | Rating and policy systems |
 | Trip-level telematics data | Only per-period summaries and scores | Telematics vendors |
+| Roadside assistance (breakdowns, lockouts, jump-starts) | Towing and labor pays only for tows after a crash, a flood, a fire or a storm, so its frequency is lower than real roadside cover's | Claim and roadside vendor systems |
+| The insured's deductible recovered by subrogation | A subrogation recovery is the company's own share; the deductible collected with it and passed to the insured (as Illinois requires, pro rata) is not recorded | Claim systems |
+| Special investigations files | A referral has a date only; no investigator, finding or outcome is recorded, so the employee table's investigators handle no claim | Claim systems |
 | Reinsurance | No ceded premium or recoveries | Ceded statistical data |
 | Edit errors, out-of-sequence bookings, missing values | See section 6 | Every production system |
 
@@ -102,10 +105,11 @@ Those synthetic figures are plausible but unverified.
   range typical of rating territories.
 - Each ZIP has a random hazard component the territories cannot see.
 - Catastrophes are ten real storms in the seven counties from NOAA's Storm Events Database (2023 to 2026:
-  hail, flash floods and derechos). Their date, place, peril and relative size are real; how likely a car
-  near a storm's center is to be hit is assumed, and the claims and losses are simulated
-  (`scripts/build_catastrophe_events.py`). NOAA publishes with a lag of a few months, so the latest storms
-  may be missing.
+  hail, flash floods and derechos). Their date, hours, place, peril and relative size are real; how likely a
+  car near a storm's center is to be hit is assumed, and the claims and losses are simulated
+  (`scripts/build_catastrophe_events.py`). No 2022 storm met the rule (the 13 June 2022 storm's wind reports
+  in the seven counties fell short and NOAA records no property damage there). NOAA publishes with a lag of a
+  few months, so the latest storms may be missing.
 
 **Pricing**
 
@@ -142,7 +146,12 @@ Those synthetic figures are plausible but unverified.
 
 - Claims before the start date go back one warm-up year only: the part of each opening term before 1 January
   2022 is simulated, so the extract opens with the claims then open, and earlier terms' claims survive only as
-  incidents on the drivers' records (see section 2).
+  incidents on the drivers' records (see section 2). Opening case reserves are therefore low (older injury
+  claims still open on 1 January 2022 are missing), and 2022's calendar-year paid losses and cash flow are
+  flattered. A crash in the warm-up that wrote off the car is dropped with its liability claims, since the car
+  is in the opening book.
+- Two claims on one car within a few days stay possible (a car hit while parked the week after a crash); the
+  car is not taken off the road while it is repaired.
 - A car its owner keeps after a total loss has no further losses in that term (a salvage car may not be driven
   until rebuilt) and loses physical damage cover at the next renewal; rebuilding it is not modeled.
 - `insured_fault_pct` describes the accident only: settlements are not reduced for the claimant's own
@@ -163,7 +172,8 @@ Those synthetic figures are plausible but unverified.
 **Operations**
 
 - Loss days follow Chicago's daily crash and vehicle-theft counts: police reports for the city, not
-  insurance claims for the metro area. Hold-over of weekend notices, the weekday mix of quotes and
+  insurance claims for the metro area. The daily index ends on 30 September 2026; later days follow the
+  average day-of-week and month pattern. Hold-over of weekend notices, the weekday mix of quotes and
   effective dates, and loss times for causes other than crashes and thefts are assumed. Losses from other
   causes follow monthly seasonality only, and nothing bunches at month or quarter ends.
 - Billing is stylized: two monthly plans and paid in full, fixed fees, late payment and returned drafts at
@@ -177,8 +187,8 @@ Those synthetic figures are plausible but unverified.
 - Agencies are stylized: 120 independent and 14 exclusive, with assumed long-tailed sizes, commission
   schedules, hidden book quality and hold on customers, and names built from the area's surnames and towns
   (any resemblance to a real agency is accidental).
-- The general ledger is a monthly summary built from the published tables. Its opening cash and surplus
-  are assumed, it has no investments, expenses other than commission, taxes, reinsurance or reserve for
+- The general ledger is a monthly summary built from the published tables, closed to surplus each 31
+  December. Its opening cash and surplus are assumed, it has no investments, expenses other than commission, taxes, reinsurance or reserve for
   unreported claims, acquisition costs are expensed as written, and fees are income when collected. One
   receivable account nets premium not yet collected against premium paid ahead and refunds on their way.
 - Claim payment detail is stylized: who is paid (shop, person, lienholder, other insurer), by check or
@@ -193,6 +203,13 @@ Those synthetic figures are plausible but unverified.
 - Mover, divorce, marriage, mortality, licensing and vehicle-ownership rates come from public data; how
   often households add or sell cars, how often a leaving driver takes a car, and the shapes by age are
   judgment calls.
+- A driver's employment and commute are drawn when they join and change only with a move: students do not
+  start work and nobody retires.
+- The underwriting company (tier) is set when a policy is written and never changes; a real group moves
+  some policies between its companies at renewal.
+- The extract ends at the valuation date: renewals offered for January and February 2027 are pending and not
+  yet billed, and quotes are only those for policies starting by 31 December 2026, so bills and quotes thin out
+  over the last weeks of December 2026. Leave the last month out of time series.
 
 **Vehicles**
 
@@ -209,10 +226,15 @@ Those synthetic figures are plausible but unverified.
 - Vehicle ages are tuned to Chicago's roads (about nine years in force); the US fleet average is older
   (about 12.6 years in 2024).
 - What a car is worth is modeled: its model year's base price, a depreciation curve of assumed shape, and
-  the Manheim used-vehicle index by year. Trim, mileage and condition are not modeled, so two cars of one
+  the Manheim used-vehicle index by year, relative to the new-car prices the model year sold at and only once
+  the car is a year old. Trim, mileage and condition are not modeled, so two cars of one
   model and year are worth the same. Values were raised by about half after the realism audit (they had
   been about half what such cars fetched in 2022 to 2024), which is what brought physical damage premiums
   up to Illinois' level.
+- Equipment (automatic emergency braking, an immobiliser) follows assumed shares by model year, earlier for
+  luxury cars and EVs; the theft-wave Kias and Hyundais have no immobiliser.
+- Price does not limit what is insured: the odd exotic car is in the book, rated like any other, as a
+  regional insurer might write one (most would place it on a specialty form).
 - Collision and comprehensive take-up is tuned to Illinois' (83% and 88% of insured cars); how it falls
   with the car's age and varies with income and score is assumed.
 - Vehicle symbols are this dataset's own scales, not ISO's licensed ones.
