@@ -970,6 +970,20 @@ class TelematicsAssignmentTest(unittest.TestCase):
             np.testing.assert_array_equal(a[k], b[k])
 
 
+class MileageHistoryTest(unittest.TestCase):
+    """A car's telematics period is measured on the mileage it was driven then (simulate._miles_then): a change
+    inside the period counts for its days only, and a later change (a move after the offer day) not at all."""
+
+    def test_day_weighted_and_later_changes_ignored(self):
+        from types import SimpleNamespace
+        change = lambda car, day, old, new: pd.DataFrame(dict(car=[car], day=[day], old=[old], new=[new]))
+        sim = SimpleNamespace(st=SimpleNamespace(v={"true_miles": np.array([30_000.0, 8_000.0])}),
+                              mile_changes=[change(0, 100, 10_000.0, 20_000.0), change(0, 300, 20_000.0, 30_000.0)])
+        got = simulate._miles_then(sim, np.array([0, 0, 0, 0, 1]), np.array([0, 0, 150, 250, 0]),
+                                   np.array([100, 200, 200, 350, 50]))
+        np.testing.assert_allclose(got, [10_000, 15_000, 20_000, 25_000, 8_000])
+
+
 class RenewalTimelineTest(unittest.TestCase):
     """A renewal offer and decision depend only on the policy's history up to the offer date (simulate._renewals).
     Re-evaluating each offer at the end of the run, with everything that happened later in the history (later claims,

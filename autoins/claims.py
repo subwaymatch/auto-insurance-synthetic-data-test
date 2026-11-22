@@ -163,6 +163,12 @@ class Development:
                           peril == "THEFT_TOTAL", f.cat.to_numpy() >= 0, cvg == "COMP", cvg == "MED"],
                          [35, 8, 32, 34, 24, 6, 18, 28, 16, 80], default=0.0)
         dur = mean * g + 30 * ((peril == "THEFT_TOTAL") & (cvg != "TOW"))
+        # a rental is paid once the car is returned: the days it was kept after the loss, then the invoice (2 to about
+        # 10 days)
+        rent_days = np.nan_to_num(f["rent_days"].to_numpy(dtype=float)) if "rent_days" in f else np.zeros(n)
+        returned = f.day.to_numpy() + np.ceil(rent_days)
+        f["pay_from"] = np.where(cvg == "RENT", returned + 1, -10 ** 9)          # nothing to pay before the car is back
+        dur = np.where(cvg == "RENT", np.maximum(dur, returned + 2 + np.floor(3 * g) - f.open_day.to_numpy()), dur)
         inj_dur = 200 * np.exp(0.8 * ln) * np.clip(paid / 15_000, 0.2, 8) ** 0.15 + lit * 420 * np.exp(0.5 * R.standard_normal(n))
         dur = np.where(injury, np.where(paid > 0, inj_dur, 110 * np.exp(0.7 * ln)), dur)
         dur = np.where(~injury & f.cwp.to_numpy(), 14 * g, dur)
@@ -473,7 +479,8 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     lag_long = np.where(injury, 12, 6)
     final_day = cd - np.where(R.random(n) < np.where(injury, 0.5, 0.55), 0,
                               np.minimum(1 + np.floor(R.exponential(lag_long)), dur)).astype(int)
-    final_day = cal.business_between(final_day, od, cd, R.random(n))
+    lo = np.maximum(od, f["pay_from"].to_numpy()) if "pay_from" in f else od     # a rental only once returned
+    final_day = cal.business_between(np.maximum(final_day, lo), lo, cd, R.random(n))
     u1, u2 = R.random(n), R.random(n)
     p1 = pd.Series(cvg).map(lambda c: INTERIM_P.get(c, (0.0, 0.0))[0]).to_numpy()
     p2 = pd.Series(cvg).map(lambda c: INTERIM_P.get(c, (0.0, 0.0))[1]).to_numpy()

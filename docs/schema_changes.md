@@ -418,6 +418,8 @@ Columns not listed for a table keep their meaning under the new name shown.
 | `Rated Good Student` | `rated_good_student` |
 | `Rated Married` | `rated_married` |
 | `Rated Homeowner` | `rated_homeowner` |
+| *(new)* | `rated_annual_mileage` |
+| *(new)* | `rated_primary_use` |
 | `Inexperienced Operator` | `inexperienced_operator` |
 | `Occasional Youthful Operator` | `occasional_youthful_operator` |
 | `Multi-Car Discount` | `multi_car_discount` |
@@ -494,6 +496,7 @@ Columns not listed for a table keep their meaning under the new name shown.
 | `Expected Loss RENT` | `expected_loss_rent` |
 | `Expected Loss TOW` | `expected_loss_tow` |
 | `Expected Loss Total` | `expected_loss_total` |
+| *(new)* | `true_annual_mileage` |
 
 ### `answer_key/unreported_claims` → `answer_key/unreported_claim`
 
