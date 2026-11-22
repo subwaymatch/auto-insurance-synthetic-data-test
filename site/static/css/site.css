@@ -234,7 +234,9 @@ hr { border: 0; margin: 48px 0; }
 }
 .card:hover h3 { color: var(--accent-text); }
 .card h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.015em; }
-.card h3::after { content: " →"; color: var(--accent); }
+.card h3 .lucide { color: var(--accent); width: 18px; height: 18px; vertical-align: -3px; margin-left: 2px; transition: transform .15s ease; }
+.card:hover h3 .lucide { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) { .card h3 .lucide { transition: none; } .card:hover h3 .lucide { transform: none; } }
 .card p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
 .home-prose { padding-top: 40px; padding-bottom: 80px; max-width: 1240px; }
 .home-prose h2 { margin-top: 48px; }
@@ -419,6 +421,8 @@ hr { border: 0; margin: 48px 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .badge.pk { background: var(--accent); color: #07131D; } }
 .badge.fk { background: var(--accent-soft); color: var(--accent-text); font-family: var(--mono); font-weight: 600; }
 .badge.fk:hover { text-decoration: underline; }
+.badge.fk .lucide { width: 11px; height: 11px; vertical-align: -1px; stroke-width: 2.5; }
+.joins .lucide { width: 14px; height: 14px; vertical-align: -2px; margin: 0 2px; color: var(--muted); }
 .search { position: relative; margin: 8px 0 26px; max-width: 760px; }
 .search svg { position: absolute; left: 14px; top: 50%; width: 19px; height: 19px; transform: translateY(-50%); fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
 .search input {
