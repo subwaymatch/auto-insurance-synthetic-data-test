@@ -1,11 +1,77 @@
 # Responses to the external reviews of November 2026
 
 An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
-realism audit followed on 20 November 2026, and two further realism audits on 22 November 2026. The two
-latest are answered first, then the 20 November audit at commit `03c2634`, then the third review at
-`9fe6062`; the first two follow. Each finding is answered:
+realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, and follow-up
+checks of the release that fixed them. The follow-up checks are answered first, then the two audits, then
+the 20 November audit at commit `03c2634`, then the third review at `9fe6062`; the first two follow. Each finding is answered:
 **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
 now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Follow-up checks (22 November 2026)
+
+Independent checks of v1.1.6 (content hash `4a1f9ef22b9bc813`) reported four reproducible defects and one
+statistical miss. Each defect reproduces and is **confirmed and fixed**; "before" figures are from v1.1.6 and
+"after" from the default run after this change (content hash `6a360e75d7d87f3f`).
+
+| Finding | Verdict | Before | After |
+|---|---|---|---|
+| Rental reimbursements paid in full before enough rental days could have passed | Confirmed and fixed | 868 of 4,095 paid rentals | 0 |
+| Payments to named insureds after their death | Confirmed and fixed | 6 payments | Paid to the estate (11 payments) |
+| Later household changes alter earlier telematics measurements and discounts | Confirmed and fixed | A move after the offer day changed the mileage scored before it | Each period is measured on the mileage driven in it |
+| Renewal decided on a later named insured's age | Confirmed and fixed | The current named insured at the time of simulation | The named insured on the offer day |
+| Mileage and use published only as their last values | Confirmed and fixed | `insured_vehicle` only, at the simulation's last state | Rated values on every exposure row; `insured_vehicle` as of the valuation date |
+| A seed narrowly outside one calibration band | Agreed: statistical, not a defect | | See below |
+
+**Rentals.** A rental feature closed, and was paid, after a delay drawn without regard to how long the car was
+kept: in v1.1.6 a fifth of paid rentals were paid before enough days had passed since the loss for the rental to
+cost that much at its daily limit (the lowest number of days its amount allows). The rental's length now
+travels with the claim (`truth.py`), the feature closes after the car is returned plus the invoice, and its
+payment is made only after the return (`claims.py`). `validate.py`: "a rental is paid in full only once enough
+days have passed since the loss for it to cost that much at its daily limit".
+
+**Estates.** When the named insured dies and the policy ends with them, a claim already open was still paid to
+them by name. A payment due to someone who has died before the payment day now goes to "Estate of" them, as it
+would in practice; the insured-name check reads through the prefix, and a new check requires the estate exactly
+when the person had died.
+
+**Telematics and later changes.** Confirmed as described. A renewal's telematics scores are calculated on its
+offer day for the driving up to it, but the simulation reaches that step after it has applied the rest of the
+expiring term's household changes. Since v1.1.6 a move redraws the cars' mileage, so a move between the offer
+day and the renewal changed the mileage behind the score of the driving before it, and with it the discount;
+a move inside a scoring period also applied its new mileage to the whole period. Each mileage change is now
+recorded with its day (`Sim.mile_changes`), and a period is measured on the day-weighted mileage of the days in
+it (`simulate._miles_then`); a unit test checks that a later change leaves an earlier period unchanged. Drivers
+and garaging were already read as they were on the days scored.
+
+**Renewal age.** The renewal decision used the age of the policy's named insured as the simulation then held
+it, which could be a surviving spouse who took the policy over after the offer day. It now uses the named
+insured on the offer day, from the dated history the claim and payment records already use.
+
+**Mileage and use over time.** Mileage and use change with a move or a new main driver, but `insured_vehicle`
+showed only their last values, from the end of the simulation (which runs past the valuation date for terms in
+force). `exposure` now has `rated_annual_mileage` and `rated_primary_use`, the values each period was rated on,
+and `exposure_truth` has `true_annual_mileage` for each period. `insured_vehicle`'s use, mileage and parking
+(and `insured_vehicle_truth.true_annual_mileage`) are as of the valuation date or the car's removal: those of
+its latest exposure row starting by then. `validate.py` checks they match.
+
+**The calibration miss.** Every calibration band is a statistical check on one draw of the book: a different
+seed has different claim luck, and `validate.py` reports a band missed on a full-size book as a failure so it is
+not overlooked. Across the five seeds in [benchmarks.md](benchmarks.md) the closest to an edge are bodily injury frequency per 100 car-years (0.71 to 0.83 against a band from 0.70),
+bodily injury severity relative to national (0.87 to 0.99 against 0.85 to 1.15) and incurred against the
+answer key's expected losses (0.94 to 1.01 against 0.93 to 1.07); bodily injury, with a few hundred paid claims
+a year, is the noisiest.
+An independent seed just outside one band, with every integrity check passing, is within that spread; the bands
+are not widened for it, and [benchmarks.md](benchmarks.md) gives the spread to judge such a miss by.
+
+### What changed in the data
+
+Rental and estate fixes change dates and payee names only; the telematics fix changes some scores and so some
+telematics discounts; the renewal fix changes a few renewal decisions. Because the rental timing and the
+mileage records change later random draws, every figure of the default run moves a little: loss ratios by
+accident year 81.3%, 70.4%, 67.5%, 58.2% and 65.5% for 2022 to 2026 (were 77.9%, 77.7%, 68.8%, 59.7% and 66.3%),
+overall 67.6% (was 69.1%; 67.6% to 70.5% across five seeds), annualized retention 81.3% (was 81.2%); 23,097
+claims (was 22,845) and 103,928 reserve transactions (was 104,316). `validate.py` runs 171 checks (was 168), all
+passing on the default run and on seeds 7, 11, 23 and 42; the test suite has 75 tests.
 
 ## Two further realism audits (22 November 2026)
 
