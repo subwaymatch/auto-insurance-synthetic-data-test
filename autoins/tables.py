@@ -295,17 +295,25 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     emp, desks = payments.employees(cfg, cal, ref, pd.Series(branch).value_counts())
     vend = payments.vendors(cfg, ref)
     ni_pay = ni_hist.at(claims.pol.to_numpy()[pays.claim_id.to_numpy() - 1], pays.day.to_numpy())[0]
-    surname = drv.last_name.astype(str).to_numpy()[ni_pay].astype(object)
-    if res.sim.name_changes:
-        # the surname the named insured had on the payment date: before a later change of name, the old one
-        q = pd.DataFrame({"drv": ni_pay.astype(np.int64), "day": pays.day.to_numpy().astype(np.int64), "i": np.arange(len(pays))})
-        ch = pd.concat(res.sim.name_changes, ignore_index=True).astype({"drv": np.int64, "day": np.int64})
-        m = pd.merge_asof(q.sort_values("day", kind="stable"), ch.sort_values("day", kind="stable"), on="day", by="drv",
-                          direction="forward", allow_exact_matches=False)
-        hit = m.old.notna().to_numpy()
-        surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
-    insured = drv.first_name.astype(str).to_numpy()[ni_pay] + " " + surname
-    detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured,
+    changes = (pd.concat(res.sim.name_changes, ignore_index=True).astype({"drv": np.int64, "day": np.int64})
+               if res.sim.name_changes else None)
+
+    def name_on(person: np.ndarray, days: np.ndarray) -> np.ndarray:
+        """Each person's name on each day: before a later change of surname, the old one."""
+        surname = drv.last_name.astype(str).to_numpy()[person].astype(object)
+        if changes is not None:
+            q = pd.DataFrame({"drv": person.astype(np.int64), "day": days.astype(np.int64), "i": np.arange(len(person))})
+            m = pd.merge_asof(q.sort_values("day", kind="stable"), changes.sort_values("day", kind="stable"), on="day",
+                              by="drv", direction="forward", allow_exact_matches=False)
+            hit = m.old.notna().to_numpy()
+            surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
+        return drv.first_name.astype(str).to_numpy()[person] + " " + surname
+
+    insured = name_on(ni_pay, pays.day.to_numpy())
+    # the policy's own person in the loss (an uninsured motorist claim's first claimant): the driver, or the named insured
+    drv_pay = claims.drv.to_numpy()[pays.claim_id.to_numpy() - 1]
+    party = name_on(np.where(drv_pay >= 0, drv_pay, ni_pay), pays.day.to_numpy())
+    detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured, party,
                                         np.where(cg.open.to_numpy(), cal.horizon + 1, cg.close_day.to_numpy()), emp, desks, vend)
     T["employee"], T["vendor"] = _employee_table(emp, desks, V, D), _vendor_table(vend)
     T["claim"] = pd.DataFrame({
@@ -619,7 +627,7 @@ def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.
     male = R.random(len(a)) < 0.5
     appointed = -agencies.appointed_days_before_start.to_numpy()[a]
     first_of_agency = np.r_[True, a[1:] != a[:-1]]
-    start = np.where(first_of_agency, appointed, np.minimum(appointed + R.integers(0, 6_000, len(a)), -30))
+    start = ref.cal.next_business(np.where(first_of_agency, appointed, np.minimum(appointed + R.integers(0, 6_000, len(a)), -30)))
     # an agency's first producer is its principal, whose name the agency often carries
     prod = pd.DataFrame(dict(producer=np.arange(len(a)), agency_id=agencies.agency_id.to_numpy()[a],
                              first_name=np.where(first_of_agency, agencies.principal_first.to_numpy()[a],

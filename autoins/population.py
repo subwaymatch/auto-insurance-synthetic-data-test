@@ -115,7 +115,8 @@ def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
     # appointed (first contracted) some years before the extract begins
     # (no earlier than the company's founding, when its direct units opened)
     since_founding = (ref.cal.start.astype("M8[D]") - np.datetime64(C.FOUNDED, "D")).astype(int)
-    ag["appointed_days_before_start"] = np.where(agent, rng.integers(400, since_founding, len(ag)), since_founding)
+    appointed = -np.where(agent, rng.integers(400, since_founding, len(ag)), since_founding)
+    ag["appointed_days_before_start"] = -ref.cal.next_business(appointed)       # contracts take effect on business days
     return ag
 
 

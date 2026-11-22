@@ -41,6 +41,7 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
     at_quote = lambda col: first[col].first().reindex(nb.pol).to_numpy()
     annual = (first[[f"prem_{c}" for c in C.COVERAGES]].sum().sum(axis=1)
               .reindex(nb.pol).fillna(0).to_numpy() / (pol.term_months.to_numpy() / 12))
+    fair = first["fair"].sum().reindex(nb.pol).fillna(0).to_numpy() / (pol.term_months.to_numpy() / 12)
     drv = pop.drv[pop.drv.added_day.to_numpy() <= pop.pol.first_day.to_numpy()[pop.drv.pol.to_numpy()]]
     young = drv.assign(age=(pop.pol.first_day.to_numpy()[drv.pol.to_numpy()] - drv.dob_day) / 365.25).groupby("pol").age.min()
     bound = pd.DataFrame(dict(
@@ -50,7 +51,10 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
         young=young.reindex(nb.pol).to_numpy(), prior=pol.prior_insurance.to_numpy(), score=pol.insurance_score.to_numpy(),
         bi_opt=at_quote("bi_opt"), telematics=first["tele_on"].any().reindex(nb.pol).fillna(False).to_numpy().astype(bool),
         term_months=pol.term_months.to_numpy(), premium=annual, bound=True))
-    bound["log_ratio"] = _position(R, bound.channel.to_numpy(), market.gap(cal, bound.quote_day.to_numpy()))
+    misprice = np.log(np.maximum(annual, 1) / np.maximum(fair, 1))
+    level = np.mean(misprice)                         # our overall level is in the market gap; this is the mix
+    bound["log_ratio"] = _position(R, bound.channel.to_numpy(), market.gap(cal, bound.quote_day.to_numpy())
+                                   + C.COMPETITOR_ACCURACY * (misprice - level))
 
     # a channel converting a share c of its quotes needs 1/c quotes per policy it writes; c is its conversion
     # averaged over the months as shoppers arrive
@@ -58,10 +62,11 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
     shop = market.shopping(cal, months)
     conv = (market.conversion(cal, months) * shop).sum(axis=1) / shop.sum()
     need = np.bincount(bound.channel.to_numpy(), minlength=len(C.CHANNELS)) / conv
-    lost = _prospects(cfg, ref, res.plan, int(need.sum()), need / need.sum(), R)
+    lost = _prospects(cfg, ref, res.plan, int(need.sum()), need / need.sum(), R, level)
     q = pd.concat([bound, lost], ignore_index=True)
     q = q[(q.quote_day >= 0) & (q.quote_day <= cal.valuation_day) & (q.premium > 0)]
-    q = q.sort_values(["quote_day", "bound", "pol"], ascending=[True, False, True], kind="stable").reset_index(drop=True)
+    # within a day, quotes are numbered in the order they were asked for: bound and lost ones mixed
+    q = q.assign(order=R.random(len(q))).sort_values(["quote_day", "order"], kind="stable").drop(columns="order").reset_index(drop=True)
 
     D = lambda day: pd.Series(cal.date(np.asarray(day))).dt.strftime("%Y-%m-%d").to_numpy()
     comp = q.premium.to_numpy() / np.exp(q.log_ratio.to_numpy())
@@ -94,8 +99,9 @@ def _position(R: np.random.Generator, channel: np.ndarray, centre: np.ndarray) -
     return out
 
 
-def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generator) -> pd.DataFrame:
-    """Households who asked for a quote and did not buy: drawn like new business, rated with the same plan."""
+def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generator, level: float) -> pd.DataFrame:
+    """Households who asked for a quote and did not buy: drawn like new business, rated with the same plan, their
+    competitive position moved by our pricing error as the bound quotes' is (`level`: its average there)."""
     cal = ref.cal
     pp = population.build(replace(cfg, n_policies=max(n, 1), initial_book_share=0.0), ref, tag="/prospects",
                           channel_p=channel_p, shoppers=True)
@@ -111,7 +117,9 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generat
     vp, dr = v["pol"][V], v["primary_drv"][V]
     ty = p["term_months"] / 12
     cd = rating.codes(st, cal, V, first[vp], points[dr], acc[dr], np.zeros(len(V)))
-    prem = rating.premium(plan, cd, rating.limit_factors(st, V), cal.rate_level_at(first[vp]), ty[vp])
+    lim, rate_level = rating.limit_factors(st, V), cal.rate_level_at(first[vp])
+    prem = rating.premium(plan, cd, lim, rate_level, ty[vp])
+    fair = rating.premium(plan, cd, lim, rate_level, ty[vp], table="indicated")
     channel = p["channel"]
     # the telematics offer, taken up as by new business (simulate._telematics), with the participation discount
     d_act = np.flatnonzero(pp.drv.active.to_numpy())
@@ -122,8 +130,11 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generat
     opt_in = telematics.uptake(R, base, household, young_ni, channel)
     for c in telematics.DISCOUNTED_COVERAGES:
         prem[c] = np.round(prem[c] * np.where(opt_in[vp], 1 - telematics.PARTICIPATION_DISCOUNT, 1.0), 2)
+        fair[c] = fair[c] * np.where(opt_in[vp], 1 - telematics.PARTICIPATION_DISCOUNT, 1.0)
     annual = np.bincount(vp, sum(prem.values()), len(first)) / ty
-    log_ratio = market.gap(cal, quote_day) + R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(first))
+    misprice = np.log(np.maximum(annual, 1) / np.maximum(np.bincount(vp, sum(fair.values()), len(first)) / ty, 1))
+    log_ratio = (market.gap(cal, quote_day) + C.COMPETITOR_ACCURACY * (misprice - level)
+                 + R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(first)))
     lost = R.random(len(first)) >= market.bind_p(channel, log_ratio)
     young = pp.drv.assign(age=(first[d_pol] - pp.drv.dob_day.to_numpy()) / 365.25).groupby("pol").age.min().to_numpy()
     out = pd.DataFrame(dict(

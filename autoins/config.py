@@ -184,7 +184,10 @@ SCHOOL_END_AGE = {"high_school": (18.2, 18.8), "college": (21.5, 23.5)}   # age 
 # refdata._daily_index). Relative weight of a (weekday, Saturday, Sunday or holiday) for the day a quote is
 # given and the day a new policy starts, by channel: agents' offices keep business hours, the website does not.
 DAY_WEIGHTS = {
-    "quote": {"Independent Agent": (1.0, 0.25, 0.08), "Exclusive Agent": (1.0, 0.35, 0.08), "Direct": (1.0, 0.80, 0.70)},
+    # (weekday, Saturday, Sunday or holiday, New Year's Day, July 4, Thanksgiving or Christmas): agencies are closed on
+    # the last four, while online quoting goes on
+    "quote": {"Independent Agent": (1.0, 0.25, 0.08, 0.0), "Exclusive Agent": (1.0, 0.35, 0.08, 0.0),
+              "Direct": (1.0, 0.80, 0.70, 0.45)},
     "effective": {"Independent Agent": (1.0, 0.55, 0.40), "Exclusive Agent": (1.0, 0.55, 0.40), "Direct": (1.0, 0.90, 0.85)},
 }
 FIRST_OF_MONTH_WEIGHT = 3.0          # policies are more often written to start on the 1st
@@ -373,6 +376,11 @@ P_UM_INJURY = 0.20
 P_FILE_COLL = {"AF_MV": 0.86, "AF_SV": 0.86, "NAF": 0.48, "NAF_UNINSURED": 0.90, "PARKED": 0.70}
 P_SUBROGATION = {"NAF": 0.85, "PARKED": 0.10}
 SUBROGATION_SHARE = (0.75, 1.00)
+# How the costs of one crash move together (ASSUMED). Each crash has a severity, a standard normal draw, and each
+# of these draws is correlated with it (a Gaussian copula): the damage to the insured car, the damage to the other
+# car, whether anyone is hurt and how badly, medical payments, whether the car is towed, and the days in a rental
+# car (with the repair). Every coverage keeps its own distribution, so expected costs are unchanged.
+CRASH_SEVERITY_CORR = {"COLL": 0.6, "PD": 0.5, "INJURY": 0.45, "INJURY_SEV": 0.35, "MED": 0.4, "TOW": 0.6, "RENT_DAYS": 0.5}
 P_FILE_BELOW_DEDUCTIBLE = 0.75      # claims opened then closed without payment
 CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04, "RENT": 0.02, "TOW": 0.02}
 # Claims opened and closed without payment, beyond those above (ASSUMED rates). Together they bring the share
@@ -492,6 +500,10 @@ UW_CANCEL_NEW_BUSINESS_P = 0.008
 QUOTE_CONVERSION = {"Independent Agent": 0.22, "Exclusive Agent": 0.38, "Direct": 0.12}   # at the market's price level
 QUOTE_PRICE_ELASTICITY = 5.0         # logit points per unit of log(our price / best competing price)
 COMPETITOR_PRICE_SIGMA = 0.18
+# Competitors price closer to the risk than our plan does: each quote's competitive position moves by this share of
+# our premium's error against what its rating variables are truly worth (the plan's indicated relativities; ASSUMED).
+# So we win more of the quotes we under-price (young drivers, high mileage) and fewer of those we over-price.
+COMPETITOR_ACCURACY = 0.75
 COMPARATIVE_RATER_CHANNELS = ["Independent Agent"]   # competing quotes are seen only through agents' comparative raters
 # The market (see market.py). Its rate level: US private auto rates rose 12.1% in 2022, 16.5% in 2023 and 7.6% in
 # 2024 (S&P Global RateWatch) and approved increases slowed to 3.7% in 2025 (AM Best); 2026 is ASSUMED. Each

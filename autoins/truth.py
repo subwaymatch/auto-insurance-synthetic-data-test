@@ -9,6 +9,7 @@ the expected loss through a table built by simulation (AGG_SHARE).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import erf, sqrt
 
 import numpy as np
 import pandas as pd
@@ -147,6 +148,25 @@ def cap_per_accident(paid, accident, n_accidents: int, room) -> np.ndarray:
     np.minimum.at(first, accident, np.arange(len(cents)))
     rank = before - before[np.minimum(first, len(cents) - 1)][accident]     # position among the accident's paid claimants
     return (cut + (over & paying & (rank < spare[accident]))) / 100
+
+
+_ERF = np.frompyfunc(erf, 1, 1)
+
+
+def normal_cdf(x) -> np.ndarray:
+    x = np.asarray(x, dtype=float)
+    return (0.5 * (1 + _ERF(x / sqrt(2)))).astype(float) if x.size else x
+
+
+def correlated(z: np.ndarray, rho: float, rng: np.random.Generator) -> np.ndarray:
+    """Standard normal draws correlated `rho` with z."""
+    return rho * z + np.sqrt(1 - rho ** 2) * rng.standard_normal(len(z))
+
+
+def has_uim(c: dict) -> np.ndarray:
+    """Underinsured motorist cover comes with uninsured motorist limits above the 25/50 minimum, and only then
+    (215 ILCS 5/143a-2(4)): a policy with minimum limits has none."""
+    return c["um_pp"] > C.BI_LIMITS[0][0]
 
 
 def other_driver_limits(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.ndarray]:
@@ -424,7 +444,7 @@ def expected(c: dict, cal: Calendar) -> dict:
     e_um = injury_paid(ZG, col(c["um_pp"]), 1.0, t["BI"], C.UM_SEV).mean(1) * aggregate_share("UM", c["um_opt"], tb)
     g = C.UM_SEV["median"] * t["BI"] * np.exp(C.UM_SEV["sigma"] * ZG)      # underinsured: the excess over the other limit
     e_uim = sum(w * underinsured(g, col(c["um_pp"]), lim)[0].mean(1) for lim, w in C.OTHER_DRIVER_BI_LIMIT.items()) \
-        * aggregate_share("UIM", c["um_opt"], tb)
+        * aggregate_share("UIM", c["um_opt"], tb) * has_uim(c)
     E["UM"] = n["NAF"] * C.P_UM_INJURY * MEAN_CLAIMANTS * (1 - C.CWP["UM"]) * (c["p_un"] * e_um + (1 - c["p_un"]) * e_uim)
     e_med = med_paid(ZG, col(np.maximum(c["med_lim"], 1)), t["BI"]).mean(1)
     E["MED"] = (c["med_lim"] > 0) * sum(n[k] * q for k, q in C.P_MED.items()) * (1 - C.CWP["MED"]) * e_med
@@ -480,6 +500,16 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     driver's insurer paid, or the claim was not paid); it leaves the policy all the same."""
     occs, feats, wrecks = [], [], []
     n_occ = occ_offset
+    severity = []                                      # each occurrence's severity (config.CRASH_SEVERITY_CORR)
+    rho = C.CRASH_SEVERITY_CORR
+
+    def sev(ids, key):
+        """Standard normal draws for occurrences `ids`, correlated with their severity."""
+        return correlated(np.concatenate(severity)[np.asarray(ids, dtype=np.int64) - occ_offset], rho[key], rng)
+
+    def happens(ids, key, p):
+        """Whether something with probability p happens on each occurrence, likelier the more severe it is."""
+        return normal_cdf(-sev(ids, key)) < p
 
     def wreck(vi, day, ids):
         wrecks.append(pd.DataFrame(dict(vrow=vi, day=day, occ=ids)))
@@ -498,6 +528,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         nonlocal n_occ
         ids = np.arange(n_occ, n_occ + len(vi))
         n_occ += len(vi)
+        severity.append(rng.standard_normal(len(vi)))
         occs.append(pd.DataFrame(dict(occ=ids, vrow=vi, veh=c["V"][vi], pol=c["pol"][vi], day=day, peril=peril, drv=driver,
                                       at_fault=at_fault, cat=cat,
                                       other_uninsured=False if uninsured is None else uninsured)))
@@ -513,13 +544,13 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                                        cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
                                        nominal=nominal, um_type=um_type, offset=offset, cap=cap, room=room)))
 
-    def injury_features(cov, ids, vi, day, sev, pp, pa, factor):
+    def injury_features(cov, ids, vi, day, dist, pp, pa, factor):
         if len(ids) == 0:
             return
         k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
-        gross = sev["median"] * factor[o] * _trend(cal, "BI", day[o]) * np.exp(sev["sigma"] * rng.standard_normal(len(o)))
+        gross = dist["median"] * factor[o] * _trend(cal, "BI", day[o]) * np.exp(dist["sigma"] * sev(ids[o], "INJURY_SEV"))
         gross = round_settlement(gross, rng)
         cwp = rng.random(len(o)) < C.CWP[cov]
         paid = cap_per_accident(np.where(cwp, 0.0, np.minimum(gross, pp[o])), o, len(ids), pa)   # per-accident limit
@@ -528,7 +559,8 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
 
     def collision_features(peril, ids, vi, day, file_p, subro_p):
         # the damage to the insured car happens whether or not anyone claims it from us
-        gross, paid, total = collision(rng.standard_normal(len(vi)), C.COLL_PERIL_SEV[peril], c["repair"][vi],
+        z = sev(ids, "COLL")
+        gross, paid, total = collision(z, C.COLL_PERIL_SEV[peril], c["repair"][vi],
                                        _trend(cal, "COLL", day), c["acv"][vi], c["coll_ded"][vi])
         filed = c["has_coll"][vi] & (rng.random(len(vi)) < file_p)
         below = paid <= 0
@@ -542,34 +574,36 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         add("COLL", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
             subro=subro[keep], retained=retained[keep], cap=np.maximum(c["acv"][vi] - c["coll_ded"][vi], 0.0)[keep])
         paid_now = keep & (paid > 0)
-        rental(ids[paid_now], vi[paid_now], total[paid_now])
+        rental(ids[paid_now], vi[paid_now], total[paid_now], z[paid_now])
         tow(ids, vi, peril)
         w = total & ~(keep & paid_total)
         wreck(vi[w], day[w], ids[w])
 
     def med_features(ids, vi, day, p):
-        m = (c["med_lim"][vi] > 0) & (rng.random(len(vi)) < p)
+        m = (c["med_lim"][vi] > 0) & happens(ids, "MED", p)
         ids, vi, day = ids[m], vi[m], day[m]
         if len(ids):
-            gross = C.MED_SEV["median"] * _trend(cal, "BI", day) * np.exp(C.MED_SEV["sigma"] * rng.standard_normal(len(vi)))
+            gross = C.MED_SEV["median"] * _trend(cal, "BI", day) * np.exp(C.MED_SEV["sigma"] * sev(ids, "MED"))
             add("MED", ids, gross, np.minimum(gross, c["med_lim"][vi]), rng.random(len(vi)) < C.CWP["MED"], cap=c["med_lim"][vi])
 
-    def rental(ids, vi, total):
-        """Rental reimbursement while a covered car is repaired, or replaced after a total loss."""
+    def rental(ids, vi, total, damage=None):
+        """Rental reimbursement while a covered car is repaired, or replaced after a total loss. `damage`: the
+        collision damage draws, when the rental follows a repair (a bigger repair keeps the car in the shop longer)."""
         m = c["has_rent"][vi] & (rng.random(len(vi)) < C.RENTAL_USE_P)
         ids, vi, total = ids[m], vi[m], total[m]
         if len(ids) == 0:
             return
         med = np.where(total, C.RENTAL_DAYS["total"]["median"], C.RENTAL_DAYS["repair"]["median"])
         sig = np.where(total, C.RENTAL_DAYS["total"]["sigma"], C.RENTAL_DAYS["repair"]["sigma"])
-        days = np.ceil(med * np.exp(sig * rng.standard_normal(len(ids))))
+        z = rng.standard_normal(len(ids)) if damage is None else correlated(damage[m], rho["RENT_DAYS"], rng)
+        days = np.ceil(med * np.exp(sig * z))
         cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * rng.standard_normal(len(ids)))
         daily, most = np.array(C.RENTAL_OPTIONS)[c["rent_opt"][vi]].T
         add("RENT", ids, days * cost, np.minimum(days * np.minimum(cost, daily), most), rng.random(len(ids)) < C.CWP["RENT"],
             cap=most)
 
     def tow(ids, vi, peril):
-        m = c["has_tow"][vi] & (rng.random(len(vi)) < C.TOW_P.get(peril, 0.0))
+        m = c["has_tow"][vi] & happens(ids, "TOW", C.TOW_P.get(peril, 0.0))
         cost = C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * rng.standard_normal(m.sum()))
         add("TOW", ids[m], cost, np.minimum(cost, C.TOWING_LIMIT), rng.random(m.sum()) < C.CWP["TOW"], cap=C.TOWING_LIMIT)
 
@@ -582,7 +616,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
-        gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * rng.standard_normal(len(o)))
+        gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * sev(ids[o], "INJURY_SEV"))
         gross = round_settlement(gross, rng)
         other_pp, other_pa = other_driver_limits(rng, len(ids))
         excess, other = underinsured(gross, c["um_pp"][vi][o], other_pp[o], o, len(ids), other_pa)
@@ -612,16 +646,25 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         if extra and len(vi):
             early = rng.random(len(vi)) < 1 - 1 / c["nc"][vi]
             lo, hi = np.clip(c["s"][vi], 0, cal.horizon), np.clip(c["x"][vi], 0, cal.horizon)
-            day = np.where(early, new_customer_days(c["t0"][vi], lo, hi, rng), day)
+            # early in the policy's life, but on the days crashes happen: the decay weighted by the daily index
+            daily = np.diff(cal.cum[g])
+            top, todo = daily.max(), np.flatnonzero(early)
+            for _ in range(60):
+                if len(todo) == 0:
+                    break
+                cand = new_customer_days(c["t0"][vi[todo]], lo[todo], hi[todo], rng)
+                ok = rng.random(len(todo)) * top < daily[np.clip(cand, 0, len(daily) - 1)]
+                day[todo[ok]] = cand[ok]
+                todo = todo[~ok]
         return vi, day
 
     # --- driving perils ---
     vi, day = draw("AF_MV")
     ids = new_occurrences("AF_MV", vi, day, _pick_driver(c, "key_af", vi, rng), at_fault=True)
     m = rng.random(len(vi)) < C.P_PD_GIVEN_AF_MV
-    g = pd_paid(rng.standard_normal(m.sum()), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
+    g = pd_paid(sev(ids[m], "PD"), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
     add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"], cap=c["pd_lim"][vi[m]])
-    m = rng.random(len(vi)) < c["p_bi"][vi]
+    m = happens(ids, "INJURY", c["p_bi"][vi])
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]])
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_MV"])
     collision_features("AF_MV", ids, vi, day, C.P_FILE_COLL["AF_MV"], 0.0)
@@ -630,9 +673,9 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     vi, day = draw("AF_SV")
     ids = new_occurrences("AF_SV", vi, day, _pick_driver(c, "key_af", vi, rng), at_fault=True)
     m = rng.random(len(vi)) < C.P_PD_GIVEN_AF_SV
-    g = pd_paid(rng.standard_normal(m.sum()), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
+    g = pd_paid(sev(ids[m], "PD"), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
     add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"], cap=c["pd_lim"][vi[m]])
-    m = rng.random(len(vi)) < C.P_BI_GIVEN_AF_SV
+    m = happens(ids, "INJURY", C.P_BI_GIVEN_AF_SV)
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]])
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_SV"])
     collision_features("AF_SV", ids, vi, day, C.P_FILE_COLL["AF_SV"], 0.0)
@@ -641,10 +684,11 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     vi, day = draw("NAF")
     unins = rng.random(len(vi)) < c["p_un"][vi]
     ids = new_occurrences("NAF", vi, day, _pick_driver(c, "key_any", vi, rng), uninsured=unins)
-    hurt = rng.random(len(vi)) < C.P_UM_INJURY
+    hurt = happens(ids, "INJURY", C.P_UM_INJURY)
     m = unins & hurt
     injury_features("UM", ids[m], vi[m], day[m], C.UM_SEV, c["um_pp"][vi[m]], c["um_pa"][vi[m]], np.ones(m.sum()))
-    uim_features(ids[~unins & hurt], vi[~unins & hurt], day[~unins & hurt])
+    uim = ~unins & hurt & has_uim(c)[vi]
+    uim_features(ids[uim], vi[uim], day[uim])
     collision_features("NAF", ids[unins], vi[unins], day[unins], C.P_FILE_COLL["NAF_UNINSURED"], 0.0)
     collision_features("NAF", ids[~unins], vi[~unins], day[~unins], C.P_FILE_COLL["NAF"], C.P_SUBROGATION["NAF"])
     med_features(ids, vi, day, C.P_MED["NAF"])

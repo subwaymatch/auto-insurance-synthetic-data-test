@@ -35,10 +35,13 @@ OPEN_LAG = {"BI": (0.80, 8.0, 0.045, 160.0), "UM": (0.78, 12.0, 0.05, 170.0), "M
             "PD": (0.92, 20.0, 0.02, 90.0)}
 OPEN_LAG_SIGMA = 1.0
 OPEN_LAG_CAP = {"BI": 700, "UM": 700, "MED": 700, "PD": 1800}      # days after the accident, inside the statute
-# The formula (average) reserve set at first notice, at 2022 cost levels (ASSUMED). Property coverages' are near
-# the average paid per claim opened, nil payments included, as carriers set average reserves to be adequate in
-# aggregate (glass separately: GLASS_FORMULA_RESERVE); injury ones start low, as injury case reserves do
-FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_700, "PD": 5_000, "COLL": 5_000, "COMP": 3_000, "RENT": 600, "TOW": 140}
+# The formula (average) reserve set at first notice, at 2024 cost levels (ASSUMED), moved with each coverage's own
+# severity trend (RESERVE_TREND, config.SEVERITY_TREND: 2024 = 1.00); rental and towing, paid within fixed dollar
+# limits, do not move. Property coverages' are near the average paid per claim opened, nil payments included, as
+# carriers set average reserves to be adequate in aggregate (glass separately: GLASS_FORMULA_RESERVE); injury ones
+# start low, as injury case reserves do
+FORMULA_RESERVE = {"BI": 12_000, "UM": 10_000, "MED": 1_700, "PD": 5_000, "COLL": 5_000, "COMP": 3_000, "RENT": 600, "TOW": 100}
+RESERVE_TREND = {"BI": "BI", "UM": "BI", "MED": "BI", "PD": "PD", "COLL": "COLL", "COMP": "COMP"}
 GLASS_FORMULA_RESERVE = 900
 # precautionary injury claims and claims against an insured not at fault get a nominal reserve (ASSUMED)
 NOMINAL_RESERVE = {"BI": 2_500, "PD": 750}
@@ -144,6 +147,11 @@ class Development:
         expense = np.where(injury & ~lit & (u < 0.70), 500 * np.exp(0.8 * z), expense)
         for k, (share, median) in EXPENSE.items():
             expense = np.where((cvg == k) & (u < share), median * np.exp(0.5 * z), expense)
+        # no outside appraisal for glass (the glass shop's invoice is the estimate) or for a stolen car paid as a
+        # total loss (valued at the desk from market data: there is no car to inspect)
+        peril, total = f.peril.to_numpy(), f.total.to_numpy().astype(bool)
+        desk = np.isin(cvg, ["PD", "COLL", "COMP"]) & ((peril == "GLASS") | ((peril == "THEFT_TOTAL") & total))
+        expense = np.where(desk, 0.0, expense)
         f["litigated"], f["expense"] = lit, np.round(expense, 2)
 
         # time to close
@@ -240,7 +248,13 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, ca
     big_attorney = occ.occ.isin(f.occ[f.attorney.to_numpy() & (f.paid.to_numpy() > 50_000)]).to_numpy()
     p_siu = SIU_REFERRAL_P + 0.07 * (peril == "THEFT_TOTAL") + 0.06 * (occ.report_day.to_numpy() - occ.day.to_numpy() > 30) \
         + 0.04 * big_attorney
-    occ["siu_day"] = np.where(R.random(n) < p_siu, cal.spread_business(occ.report_day.to_numpy() + R.integers(5, 46, n), R.random(n)), NO_DAY)
+    # a referral is made while the claim is open: 5 to 45 days after the report, or before it first closes, on a
+    # business day (on the close day itself only if the claim closes on the first business day after its report)
+    report = occ.report_day.to_numpy()
+    closes = occ.occ.map(f.groupby("occ").close_day.max()).to_numpy()
+    hi = np.maximum(closes - 1, cal.next_business(report))
+    when = cal.business_between(np.minimum(report + R.integers(5, 46, n), hi), report, hi, R.random(n))
+    occ["siu_day"] = np.where(R.random(n) < p_siu, when, NO_DAY)
     return occ
 
 
@@ -250,7 +264,10 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     n = len(f)
     cvg, U = f.cvg.to_numpy(), f.paid.to_numpy()
     od, cd = f.open_day.to_numpy(), f.close_day.to_numpy()
-    trend = cal.sev_trend["BI"][np.clip(f.day.to_numpy(), 0, cal.horizon)]
+    at = np.clip(f.day.to_numpy(), 0, cal.horizon)
+    trend = np.ones(n)
+    for c, k in RESERVE_TREND.items():
+        trend = np.where(cvg == c, cal.sev_trend[k][at], trend)
     formula = np.where(f.peril.to_numpy() == "GLASS", GLASS_FORMULA_RESERVE, pd.Series(cvg).map(FORMULA_RESERVE).to_numpy()) * trend
     nominal_amt = pd.Series(cvg).map(NOMINAL_RESERVE).fillna(0).to_numpy() * trend
     nominal = f.nominal.to_numpy().astype(bool)

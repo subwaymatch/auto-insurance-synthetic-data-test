@@ -209,7 +209,7 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
                            status=np.where(collect[bal], "Paid", "Written Off"),
                            method=np.where(collect[bal], fb_method[bal], ""),
                            try_day=NO_DAY, bounce_day=NO_DAY, stop=10 ** 9, missed=False,
-                           write_off=np.where(collect[bal], NO_DAY, fb_issue[bal] + WRITE_OFF_DAYS)))
+                           write_off=np.where(collect[bal], NO_DAY, cal.next_business(fb_issue[bal] + WRITE_OFF_DAYS))))
     inv = pd.concat([inv, fb], ignore_index=True)
     back = owed < 0
     refunds.append(pd.DataFrame(dict(term=c[back], day=booked[c][back], cents=-owed[back])))
