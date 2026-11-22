@@ -462,8 +462,9 @@ def apple_touch_svg(size=180, share=0.68) -> str:
 
 
 # --------------------------------------------------------------------------- wave variations
-# The chosen o (variation B) with waves in its lower half: the outline of the o and the ink above the
-# horizon stay as they are; only the lake bands change from straight to wavy.
+# The chosen o (variation B) with a wavy horizon and wavy lake bands. The outline of the o stays as it is.
+# Every wavy edge, the bottom of the ink as well as the top and bottom of each band, shares one
+# wavelength, height and phase, so the waves rise and fall in step and each white gap keeps its width.
 
 
 @dataclass
@@ -471,82 +472,79 @@ class Waves:
     slug: str
     name: str
     note: str
-    # Lake bands as (top, bottom, wave on the top edge, wave on the bottom edge, wavelength, phase).
-    # Heights and wavelengths are in 28ths of the o's half-height (as the sunrise bands); a wave is its
-    # crest height above the edge's mean line, 0 for a straight edge. Waves are centred on the o: phase
-    # 0 puts a trough (the lowest point) on its vertical axis, 0.5 a crest; phase is in wavelengths. A
-    # band ending at 28 runs flat off the bottom of the o.
-    bands: list
+    bands: list          # lake bands as (top, bottom) in 28ths of the o's half-height below the horizon
+    #                      (as the sunrise bands); a band ending at 28 runs flat off the bottom of the o
+    amp: float           # wave height: crest above the edge's mean line, in 28ths
+    length: float        # wavelength, in 28ths (the o is about 53 wide)
+    phase: float = 0.0   # 0 puts a trough (the lowest point) on the o's vertical axis, 0.5 a crest
 
 
 WAVES = [
     Waves("a-three-waves", "Three waves",
-          "The logo's three bands, each turned into a ribbon of the same thickness that rises and falls "
-          "in step with the others: about one and a half waves across the o.",
-          [(3, 10.5, 1.5, 1.5, 35, 0), (13.5, 20, 1.5, 1.5, 35, 0), (23, 28, 1.5, 0, 35, 0)]),
+          "The logo's three bands with the horizon, all waving in step: about one and a half waves "
+          "across the o.",
+          THREE_BANDS, 1.5, 35),
     Waves("b-two-waves", "Two waves",
-          "Two broad ribbons with deeper, longer waves. The boldest, and the one most likely to keep "
-          "its waves at small sizes.",
-          [(3.5, 14.5, 2.2, 2.2, 44, 0), (18, 28, 2.2, 0, 44, 0)]),
-    Waves("c-staggered", "Staggered waves",
-          "Three ribbons, the middle one half a wave out of step, so crests sit over troughs like "
-          "ripples on open water.",
-          [(3.5, 10.5, 1.2, 1.2, 35, 0), (14, 20, 1.2, 1.2, 35, 0.5), (23.5, 28, 1.2, 0, 35, 0)]),
-    Waves("d-perspective", "Waves in perspective",
-          "Small, short waves near the horizon growing larger and longer towards the bottom, as waves "
-          "look from the shore.",
-          [(2.5, 8.5, 0.6, 0.9, 22, 0), (11.5, 18, 1.2, 1.6, 30, 0), (21, 28, 1.9, 0, 40, 0)]),
-    Waves("e-one-wave", "One wave",
-          "A solid lake crossed by a single wave line: the straight horizon above it is kept, so the "
-          "sun still reads as rising.",
-          [(3.5, 13.5, 0, 1.8, 40, 0), (16.5, 28, 1.8, 0, 40, 0)]),
-    Waves("f-surface", "Wave-topped lake",
-          "No bands: one solid lake whose surface is a wave. The simplest, and the clearest at 16 px.",
-          [(4.5, 28, 2.0, 0, 36, 0)]),
+          "Two broad bands with deeper, longer waves. The boldest, and the one most likely to keep its "
+          "waves at small sizes.",
+          [(3.5, 14.5), (18, 28)], 2.0, 44),
+    Waves("c-four-waves", "Four waves",
+          "Four finer bands getting thinner towards the bottom, with lower, shorter waves.",
+          [(2.5, 8), (10.5, 15), (17.5, 21.5), (24, 28)], 1.1, 30),
+    Waves("d-one-swell", "One swell",
+          "Three bands on a single long swell: the waves dip in the middle and rise at both sides.",
+          THREE_BANDS, 2.0, 53),
+    Waves("e-ripples", "Ripples",
+          "Three bands with low, short waves, about two and a half across. Calm, but the waves fade "
+          "first as the logo gets smaller.",
+          THREE_BANDS, 1.0, 22),
+    Waves("f-one-line", "One wave line",
+          "No bands: the lake is one solid shape, and a single white wave line divides it from the sun.",
+          [(3.5, 28)], 1.8, 40),
 ]
 
 
 def wave_edge(x_from: float, x_to: float, y: float, amp: float, length: float, phase: float, centre: float):
-    """Start point and quadratic segments of a wave along y covering x_from..x_to, its crests `amp`
-    above and below y, `length` long, with a trough at x=centre shifted by `phase` wavelengths (a
-    straight line when amp is 0)."""
+    """Start point and quadratic segments (one per half wave) of a wave along y covering x_from..x_to,
+    its crests `amp` above and below y, with a trough at x=centre shifted by `phase` wavelengths. With
+    amp 0 the same segments lie on a straight line, so any two edges of one wave share their nodes."""
     start = centre + length / 4 + phase * length       # each wavelength starts by rising to a crest
     start -= (int((start - x_from) / length) + 1) * length
-    if amp == 0:
-        return (start, y), [((start, y), (x_to + length, y))]
-    segs, x, k = [], start, 0
-    while x < x_to + length:
-        half = length / 2
+    segs, x, k, half = [], start, 0, length / 2
+    while x < x_to:
         segs.append(((x + half / 2, y + (-1 if k % 2 == 0 else 1) * 2 * amp), (x + half, y)))
         x, k = x + half, k + 1
     return (start, y), segs
 
 
-def wave_lake(bands, left: float, right: float, horizon: float, unit: float, bottom: float) -> str:
-    """The lake bands of a Waves variation as one path, between x=left and x=right, below `horizon`,
-    centred on the middle of left..right."""
+def ribbon(left, right, y_top, amp_top, y_bottom, amp_bottom, v: Waves, unit: float) -> str:
+    """The area between two edges of the waves of `v`: wavy where the amp is not 0, straight where it is."""
     centre = (left + right) / 2
-    d = ""
-    for top, bot, amp_t, amp_b, length, phase in bands:
-        if bot >= 28:
-            bot, amp_b = bot + (bottom - horizon) / unit * 0.2 + 1, 0  # run flat off the bottom
-        (x0, y0), upper = wave_edge(left, right, horizon + top * unit, amp_t * unit, length * unit, phase, centre)
-        _, lower = wave_edge(left, right, horizon + bot * unit, amp_b * unit, length * unit, phase, centre)
-        x_end = upper[-1][1][0]
-        lower = [(c, e) for c, e in lower if c[0] <= x_end + 1e-9] or lower
-        y_low = horizon + bot * unit
-        d += f"M{f(x0)} {f(y0)}{seg_d(upper)}L{f(x_end)} {f(y_low)}"
-        d += f"{seg_d(reverse((x0, y_low), [(c, e) for c, e in lower if e[0] <= x_end + 1e-9]))}Z"
-    return d
+    (x0, _), upper = wave_edge(left, right, y_top, amp_top, v.length * unit, v.phase, centre)
+    _, lower = wave_edge(left, right, y_bottom, amp_bottom, v.length * unit, v.phase, centre)
+    x_end = upper[-1][1][0]
+    return (f"M{f(x0)} {f(y_top)}{seg_d(upper)}L{f(x_end)} {f(y_bottom)}"
+            f"{seg_d(reverse((x0, y_bottom), lower))}Z")
+
+
+def wave_parts(v: Waves, left: float, right: float, top: float, horizon: float, bottom: float,
+               unit: float) -> tuple[str, str]:
+    """(sky, lake) paths of a Waves variation between x=left and x=right: the ink from `top` down to
+    the wavy horizon, and the wavy lake bands below it down to `bottom`."""
+    amp = v.amp * unit
+    sky = ribbon(left, right, top - 1, 0, horizon, amp, v, unit)
+    lake = "".join(ribbon(left, right, horizon + a * unit, amp,
+                          bottom + 2 if b >= 28 else horizon + b * unit, 0 if b >= 28 else amp, v, unit)
+                   for a, b in v.bands)
+    return sky, lake
 
 
 def waves_o(c, uid, o: Glyph, v: Waves):
-    """The o of the logo (Inter's outline, filled) with the wave bands of `v` below the horizon."""
+    """The o of the logo (Inter's outline, filled) as a sun on a wavy horizon over wavy lake bands."""
     x0, y0, x1, y1 = o.bbox
     cy, half = (y0 + y1) / 2, (y1 - y0) / 2
     clip = f"{uid}-o"
-    sky = rect(x0 - 1, y0 - 1, x1 - x0 + 2, cy - y0 + 1)
-    lake = wave_lake(v.bands, x0 - 1, x1 + 1, cy, half / 28, y1)
+    sky, lake = wave_parts(v, x0 - 1, x1 + 1, y0, cy, y1, half / 28)
     return (f'<clipPath id="{clip}"><path d="{outer_outline(o)}"/></clipPath>',
             f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{sky}"/>'
             f'<path fill="{c["lake"]}" d="{lake}"/></g>')
@@ -575,8 +573,8 @@ def waves_favicon(v: Waves, c=LIGHT) -> str:
     """The favicon's plain circle (32-unit grid, no tile) with the waves of `v`."""
     clip = f"fav-{v.slug}"
     defs = f'<clipPath id="{clip}"><circle cx="16" cy="16" r="15"/></clipPath>'
-    lake = wave_lake(v.bands, -1, 33, 16, 15 / 28, 31)
-    return svg(32, 32, f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{rect(0, 0, 32, 16)}"/>'
+    sky, lake = wave_parts(v, -1, 33, 1, 16, 31, 15 / 28)
+    return svg(32, 32, f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{sky}"/>'
                        f'<path fill="{c["lake"]}" d="{lake}"/></g>', defs)
 
 
@@ -892,8 +890,8 @@ def waves_preview(files: dict) -> str:
         for v in WAVES)
     return page(
         "Lakefront: wave variations",
-        "The logo's o (variation B: Inter's o, filled) with waves in its lower half. The outline of the o "
-        "and the ink above the horizon are unchanged. Icons at 64, 32 and 16 px.",
+        "The logo's o (variation B: Inter's o, filled) with a wavy horizon and wavy lake bands, every wave "
+        "rising and falling in step. The outline of the o is unchanged. Icons at 64, 32 and 16 px.",
         f"""<h3>The o, close up</h3>
   <div class="glance">{''.join(glance)}</div>
   <h3>As favicons (the plain circle, at 48, 32 and 16 px)</h3>

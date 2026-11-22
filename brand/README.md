@@ -72,26 +72,28 @@ the outline of Inter's o over each version.
 
 ### Wave variations
 
-[`waves/`](waves/) tries waves in the lower half of the logo's o, keeping its outline (Inter's o, filled) and
-the ink above the horizon. The waves are centered on the o, so each version is symmetric. Open
+[`waves/`](waves/) tries waves in the lower half of the logo's o, keeping its outline (Inter's o, filled).
+The bottom edge of the ink is a wave too, so the white line under the sun is wavy, and every wavy edge
+shares one wavelength, height and phase: the waves rise and fall in step, and each white gap keeps its
+width all the way across. The waves are centered on the o, so each version is symmetric. Open
 [`waves/preview.html`](waves/preview.html), or look at the picture below. Its second row shows each
 version in the favicon's plain circle at 48, 32 and 16 px.
 
 ![Wave variations](waves/preview.png)
 
-| | Variation | The lake |
+| | Variation | The waves |
 |---|---|---|
-| A | Three waves | The logo's three bands as ribbons rising and falling together, about one and a half waves across |
-| B | Two waves | Two broad ribbons with deeper, longer waves; the boldest |
-| C | Staggered waves | Three ribbons, the middle one half a wave out of step, like ripples on open water |
-| D | Waves in perspective | Small, short waves near the horizon growing larger towards the bottom |
-| E | One wave | A solid lake crossed by a single wave line under a straight horizon |
-| F | Wave-topped lake | No bands: one lake whose surface is a wave; the only one that keeps its wave at 16 px |
+| A | Three waves | The logo's three bands and the horizon, about one and a half waves across |
+| B | Two waves | Two broad bands with deeper, longer waves; the boldest |
+| C | Four waves | Four finer bands getting thinner towards the bottom, with lower, shorter waves |
+| D | One swell | Three bands on one long swell, dipping in the middle and rising at both sides |
+| E | Ripples | Three bands with low, short waves, about two and a half across |
+| F | One wave line | No bands: one solid lake under a single white wave line |
 
-Waves need room: at header size (about 22 px tall) A, C and D read as textured bands rather than
-waves, and at 16 px only F keeps its shape. None has replaced the logo in [`logo/`](logo/) yet; the
-bands are the `WAVES` list in `make_logos.py`, set like the sunrise bands with a wave height,
-wavelength and phase for each edge.
+Waves need room: at header size (about 22 px tall) the finer ones (C and E) read as textured bands, and
+at 16 px B, D and F keep their waves best. None has replaced the logo in [`logo/`](logo/) yet; each
+variation is an entry in the `WAVES` list in `make_logos.py`: the bands (as the sunrise bands), the wave
+height, wavelength and phase.
 
 ### Files
 
