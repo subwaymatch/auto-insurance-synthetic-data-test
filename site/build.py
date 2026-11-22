@@ -417,6 +417,13 @@ def rewrite_repo_links(body: str, source: str) -> str:
     return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", fix, body)
 
 
+def sun_paths() -> dict:
+    """The sun and lake shapes of the logo's favicon (brand/logo/favicon.svg), for the home page's large
+    sun: the same drawing, colored by the site's own light and dark themes."""
+    d = re.findall(r'<path fill="[^"]+" d="([^"]+)"', (ROOT / "brand" / "logo" / "favicon.svg").read_text())
+    return {"sky": d[0], "lake": d[1]}
+
+
 ICON_REF = re.compile(r"%ICON\(([a-z0-9-]+)\)%")
 
 
@@ -486,7 +493,7 @@ def build(out: Path, base_url: str, strict: bool) -> None:
         shutil.rmtree(out)
     out.mkdir(parents=True)
     common = dict(repo=REPO, release=RELEASE, groups=GROUPS, base_url=base_url.rstrip("/") + "/" if base_url else "",
-                  stats=site_stats(tables), year=2026)
+                  stats=site_stats(tables), sun=sun_paths(), year=2026)
 
     def write(url: str, template: str, **ctx):
         # Links are relative to the page, except on the 404 page, which GitHub Pages serves at any address.
