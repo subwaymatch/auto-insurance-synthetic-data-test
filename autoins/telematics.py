@@ -74,7 +74,7 @@ def metrics(r: np.random.Generator, propensity, age, true_miles, density, days) 
     trip_len = 6.5 * np.clip(density / 5000, 0.3, 3) ** -0.15 * noise(0.15)
     return {
         "miles": miles,
-        "trips": np.maximum(np.round(miles / trip_len), 0).astype(int),
+        "trips": np.maximum(np.round(miles / trip_len), 1).astype(int),
         "hard_brakes": 1.2 * m ** 0.55 * (density / 5000).clip(0.2, 5) ** 0.12 * noise(),
         "rapid_accels": 0.7 * m ** 0.45 * young ** 0.5 * noise(0.4),
         "speeding_pct": np.minimum(2.5 * m ** 0.6 * young ** 0.4 * noise(0.45), 40),
@@ -85,11 +85,16 @@ def metrics(r: np.random.Generator, propensity, age, true_miles, density, days) 
 
 def score(mt: dict, days) -> np.ndarray:
     """A 1-100 driving score (higher is safer) from the metrics, as programmes publish them: braking, speeding
-    and phone use weigh most; more miles and late-night driving count against."""
+    and phone use weigh most; more miles and late-night driving count against. A plug-in device cannot see the
+    phone (phone_minutes NaN): the other behaviours then carry its weight in proportion."""
     annual = mt["miles"] * 365.25 / np.maximum(days, 1)
-    idx = (0.30 * np.log(mt["hard_brakes"] / 1.2) + 0.15 * np.log(mt["rapid_accels"] / 0.7)
-           + 0.25 * np.log(np.maximum(mt["speeding_pct"], 0.05) / 2.5) + 0.20 * np.log(mt["phone_minutes"] / 2.5)
-           + 0.10 * np.log(np.maximum(mt["night_pct"], 0.05) / 2.5) + 0.20 * np.log(np.maximum(annual, 500) / 10_000))
+    phone = np.log(np.asarray(mt["phone_minutes"], dtype=float) / 2.5)
+    seen = ~np.isnan(phone)
+    behaviour = (0.30 * np.log(mt["hard_brakes"] / 1.2) + 0.15 * np.log(mt["rapid_accels"] / 0.7)
+                 + 0.25 * np.log(np.maximum(mt["speeding_pct"], 0.05) / 2.5)
+                 + 0.10 * np.log(np.maximum(mt["night_pct"], 0.05) / 2.5))
+    behaviour = np.where(seen, behaviour + 0.20 * np.nan_to_num(phone), behaviour / 0.80)
+    idx = behaviour + 0.20 * np.log(np.maximum(annual, 500) / 10_000)
     return np.clip(np.round(60 - 30 * idx), 1, 100).astype(int)
 
 

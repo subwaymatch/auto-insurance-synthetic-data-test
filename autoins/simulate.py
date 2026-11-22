@@ -333,7 +333,10 @@ def run(cfg: C.Config, ref, pop) -> Result:
         p_uw = C.UW_CANCEL_NEW_BUSINESS_P * np.where(p["prior_insurance"][P], 1, 3) * ~p["is_initial"][P] * (k == 0)
         u, f = R.random(len(P)), R.random(len(P))
         reason = np.where(u < p_uw, 1, np.where(u < p_uw + p_nonpay, 2, np.where(u < p_uw + p_nonpay + p_request, 3, 0)))
-        cday = s + np.where(reason == 1, 20 + f * 39, 5 + f * (tdays - 6)).astype(int)
+        # underwriting reviews new business in its first 60 days; a policy found ineligible gets a notice of
+        # cancellation at least 30 days ahead (215 ILCS 5/143.15; tables._communications mails it)
+        cday = s + np.where(reason == 1, C.UW_CANCEL_DAYS[0] + f * (C.UW_CANCEL_DAYS[1] - C.UW_CANCEL_DAYS[0]),
+                            5 + f * (tdays - 6)).astype(int)
         # non-payment: the cancellation follows a missed monthly instalment (config.NONPAY_*; billing.py bills it)
         missed, due = _missed_installment(sim, P, p["first_month"][P] + k * tm[P], term_no[P] == 1, R.random(len(P)))
         grace = R.integers(C.NONPAY_GRACE_DAYS[0], C.NONPAY_GRACE_DAYS[1] + 1, len(P))
@@ -557,6 +560,10 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
     replace = R.random(len(old)) < np.where(p["n_veh"][op] > 1, C.P_REPLACE_AFTER_TOTAL_LOSS["multi"],
                                              C.P_REPLACE_AFTER_TOTAL_LOSS["single"])
     buy = left + population.draw_lag(R, len(old), **C.TOTAL_LOSS_REPLACEMENT_DELAY)
+    # a household left with no car that will not have its replacement before the renewal is offered cancels the
+    # policy instead (and insures the next car when it buys it): there is nothing on the policy to renew
+    no_car = np.bincount(v["pol"][v["active"]], minlength=len(p["zi"]))[op] == 0
+    replace &= ~(no_car & (buy >= T.e[op] - C.RENEWAL_OFFER_LEAD_DAYS[1]))
     now = replace & (buy < b[gone])
     later = replace & ~now & (buy < T.x_pol[op])
     after = replace & ~now & ~later & (T.cancel_day[op] < 0) & (T.x_pol[op] == T.e[op])
@@ -704,6 +711,8 @@ def _measure(sim: Sim, car, d, s, e):
     dens = sim.ref.zips.population_density_sqmi.to_numpy()[sim.assign.at(car, mid)[1]]
     mt = telematics.metrics(sim.tele.R, truth.driver_multiplier(_drivers_then(sim, d, mid), mid, sim.ref.cal),
                             (mid - sim.pop.drv.dob_day.to_numpy()[d]) / 365.25, sim.st.v["true_miles"][car], dens, e - s)
+    plug_in = sim.tele.device[sim.st.v["pol"][car]] == telematics.DEVICE_TYPES.index("Plug-in Device")
+    mt["phone_minutes"] = np.where(plug_in, np.nan, mt["phone_minutes"])     # an OBD dongle cannot see the phone
     return mt, telematics.score(mt, e - s)
 
 
@@ -724,9 +733,11 @@ def _record_scores(sim: Sim, car, d, s, e, mt, sc, s_all, leave):
     # the discount applies from the term being rated, to a car still on the policy when it starts (no day number marks
     # none: -1 is a real day, 31 December before the start)
     applies = np.where(left | ~v["active"][car], -10 ** 9, s_all[pol])
+    # a part with any mileage made at least one trip; one with none (rounded to a mile) made none
+    trips = np.where(np.round(mt["miles"] * frac) > 0, np.maximum(np.round(mt["trips"] * frac), 1), 0).astype(int)
     tl.scores.append(pd.DataFrame(dict(
         eid=tl.eid[pol], pol=pol, veh=car, drv=d, s=s, e=end, days=mon,
-        miles=mt["miles"] * frac, trips=np.round(mt["trips"] * frac).astype(int), hard_brakes=mt["hard_brakes"],
+        miles=mt["miles"] * frac, trips=trips, hard_brakes=mt["hard_brakes"],
         rapid_accels=mt["rapid_accels"], speeding_pct=mt["speeding_pct"], phone_minutes=mt["phone_minutes"],
         night_pct=mt["night_pct"], score=np.where(scored, sc, -1), discount=np.where(earned, pct / 100, 0.0),
         applies_s=applies))[mon > 0])
@@ -1154,10 +1165,14 @@ def _apply_events(sim: Sim, T: Term, due: pd.DataFrame) -> dict:
             if ok.any():
                 _marry(sim, pol[ok], day[ok])
         elif kind == TEEN:
-            ok = np.ones(len(e), dtype=bool)
             ages, probs = zip(*C.TEEN_LICENCE_AGE_P.items())
             age = R.choice(ages, len(e), p=probs) + R.random(len(e)) * 0.95
-            _new_drivers(sim, pol, day, role=3, age=age, male=R.random(len(e)) < 0.5, licensed=day, marital="S")
+            # each parent on the policy was at least 18 when the child was born
+            age = np.minimum(age, (day - _youngest_parent_dob(sim, pol)) / 365.25 - 18)
+            ok = age >= 16
+            if ok.any():
+                _new_drivers(sim, pol[ok], day[ok], role=3, age=age[ok], male=R.random(ok.sum()) < 0.5, licensed=day[ok],
+                             marital="S")
         elif kind == ADD:
             ok = n_cars[pol] < 4
             _add_vehicles(sim, pol[ok], day[ok], np.full(ok.sum(), -1))
@@ -1191,9 +1206,8 @@ def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
                 role[s0], marital[s0], p["ni_drv"][q] = 0, "W", s0
                 sim.marital.add(s0, d, 0)
                 sim.ni.add(q, d, s0)
-            else:
+            else:                    # no one to take it over: cancelled, and the named insured shown as deceased
                 _cancel(T, np.array([q]), np.array([d]), "Insured Deceased")
-                continue
         elif c == 3:
             marital[p["ni_drv"][q]] = "D"
             sim.marital.add(p["ni_drv"][q], d, 0)
@@ -1242,12 +1256,21 @@ def _driver_for_car(sim: Sim, pol: int, assigned: np.ndarray, day: int = None) -
     return who, extra
 
 
+def _youngest_parent_dob(sim: Sim, pol) -> np.ndarray:
+    """The later birth day of each policy's named insured and spouse on the policy (if any)."""
+    drv = sim.pop.drv
+    dob = drv.dob_day.to_numpy()[sim.st.p["ni_drv"][pol]]
+    sp = drv[(drv.role.to_numpy() == 1) & drv.active.to_numpy()]
+    sp_dob = pd.Series(sp.dob_day.to_numpy()).groupby(sp.pol.to_numpy()).max().reindex(pol).to_numpy()
+    return np.where(np.isnan(sp_dob), dob, np.maximum(dob, np.nan_to_num(sp_dob))).astype(np.int64)
+
+
 def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.ndarray:
     """Add drivers to policies from `day`. Returns their IDs. Adults bring a driving record with them."""
     st, p, R, ref, cal = sim.st, sim.st.p, sim.R, sim.ref, sim.ref.cal
     drv = sim.pop.drv
     m = len(pol)
-    dob = (day - age * 365.25).astype(int)
+    dob = np.floor(day - age * 365.25).astype(int)
     zr = ref.zips.iloc[p["zi"][pol]]
     in_city = (zr.region == "City of Chicago").to_numpy()
     employed, commute = population.draw_commute(R, age, zr, in_city)
@@ -1270,13 +1293,25 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
         keep = u_keep < names.KEPT_OWN_SURNAME[np.where(husband, drv.race_group.to_numpy()[ni], group)]
         last = np.where(husband | keep, own, drv.last_name.to_numpy()[ni])
         rename = husband & ~keep
+    # no one shares a full name with anyone who has been on the policy: a clash is named again
+    first = ref.names.first_name(R, group, male, np.floor(cal.year_frac(dob)).astype(int))
+    on = drv[np.isin(drv.pol.to_numpy(), pol)]
+    taken = set(zip(on.pol.to_numpy().tolist(), on.first_name.to_numpy().tolist(), on.last_name.to_numpy().tolist()))
+    # a new spouse may come to share the named insured's surname, so does not share their first name either
+    ni_first = drv.first_name.to_numpy()[ni]
+    for _ in range(20):
+        clash = np.array([(q, f, l) in taken for q, f, l in zip(pol.tolist(), first.tolist(), np.asarray(last).tolist())], dtype=bool) \
+            | ((role == 1) & (first == ni_first))
+        if not clash.any():
+            break
+        first[clash] = ref.names.first_name(R, group[clash], np.asarray(male)[clash],
+                                            np.floor(cal.year_frac(dob[clash])).astype(int))
     new = pd.DataFrame(dict(
         pol=pol, role=role, age=age, drv=ids, ord=p["n_drv"][pol], male=male, marital=marital, dob_day=dob,
         licensed_day=licensed, latent=R.gamma(C.LATENT_GAMMA_SHAPE, 1 / C.LATENT_GAMMA_SHAPE, m) * p["household_factor"][pol],
         good_grades=(role == 3) & (R.random(m) < C.GOOD_STUDENT_GRADES_P),
         school_end_day=dob + (population.school_end_age(R, m) * 365.25).astype(int), commute_miles=commute, employed=employed,
-        first_name=ref.names.first_name(R, group, male, np.floor(cal.year_frac(dob)).astype(int)), race_group=group,
-        last_name=last, assigned=False, added_day=day,
+        first_name=first, race_group=group, last_name=last, assigned=False, added_day=day,
         removed_day=-1, removal_reason=0, active=True))
     sim.pop.drv = pd.concat([drv, new[drv.columns]], ignore_index=True)
     if rename.any():
@@ -1479,7 +1514,7 @@ def _draw_replacements(sim: Sim, old: np.ndarray, day: np.ndarray) -> pd.DataFra
             col[left] = x
             new[c] = col
     vage = (cal.year_frac(day) - new.model_year.to_numpy()).clip(0)
-    new["ownership"] = population.draw_ownership(R, vage)
+    new["ownership"] = population.draw_ownership(R, vage, acquired=True)
     p_full = population.full_coverage_probability(vage, p["inc_rel"][pol], p["score_z"][pol], p["tier"][pol])
     new["has_coll"] = (new.ownership.to_numpy() != "Owned") | (R.random(len(old)) < p_full)
     new["has_comp"] = new.has_coll | (R.random(len(old)) < C.P_COMP_ONLY)

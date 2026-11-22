@@ -248,7 +248,9 @@ TOWING_LIMIT = 100
 RENTAL_USE_P = 0.65                  # covered repairs or replacements where the insured rents a car
 RENTAL_DAILY_COST = dict(median=48.0, sigma=0.20)
 RENTAL_DAYS = {"repair": dict(median=11.0, sigma=0.55), "total": dict(median=21.0, sigma=0.40)}
-TOW_P = {"AF_MV": 0.40, "AF_SV": 0.60, "NAF": 0.35, "PARKED": 0.05, "ANIMAL": 0.30}   # crashes needing a tow
+# losses needing a tow: crashes, and cars flooded, burnt or with a tree on them (ASSUMED)
+TOW_P = {"AF_MV": 0.40, "AF_SV": 0.60, "NAF": 0.35, "PARKED": 0.05, "ANIMAL": 0.30, "FLOOD": 0.50, "FLOOD_CAT": 0.50,
+         "FIRE": 0.50, "WIND_CAT": 0.10}
 TOW_COST = dict(median=135.0, sigma=0.40)
 # Underinsured motorist (part of the UM coverage, as in Illinois): when an insured hurt by an insured driver
 # has damages above that driver's bodily injury limit, the policy pays the excess up to its own UM limit,
@@ -272,6 +274,13 @@ INEXPERIENCE_FACTOR = [1.35, 1.25, 1.10, 1.0]
 MILEAGE_ELASTICITY = 0.45             # frequency ~ (miles / 10,000) ** elasticity
 BUSINESS_USE_FACTOR = 1.10
 ADAS_FREQ_FACTOR = {"AF_MV": 0.86, "AF_SV": 0.95}   # automatic emergency braking (ASSUMED, direction per IIHS)
+# Share of each model year built with automatic emergency braking (ASSUMED, after IIHS's reports on the automakers'
+# voluntary commitment: rare before 2015, about half of 2018 models, nearly all from 2023) and with an engine
+# immobiliser or factory anti-theft system (ASSUMED: spreading through the 1990s, nearly universal by 2015, except
+# the theft-wave Kias and Hyundais). Luxury cars and EVs had them two (braking) and three (immobiliser) years early.
+AEB_SHARE = {2012: 0.0, 2014: 0.05, 2016: 0.20, 2017: 0.35, 2018: 0.55, 2019: 0.70, 2020: 0.82, 2021: 0.90,
+             2022: 0.95, 2023: 0.98, 2026: 0.99}
+IMMOBILISER_SHARE = {1986: 0.02, 1995: 0.15, 2000: 0.45, 2005: 0.75, 2010: 0.92, 2015: 0.97, 2020: 0.99}
 ZIP_RANDOM_EFFECT_SIGMA = {"crash": 0.12, "theft": 0.20}   # true ZIP hazard the insurer cannot see
 
 # Base annual occurrence rates by peril (TUNED to the frequency targets in validate.py). The national
@@ -336,6 +345,11 @@ RESIDUAL_VALUE = [1.10, 0.92, 0.71, 0.54, 0.30, 0.17, 0.11, 0.07]
 NEW_VALUE_CAP = 1.15
 MIN_VEHICLE_VALUE = 1_500.0
 USED_CAR_VALUE_INDEX = {2021: 1.39, 2022: 1.52, 2023: 1.42, 2024: 1.31, 2025: 1.34, 2026: 1.34}
+# New-car prices by model year against 2019 (approximately the BLS CPI for new vehicles, annual averages; 2026
+# ASSUMED). A model year sold after prices rose was already sold at them, so the used-car index lifts a car's
+# value only by how far used prices have run ahead of those, and only once it is a used car (fully from a year
+# old): a new car is worth what it cost.
+NEW_VEHICLE_PRICE_LEVEL = {2019: 1.00, 2020: 1.02, 2021: 1.06, 2022: 1.16, 2023: 1.20, 2024: 1.20, 2025: 1.21, 2026: 1.22}
 
 # Severity medians/sigmas at the 2024 level (lognormal; TUNED to the severity targets, compared with the
 # national figures on their own definitions: see BENCHMARK in validate.py)
@@ -379,7 +393,9 @@ SUBROGATION_SHARE = (0.75, 1.00)
 # How the costs of one crash move together (ASSUMED). Each crash has a severity, a standard normal draw, and each
 # of these draws is correlated with it (a Gaussian copula): the damage to the insured car, the damage to the other
 # car, whether anyone is hurt and how badly, medical payments, whether the car is towed, and the days in a rental
-# car (with the repair). Every coverage keeps its own distribution, so expected costs are unchanged.
+# car (with the repair). Every coverage keeps its own distribution. An injury or medical payment is likelier in a
+# severe crash and costlier there, so the claims that happen would cost more on average than calibrated: their
+# costs are scaled back by that selection's known lift (truth.selection_lift), keeping expected costs unchanged.
 CRASH_SEVERITY_CORR = {"COLL": 0.6, "PD": 0.5, "INJURY": 0.45, "INJURY_SEV": 0.35, "MED": 0.4, "TOW": 0.6, "RENT_DAYS": 0.5}
 P_FILE_BELOW_DEDUCTIBLE = 0.75      # claims opened then closed without payment
 CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04, "RENT": 0.02, "TOW": 0.02}
@@ -441,6 +457,7 @@ FULL_CREDIBILITY_CLAIMS = 1082
 BUREAU_ERROR = 0.05
 N_TERRITORIES = 12
 PLANTED_DISTORTIONS = {
+    # the class factor multipliers apply to the coverages a driver's age drives (DRIVER_COVERAGES)
     "class": {"16-17 M": 0.80, "16-17 F": 0.80, "18-20 M": 0.82, "18-20 F": 0.82,
               "21-24 M": 0.90, "21-24 F": 0.90, "75+": 0.88},
     "mileage_exponent": 0.5,        # mileage relativities are flattened (square root of the fitted value)
@@ -492,6 +509,8 @@ NONPAY_NEW_BUSINESS = 1.6            # new customers miss payments more often in
 NONPAY_INSTALLMENT_DECAY = {"new": 0.55, "renewal": 0.85}
 NONPAY_GRACE_DAYS = (21, 28)         # from the missed due date to the cancellation taking effect
 UW_CANCEL_NEW_BUSINESS_P = 0.008
+UW_CANCEL_DAYS = (36, 60)            # an underwriting cancellation takes effect this many days after inception
+UW_NOTICE_DAYS = 31                  # its notice of cancellation is mailed at least this many days before
 
 # --------------------------------------------------------------------------
 # Quotes (ASSUMED). Conversion at the market price by channel, how strongly it falls as our price rises
@@ -552,6 +571,12 @@ CAT_EVENTS = [
     ("CAT-2026-02", "2026-06-10", "Derecho - metro wide", "WIND_CAT", 41.79, -88.05, 24.1, 0.0100),
     ("CAT-2026-03", "2026-07-27", "Hail, wind and flooding - DuPage and the west and southwest suburbs", "HAIL_CAT", 41.80, -87.97, 20.0, 0.0480),
 ]
+# When each storm struck, in local clock hours: from its first NOAA report to the time by which nine in ten of its
+# reports had ended (scripts/build_catastrophe_events.py). A catastrophe claim's loss time falls inside it.
+CAT_HOURS = {"CAT-2023-01": (12.75, 14.50), "CAT-2023-02": (9.25, 17.00), "CAT-2024-01": (18.75, 20.75),
+             "CAT-2024-02": (19.00, 22.00), "CAT-2025-01": (14.50, 15.00), "CAT-2025-02": (11.50, 16.25),
+             "CAT-2025-03": (1.75, 8.00), "CAT-2026-01": (16.75, 19.75), "CAT-2026-02": (14.75, 16.25),
+             "CAT-2026-03": (10.75, 15.75)}
 
 # --------------------------------------------------------------------------
 # Claim handling (ASSUMED)

@@ -194,6 +194,18 @@ def filed_factors(cov: str) -> dict:
     return {k: np.array(f if cov in covs else [1.0] * len(f)) for k, (f, covs) in C.FILED_DISCOUNTS.items()}
 
 
+def _non_increasing(x: np.ndarray) -> np.ndarray:
+    """The closest non-increasing sequence (pool adjacent violators, equal weights)."""
+    blocks = []                                   # [mean, count]
+    for v in np.asarray(x, dtype=float):
+        blocks.append([v, 1])
+        while len(blocks) > 1 and blocks[-2][0] < blocks[-1][0]:
+            m2, n2 = blocks.pop()
+            m1, n1 = blocks.pop()
+            blocks.append([(m1 * n1 + m2 * n2) / (n1 + n2), n1 + n2])
+    return np.concatenate([np.full(n, m) for m, n in blocks])
+
+
 def _minimum_bias(variables: dict, y: np.ndarray, sweeps: int = 40, credibility: float = 25.0, offset=None) -> dict:
     """Bailey's multiplicative minimum-bias fit. Sparse levels are pulled toward 1.0. `offset` is a fixed
     multiplier on each row (the filed discounts), which the fitted variables work around."""
@@ -275,8 +287,14 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
         f = {k: a.copy() for k, a in fitted.items()}
         for ordered in ("violation_points", "at_fault_accidents"):      # a filed plan would not reward a worse record
             f[ordered] = np.maximum.accumulate(f[ordered])
-        for level, mult in C.PLANTED_DISTORTIONS["class"].items():
-            f["class"][CLASS_LEVELS.index(level)] *= mult
+        # nor charge a better insurance score more (No Hit, the first level, apart): fitted noise is pooled away
+        tiers = f["score_tier"]
+        base = int(np.argmin(np.abs(tiers - 1.0)))
+        tiers = np.r_[tiers[0], _non_increasing(tiers[1:])]
+        f["score_tier"] = tiers / tiers[base]
+        if cov in C.DRIVER_COVERAGES:                 # the young and old drivers are under-priced where age matters
+            for level, mult in C.PLANTED_DISTORTIONS["class"].items():
+                f["class"][CLASS_LEVELS.index(level)] *= mult
         f["mileage"] = f["mileage"] ** C.PLANTED_DISTORTIONS["mileage_exponent"]
         plan.factors[cov] = {k: np.round(a, 3) for k, a in f.items()}
         plan.base[cov] = 1.0

@@ -48,7 +48,10 @@ otherwise.
    A follow-up made the tables hold records rather than totals, opened the extract with the claims then
    open, replaced the fictional catastrophes with real storms, made the keys system counters, set case
    reserves and the rating plan from what the company knows rather than from the truth, and added a
-   benchmark sheet that says how far to trust each figure.
+   benchmark sheet that says how far to trust each figure. Two further audits then removed records that
+   contradicted their context (driving records after a driver left, notices after payment, lenders paid on
+   kept wrecks, reviews after a final payment), tied a crash's costs together, priced competitors near the
+   true risk, gave vehicles equipment by model year, and closed the ledger each year-end.
 
 ## Unreleased (in progress)
 
@@ -609,6 +612,71 @@ suggestions (A7 and A8) were taken up. `docs/review_response.md` lists them unde
   cover notices of cancellation, the daily sharing of per-accident limits and the catalog's oldest model
   years. The test suite has 74 tests (73 pass, and one needs `pyarrow`). The README,
   `docs/limitations.md`, `docs/real_data_comparison.md` and the website give the new run's figures.
+
+### Fixes from two further realism audits
+
+Two more audits of the default run listed records that still contradicted their context, modeling shortcuts
+and statutory gaps (40 findings, six shared). `docs/review_response.md` ("Two further realism audits") answers
+each.
+
+- **Keys and numbers.** Unpaid agency statements are keyed by the month they are drawn up (they had the
+  founding day's keys); quotes are numbered in the order asked for within a day (bound ones had come first);
+  each year's sequence numbers start near 1; vendor keys no longer run by vendor type.
+- **Claim payments.** One defense firm, appraiser, bill reviewer, salvage auction and subrogation insurer per
+  claim. An uninsured motorist claim's first claimant is the policy's own injured person, paid as "Insured" or
+  "Insured and Attorney"; other occupants are claimants. Only a car owned outright can be kept as salvage, and
+  a leased car's fees and supplements go to the lessor. When the other driver's insurer repays a collision, it
+  repays the rental and the tow in the same share.
+- **Reserves.** Each coverage's formula reserve follows its own severity trend (all had followed bodily
+  injury's). A final payment settles a feature: no reserve and no review after it unless it reopens. No
+  appraisal fee on glass or on stolen cars never recovered. Fraud referrals are made while the claim is open,
+  rarely on routine glass and catastrophe claims, from what is known at report.
+- **Crashes.** A crash's costs move together through a shared severity (a Gaussian copula): collision, the
+  other car, injuries, medical payments, the tow and the rental's length. Underinsured motorist claims arise
+  only above the 25/50 minimum (215 ILCS 5/143a-2(4)). New customers' extra claims follow the daily calendar.
+  Towing pays for floods, fires and storms as well as crashes, and catastrophe losses fall in their storm's
+  hours (from NOAA's report times; `catastrophe.start_time` and `end_time` are new).
+- **People and records.** Driving records and SR-22 filings stop when the driver or the policy does; a
+  named insured who dies is marked deceased on the cancellation day; good-student status is as of the
+  driver's last day insured; adults join a policy at 18 or older, parents were at least 18 at a child's
+  birth, and no two people in a household share a full name. A move redraws commutes and mileage, and a
+  replacement car going to another driver takes theirs. The surviving spouse's age rates the policy; the car
+  count follows the cars on it.
+- **Vehicles.** Automatic emergency braking and immobilisers follow the model year (and every Tesla has both
+  from 2015); the theft-wave Kias and Hyundais have no immobiliser. A replacement on a new lease is new. The
+  used-car index lifts a car's value only by how far used prices ran ahead of the new-car prices its model
+  year sold at, from a year old, so new cars are no longer all at the 115% cap. The catalog's sales priors for
+  models the crash data never names are smaller and price-damped (no price cap, by the owner's decision);
+  electric versions are tagged `ev`.
+- **Pricing and quotes.** The planted young-driver distortions apply only to driver-rated coverages, and the
+  insurance-score tiers never rise with the score. Competitors price near the true risk, so under-priced
+  segments convert more; lost quotes get the bound policies' channel mix by age (a spurious under-35 step in
+  direct conversion is gone). Agencies take no quotes on New Year's Day, July 4, Thanksgiving or Christmas.
+- **Renewals and cancellations.** A policy left with no car is not offered a renewal. An underwriting
+  cancellation comes 36 to 60 days after inception with at least 30 days' notice (215 ILCS 5/143.15).
+- **Billing.** A notice of cancellation is dated on the business day it is mailed and sent only while the bill
+  is unpaid; paid-in-full renewals are paid within the grace period; an endorsement re-spreads the balance to
+  bill, a larger return is refunded at once, and a small balance is not split into micro-bills.
+- **Telematics.** A plug-in device records no phone use (its score reweights the other behaviors); any
+  mileage takes at least one trip.
+- **Calendar and staff.** Hires, terminations, appointments, producer start dates and write-offs fall on
+  business days; a fixed holiday at a weekend is a holiday. Producers are hired over the years, some during
+  the extract, and write only policies incepting after they start; an agency is appointed by its first policy.
+- **Ledger.** Each December 31 closes the income-statement accounts to surplus (journal `CL`).
+- **Found while checking seeds.** Two cars 30 model years apart could share a VIN: position 7 is now a digit
+  to 2009 and a letter from 2010, as in real VINs. Injury and medical costs, once tied to the crash's severity,
+  ran above their calibration (the claims that happen are the severe crashes' ones); they are scaled back by
+  that selection's known lift, so each coverage's expected cost holds.
+- **Checks.** `validate.py` checks each of these (168 checks on the default run); its overall loss
+  ratio counts only accidents in the extract.
+- **The default run** (content hash `4a1f9ef22b9bc813`): loss ratios by accident year 77.9%, 77.7%, 68.8%, 59.7%
+  and 66.3% for 2022 to 2026, of which catastrophes 0.0%, 3.4%, 2.1%, 0.6% and 6.0%; overall 69.1% (was
+  72.1%; 69.1% to 70.2% across five seeds); annualized retention 81.2% (was 81.6%). 195,367 policy terms, 438,440
+  exposure rows, $212.0 million earned premium, 22,845 claims, 40,062 features, 61,032 claim payments, 104,316
+  reserve transactions (was 129,559), 879,886 bills and 891,769 receipts, 118,642 quotes and 168,899 renewal
+  offers. 168 checks pass on the default run and on seeds 7, 11, 23 and 42. The test suite has 74 tests (73
+  pass, and one needs `pyarrow`). The README, `docs/limitations.md`, `docs/real_data_comparison.md`,
+  `docs/benchmarks.md` and the website give the new run's figures.
 
 ## 2026-11-15: Audit fixes and like-for-like calibration ([PR #3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/3))
 

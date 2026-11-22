@@ -239,19 +239,28 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, ca
     """Police report, the insured's share of fault, and referral to the special investigations unit."""
     n = len(occ)
     peril = occ.peril.to_numpy()
-    injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM"]) & (f.paid.to_numpy() > 0)]).to_numpy()
+    # what is known at the scene and the first notice, not how the claim turns out: someone was hurt (an injury
+    # claim with damages, paid in the end or not)
+    injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM"]) & (f.gross.to_numpy() > 0)]).to_numpy()
     occ["police_report"] = R.random(n) < np.clip(occ.peril.map(POLICE_REPORT_P).fillna(0.1).to_numpy() + 0.30 * injured, 0, 0.98)
     fault = np.select([peril == "AF_MV", peril == "AF_SV", peril == "NAF"],
                       [np.where(R.random(n) < 0.7, 100, R.integers(51, 100, n)), np.full(n, 100),
                        np.where(R.random(n) < 0.8, 0, R.integers(5, 50, n))], default=-1)
     occ["fault_pct"] = fault
-    big_attorney = occ.occ.isin(f.occ[f.attorney.to_numpy() & (f.paid.to_numpy() > 50_000)]).to_numpy()
-    p_siu = SIU_REFERRAL_P + 0.07 * (peril == "THEFT_TOTAL") + 0.06 * (occ.report_day.to_numpy() - occ.day.to_numpy() > 30) \
-        + 0.04 * big_attorney
+    # referral signals an adjuster sees early: a total theft, a late report, an injury claimed on a crash; a glass
+    # chip or a storm loss is almost never referred
+    routine = np.isin(peril, ["GLASS", "HAIL_CAT", "WIND_CAT", "FLOOD_CAT", "WEATHER"])
+    p_siu = (SIU_REFERRAL_P + 0.07 * (peril == "THEFT_TOTAL") + 0.06 * (occ.report_day.to_numpy() - occ.day.to_numpy() > 30)
+             + 0.02 * injured) * np.where(routine, 0.1, 1.0)
     # a referral is made while the claim is open: 5 to 45 days after the report, or before it first closes, on a
-    # business day (on the close day itself only if the claim closes on the first business day after its report)
+    # business day (on the close day itself only if the claim closes on the first business day after its report).
+    # It first closes when every feature opened by then has closed (a later feature, even one opened after the
+    # valuation date, reopens it)
     report = occ.report_day.to_numpy()
-    closes = occ.occ.map(f.groupby("occ").close_day.max()).to_numpy()
+    g = f[["occ", "open_day", "close_day"]].sort_values(["occ", "open_day"], kind="stable")
+    run = g.groupby("occ").close_day.cummax()
+    nxt = g.groupby("occ").open_day.shift(-1).fillna(np.inf)
+    closes = occ.occ.map(run[run.to_numpy() < nxt.to_numpy()].groupby(g.occ[run.to_numpy() < nxt.to_numpy()]).min()).to_numpy()
     hi = np.maximum(closes - 1, cal.next_business(report))
     when = cal.business_between(np.minimum(report + R.integers(5, 46, n), hi), report, hi, R.random(n))
     occ["siu_day"] = np.where(R.random(n) < p_siu, when, NO_DAY)
@@ -275,16 +284,24 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
     sg = pd.Series(cvg).map(lambda k: RESERVE_ERROR[k][1]).to_numpy()
     fid = f.fid.to_numpy()
     cap = f["cap"].fillna(np.inf).to_numpy() if "cap" in f else np.full(n, np.inf)
+    # before the first close the adjuster is estimating the settlement, not a supplement a later reopening will
+    # bring; and the final payment settles the feature, taking its reserve to nothing however long the file takes
+    # to close
+    main = U - (f.supp.to_numpy() if "supp" in f else 0.0)
+    loss = pays[pays.kind == "Loss"]
+    final = loss[loss.txn == "Final Payment"].groupby("fid").day.min()
+    fin_day = pd.Series(fid).map(final).to_numpy(dtype=float)
+    settled = np.where(np.isnan(fin_day), cd, np.minimum(cd, np.nan_to_num(fin_day))).astype(np.int64)
 
-    # reviews: at opening, then on the coverage's review cycle until the first close
-    life = np.maximum(cd - od, 1)
+    # reviews: at opening, then on the coverage's review cycle until the settlement (or the first close)
+    life = np.maximum(settled - od, 1)
     interval = pd.Series(cvg).map(RESERVE_REVIEW_DAYS).to_numpy()
     m = np.clip(1 + (life - 1) // interval, 1, 24).astype(int)
     i = np.repeat(np.arange(n), m)
     k = np.arange(len(i)) - np.repeat(np.cumsum(m) - m, m)
     day = np.where(k == 0, od[i], np.minimum(od[i] + np.floor(k * interval[i] * R.uniform(0.8, 1.2, len(i))).astype(int),
-                                              cd[i] - 1))
-    day = np.where(k == 0, day, cal.business_between(day, od[i], cd[i] - 1, R.random(len(i))))      # reviews are done on business days
+                                              settled[i] - 1))
+    day = np.where(k == 0, day, cal.business_between(day, od[i], settled[i] - 1, R.random(len(i))))      # reviews are done on business days
     eta = R.standard_normal(len(i))
     z = eta.copy()
     rho = RESERVE_PERSISTENCE
@@ -292,7 +309,7 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
         sel = np.flatnonzero(k == kk)
         z[sel] = rho * z[sel - 1] + np.sqrt(1 - rho ** 2) * eta[sel]
     phi = (day - od[i]) / life[i]
-    est = np.where(U[i] > 0, U[i] * np.exp((mu[i] + sg[i] * z) * (1 - phi) ** 0.7), formula[i] * np.exp(0.3 * z))
+    est = np.where(U[i] > 0, main[i] * np.exp((mu[i] + sg[i] * z) * (1 - phi) ** 0.7), formula[i] * np.exp(0.3 * z))
     est = np.where((k == 0) & (U[i] > 0), formula[i] * np.exp(0.3 * z), est)      # formula reserve at first notice
     est = np.where(nominal[i], nominal_amt[i] * np.exp(0.3 * z), est)
     est = np.minimum(est, cap[i])
@@ -305,8 +322,8 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
                                    pay=0.0, txn="Reopen")))
     closes = np.r_[cd, f.final_close_day.to_numpy()[ro]]
     parts.append(pd.DataFrame(dict(fid=np.r_[fid, fid[ro]], day=closes, order=2, est=np.nan, pay=0.0, txn="Close")))
-    loss = pays[pays.kind == "Loss"]
-    parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=1, est=np.nan, pay=loss.amount, txn="Payment")))
+    parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=np.where(loss.txn == "Final Payment", 2, 1), est=np.nan,
+                                   pay=loss.amount, txn="Payment")))         # (order 2: a final payment ends the reserve)
     room = f["room"].fillna(np.inf).to_numpy() if "room" in f else np.full(n, np.inf)
     shared = pd.DataFrame(dict(occ=f.occ.to_numpy(), cvg=cvg, room=room), index=fid)
     out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE, pd.Series(cap, index=fid),
@@ -468,6 +485,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     loan = f["ownership"].to_numpy() if "ownership" in f else np.full(n, "Owned")
     R.random(n)        # (once drew whether a lender was paid; still drawn so the draws after it do not move)
     split = has & total & (loan != "Owned")
+    leased = split & (loan == "Leased")
     fees = has & total & (R.random(n) < TOTAL_LOSS_FEES_P) & (final_day - od >= 10) & (main >= 50_000)
 
     # interim payments: physical damage is paid early on the estimate, injury advances mid-way, bills throughout
@@ -507,8 +525,11 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
         _legs(np.flatnonzero(split), settle_day[split], lien[split], lien_txn[split], role="lien"),
         _legs(np.flatnonzero(has), settle_day[has], (fin_cents - lien)[has],
               np.where(fees[has], "Partial Payment", "Final Payment")),
-        _legs(np.flatnonzero(fees), final_day[fees], fee_cents[fees], "Final Payment"),
-        _legs(np.flatnonzero(reopen), supp_day[reopen], supp[reopen], "Supplemental Payment"),
+        # a leased car's whole settlement goes to the leasing company: its title and fees and any supplement too
+        _legs(np.flatnonzero(fees), final_day[fees], fee_cents[fees], "Final Payment",
+              role=np.where(leased[fees], "lien", "")),
+        _legs(np.flatnonzero(reopen), supp_day[reopen], supp[reopen], "Supplemental Payment",
+              role=np.where(leased[reopen], "lien", "")),
     ]
     # voided and reissued interim payments (net zero)
     vd = R.random(len(i)) < VOID_P

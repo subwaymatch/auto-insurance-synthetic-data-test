@@ -1,10 +1,160 @@
 # Responses to the external reviews of November 2026
 
-An outside reviewer (another AI coding assistant) has reviewed the generator three times, and a dataset
-realism audit followed on 20 November 2026. The audit, at commit `03c2634`, is answered first, then the third
-review at `9fe6062`; the first two follow. Each finding is answered:
+An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
+realism audit followed on 20 November 2026, and two further realism audits on 22 November 2026. The two
+latest are answered first, then the 20 November audit at commit `03c2634`, then the third review at
+`9fe6062`; the first two follow. Each finding is answered:
 **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
 now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Two further realism audits (22 November 2026)
+
+Two more audits, independent runs of another AI assistant, both read the default run at content hash
+`963889a73f229de8` (all 145 checks passing) and listed records that still contradict their business context,
+modeling shortcuts and statutory gaps. The first had 17 findings (numbered 1 to 17 below), the second 23
+(F1 to F23); six of the second's repeat the first's. Each is answered as above. "After" figures are from the
+default run after this change (content hash `4a1f9ef22b9bc813`).
+
+### First audit
+
+| # | Finding | Verdict | After |
+|---|---|---|---|
+| 1 | Unpaid December 2026 agency statements keyed as if created in 2000 | Confirmed and fixed | A statement's key follows the month it is drawn up |
+| 2 | Bound quotes numbered first within each day | Confirmed and fixed | Quotes are numbered in the order asked for, bound and lost mixed |
+| 3 | Formula reserves for every coverage trended at bodily injury's rate | Confirmed and fixed | Each coverage's formula reserve follows its own severity trend |
+| 4 | Several defense firms on one lawsuit | Confirmed and fixed | One defense firm, appraiser, bill reviewer, salvage auction and subrogation insurer per claim |
+| 5 | Represented uninsured motorist claimants paid under a stranger's name | Confirmed and fixed | The first claimant is the policy's own injured person ("Insured" or "Insured and Attorney") |
+| 6 | Underinsured motorist claims on 25/50 minimum UM limits | Confirmed and fixed | Underinsured motorist only above the 25/50 minimum (215 ILCS 5/143a-2(4)) |
+| 7 | Fraud referrals after the claim closed | Confirmed and fixed | Referred while the claim is open |
+| 8 | A surviving spouse rated at the deceased's age; cars written off still counted | Confirmed and fixed | Current named insured's age; the car count follows the cars on the policy |
+| 9 | Weekend hires, appointments and write-offs; fixed holidays at weekends; agents quoting on holidays | Confirmed and fixed | Business days throughout; agencies closed on four major holidays |
+| 10 | A crash's coverages independent of one another | Confirmed and fixed | A crash severity shared by collision, property damage, injury, medical, tow and rental days (Gaussian copula) |
+| 11 | Competitors copy our planted pricing errors; a December 2026 quote cliff | First part fixed; second agreed, documented | Competitors price near the true risk, so under-priced segments convert more |
+| 12 | Appraisal fees booked as A&O; appraisals on glass and stolen cars | Partly adopted | No appraisal on glass or unrecovered theft; outside appraisers stay A&O (see below) |
+| 13 | Commutes and mileage unchanged by a move or a new driver; employment never changes | Mostly fixed | A move redraws commutes and mileage; a replacement car takes its new driver's; employment documented |
+| 14 | Warm-up drops 2021 total-loss liability claims; validator's overall loss ratio counts 2021 claims | Second part fixed; first documented | The overall loss ratio counts accidents in the extract |
+| 15 | New customers' extra claims ignore the daily calendar | Confirmed and fixed | They follow Chicago's daily crash pattern |
+| 16 | Hypercars in the catalog; EV tagging | Partly adopted | Catalog weights corrected rather than a price cap (see below); electric models tagged `ev` |
+| 17 | Vendor keys by type; yearly numbers starting in the thousands; daily index ends 2026-09-30; a cancelled bill with an unreversed draft | Fixed (one documented) | Vendor keys mixed; yearly numbers start near 1; cancelled bills net to zero; the index ending is documented |
+
+**12. A&O or DCC.** Not adopted as proposed. Since Schedule P's 1998 split, adjusting and other expense
+(A&O) includes adjusters' and appraisers' fees whether staff or independent, and defense and cost containment
+(DCC) is defense, litigation and medical cost containment (NAIC SSAP No. 55). An outside appraiser's fee is
+therefore A&O. What was wrong was where it was charged: glass claims and stolen cars never recovered, which no
+appraiser inspects, now carry none.
+
+**16. Expensive cars.** The owner decided against an eligibility cap on price: real books do insure the odd
+exotic car, and a cap would make the catalog less realistic, not more. The problem was the catalog's weights:
+models the Chicago crash data never names (early EV pilots, fuel-cell cars, a $450,000 Ford GT) carried
+default sales priors far above their real sales. They now get small, price-damped priors (and fuel-cell and
+pre-2011 electric cars a hundredth), so no car over $1 million is insured in the default run.
+
+**11 (second part), 14 (first part), 17.3.** Documented in [limitations.md](limitations.md): quoting stops
+with the policies the extract writes, so late December 2026 has fewer quotes; the warm-up keeps no accident on
+a car written off before 2022; Chicago's daily index ends on 30 September 2026 and later days use the
+average day-of-week pattern.
+
+### Second audit
+
+| # | Finding | Verdict | After |
+|---|---|---|---|
+| F1 | Driving records and SR-22s after the driver or policy had gone | Confirmed and fixed | Records and filings only while the driver is insured here |
+| F2 | A deceased named insured left unmarked; several current named insureds | Confirmed and fixed | Marked deceased on the cancellation day; one current named insured per policy |
+| F3 | = 1 | Fixed | |
+| F4 | = 4 | Fixed | |
+| F5 | = 5 | Fixed | |
+| F6 | Reviews and open reserves after a final payment | Confirmed and fixed | A final payment settles the feature: no reserve or review after it until a reopening |
+| F7 | Fraud referrals after closing, on routine glass claims, from outcomes | Confirmed and fixed | Referred while open; routine glass and catastrophe claims rarely; from what is known at report |
+| F8 | Renewal offers for no car and $0 | Confirmed and fixed | A policy left with no car is not offered a renewal; every term has exposure rows |
+| F9 | Lenders paid on retained salvage; a lessee paid on a leased total loss | Confirmed and fixed | Only a car owned outright can be kept as salvage; a leased car's fees and supplements go to the lessor |
+| F10 | = 3 | Fixed | |
+| F11 | = 10 | Fixed | |
+| F12 | Young drivers discounted on comprehensive; credit tiers not monotone | Confirmed and fixed | Distortions only on the driver coverages; insurance-score relativities never rise with the score |
+| F13 | Plug-in devices recording phone use; trips of zero with miles | Confirmed and fixed | Phone use blank for plug-in devices (the score reweights); any mileage takes a trip |
+| F14 | Low opening case reserves; no year-end closing entries | Second part fixed; first agreed, documented | Each December 31 closes the income-statement accounts to surplus |
+| F15 | December 2026 cliffs in renewals, bills and quotes | Agreed, documented | |
+| F16 | Notices of cancellation after payment; paid-in-full notices; monthly refunds from one change; micro-bills | Confirmed and fixed | See below |
+| F17 | Underwriting cancellations without 30 days' notice; deductibles on subrogation | First fixed; second partly | 30 days' notice in the first 60 days; rental and tow recovered with the collision |
+| F18 | = 11; a spurious under-35 step in direct conversion | Confirmed and fixed | Lost quotes get the bound policies' channel mix by age |
+| F19 | Good-student status at joining; producers who started after their policies; Preferred tier fixed | First two fixed; third documented | Good student as of the driver's last day insured; producers hired through 2026 and assigned only policies written after they started |
+| F20 | Theft-wave Kias and Hyundais with immobilisers; equipment drawn at random; old leased replacements; new cars over MSRP; exotics | Fixed except the price cap | Equipment by make and model year; new leases on near-new cars; values that do not count new-car inflation twice |
+| F21 | Spouses added at 16; parents under 18 at a birth; duplicate names; repeat claims within days | First three fixed; last documented | Adults join at 18; parents at least 18 at the birth; no duplicate full names in a household |
+| F22 | No 2022 catastrophe; storm losses at any hour; no tows | Second and third fixed; first explained | Loss times in each storm's NOAA hours (`catastrophe.start_time`, `end_time`); tows on flood, fire and wind |
+| F23 | Documentation wording | Confirmed and fixed | |
+
+**F6.** A feature's "Final Payment" now ends its case reserve: reserve reviews stop the day before it, the
+estimate before closing leaves out a later reopening's supplement, and on a day with both, the payment is
+booked after the reviews.
+
+**F12.** The planted class distortions (under-charging young drivers, over-charging the middle-aged) apply
+only to the driver-rated coverages (bodily injury, property damage, uninsured motorist, medical payments,
+collision); comprehensive, rental and towing keep their fitted relativities. The fitted insurance-score
+relativities are made non-increasing in the score (pool-adjacent-violators, "No Hit" apart), as a filed tier
+table would be.
+
+**F14.** Opening case reserves stay as they are: the warm-up simulates only the opening terms' 2021 part, so
+older injury claims are missing on 1 January 2022, as [limitations.md](limitations.md) already says. A full
+run-off inventory would need several more simulated years.
+
+**F16.** A notice of cancellation is dated on the business day it is mailed and sent only if the bill is still
+unpaid that day. A paid-in-full household that pays a renewal late pays within the grace period, before a
+notice would go. An endorsement re-spreads the balance still to bill evenly over the installments not yet
+issued; a return larger than that balance is refunded at once in one payment, and a balance too small to split
+(under $25 an installment) is billed on the next installment alone, so installment bills of a few cents all but
+disappear (5 under $1 in the default run, where the whole balance left was under $1). An additional premium on a
+paid-in-full policy is still billed whatever its size (291 under $1), as some insurers do; others waive amounts
+that small.
+`validate.py` checks that every billing notice of cancellation went while a bill was past due and unpaid.
+
+**F17.** Illinois requires 30 days' notice for a cancellation other than for non-payment. An underwriting
+cancellation now takes effect 36 to 60 days after inception, with its notice mailed at least 31 days before
+(`config.UW_CANCEL_DAYS`, `UW_NOTICE_DAYS`); `validate.py` checks each. Subrogation: when the other driver's
+insurer pays back the repair, it now pays back the rental and the tow in the same share. A recovery is recorded
+as the company's own share; the insured's deductible recovered with it is passed on outside these tables, as
+[limitations.md](limitations.md) notes.
+
+**F19.** The tier (company) is set at inception and does not change; a real company would move some policies
+at renewal. Documented.
+
+**F20.** Equipment now follows the model year: automatic emergency braking from about 5% of 2014 models to
+nearly all from 2023, immobilisers spreading through the 1990s to nearly all by 2015, two or three years
+earlier for luxury cars and EVs, every Tesla from 2015; the theft-wave Kias and Hyundais have none. A
+replacement taken on a new lease is at most a year old. Values: the used-car index now lifts a car's value only
+by how far used prices ran ahead of the new-car prices its model year sold at, and only once it is a year old,
+so a one-year-old car is worth about 87% of its base price in 2025 instead of the 115% cap. No price cap on
+eligibility, as for item 16.
+
+**F21.** Two claims on one car within days stay possible (a car can be hit while parked the week after a
+crash); not changed.
+
+**F22.** The 13 June 2022 storm brought 56 damaging-wind reports, 3 tornadoes and 1-inch hail to the seven
+counties, with no property damage reported to NOAA there, below the catastrophe rule
+(`scripts/build_catastrophe_events.py`), so 2022 has no catastrophe by the same rule that picks the others.
+Each storm's hours are now taken from NOAA's report times; the script prints them.
+
+### What changed in the data
+
+Most of the changes move records rather than money, but four change amounts: injuries and medical payments now
+happen more in severe crashes (with their expected cost held), rental and towing are recovered by subrogation
+with the collision, vehicle values for cars under a few years old are lower (new-car price inflation no longer
+counted twice), and towing pays on floods, fires and storms. The rating plan is refitted to the new experience.
+
+On the default run: loss ratios by accident year 77.9%, 77.7%, 68.8%, 59.7% and 66.3% for 2022 to 2026 (were
+82.2%, 77.3%, 66.3%, 67.3% and 66.1%), of which catastrophes 0.0%, 3.4%, 2.1%, 0.6% and 6.0%; overall 69.1% (was
+72.1%); annualized retention 81.2% (was 81.6%); earned premium $212.0 million (was $214.3 million). 195,367
+policy terms (was 197,003), 438,440 exposure rows (was 440,655), 22,845 claims (was 23,135), 40,062 features
+(was 40,414), 61,032 claim payments (was 62,875), 104,316 reserve transactions (was 129,559: no reviews after a
+final payment), 879,886 bills and 891,769 receipts (were 879,257 and 890,607), 118,642 quotes (was 119,541) and
+168,899 renewal offers (was 170,522). Every record-level finding of both audits is at zero, and `validate.py`
+checks each: 168 checks pass on the default run (was 145) and on seeds 7, 11, 23 and 42 (content hashes `bb25cdc450625b55`, `f4c04822589267d0`, `5f1eb50ea0399d2c`, `7c5f8b927c449729`). The test suite has 74 tests
+(73 pass, and one needs `pyarrow`).
+
+Three more defects turned up while checking the five seeds and were fixed: two cars 30 model years apart could
+share a VIN (position 7 now tells the year code's cycles apart, as real VINs do); a fraud referral could fall
+while a claim was closed, before a late feature reopened it (referrals now come before the claim first closes);
+and a new spouse could share the named insured's first name, or a teen an older sibling's who had moved out
+(a newcomer's name now differs from everyone's who has been on the policy, and a spouse's first name from the
+named insured's).
 
 ## Dataset realism audit (20 November 2026)
 

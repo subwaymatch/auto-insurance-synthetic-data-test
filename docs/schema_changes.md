@@ -65,6 +65,8 @@ Columns not listed for a table keep their meaning under the new name shown.
 |---|---|
 | `Catastrophe ID` | `catastrophe_id` |
 | `Event Date` | `event_date` |
+| *(new)* | `start_time` |
+| *(new)* | `end_time` |
 | `Description` | `description` |
 | `Peril` | `peril` |
 | `Note` | `note` |

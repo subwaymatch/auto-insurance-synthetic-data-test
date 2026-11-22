@@ -34,6 +34,7 @@ from . import config as C
 from .refdata import stream
 
 ISSUE_LEAD_DAYS = 20                       # an instalment is billed this many days before it falls due
+MIN_INSTALLMENT = 2_500                    # cents: a balance that would split into smaller instalments is billed at once
 INSTALLMENT_FEE = {0: 0, 1: 200, 2: 500}   # cents per instalment after the first, by plan (paid in full, EFT, bill)
 LATE_FEE, RETURNED_PAYMENT_FEE = 1_000, 2_500      # cents
 LATE_FEE_AFTER_DAYS = 5
@@ -83,28 +84,38 @@ def _schedule(cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.DataFrame):
     prem = w0[I] // n_inst[I]
     prem[base + n_inst - 1] += w0 - (w0 // n_inst) * n_inst                       # the last instalment takes the cents
 
-    # ---- endorsements: spread over the instalments not yet issued when they are processed
+    # ---- endorsements, in the order processed: each re-spreads the balance still to bill evenly over the instalments
+    # not yet issued (the last takes the cents). A return larger than that balance leaves nothing more to bill and is
+    # refunded at once; a balance too small to split goes on the next bill alone
     en = tx[tx.kind == "Endorsement"]
-    et, ep, ea = en.term.to_numpy(), en.processed.to_numpy(), amount[(tx.kind == "Endorsement").to_numpy()]
+    order = np.lexsort((en.processed.to_numpy(), en.term.to_numpy()))
+    et, ep = en.term.to_numpy()[order], en.processed.to_numpy()[order]
+    ea = amount[(tx.kind == "Endorsement").to_numpy()][order]
     k = np.arange(1, 12)
     later_due = cal.day_of(t.month0.to_numpy()[et][:, None] + k[None, :], pol.dom.to_numpy()[tp][et][:, None])
     j0 = 1 + ((later_due - ISSUE_LEAD_DAYS <= ep[:, None]) & (k[None, :] < n_inst[et][:, None])).sum(axis=1)
     left = np.maximum(n_inst[et] - j0, 0)
     spread = left > 0
-    per = np.where(spread, np.trunc(ea / np.maximum(left, 1)).astype(np.int64), 0)
-    add = np.zeros(len(I), dtype=np.int64)
-    np.add.at(add, (base[et] + j0)[spread], per[spread])
-    run = np.cumsum(add)
-    prem = prem + run - (run - add)[base][I]                                      # running total within each term
-    np.add.at(prem, (base[et] + n_inst[et] - 1)[spread], (ea - per * left)[spread])
+    rank = np.arange(len(et)) - np.searchsorted(et, et)
+    back = np.zeros(len(et), dtype=np.int64)                          # the part of a return refunded on its own
+    for r in range(int(rank.max()) + 1 if len(et) else 0):
+        e_ = np.flatnonzero((rank == r) & spread)
+        L, first = left[e_], base[et[e_]] + j0[e_]
+        row = np.repeat(np.arange(len(e_)), L)
+        idx = np.repeat(first, L) + np.arange(L.sum()) - np.repeat(np.cumsum(L) - L, L)
+        bal = np.rint(np.bincount(row, prem[idx], len(e_))).astype(np.int64) + ea[e_]
+        back[e_] = np.minimum(bal, 0)
+        bal = np.maximum(bal, 0)
+        per = bal // L
+        lump = per < MIN_INSTALLMENT
+        last = idx == np.repeat(first + L - 1, L)
+        prem[idx] = np.where(lump[row], np.where(idx == first[row], bal[row], 0),
+                             np.where(last, bal[row] - per[row] * (L[row] - 1), per[row]))
     extra = pd.DataFrame(dict(term=et[~spread], day=ep[~spread], cents=ea[~spread]))    # billed or refunded on their own
+    extra = pd.concat([extra, pd.DataFrame(dict(term=et[back < 0], day=ep[back < 0], cents=back[back < 0]))], ignore_index=True)
     extra = extra[extra.day.to_numpy() < pc[extra.term.to_numpy()]]       # after a cancellation, the settlement covers it
-    # a return larger than what was left to bill is refunded (on bills that will be issued: once a cancellation is
-    # processed no more are, and the settlement below takes care of the rest)
-    over = np.where(issue < pc[I], np.minimum(prem, 0), 0)
-    prem = prem - over
-    refunds = [pd.DataFrame(dict(term=I[over < 0], day=issue[over < 0], cents=-over[over < 0])),
-               pd.DataFrame(dict(term=extra.term[extra.cents < 0], day=extra.day[extra.cents < 0], cents=-extra.cents[extra.cents < 0]))]
+    assert (prem >= 0).all()
+    refunds = [pd.DataFrame(dict(term=extra.term[extra.cents < 0], day=extra.day[extra.cents < 0], cents=-extra.cents[extra.cents < 0]))]
 
     inv = pd.DataFrame(dict(term=I, inst=j + 1, kind=np.where(n_inst[I] == 1, "Paid in Full", np.where(j == 0, "Down Payment", "Installment")),
                             issue=issue, due=due, prem=prem, fee=np.where(j > 0, np.vectorize(INSTALLMENT_FEE.get)(plan[I]), 0)))
@@ -157,6 +168,9 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
     p_late = np.clip(lp["base"] * np.exp(lp["stability"] * stab[it]), lp["low"], lp["high"])
     late = (u < p_late) & (method != "EFT")
     late_days = 1 + np.minimum(np.floor(R.exponential(5.0, n)), MAX_DAYS_LATE - 1).astype(np.int64)
+    # a household paying in full never lets cover lapse: a late renewal payment arrives within the grace period,
+    # before a notice of cancellation would go out
+    late_days = np.where(ip == 0, np.minimum(late_days, NOTICE_DAYS["cancellation"] - 1), late_days)
     early = np.floor(v * np.minimum(np.maximum(idue - iissue, 0), 14) + 0.999).astype(np.int64).clip(0)
     paid = np.where(late, idue + late_days, idue - early)
     # a new customer pays the first bill when the policy is bound, between the quote and the effective date
@@ -241,10 +255,10 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
     inv.loc[not_yet, "late_fee"] = 0
     pending = (inv.status == "Written Off") & (inv.write_off > V)
     inv.loc[pending, "status"], inv.loc[pending, "write_off"] = "Open", NO_DAY
-    return inv, rec, _notices(inv, V)
+    return inv, rec, _notices(cal, inv, V)
 
 
-def _notices(inv: pd.DataFrame, V: int) -> pd.DataFrame:
+def _notices(cal, inv: pd.DataFrame, V: int) -> pd.DataFrame:
     """What billing sent the customer: a past-due notice when a bill is still unpaid some days after its due
     date, a notice of cancellation after that (rescinded if the customer pays), and a notice when a bank draft
     comes back unpaid. A bank draft for the instalment that is never paid gets its notice of cancellation the
@@ -253,7 +267,7 @@ def _notices(inv: pd.DataFrame, V: int) -> pd.DataFrame:
     unpaid_on = lambda d: ((reg.paid_day == NO_DAY) | (reg.paid_day > d)) & (d < reg.stop) & (d <= V)
     out = []
     for purpose, lag in (("Past Due Notice", NOTICE_DAYS["past_due"]), ("Notice of Cancellation", NOTICE_DAYS["cancellation"])):
-        d = reg.due + lag
+        d = pd.Series(cal.next_business(reg.due.to_numpy() + lag), index=reg.index)     # mailed on a business day
         m = unpaid_on(d) & (reg.method != "EFT")
         out.append(pd.DataFrame(dict(term=reg.term[m], day=d[m], purpose=purpose)))
     rt = reg[(reg.bounce_day != NO_DAY) & (reg.bounce_day <= V)]

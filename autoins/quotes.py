@@ -62,7 +62,7 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
     shop = market.shopping(cal, months)
     conv = (market.conversion(cal, months) * shop).sum(axis=1) / shop.sum()
     need = np.bincount(bound.channel.to_numpy(), minlength=len(C.CHANNELS)) / conv
-    lost = _prospects(cfg, ref, res.plan, int(need.sum()), need / need.sum(), R, level)
+    lost = _prospects(cfg, ref, res.plan, int(need.sum()), 1 / conv, R, level)
     q = pd.concat([bound, lost], ignore_index=True)
     q = q[(q.quote_day >= 0) & (q.quote_day <= cal.valuation_day) & (q.premium > 0)]
     # within a day, quotes are numbered in the order they were asked for: bound and lost ones mixed
@@ -99,12 +99,12 @@ def _position(R: np.random.Generator, channel: np.ndarray, centre: np.ndarray) -
     return out
 
 
-def _prospects(cfg: C.Config, ref, plan, n: int, channel_p, R: np.random.Generator, level: float) -> pd.DataFrame:
+def _prospects(cfg: C.Config, ref, plan, n: int, channel_w, R: np.random.Generator, level: float) -> pd.DataFrame:
     """Households who asked for a quote and did not buy: drawn like new business, rated with the same plan, their
     competitive position moved by our pricing error as the bound quotes' is (`level`: its average there)."""
     cal = ref.cal
     pp = population.build(replace(cfg, n_policies=max(n, 1), initial_book_share=0.0), ref, tag="/prospects",
-                          channel_p=channel_p, shoppers=True)
+                          channel_w=channel_w, shoppers=True)
     st = truth.Static.build(pp, ref)
     p, v = st.p, st.v
     first = p["first_day"]
