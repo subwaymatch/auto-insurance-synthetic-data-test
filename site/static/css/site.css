@@ -32,7 +32,6 @@
   --ink: #0F1E2E;
   --lake: #1A75A8;
   --bg: #FFFFFF;
-  --bg-soft: #F5F7FA;
   --bg-sunk: #EEF2F6;
   --text: #0F1E2E;
   --text-2: #3A4B5D;
@@ -52,7 +51,6 @@
 }
 :root[data-theme="dark"] {
   --bg: #0B1520;
-  --bg-soft: #0F1C2A;
   --bg-sunk: #122233;
   --text: #E8EDF2;
   --text-2: #C3CFDB;
@@ -71,7 +69,6 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0B1520;
-    --bg-soft: #0F1C2A;
     --bg-sunk: #122233;
     --text: #E8EDF2;
     --text-2: #C3CFDB;
@@ -140,7 +137,7 @@ hr { border: 0; margin: 48px 0; }
 }
 .header-inner { display: flex; align-items: center; gap: 28px; height: 64px; }
 .brand { display: flex; align-items: center; flex: none; }
-.brand .logo { height: 26px; width: auto; }
+.brand .logo { height: 23px; width: auto; }
 .site-nav { display: flex; align-items: center; gap: 2px; flex: 1; }
 .site-nav a {
   color: var(--muted); text-decoration: none; font-size: 14.5px; font-weight: 500;
@@ -213,7 +210,6 @@ hr { border: 0; margin: 48px 0; }
 
 /* ---------------------------------------------------------------- home */
 
-.hero { background: linear-gradient(180deg, var(--bg-soft), var(--bg)); }
 .hero-inner { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 48px; align-items: center; padding-top: 72px; padding-bottom: 72px; }
 .hero h1 { font-size: clamp(38px, 5.4vw, 62px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 600; margin: 0 0 20px; }
 .hero .lede { font-size: 19.5px; color: var(--text-2); max-width: 620px; margin: 0 0 30px; }
