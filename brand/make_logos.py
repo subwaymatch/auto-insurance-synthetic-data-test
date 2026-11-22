@@ -430,9 +430,9 @@ OVERLAY = "#E5484D"
 
 # --------------------------------------------------------------------------- the final logo
 
-# The logo is wave variation E, ripples (WAVES, below): the sun on a wavy horizon over three rippling
+# The logo is wave variation B, two waves (WAVES, below): the sun on a wavy horizon over two broad wavy
 # bands, in the wordmark's o and, for the favicon, in a plain circle with no tile behind it.
-LOGO_WAVES = "e-ripples"
+LOGO_WAVES = "b-two-waves"
 
 # Before the waves the o had variation B's straight bands and the favicon variation D's two bands, drawn
 # on a 32-unit grid with every edge on an even unit (so they fell on whole pixels at 16, 32 and 48 px).

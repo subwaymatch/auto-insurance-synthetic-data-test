@@ -15,9 +15,8 @@
       <svg viewBox="0 0 32 32">
         <defs><clipPath id="hero-sun"><circle cx="16" cy="16" r="15"/></clipPath></defs>
         <g clip-path="url(#hero-sun)">
-          <rect class="sun-top" width="32" height="16"/>
-          <rect class="sun-band" y="18" width="32" height="6"/>
-          <rect class="sun-band" y="26" width="32" height="6"/>
+          <path class="sun-top" d="{{ sun.sky }}"/>
+          <path class="sun-band" d="{{ sun.lake }}"/>
         </g>
       </svg>
     </div>
