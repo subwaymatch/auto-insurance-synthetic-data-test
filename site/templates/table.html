@@ -27,7 +27,7 @@
         <h2 class="small-heading">Links to</h2>
         <ul>
           {% for col, ref, ref_col in table.references %}
-          <li><a href="#{{ col }}"><code>{{ col }}</code></a> → <a href="/data-dictionary/{{ ref }}/#{{ ref_col }}"><code>{{ ref }}</code></a></li>
+          <li><a href="#{{ col }}"><code>{{ col }}</code></a> {{ icon("arrow-right") }}<span class="visually-hidden">links to</span> <a href="/data-dictionary/{{ ref }}/#{{ ref_col }}"><code>{{ ref }}</code></a></li>
           {% endfor %}
         </ul>
       </div>
@@ -37,7 +37,7 @@
         <h2 class="small-heading">Linked from</h2>
         <ul>
           {% for src, col, ref_col in table.referenced_by %}
-          <li><a href="/data-dictionary/{{ src }}/#{{ col }}"><code>{{ src }}.{{ col }}</code></a>{% if ref_col != table.pk %} → <code>{{ ref_col }}</code>{% endif %}</li>
+          <li><a href="/data-dictionary/{{ src }}/#{{ col }}"><code>{{ src }}.{{ col }}</code></a>{% if ref_col != table.pk %} {{ icon("arrow-right") }}<span class="visually-hidden">links to</span> <code>{{ ref_col }}</code>{% endif %}</li>
           {% endfor %}
         </ul>
       </div>
@@ -55,7 +55,7 @@
         <span class="col-name" role="cell">
           <a href="#{{ c.name }}" class="col-anchor"><code>{{ c.name }}</code></a>
           {% if c.pk %}<span class="badge pk" title="Primary key">PK</span>{% endif %}
-          {% if c.fk %}<a class="badge fk" href="/data-dictionary/{{ c.fk[0] }}/#{{ c.fk[1] }}" title="Foreign key to {{ c.fk[0] }}.{{ c.fk[1] }}">→ {{ c.fk[0] }}</a>{% endif %}
+          {% if c.fk %}<a class="badge fk" href="/data-dictionary/{{ c.fk[0] }}/#{{ c.fk[1] }}" title="Foreign key to {{ c.fk[0] }}.{{ c.fk[1] }}">{{ icon("arrow-right") }}<span class="visually-hidden">Foreign key to</span> {{ c.fk[0] }}</a>{% endif %}
         </span>
         <span class="col-type" role="cell">{{ c.type }}</span>
         <span class="col-desc" role="cell">{{ c.description|md|safe }}</span>

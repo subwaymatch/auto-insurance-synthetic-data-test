@@ -5,14 +5,15 @@
 ![Lakefront](logo/lakefront-logo.svg)
 
 The wordmark is Inter Display SemiBold at -0.04em, converted to outlines. Its o is the sun rising over
-the lake: Inter's own o, filled, navy above the horizon and three lake-blue bands below (variation B
-below). The favicon is a plain circle with variation D's two bands and no background.
+the lake: Inter's own o, filled, navy above a wavy horizon and three rippling lake-blue bands below, every
+wave rising and falling in step (wave variation E, below). The favicon is a plain circle with the same
+ripples and no background.
 
 | File in [`logo/`](logo/) | Use |
 |---|---|
 | `lakefront-logo.svg` | The logo on light backgrounds |
 | `lakefront-logo-dark.svg` | The logo on dark backgrounds |
-| `favicon.svg` | Favicon for browsers that take SVG. Drawn on a 32-unit grid so its bands fall on whole pixels at 16, 32 and 48 px |
+| `favicon.svg` | Favicon for browsers that take SVG, drawn on a 32-unit grid. At 16 px the ripples soften into stripes |
 | `favicon.ico` | The same at 16, 32 and 48 px, for everything else |
 | `apple-touch-icon.png` | 180 x 180 home-screen icon. iOS needs an opaque square, so this one has a white background |
 | `social-card.png` | 1200 x 630 image shown when a link to the website is shared |
@@ -70,6 +71,31 @@ the outline of Inter's o over each version.
 | D | Inter's o, two bands | Bolder; still works as a favicon |
 | E | Inter's o, horizon only | Ink above the horizon, lake below; the quietest, and the clearest at small sizes |
 
+### Wave variations
+
+Variation B was the logo until the waves; E (ripples) replaced it. [`waves/`](waves/) tries waves in the lower half of the logo's o, keeping its outline (Inter's o, filled).
+The bottom edge of the ink is a wave too, so the white line under the sun is wavy, and every wavy edge
+shares one wavelength, height and phase: the waves rise and fall in step, and each white gap keeps its
+width all the way across. The waves are centered on the o, so each version is symmetric. Open
+[`waves/preview.html`](waves/preview.html), or look at the picture below. Its second row shows each
+version in the favicon's plain circle at 48, 32 and 16 px.
+
+![Wave variations](waves/preview.png)
+
+| | Variation | The waves |
+|---|---|---|
+| A | Three waves | The logo's three bands and the horizon, about one and a half waves across |
+| B | Two waves | Two broad bands with deeper, longer waves; the boldest |
+| C | Four waves | Four finer bands getting thinner towards the bottom, with lower, shorter waves |
+| D | One swell | Three bands on one long swell, dipping in the middle and rising at both sides |
+| E | Ripples | Three bands with low, short waves, about two and a half across |
+| F | One wave line | No bands: one solid lake under a single white wave line |
+
+Waves need room: at header size (about 22 px tall) the finer ones (C and E) read as textured bands, and
+at 16 px B, D and F keep their waves best. E was chosen and is the logo in [`logo/`](logo/)
+(`LOGO_WAVES` in `make_logos.py`); each variation is an entry in the `WAVES` list: the bands (as the
+sunrise bands), the wave height, wavelength and phase.
+
 ### Files
 
 Each candidate in [`candidates/`](candidates/) has four SVG files:
@@ -81,7 +107,8 @@ Each candidate in [`candidates/`](candidates/) has four SVG files:
 | `NN-name-mark.svg` | The mark alone, 64 x 64 |
 | `NN-name-icon.svg` | The mark on a rounded tile, for an app icon |
 
-[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `e-...`.
+[`sunrise/`](sunrise/) has the same four files for each variation, named `a-...` to `e-...`, and
+[`waves/`](waves/) the same, named `a-...` to `f-...`, plus a `-favicon.svg` (the plain 32-unit circle).
 [`type-study/`](type-study/) holds the six wordmark settings shown at the top of the preview.
 
 All text is converted to outlines, so the files need no font and render the same everywhere. The
@@ -123,7 +150,7 @@ python brand/make_logos.py --fonts /path/to/inter/otf
 
 `make_logos.py` needs the Inter 4 OTF files from [rsms.me/inter](https://rsms.me/inter/) (both
 `Inter-*.otf` and `InterDisplay-*.otf`). It sets the text with HarfBuzz so the font's kerning
-applies, then writes every SVG, both preview pages, and `logo/` (resvg renders its PNG and ICO
+applies, then writes every SVG, the three preview pages, and `logo/` (resvg renders its PNG and ICO
 files). The wordmark used by the lockups, the palette and
 each mark's geometry are near the top of the script; the sunrise variations are the `SUNRISE`
 list, where each band is given in 28ths of the o's half-height below the horizon.

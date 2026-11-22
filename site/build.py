@@ -35,6 +35,7 @@ from pathlib import Path
 
 import markdown
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 SITE = Path(__file__).resolve().parent
 ROOT = SITE.parent
@@ -475,6 +476,7 @@ def build(out: Path, base_url: str, strict: bool) -> None:
     env = Environment(loader=FileSystemLoader(SITE / "templates"), autoescape=select_autoescape(["html"]),
                       trim_blocks=True, lstrip_blocks=True)
     env.filters["md"] = inline_markdown
+    env.globals["icon"] = lambda name: Markup(icon(name))
     env.filters["lower_first"] = lambda s: s[:1].lower() + s[1:] if s[1:2].islower() else s
     pages = [read_page(p) for p in sorted((SITE / "content").glob("*.md"))]
     dictionary_entry = Page(SITE, "data-dictionary/", {"title": "Data dictionary", "nav_title": "Dictionary",
