@@ -558,14 +558,16 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         return ids
 
     def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False,
-            um_type="", offset=0.0, cap=np.inf, room=np.inf):
+            um_type="", offset=0.0, cap=np.inf, room=np.inf, rent_days=0):
         """cap: the most the feature could pay under the policy (its per-person or per-claim limit, or the car's
         value less the deductible); room: for injury coverages, what the per-accident limit allows for all the
         accident's claimants under the coverage together. Case reserves obey both, the second shared among the
-        claimants from what the adjuster knows at each review (claims._share_accident_limit)."""
+        claimants from what the adjuster knows at each review (claims._share_accident_limit). rent_days: how long a
+        rental car was kept (the rental is paid once it is returned)."""
         feats.append(pd.DataFrame(dict(occ=ids, cvg=cov, claimant=claimant, gross=gross, paid=np.where(cwp, 0.0, paid),
                                        cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
-                                       nominal=nominal, um_type=um_type, offset=offset, cap=cap, room=room)))
+                                       nominal=nominal, um_type=um_type, offset=offset, cap=cap, room=room,
+                                       rent_days=rent_days)))
 
     def injury_lift(p, sigma):
         """Injuries happen in the more severe crashes, and are worse there: divided by this, the injury costs of
@@ -634,7 +636,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         cost = C.RENTAL_DAILY_COST["median"] * np.exp(C.RENTAL_DAILY_COST["sigma"] * rng.standard_normal(len(ids)))
         daily, most = np.array(C.RENTAL_OPTIONS)[c["rent_opt"][vi]].T
         paid, cwp = np.minimum(days * np.minimum(cost, daily), most), rng.random(len(ids)) < C.CWP["RENT"]
-        add("RENT", ids, days * cost, paid, cwp, subro=np.where(cwp, 0.0, share * paid), cap=most)
+        add("RENT", ids, days * cost, paid, cwp, subro=np.where(cwp, 0.0, share * paid), cap=most, rent_days=days)
 
     def tow(ids, vi, peril, share=None):
         m = c["has_tow"][vi] & happens(ids, "TOW", C.TOW_P.get(peril, 0.0))

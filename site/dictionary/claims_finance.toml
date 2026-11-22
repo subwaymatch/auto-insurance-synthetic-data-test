@@ -244,6 +244,7 @@ expected_loss_comp = "Expected comprehensive loss, in dollars, after the deducti
 expected_loss_rent = "Expected rental reimbursement loss, in dollars, within the daily and per-claim limits. 0 without the cover."
 expected_loss_tow = "Expected towing and labor loss, in dollars, within the towing limit. 0 without the cover."
 expected_loss_total = "Sum of the eight coverages, rounded on its own, so it can differ from the sum of the rounded columns by a few cents. Coverage premiums in `exposure` are full-term rates: scale them by the row's earned days over its term's days before comparing coverage by coverage."
+true_annual_mileage = "Miles the vehicle was actually driven a year during the row, which drives its true claim frequency; `exposure.rated_annual_mileage` is what the customer reported. A move or a new main driver changes it on a new row."
 
 [insured_vehicle_truth]
 grain = "Insured vehicle"
@@ -251,7 +252,7 @@ summary = """Each vehicle's true annual mileage and whether it belongs to the Ki
 
 [insured_vehicle_truth.columns]
 insured_vehicle_id = "Primary key, and the `insured_vehicle` described."
-true_annual_mileage = "Miles the vehicle is actually driven a year, which drives its true claim frequency. `insured_vehicle.annual_mileage` is the customer's report: this figure understated (by about 10% for the typical car), rounded to 500 and held between 1,000 and 30,000."
+true_annual_mileage = "Miles the vehicle is actually driven a year at its latest status (as `insured_vehicle.annual_mileage`), which drives its true claim frequency; `exposure_truth.true_annual_mileage` has it for each period. `insured_vehicle.annual_mileage` is the customer's report: this figure understated (by about 10% for the typical car), rounded to 500 and held between 1,000 and 30,000."
 kia_hyundai_theft_exposure = "`Y` for Kia and Hyundai model years 2011 to 2021 that are not electric, the key-start cars hit by the theft wave: their vehicle theft rate is multiplied by a yearly factor peaking at 6 in 2023. Students can rebuild the flag from `vehicle_model_year`."
 
 [location_truth]

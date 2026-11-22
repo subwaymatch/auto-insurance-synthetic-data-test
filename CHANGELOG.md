@@ -58,10 +58,13 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
     the company knows rather than from the truth, and added a benchmark sheet that says how far to trust each
     figure.
 11. **2026-11-21, A logo with waves ([PR #12](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/12), [PR #13](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/13)).** Website and brand only; no data change.
-12. **Unreleased, Two further realism audits.** Records that contradicted their context are removed (driving
+12. **2026-11-22, [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6): Two further realism audits ([PR #14](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/14)).** Records that contradicted their context are removed (driving
     records after a driver left, notices after payment, lenders paid on kept wrecks, reviews after a final
     payment), a crash's costs are tied together, competitors price near the true risk, vehicles get equipment
     by model year, and the ledger closes each year-end.
+13. **Unreleased, Follow-up checks.** Rentals are paid only once the car is back, payments due to someone who
+    has died go to the estate, telematics periods are measured on the mileage driven then, renewals use the
+    named insured of the offer day, and the exposure rows publish the mileage and use each period was rated on.
 
 ### Releases
 
@@ -77,14 +80,52 @@ published files; it is given where the changelog recorded it.
 | [v1.1.3](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.3) | 2026-11-19 | `b4917aa` | #8 | 43,368 policies to 2026-12-31 | `a64d95db973613fa` |
 | [v1.1.4](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.4) | 2026-11-20 | `03c2634` | #9, #10 | 43,368 policies to 2026-12-31 | `7b4b15d1dcb53b95` |
 | [v1.1.5](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.5) | 2026-11-21 | `4a13b9f` | #11 (#12 and #13 change no data) | 43,368 policies to 2026-12-31 | `963889a73f229de8` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
+| [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6) | 2026-11-22 | `c28d1cd` | #14 | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
 
-## Unreleased: fixes from two further realism audits
+## Unreleased: follow-up checks
 
-Not yet in a release. Figures are for the default run after these changes (content hash `4a1f9ef22b9bc813`).
+Independent checks of v1.1.6 found records still at odds with their timing, and a way later events could reach
+back into earlier telematics scores. Figures are for the default run after these changes (content hash
+`6a360e75d7d87f3f`). `docs/review_response.md` ("Follow-up checks") answers each finding.
+
+- **Rentals paid once the car is back.** A rental was paid at a time drawn without regard to how long the
+  car was kept, so 868 of 4,095 paid rentals in v1.1.6 were paid in full before enough days had passed since
+  the loss for the rental to cost that much at its daily limit. A rental now closes, and is paid, after the
+  car is returned (the loss day plus the days it was kept, then the invoice).
+- **Estates.** Six payments in v1.1.6 named a named insured who had died before the payment, on a policy
+  that ended with the death. A payment due to someone who has died now goes to "Estate of" them.
+- **Telematics on the mileage of the time.** Renewal scores are calculated when the renewal is offered, but
+  the simulation had already applied the rest of the expiring term's household changes: a move after the
+  offer day, which redraws the cars' mileage, changed the mileage behind the score of the driving before it,
+  and a move inside a scoring period applied its new mileage to the whole period. Each car's mileage changes
+  are now recorded with their dates, and a period is measured on the mileage driven in it, day by day.
+- **Renewals on the named insured of the offer day.** The renewal decision used the age of the policy's
+  current named insured, which could be a surviving spouse who took the policy over after the offer was made.
+  It now uses the named insured on the offer day.
+- **Mileage and use over time.** Mileage and use change with a move or a new main driver, but only their last
+  values were published. `exposure` gains `rated_annual_mileage` and `rated_primary_use` (what each period
+  was rated on), and `exposure_truth` the true annual mileage of each period. `insured_vehicle` shows use,
+  mileage and parking as of the valuation date (or when the car left), not the simulation's last state, which
+  could include a move after the valuation date.
+- **Checks.** `validate.py` checks each: a rental is paid no sooner after the loss than its amount at the daily
+  limit allows, a payment to someone who has died goes to the estate, and each vehicle's use and mileage are
+  those of its latest period by the valuation date. A unit test checks the mileage history.
+- **The default run** (content hash `6a360e75d7d87f3f`): loss ratios by accident year 81.3%, 70.4%, 67.5%, 58.2% and 65.5% for
+  2022 to 2026, of which catastrophes 0.0%, 3.6%, 2.3%, 0.9% and 6.1%; overall 67.6% (was 69.1%; 67.6% to 70.5%
+  across five seeds); annualized retention 81.3% (was 81.2%). 195,901 policy terms, 438,620 exposure rows,
+  $211.9 million earned premium, 23,097 claims, 39,960 features, 60,784 claim payments, 103,928 reserve
+  transactions, 882,461 bills and 894,386 receipts, 118,642 quotes and 169,426 renewal offers. The timing fixes
+  move later random draws, so every figure moves a little. 171 checks pass on the default run and on seeds 7,
+  11, 23 and 42 (content hashes `f07863e71fc8380c`, `b36c9e866dab6246`, `51021c0f161c0528`, `9bfa31600329b3cd`).
+  The test suite has 75 tests (74 pass, and one needs `pyarrow`).
+
+## 2026-11-22, [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6): Fixes from two further realism audits ([PR #14](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/14))
+
+The release is content hash `4a1f9ef22b9bc813`.
 
 ### Fixes from two further realism audits
 

@@ -1,101 +1,101 @@
 agency_id,agency_code,agency_name,channel,city,state,zip_code,appointment_date,new_business_commission_pct,renewal_commission_pct
 1,HO-00001,Direct - Online,Direct,Chicago,IL,60606,2000-01-03,0.0,0.0
 2,HO-00002,Direct - Contact Center,Direct,Chicago,IL,60606,2000-01-03,0.0,0.0
-4,IL-91694,Samuel Childress Agency,Exclusive Agent,Woodstock,IL,60098,2000-01-28,12.0,9.0
-5,IL-20341,Jones Agency,Independent Agent,Villa Park,IL,60181,2000-01-31,13.0,11.0
-6,IL-60022,Hunt Insurance Group,Independent Agent,Chicago Heights,IL,60411,2000-02-01,13.0,11.0
-7,IL-38704,Chicago Insurance Services,Independent Agent,Chicago,IL,60620,2000-02-07,12.0,10.0
-8,IL-13370,Cardinal Insurance Brokers,Independent Agent,Chicago,IL,60619,2000-02-08,13.0,11.0
-9,IL-94462,Arturo Leija Agency,Exclusive Agent,Westchester,IL,60154,2000-02-14,10.0,7.0
-11,IL-35011,Chicago Agency,Independent Agent,Chicago,IL,60623,2000-03-31,15.0,13.0
-12,IL-22689,Galler Insurance Agency,Independent Agent,Barrington,IL,60010,2000-04-05,15.0,13.0
-13,IL-65317,Tollway Insurance Services,Independent Agent,Evergreen Park,IL,60805,2000-04-12,15.0,13.0
-16,IL-17937,Null Insurance Group,Independent Agent,Round Lake,IL,60073,2000-05-05,12.0,10.0
-17,IL-19930,McHenry County Insurance Group,Independent Agent,Bolingbrook,IL,60490,2000-05-10,15.0,13.0
-18,IL-76768,Miller Insurance Agency,Independent Agent,Chicago,IL,60660,2000-05-18,13.0,11.0
-19,IL-08695,Illini Insurance Brokers,Independent Agent,Chicago,IL,60657,2000-05-25,15.0,13.0
-21,IL-01587,Beaulieu Insurance Services,Independent Agent,La Grange Park,IL,60526,2000-06-23,13.0,11.0
-22,IL-81890,Sentinel Insurance Group,Independent Agent,Westmont,IL,60559,2000-07-03,12.0,10.0
-23,IL-72532,Blalock Insurance Brokers,Independent Agent,Palos Hills,IL,60465,2000-07-07,12.0,10.0
-24,IL-24185,Bridgeview Insurance Brokers,Independent Agent,Palatine,IL,60067,2000-07-13,15.0,13.0
-26,IL-74936,Beacon Insurance Group,Independent Agent,Aurora,IL,60503,2000-07-21,13.0,11.0
-30,IL-16442,Skyline Insurance Brokers,Independent Agent,Chicago,IL,60609,2000-08-04,15.0,13.0
-31,IL-69642,Riverwalk Insurance Services,Independent Agent,Oak Park,IL,60304,2000-08-14,13.0,11.0
-32,IL-82598,Strong Insurance Agency,Independent Agent,Hinsdale,IL,60521,2000-08-16,12.0,10.0
-33,IL-73670,Williams Insurance Brokers,Independent Agent,Chicago,IL,60610,2000-08-24,12.0,10.0
-36,IL-91239,Manuel Lascano Agency,Exclusive Agent,Highland Park,IL,60035,2000-11-01,11.0,8.0
-37,IL-68072,Guzman Insurance Brokers,Independent Agent,Chicago,IL,60617,2000-11-02,12.0,10.0
-38,IL-12871,Pinnacle Insurance Group,Independent Agent,Chicago,IL,60608,2000-11-17,12.0,10.0
-39,IL-22595,Wooster & Smith Insurance,Independent Agent,Naperville,IL,60565,2000-11-22,15.0,13.0
-40,IL-59324,Crossroads Agency,Independent Agent,Crystal Lake,IL,60014,2000-11-27,13.0,11.0
-41,IL-37316,Haddix Agency,Independent Agent,Downers Grove,IL,60515,2000-12-05,15.0,13.0
-42,IL-57406,Batavia Insurance Brokers,Independent Agent,Batavia,IL,60510,2000-12-26,13.0,11.0
-43,IL-44699,Prairie Insurance Services,Independent Agent,Chicago,IL,60641,2000-12-27,12.0,10.0
-44,IL-50107,Great Lakes Insurance Agency,Independent Agent,Evanston,IL,60202,2000-12-27,12.0,10.0
-47,IL-72214,Coker Insurance Services,Independent Agent,Chicago,IL,60613,2001-01-11,15.0,13.0
-49,IL-67922,Compass Insurance Group,Independent Agent,Hanover Park,IL,60133,2001-01-26,13.0,11.0
-53,IL-85677,Daniel Sanchez Agency,Exclusive Agent,Melrose Park,IL,60164,2001-04-12,12.0,9.0
-54,IL-35350,Lumpkin Insurance Services,Independent Agent,Shorewood,IL,60404,2001-04-19,12.0,10.0
-55,IL-89676,Amanda Knight Agency,Exclusive Agent,Park Ridge,IL,60068,2001-05-01,12.0,9.0
-56,IL-89995,Patrick Taylor Agency,Exclusive Agent,Glen Ellyn,IL,60137,2001-05-03,11.0,8.0
-59,IL-94067,Thomas Bower Agency,Exclusive Agent,Des Plaines,IL,60016,2001-05-15,11.0,8.0
-60,IL-08561,Southland Insurance Group,Independent Agent,South Holland,IL,60473,2001-05-23,15.0,13.0
-61,IL-17363,Tri-County Insurance Group,Independent Agent,Chicago,IL,60632,2001-05-24,13.0,11.0
-62,IL-09092,Hawks Insurance Group,Independent Agent,Chicago,IL,60631,2001-07-03,12.0,10.0
-63,IL-84453,Misty Anderson Agency,Exclusive Agent,Elgin,IL,60123,2001-07-06,11.0,8.0
-64,IL-56554,Sanchez Insurance Agency,Independent Agent,Chicago,IL,60634,2001-08-17,13.0,11.0
-68,IL-52599,Shabazz Insurance Brokers,Independent Agent,Woodridge,IL,60517,2001-10-18,12.0,10.0
-70,IL-62796,Johnson Insurance Services,Independent Agent,Chicago,IL,60614,2001-10-26,12.0,10.0
-71,IL-89210,Timothy Hurlburt Agency,Exclusive Agent,Downers Grove,IL,60516,2001-10-29,10.0,7.0
-72,IL-49299,Anderson Insurance Agency,Independent Agent,Chicago,IL,60643,2002-01-11,12.0,10.0
-73,IL-71123,Garcia Insurance Services,Independent Agent,Chicago,IL,60622,2002-01-11,13.0,11.0
-74,IL-86922,Dayna Flagg Agency,Exclusive Agent,Midlothian,IL,60445,2002-01-15,10.0,7.0
-75,IL-43432,Kane County Insurance Agency,Independent Agent,Gurnee,IL,60031,2002-01-17,15.0,13.0
-76,IL-15424,Lincoln Agency,Independent Agent,Chicago,IL,60651,2002-01-28,15.0,13.0
-77,IL-47391,Goldfinch Insurance Group,Independent Agent,Palatine,IL,60074,2002-03-01,15.0,13.0
-79,IL-87194,Audrey Snyder Agency,Exclusive Agent,Addison,IL,60101,2002-03-25,12.0,9.0
-80,IL-30478,Fava Insurance Agency,Independent Agent,Chicago,IL,60652,2002-04-18,13.0,11.0
-81,IL-35073,Ali & Lynd Insurance,Independent Agent,Chicago,IL,60640,2002-06-18,13.0,11.0
-82,IL-86867,Antonio Torres Agency,Exclusive Agent,Calumet City,IL,60409,2002-07-01,11.0,8.0
-84,IL-50280,Towle Agency,Independent Agent,Bolingbrook,IL,60440,2002-07-09,12.0,10.0
-85,IL-94640,Michael Quattrone Agency,Exclusive Agent,Wheaton,IL,60189,2002-07-09,11.0,8.0
-86,IL-30733,Berwyn Insurance Services,Independent Agent,Berwyn,IL,60402,2002-08-06,12.0,10.0
-87,IL-27624,Keystone Insurance Group,Independent Agent,Warrenville,IL,60555,2002-09-05,12.0,10.0
-89,IL-57878,Messenger Agency,Independent Agent,Mchenry,IL,60050,2002-09-19,13.0,11.0
-90,IL-23588,Potter Insurance Agency,Independent Agent,Chicago,IL,60607,2002-09-23,12.0,10.0
-92,IL-35229,Anchor Insurance Agency,Independent Agent,Medinah,IL,60157,2002-10-04,15.0,13.0
-93,IL-74482,Blackhawk Insurance Services,Independent Agent,Lake Bluff,IL,60044,2002-11-13,13.0,11.0
-94,IL-64188,Chicago Insurance Brokers,Independent Agent,Chicago,IL,60656,2002-11-15,12.0,10.0
-99,IL-73731,Red Oak Insurance Brokers,Independent Agent,Richton Park,IL,60471,2003-03-06,12.0,10.0
-100,IL-42992,Yuhas & Elmore Insurance,Independent Agent,Grayslake,IL,60030,2003-03-13,15.0,13.0
-101,IL-41023,Lakeshore Insurance Brokers,Independent Agent,Wonder Lake,IL,60097,2003-03-18,13.0,11.0
-102,IL-21737,Spring Grove Insurance Services,Independent Agent,Spring Grove,IL,60081,2003-04-16,13.0,11.0
-103,IL-30902,Burnham Agency,Independent Agent,Carpentersville,IL,60110,2003-06-13,12.0,10.0
-105,IL-10303,Simmons Insurance Brokers,Independent Agent,Bartlett,IL,60103,2003-08-28,15.0,13.0
-106,IL-17261,Rodriguez & Corrales Insurance,Independent Agent,Zion,IL,60099,2003-10-09,12.0,10.0
-107,IL-56755,Garcia Agency,Independent Agent,Joliet,IL,60433,2003-10-28,13.0,11.0
-109,IL-90131,John Mason Agency,Exclusive Agent,Naperville,IL,60540,2003-11-10,11.0,8.0
-110,IL-65927,Fox River Insurance Brokers,Independent Agent,Vernon Hills,IL,60061,2003-11-20,15.0,13.0
-111,IL-62251,Lakeview Agency,Independent Agent,Chicago,IL,60628,2003-12-01,12.0,10.0
-114,IL-27512,Mu Insurance Services,Independent Agent,Evanston,IL,60201,2004-01-02,12.0,10.0
-116,IL-81140,Liberty Agency,Independent Agent,Arlington Heights,IL,60004,2004-04-12,15.0,13.0
-117,IL-03822,Fernandez & Arriaga Insurance,Independent Agent,Chicago,IL,60629,2004-05-06,13.0,11.0
-118,IL-79312,Geneva Insurance Brokers,Independent Agent,Geneva,IL,60134,2004-05-25,15.0,13.0
-121,IL-42430,Fleck Insurance Services,Independent Agent,Hoffman Estates,IL,60169,2004-06-24,13.0,11.0
-122,IL-59455,Brown Insurance Agency,Independent Agent,La Grange,IL,60525,2004-07-08,13.0,11.0
-123,IL-34754,Three Rivers Insurance Agency,Independent Agent,Wheeling,IL,60090,2004-07-16,12.0,10.0
-124,IL-03283,DuPage Insurance Services,Independent Agent,Chicago,IL,60630,2004-07-21,12.0,10.0
-126,IL-23870,Coffel Agency,Independent Agent,Oak Forest,IL,60452,2004-08-31,13.0,11.0
-128,IL-30746,Lighthouse Agency,Independent Agent,Chicago,IL,60624,2004-09-07,15.0,13.0
-131,IL-18878,Fisher Insurance Group,Independent Agent,Frankfort,IL,60423,2004-10-20,12.0,10.0
-132,IL-30238,Woods Insurance Agency,Independent Agent,Northbrook,IL,60062,2004-10-26,12.0,10.0
-133,IL-69085,Evergreen Insurance Agency,Independent Agent,Bloomingdale,IL,60108,2004-12-03,15.0,13.0
-134,IL-80328,Wicker Insurance Group,Independent Agent,Lake In The Hills,IL,60156,2004-12-03,13.0,11.0
-139,IL-15704,Marquette Insurance Services,Independent Agent,Mokena,IL,60448,2005-02-23,13.0,11.0
-141,IL-45409,Lombard Insurance Agency,Independent Agent,Lombard,IL,60148,2005-03-22,15.0,13.0
-144,IL-40426,Blue Heron Insurance Agency,Independent Agent,Lake Zurich,IL,60047,2005-07-15,15.0,13.0
-145,IL-62229,Chicago Insurance Group,Independent Agent,Chicago,IL,60646,2005-07-15,15.0,13.0
-147,IL-81897,Tinley Park Insurance Services,Independent Agent,Tinley Park,IL,60477,2005-10-03,15.0,13.0
-149,IL-76506,Fox Valley Agency,Independent Agent,Elmwood Park,IL,60707,2005-10-07,13.0,11.0
-154,IL-52316,Renteria Agency,Independent Agent,Chicago,IL,60661,2006-02-23,12.0,10.0
-156,IL-64504,Brookfield Insurance Brokers,Independent Agent,Brookfield,IL,60513,2006-04-05,13.0,11.0
+3,IL-90482,Samuel Childress Agency,Exclusive Agent,Woodstock,IL,60098,2000-01-28,12.0,9.0
+4,IL-17607,Jones Agency,Independent Agent,Villa Park,IL,60181,2000-01-31,13.0,11.0
+5,IL-62185,Hunt Insurance Group,Independent Agent,Chicago Heights,IL,60411,2000-02-01,13.0,11.0
+6,IL-42608,Chicago Insurance Services,Independent Agent,Chicago,IL,60620,2000-02-07,12.0,10.0
+7,IL-10263,Cardinal Insurance Brokers,Independent Agent,Chicago,IL,60619,2000-02-08,13.0,11.0
+8,IL-94710,Arturo Leija Agency,Exclusive Agent,Westchester,IL,60154,2000-02-14,10.0,7.0
+9,IL-38944,Chicago Agency,Independent Agent,Chicago,IL,60623,2000-03-31,15.0,13.0
+10,IL-20602,Galler Insurance Agency,Independent Agent,Barrington,IL,60010,2000-04-05,15.0,13.0
+12,IL-68362,Tollway Insurance Services,Independent Agent,Evergreen Park,IL,60805,2000-04-12,15.0,13.0
+13,IL-14924,Null Insurance Group,Independent Agent,Round Lake,IL,60073,2000-05-05,12.0,10.0
+14,IL-17507,McHenry County Insurance Group,Independent Agent,Bolingbrook,IL,60490,2000-05-10,15.0,13.0
+15,IL-78136,Miller Insurance Agency,Independent Agent,Chicago,IL,60660,2000-05-18,13.0,11.0
+16,IL-05435,Illini Insurance Brokers,Independent Agent,Chicago,IL,60657,2000-05-25,15.0,13.0
+17,IL-01746,Beaulieu Insurance Services,Independent Agent,La Grange Park,IL,60526,2000-06-23,13.0,11.0
+18,IL-82213,Sentinel Insurance Group,Independent Agent,Westmont,IL,60559,2000-07-03,12.0,10.0
+19,IL-73799,Blalock Insurance Brokers,Independent Agent,Palos Hills,IL,60465,2000-07-07,12.0,10.0
+20,IL-25589,Bridgeview Insurance Brokers,Independent Agent,Palatine,IL,60067,2000-07-13,15.0,13.0
+21,IL-75875,Beacon Insurance Group,Independent Agent,Aurora,IL,60503,2000-07-21,13.0,11.0
+22,IL-12160,Skyline Insurance Brokers,Independent Agent,Chicago,IL,60609,2000-08-04,15.0,13.0
+23,IL-70812,Riverwalk Insurance Services,Independent Agent,Oak Park,IL,60304,2000-08-14,13.0,11.0
+24,IL-82530,Strong Insurance Agency,Independent Agent,Hinsdale,IL,60521,2000-08-16,12.0,10.0
+25,IL-74037,Williams Insurance Brokers,Independent Agent,Chicago,IL,60610,2000-08-24,12.0,10.0
+27,IL-90246,Manuel Lascano Agency,Exclusive Agent,Highland Park,IL,60035,2000-11-01,11.0,8.0
+28,IL-69861,Guzman Insurance Brokers,Independent Agent,Chicago,IL,60617,2000-11-02,12.0,10.0
+30,IL-08713,Pinnacle Insurance Group,Independent Agent,Chicago,IL,60608,2000-11-17,12.0,10.0
+31,IL-19097,Wooster & Smith Insurance,Independent Agent,Naperville,IL,60565,2000-11-22,15.0,13.0
+32,IL-61224,Crossroads Agency,Independent Agent,Crystal Lake,IL,60014,2000-11-27,13.0,11.0
+33,IL-39792,Haddix Agency,Independent Agent,Downers Grove,IL,60515,2000-12-05,15.0,13.0
+34,IL-61053,Batavia Insurance Brokers,Independent Agent,Batavia,IL,60510,2000-12-26,13.0,11.0
+35,IL-49277,Prairie Insurance Services,Independent Agent,Chicago,IL,60641,2000-12-27,12.0,10.0
+36,IL-54810,Great Lakes Insurance Agency,Independent Agent,Evanston,IL,60202,2000-12-27,12.0,10.0
+38,IL-73672,Coker Insurance Services,Independent Agent,Chicago,IL,60613,2001-01-11,15.0,13.0
+39,IL-68648,Compass Insurance Group,Independent Agent,Hanover Park,IL,60133,2001-01-26,13.0,11.0
+42,IL-83301,Daniel Sanchez Agency,Exclusive Agent,Melrose Park,IL,60164,2001-04-12,12.0,9.0
+43,IL-39691,Lumpkin Insurance Services,Independent Agent,Shorewood,IL,60404,2001-04-19,12.0,10.0
+44,IL-86821,Amanda Knight Agency,Exclusive Agent,Park Ridge,IL,60068,2001-05-01,12.0,9.0
+45,IL-87767,Patrick Taylor Agency,Exclusive Agent,Glen Ellyn,IL,60137,2001-05-03,11.0,8.0
+46,IL-92126,Thomas Bower Agency,Exclusive Agent,Des Plaines,IL,60016,2001-05-15,11.0,8.0
+47,IL-05048,Southland Insurance Group,Independent Agent,South Holland,IL,60473,2001-05-23,15.0,13.0
+48,IL-14862,Tri-County Insurance Group,Independent Agent,Chicago,IL,60632,2001-05-24,13.0,11.0
+50,IL-05738,Hawks Insurance Group,Independent Agent,Chicago,IL,60631,2001-07-03,12.0,10.0
+51,IL-82746,Misty Anderson Agency,Exclusive Agent,Elgin,IL,60123,2001-07-06,11.0,8.0
+53,IL-57509,Sanchez Insurance Agency,Independent Agent,Chicago,IL,60634,2001-08-17,13.0,11.0
+55,IL-56567,Shabazz Insurance Brokers,Independent Agent,Woodridge,IL,60517,2001-10-18,12.0,10.0
+56,IL-64934,Johnson Insurance Services,Independent Agent,Chicago,IL,60614,2001-10-26,12.0,10.0
+57,IL-86699,Timothy Hurlburt Agency,Exclusive Agent,Downers Grove,IL,60516,2001-10-29,10.0,7.0
+58,IL-53120,Anderson Insurance Agency,Independent Agent,Chicago,IL,60643,2002-01-11,12.0,10.0
+59,IL-71653,Garcia Insurance Services,Independent Agent,Chicago,IL,60622,2002-01-11,13.0,11.0
+60,IL-85072,Dayna Flagg Agency,Exclusive Agent,Midlothian,IL,60445,2002-01-15,10.0,7.0
+61,IL-48451,Kane County Insurance Agency,Independent Agent,Gurnee,IL,60031,2002-01-17,15.0,13.0
+62,IL-10821,Lincoln Agency,Independent Agent,Chicago,IL,60651,2002-01-28,15.0,13.0
+64,IL-51076,Goldfinch Insurance Group,Independent Agent,Palatine,IL,60074,2002-03-01,15.0,13.0
+65,IL-86550,Audrey Snyder Agency,Exclusive Agent,Addison,IL,60101,2002-03-25,12.0,9.0
+67,IL-29727,Fava Insurance Agency,Independent Agent,Chicago,IL,60652,2002-04-18,13.0,11.0
+68,IL-39200,Ali & Lynd Insurance,Independent Agent,Chicago,IL,60640,2002-06-18,13.0,11.0
+70,IL-83929,Antonio Torres Agency,Exclusive Agent,Calumet City,IL,60409,2002-07-01,11.0,8.0
+71,IL-55122,Towle Agency,Independent Agent,Bolingbrook,IL,60440,2002-07-09,12.0,10.0
+72,IL-97495,Michael Quattrone Agency,Exclusive Agent,Wheaton,IL,60189,2002-07-09,11.0,8.0
+73,IL-30321,Berwyn Insurance Services,Independent Agent,Berwyn,IL,60402,2002-08-06,12.0,10.0
+75,IL-27816,Keystone Insurance Group,Independent Agent,Warrenville,IL,60555,2002-09-05,12.0,10.0
+76,IL-61192,Messenger Agency,Independent Agent,Mchenry,IL,60050,2002-09-19,13.0,11.0
+77,IL-21816,Potter Insurance Agency,Independent Agent,Chicago,IL,60607,2002-09-23,12.0,10.0
+78,IL-39600,Anchor Insurance Agency,Independent Agent,Medinah,IL,60157,2002-10-04,15.0,13.0
+79,IL-74923,Blackhawk Insurance Services,Independent Agent,Lake Bluff,IL,60044,2002-11-13,13.0,11.0
+80,IL-67337,Chicago Insurance Brokers,Independent Agent,Chicago,IL,60656,2002-11-15,12.0,10.0
+83,IL-74713,Red Oak Insurance Brokers,Independent Agent,Richton Park,IL,60471,2003-03-06,12.0,10.0
+84,IL-46826,Yuhas & Elmore Insurance,Independent Agent,Grayslake,IL,60030,2003-03-13,15.0,13.0
+85,IL-45894,Lakeshore Insurance Brokers,Independent Agent,Wonder Lake,IL,60097,2003-03-18,13.0,11.0
+86,IL-18952,Spring Grove Insurance Services,Independent Agent,Spring Grove,IL,60081,2003-04-16,13.0,11.0
+88,IL-33801,Burnham Agency,Independent Agent,Carpentersville,IL,60110,2003-06-13,12.0,10.0
+89,IL-06838,Simmons Insurance Brokers,Independent Agent,Bartlett,IL,60103,2003-08-28,15.0,13.0
+91,IL-14652,Rodriguez & Corrales Insurance,Independent Agent,Zion,IL,60099,2003-10-09,12.0,10.0
+92,IL-60054,Garcia Agency,Independent Agent,Joliet,IL,60433,2003-10-28,13.0,11.0
+94,IL-90196,John Mason Agency,Exclusive Agent,Naperville,IL,60540,2003-11-10,11.0,8.0
+95,IL-68443,Fox River Insurance Brokers,Independent Agent,Vernon Hills,IL,60061,2003-11-20,15.0,13.0
+96,IL-64759,Lakeview Agency,Independent Agent,Chicago,IL,60628,2003-12-01,12.0,10.0
+98,IL-26582,Mu Insurance Services,Independent Agent,Evanston,IL,60201,2004-01-02,12.0,10.0
+103,IL-81819,Liberty Agency,Independent Agent,Arlington Heights,IL,60004,2004-04-12,15.0,13.0
+104,IL-02869,Fernandez & Arriaga Insurance,Independent Agent,Chicago,IL,60629,2004-05-06,13.0,11.0
+105,IL-80460,Geneva Insurance Brokers,Independent Agent,Geneva,IL,60134,2004-05-25,15.0,13.0
+108,IL-46465,Fleck Insurance Services,Independent Agent,Hoffman Estates,IL,60169,2004-06-24,13.0,11.0
+109,IL-61785,Brown Insurance Agency,Independent Agent,La Grange,IL,60525,2004-07-08,13.0,11.0
+110,IL-38310,Three Rivers Insurance Agency,Independent Agent,Wheeling,IL,60090,2004-07-16,12.0,10.0
+111,IL-02675,DuPage Insurance Services,Independent Agent,Chicago,IL,60630,2004-07-21,12.0,10.0
+113,IL-24658,Coffel Agency,Independent Agent,Oak Forest,IL,60452,2004-08-31,13.0,11.0
+114,IL-32098,Lighthouse Agency,Independent Agent,Chicago,IL,60624,2004-09-07,15.0,13.0
+116,IL-17158,Fisher Insurance Group,Independent Agent,Frankfort,IL,60423,2004-10-20,12.0,10.0
+117,IL-28451,Woods Insurance Agency,Independent Agent,Northbrook,IL,60062,2004-10-26,12.0,10.0
+118,IL-70669,Evergreen Insurance Agency,Independent Agent,Bloomingdale,IL,60108,2004-12-03,15.0,13.0
+119,IL-80694,Wicker Insurance Group,Independent Agent,Lake In The Hills,IL,60156,2004-12-03,13.0,11.0
+122,IL-11271,Marquette Insurance Services,Independent Agent,Mokena,IL,60448,2005-02-23,13.0,11.0
+124,IL-50900,Lombard Insurance Agency,Independent Agent,Lombard,IL,60148,2005-03-22,15.0,13.0
+128,IL-45227,Blue Heron Insurance Agency,Independent Agent,Lake Zurich,IL,60047,2005-07-15,15.0,13.0
+129,IL-64044,Chicago Insurance Group,Independent Agent,Chicago,IL,60646,2005-07-15,15.0,13.0
+131,IL-82247,Tinley Park Insurance Services,Independent Agent,Tinley Park,IL,60477,2005-10-03,15.0,13.0
+132,IL-77059,Fox Valley Agency,Independent Agent,Elmwood Park,IL,60707,2005-10-07,13.0,11.0
+140,IL-55587,Renteria Agency,Independent Agent,Chicago,IL,60661,2006-02-23,12.0,10.0
+141,IL-68156,Brookfield Insurance Brokers,Independent Agent,Brookfield,IL,60513,2006-04-05,13.0,11.0

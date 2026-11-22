@@ -464,14 +464,23 @@ def integrity_payees(rep, pay, clm, feat, veh, drv) -> None:
     # (by first name: a named insured who married since may now carry another surname than the one on the check).
     # The insured's own uninsured motorist claim pays the person injured, who was on the policy on the loss date
     ins = pay[pay["payee_type"].isin(["Insured", "Insured and Attorney"])][["payment_id", "claim_id", "payment_date", "payee_name"]]
+    estate = ins["payee_name"].str.startswith("Estate of ")
+    person = ins["payee_name"].str.removeprefix("Estate of ")
     ins = ins.assign(policy_id=c["policy_id"].reindex(ins["claim_id"]).to_numpy(),
                      loss_date=c["loss_date"].reindex(ins["claim_id"]).to_numpy(),
-                     first_name=ins["payee_name"].str.split(" ", n=1).str[0])
-    m = ins.merge(drv[["policy_id", "first_name", "last_name", "added_date", "removed_date"]], on=["policy_id", "first_name"], how="left")
+                     first_name=person.str.split(" ", n=1).str[0], person=person, estate=estate)
+    m = ins.merge(drv[["policy_id", "first_name", "last_name", "added_date", "removed_date", "removal_reason"]],
+                  on=["policy_id", "first_name"], how="left")
     on_day = lambda col: (m["added_date"] <= m[col]) & ~(m["removed_date"] <= m[col])
+    # someone who has died since the loss is paid through their estate
     named = on_day("payment_date") | on_day("loss_date")
-    same = named & pd.Series([str(a).startswith(f"{b} {c}") for a, b, c in zip(m["payee_name"], m["first_name"], m["last_name"])],
+    same = named & pd.Series([str(a).startswith(f"{b} {c}") for a, b, c in zip(m["person"], m["first_name"], m["last_name"])],
                              index=m.index)
+    dead = (m["removal_reason"] == "Deceased") & (m["removed_date"] < m["payment_date"])
+    right = (m["estate"] == dead) & same
+    ok_pay, known = right.groupby(m["payment_id"]).any(), same.groupby(m["payment_id"]).any()
+    rep.check("a payment due to an insured who has died goes to their estate, and only then",
+              bool((ok_pay | ~known).all()), f"{int(estate.sum()):,} payments to an estate")
     rep.check("each claim's driver was on the policy on the loss date, and each payment to the insured (an uninsured "
               "motorist claimant's included) names someone on the policy on the loss or payment date",
               on.all() and named.groupby(m["payment_id"]).any().all(),
@@ -1312,6 +1321,27 @@ def main() -> None:
     integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end, valuation)
     integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes)
     integrity_vehicles(rep, vmy, veh, risk, clm)
+    # a car's use and mileage are what its last period rated by the valuation date was rated on
+    by_v = risk[risk["coverage_start_date"] <= str(pd.Timestamp(valuation).date())]
+    last = by_v[by_v["coverage_start_date"] == by_v.groupby("insured_vehicle_id")["coverage_start_date"].transform("max")]
+    both = last.merge(veh[["insured_vehicle_id", "annual_mileage", "primary_use"]], on="insured_vehicle_id")
+    match = ((both["annual_mileage"] == both["rated_annual_mileage"]) & (both["primary_use"] == both["rated_primary_use"]))
+    changed = risk.groupby("insured_vehicle_id")["rated_annual_mileage"].nunique()
+    rep.check("each vehicle's use and mileage are those its latest period by the valuation date was rated on",
+              bool(match.groupby(both["insured_vehicle_id"]).any().all()),
+              f"{(changed > 1).sum():,} vehicles rated on more than one mileage over time")
+    # a rental is paid once the car is returned: no sooner after the loss than its cost at the daily limit allows
+    rent = feat.loc[feat["coverage_code"] == "RENT", ["claim_feature_id", "claim_id"]].merge(
+        clm[["claim_id", "loss_date", "exposure_id"]], on="claim_id").merge(risk[["exposure_id", "rental_reimbursement"]], on="exposure_id")
+    lp = pay[pay["payment_type"] == "Loss"]
+    rent = rent.assign(paid=rent["claim_feature_id"].map(lp.groupby("claim_feature_id")["amount"].sum()).fillna(0),
+                       last=rent["claim_feature_id"].map(lp[lp["transaction_type"] != "Void"].groupby("claim_feature_id")["payment_date"].max()))
+    rent = rent[rent["paid"] > 0]
+    least = np.ceil(rent["paid"] / rent["rental_reimbursement"].str.split("/").str[0].astype(float) - 1e-9)
+    elapsed = (pd.to_datetime(rent["last"]) - pd.to_datetime(rent["loss_date"])).dt.days
+    rep.check("a rental is paid in full only once enough days have passed since the loss for it to cost that much at "
+              "its daily limit", bool((elapsed >= least).all()),
+              f"{len(rent):,} paid rentals, median {elapsed.median():.0f} days from loss to payment")
     storm = clm.dropna(subset=["catastrophe_id"]).merge(t["catastrophe"], on="catastrophe_id")
     rep.check("a catastrophe claim's loss is on its event's day, within the storm's hours",
               (storm["loss_date"] == storm["event_date"]).all()

@@ -221,6 +221,14 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     claimed[claims.set_index("claim_id").veh.reindex(tl.claim_id).to_numpy()] = True
     reason_v = np.where((reason_v == REMOVAL_REASONS.index("Total Loss")) & ~claimed,
                         REMOVAL_REASONS.index("Destroyed or Stolen"), reason_v)
+    # what a car's use, mileage and parking were as of the valuation date (or its removal): its last exposure row
+    # starting by then (a move or a new driver re-rates the car on a new row); the arrays hold the simulation's last
+    last_row = rows[rows.s.to_numpy() <= V].sort_values(["veh", "s"], kind="stable").groupby("veh").tail(1).set_index("veh")
+    has_row = np.isin(veh.veh.to_numpy(), last_row.index)
+    as_of = lambda col, latest: np.where(has_row, last_row[col].reindex(veh.veh.to_numpy()).where(has_row, latest[0] if len(latest) else 0)
+                                         .to_numpy(), latest).astype(latest.dtype)
+    veh = veh.assign(use=as_of("use", veh.use.to_numpy()), reported_miles=as_of("reported_miles", veh.reported_miles.to_numpy()),
+                     parking=as_of("parking", veh.parking.to_numpy()), true_miles=as_of("true_miles", veh.true_miles.to_numpy()))
     T["insured_vehicle"] = pd.DataFrame({
         "insured_vehicle_id": veh.veh + 1, "policy_id": polno(veh.pol), "vehicle_model_year_id": vid,
         "primary_driver_id": veh.primary_drv + 1, "ownership": veh.ownership,
@@ -254,7 +262,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "rated_driver_class": np.array(rating.CLASS_LEVELS)[rows.class_code],
         "rated_violation_points": rows.violation_points, "rated_at_fault_accidents": rows.at_fault_accidents,
         "rated_good_student": YN[rows.good_student.astype(int)], "rated_married": YN[rows.married.astype(int)],
-        "rated_homeowner": YN[rows.homeowner.astype(int)], "inexperienced_operator": YN[rows.inexperienced.astype(int)],
+        "rated_homeowner": YN[rows.homeowner.astype(int)],
+        "rated_annual_mileage": rows.reported_miles.astype(int), "rated_primary_use": rows.use, "inexperienced_operator": YN[rows.inexperienced.astype(int)],
         "occasional_youthful_operator": YN[rows.occasional_youthful.astype(int)],
         "multi_car_discount": YN[rows.multi_car.astype(int)], "multi_policy_discount": YN[rows.multi_policy.astype(int)],
         "paid_in_full_discount": YN[rows.paid_in_full.astype(int)],
@@ -316,8 +325,12 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     changes = (pd.concat(res.sim.name_changes, ignore_index=True).astype({"drv": np.int64, "day": np.int64})
                if res.sim.name_changes else None)
 
+    died = np.where((drv.removal_reason.to_numpy() == DRIVER_REMOVAL_REASONS.index("Deceased"))
+                    & (drv.removed_day.to_numpy() >= 0), drv.removed_day.to_numpy(), np.iinfo(np.int64).max)
+
     def name_on(person: np.ndarray, days: np.ndarray) -> np.ndarray:
-        """Each person's name on each day: before a later change of surname, the old one."""
+        """Each person's name on each day: before a later change of surname, the old one; after their death, their
+        estate's (a payment due to someone who has died goes to the estate)."""
         surname = drv.last_name.astype(str).to_numpy()[person].astype(object)
         if changes is not None:
             q = pd.DataFrame({"drv": person.astype(np.int64), "day": days.astype(np.int64), "i": np.arange(len(person))})
@@ -325,7 +338,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                               by="drv", direction="forward", allow_exact_matches=False)
             hit = m.old.notna().to_numpy()
             surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
-        return drv.first_name.astype(str).to_numpy()[person] + " " + surname
+        name = drv.first_name.astype(str).to_numpy()[person] + " " + surname
+        return np.where(died[person] < days, "Estate of " + name, name)
 
     insured = name_on(ni_pay, pays.day.to_numpy())
     # the policy's own person in the loss (an uninsured motorist claim's first claimant): the driver, or the named insured
@@ -373,7 +387,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     # ---- answer key ---------------------------------------------------------------------------------
     exp_cols = [f"exp_{c}" for c in C.COVERAGES]
     K["exposure_truth"] = pd.DataFrame({"exposure_id": rows.row + 1, **{f"expected_loss_{c.lower()}": rows[f"exp_{c}"].round(2) for c in C.COVERAGES},
-                                    "expected_loss_total": rows[exp_cols].sum(axis=1).round(2)})
+                                    "expected_loss_total": rows[exp_cols].sum(axis=1).round(2),
+                                    "true_annual_mileage": rows.true_miles.round(0).astype(int)})
     K["driver_truth"] = pd.DataFrame({"driver_id": drv.drv + 1, "latent_risk_factor": drv.latent.round(4),
                                       "race_ethnicity": np.array(names.GROUP_LABELS)[drv.race_group.to_numpy().astype(int)]})
     K["insured_vehicle_truth"] = pd.DataFrame({"insured_vehicle_id": veh.veh + 1, "true_annual_mileage": veh.true_miles.round(0).astype(int),

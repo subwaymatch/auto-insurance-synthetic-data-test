@@ -188,6 +188,7 @@ class Sim:
     tele: "Tele" = None
     last_change: np.ndarray = None      # per policy: the latest day its drivers, cars or address changed
     name_changes: list = field(default_factory=list)   # (drv, day, old surname) when a named insured takes a spouse's
+    mile_changes: list = field(default_factory=list)   # (car, day, old, new) true annual miles when a car's use changes
     warm: "Warm" = None                 # the warm-up: losses before the start (see _warm_up)
 
 
@@ -520,7 +521,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         violation_points=points, at_fault_accidents=acc, tenure_years=T.tenure[vp],
         class_code=cd["class"], score_tier=cd["score_tier"], good_student=cd["good_student"],
         homeowner=cd["homeowner"], married=cd["married"], acv=ctx["acv"], multi_car=cd["multi_car"],
-        reported_miles=v["reported_miles"][V], use=v["use"][V],
+        reported_miles=v["reported_miles"][V], use=v["use"][V], parking=v["parking"][V], true_miles=v["true_miles"][V],
         multi_policy=cd["multi_policy"], paid_in_full=cd["paid_in_full"], inexperienced=cd["inexperienced"],
         occasional_youthful=cd["occasional_youthful"], bi_opt=p["bi_opt"][vp], um_opt=p["um_opt"][vp], med_opt=p["med_opt"][vp],
         coll_ded=np.where(v["has_coll"][V], np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]], 0),
@@ -710,7 +711,7 @@ def _measure(sim: Sim, car, d, s, e):
     mid = (s + e) // 2
     dens = sim.ref.zips.population_density_sqmi.to_numpy()[sim.assign.at(car, mid)[1]]
     mt = telematics.metrics(sim.tele.R, truth.driver_multiplier(_drivers_then(sim, d, mid), mid, sim.ref.cal),
-                            (mid - sim.pop.drv.dob_day.to_numpy()[d]) / 365.25, sim.st.v["true_miles"][car], dens, e - s)
+                            (mid - sim.pop.drv.dob_day.to_numpy()[d]) / 365.25, _miles_then(sim, car, s, e), dens, e - s)
     plug_in = sim.tele.device[sim.st.v["pol"][car]] == telematics.DEVICE_TYPES.index("Plug-in Device")
     mt["phone_minutes"] = np.where(plug_in, np.nan, mt["phone_minutes"])     # an OBD dongle cannot see the phone
     return mt, telematics.score(mt, e - s)
@@ -951,8 +952,9 @@ def _renewals(sim: Sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_t
     o, eff = rate_day[P], s_all[P]
     company = underwriting_review(sim, P, o, eff) & (u_company < UW_NONRENEW_P)
     offered, joined = _programme_offer(sim, P[~company], k, s_all, rate_day, term_no)
-    # the named insured's age now: a surviving spouse who has taken the policy over is a different person
-    ni_age = (eff - sim.pop.drv.dob_day.to_numpy()[p["ni_drv"][P]]) / 365.25
+    # the named insured's age at the renewal, of the person who was the named insured on the offer day (a surviving
+    # spouse who took the policy over by then is a different person; a change after the offer is not yet known)
+    ni_age = (eff - sim.pop.drv.dob_day.to_numpy()[sim.ni.at(P, o)[0]]) / 365.25
     ev, cars = evaluate_offers(sim, P, last_term[P], o, eff, last_offer[P], tenure_years[P], ty[P], ni_age, prev_rows,
                                v["tele_disc"])
     p_accept = 1 / (1 + np.exp(-ev["logit"]))
@@ -1440,11 +1442,35 @@ def _redraw_mileage(sim: Sim, cars: np.ndarray, day: np.ndarray) -> None:
     v, drv = sim.st.v, sim.pop.drv
     primary = v["primary_drv"][cars]
     in_city = (sim.ref.zips.region.to_numpy() == "City of Chicago")[v["zi"][cars]]
+    old = v["true_miles"][cars].astype(float).copy()
     v["true_miles"][cars], v["reported_miles"][cars], v["use"][cars] = population.draw_mileage(
         sim.R, drv.commute_miles.to_numpy()[primary], (day - drv.dob_day.to_numpy()[primary]) / 365.25,
         drv.employed.to_numpy()[primary], v["extra_vehicle"][cars], in_city)
     v["mile_rel"][cars] = v["true_miles"][cars] / 10_000
     v["use_factor"][cars] = np.where(v["use"][cars] == "Business", C.BUSINESS_USE_FACTOR, 1.0)
+    sim.mile_changes.append(pd.DataFrame(dict(car=cars.astype(np.int64), day=np.broadcast_to(day, len(cars)).astype(np.int64),
+                                              old=old, new=v["true_miles"][cars].astype(float))))
+
+
+def _miles_then(sim: Sim, car, s, e) -> np.ndarray:
+    """Each car's true annual mileage over days [s, e), weighted by the days at each level: what it was driven then,
+    whatever changed later (sim.mile_changes; the arrays hold only the latest)."""
+    car, s, e = (np.asarray(a, dtype=np.int64) for a in (car, s, e))
+    now = sim.st.v["true_miles"][car].astype(float)
+    if not sim.mile_changes or len(car) == 0:
+        return now
+    ch = pd.concat(sim.mile_changes, ignore_index=True)
+    w = pd.DataFrame(dict(i=np.arange(len(car)), car=car, s=s, e=e)).merge(ch, on="car")
+    w = w[w.day.to_numpy() > w.s.to_numpy()].sort_values(["i", "day"], kind="stable")
+    # the level at the start is the one the first later change replaced (or today's, if none came later)
+    first = w.groupby("i").head(1)
+    level = now.copy()
+    level[first.i.to_numpy()] = first.old.to_numpy()
+    inside = w[w.day.to_numpy() < w.e.to_numpy()]
+    span = np.maximum(e - s, 1)
+    total = level * span + np.bincount(inside.i.to_numpy(), (inside.new - inside.old).to_numpy()
+                                       * (inside.e - inside.day).to_numpy(), len(car))
+    return total / span
 
 
 def _renewal_changes(sim: Sim, renewing: np.ndarray, s_all: np.ndarray, ty: np.ndarray, change: np.ndarray) -> None:
