@@ -363,7 +363,7 @@ def market_and_ledger(out: Path) -> None:
     p("balances at the valuation date (debit positive)", "; ".join(f"{a} {name[a]} {v:,.0f}" for a, v in bal.items()))
     ob = gl[gl.journal_type == "Opening balances"]
     p("opening entry", "; ".join(f"{a} {v:,.0f}" for a, v in (ob.debit - ob.credit).groupby(ob.account_number).sum().items()))
-    act = gl[gl.journal_type != "Opening balances"].assign(y=lambda d: d.accounting_period.str[:4])
+    act = gl[~gl.journal_type.isin(["Opening balances", "Year-end closing"])].assign(y=lambda d: d.accounting_period.str[:4])
     net = (act.credit - act.debit).groupby([act.y, act.account_number]).sum().unstack(fill_value=0)
     for y, r in net.iterrows():
         earned = r[4000] + r[4010]

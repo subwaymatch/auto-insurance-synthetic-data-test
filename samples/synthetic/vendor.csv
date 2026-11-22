@@ -1,101 +1,101 @@
 vendor_id,vendor_number,vendor_name,vendor_type,city,state,zip_code,in_network
-1,V100036,Hall's Auto Body,Body Shop,Chicago,IL,60630,N
-4,V100058,Keystone Collision Repair,Body Shop,Romeoville,IL,60446,Y
-7,V100066,Davis's Auto Body,Body Shop,Plainfield,IL,60585,N
-10,V100091,Dunlop & Sons Collision,Body Shop,Joliet,IL,60433,N
-15,V100127,Keystone Auto Rebuilders,Body Shop,Wood Dale,IL,60191,N
-18,V100160,Schaumburg Collision Center,Body Shop,Schaumburg,IL,60194,Y
-21,V100194,Lakeland Auto Rebuilders,Body Shop,Chicago,IL,60639,Y
-24,V100197,Joliet Collision Center,Body Shop,Joliet,IL,60435,Y
-27,V100230,Rourke & Sons Collision,Body Shop,Aurora,IL,60506,Y
-31,V100237,Mundelein Collision Center,Body Shop,Mundelein,IL,60060,N
-35,V100252,North Shore Collision Repair,Body Shop,Dolton,IL,60419,N
-40,V100267,Piggott's Auto Body,Body Shop,Chicago,IL,60647,N
-44,V100276,Fox Valley Collision Repair,Body Shop,Waukegan,IL,60085,Y
-46,V100300,Armstrong's Auto Body,Body Shop,Chicago,IL,60618,N
-50,V100306,Chicago Collision Center,Body Shop,Chicago,IL,60653,Y
-53,V100329,Liberty Collision Repair,Body Shop,Chicago,IL,60641,N
-56,V100363,Sterling Collision Repair,Body Shop,Cary,IL,60013,N
-60,V100376,Prairie Collision Repair,Body Shop,Franklin Park,IL,60131,N
-65,V100396,Pioneer Collision Repair,Body Shop,Mundelein,IL,60060,N
-70,V100430,Park's Auto Body,Body Shop,Chicago,IL,60633,Y
-72,V100456,Heartland Auto Rebuilders,Body Shop,Aurora,IL,60505,Y
-76,V100472,Hornsby's Auto Body,Body Shop,Chicago,IL,60656,N
-78,V100484,Meridian Auto Rebuilders,Body Shop,Chicago,IL,60644,N
-80,V100488,Blackhawk Collision Repair,Body Shop,Joliet,IL,60431,N
-82,V100492,North Shore Auto Rebuilders,Body Shop,Chicago,IL,60609,N
-87,V100493,Sanchez's Auto Body,Body Shop,Oak Park,IL,60302,N
-89,V100519,Illini Auto Rebuilders,Body Shop,Bolingbrook,IL,60440,N
-92,V100543,Lake Zurich Collision Center,Body Shop,Lake Zurich,IL,60047,N
-97,V100547,Central Auto Rebuilders,Body Shop,Hoffman Estates,IL,60169,N
-99,V100577,Parkside Collision Repair,Body Shop,Chicago,IL,60633,N
-101,V100601,Anderson & Sons Collision,Body Shop,Mchenry,IL,60051,N
-107,V100609,Redmond & Sons Collision,Body Shop,Lake In The Hills,IL,60156,Y
-110,V100620,Mchone & Sons Collision,Body Shop,Chicago,IL,60657,N
-113,V100634,Summit Collision Repair,Body Shop,Ingleside,IL,60041,N
-119,V100673,Premier Auto Rebuilders,Body Shop,Lyons,IL,60534,N
-122,V100676,Reliable Collision Repair,Body Shop,Mount Prospect,IL,60056,N
-124,V100705,Sy's Auto Body,Body Shop,Chicago,IL,60649,N
-130,V100744,Montalvo's Auto Body,Body Shop,Chicago,IL,60607,Y
-133,V100755,Anchor Auto Rebuilders,Body Shop,Huntley,IL,60142,N
-137,V100775,Riverside Auto Rebuilders,Body Shop,Saint Charles,IL,60174,N
-141,V100808,Lockport Collision Center,Body Shop,Lockport,IL,60441,N
-144,V100837,Miller & Sons Collision,Body Shop,Chicago,IL,60643,Y
-146,V100871,Vanderlinden's Auto Body,Body Shop,Mount Prospect,IL,60056,Y
-151,V100895,Melrose Park Collision Center,Body Shop,Melrose Park,IL,60164,N
-154,V100904,Dufault's Auto Body,Body Shop,Chicago,IL,60618,N
-156,V100932,Orland Park Collision Center,Body Shop,Orland Park,IL,60462,N
-158,V100963,Ross's Auto Body,Body Shop,Chicago,IL,60639,N
-167,V100970,Williams & Sons Collision,Body Shop,Elgin,IL,60124,Y
-170,V100986,Tri-State Collision Repair,Body Shop,Franklin Park,IL,60131,Y
-172,V100989,Reyna & Sons Collision,Body Shop,Oswego,IL,60543,N
-176,V100995,Tri-State Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
-179,V100996,Symington & Sons Collision,Body Shop,Chicago,IL,60623,N
-182,V100997,Sullivan's Auto Body,Body Shop,Chicago,IL,60619,Y
-187,V101022,Romeoville Collision Center,Body Shop,Romeoville,IL,60446,N
-190,V101061,Kriebel & Sons Collision,Body Shop,Evanston,IL,60201,N
-193,V101080,Velasquez's Auto Body,Body Shop,Chicago,IL,60637,N
-195,V101113,Reich's Auto Body,Body Shop,Bolingbrook,IL,60440,N
-200,V101148,Ingram & Sons Collision,Body Shop,Chicago,IL,60657,N
-207,V101159,Central Collision Repair,Body Shop,Chicago,IL,60644,Y
-213,V101192,Frontier Auto Rebuilders,Body Shop,Chicago,IL,60643,N
-217,V101216,Reese's Auto Body,Body Shop,Hampshire,IL,60140,Y
-220,V101235,Sterling Auto Rebuilders,Body Shop,Chicago,IL,60639,N
-223,V101248,Reliable Auto Rebuilders,Body Shop,Chicago,IL,60634,N
-227,V101282,Hillside Collision Center,Body Shop,Hillside,IL,60162,N
-231,V101290,Buffalo Grove Collision Center,Body Shop,Buffalo Grove,IL,60089,N
-240,V101300,Heritage Collision Repair,Body Shop,Joliet,IL,60435,Y
-244,V101328,Des Plaines Collision Center,Body Shop,Des Plaines,IL,60016,N
-247,V101365,Evergreen Auto Rebuilders,Body Shop,Des Plaines,IL,60018,Y
-249,V101374,Pioneer Auto Rebuilders,Body Shop,Barrington,IL,60010,Y
-250,V101393,Oswego Collision Center,Body Shop,Oswego,IL,60543,N
-254,V101415,Gutierrez & Sons Collision,Body Shop,Chicago,IL,60629,N
-256,V101449,Coley's Auto Body,Body Shop,Naperville,IL,60564,N
-263,V101456,Anchor Collision Repair,Body Shop,Downers Grove,IL,60516,N
-264,V101482,Metro Collision Repair,Body Shop,Lincolnwood,IL,60712,N
-267,V101516,Compass Auto Rebuilders,Body Shop,Maywood,IL,60153,Y
-268,V101549,Ferrer & Sons Collision,Body Shop,Maywood,IL,60153,Y
-271,V101576,Galvan & Sons Collision,Body Shop,Ingleside,IL,60041,N
-275,V101599,Hawkins & Sons Collision,Body Shop,Berwyn,IL,60402,Y
-276,V101600,Owens & Sons Collision,Body Shop,Alsip,IL,60803,Y
-280,V101639,Windy City Collision Repair,Body Shop,Mundelein,IL,60060,N
-284,V101656,Illini Collision Repair,Body Shop,Beecher,IL,60401,N
-288,V101686,Santangelo & Sons Collision,Body Shop,Island Lake,IL,60042,Y
-291,V101699,Round Lake Collision Center,Body Shop,Round Lake,IL,60073,Y
-295,V101723,Basham's Auto Body,Body Shop,Bolingbrook,IL,60440,N
-298,V101730,Ferrer's Auto Body,Body Shop,Chicago,IL,60630,N
-302,V101741,Schultz's Auto Body,Body Shop,Chicago,IL,60645,N
-304,V101760,Rasco's Auto Body,Body Shop,Hoffman Estates,IL,60169,N
-308,V101776,Delosrios & Sons Collision,Body Shop,Westchester,IL,60154,N
-310,V101782,Windy City Auto Rebuilders,Body Shop,Chicago,IL,60626,N
-314,V101810,Tinley Park Collision Center,Body Shop,Tinley Park,IL,60477,N
-319,V101835,Allied Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
-322,V101861,Denise's Auto Body,Body Shop,Orland Park,IL,60467,Y
-325,V101868,Deerfield Collision Center,Body Shop,Deerfield,IL,60015,N
-329,V101870,Lu's Auto Body,Body Shop,Romeoville,IL,60446,Y
-332,V101896,Midwest Collision Repair,Body Shop,Downers Grove,IL,60516,Y
-337,V101932,Lakeshore Auto Rebuilders,Body Shop,Chicago,IL,60625,N
-342,V101952,Premier Collision Repair,Body Shop,Des Plaines,IL,60016,N
-348,V101959,Rodgers & Sons Collision,Body Shop,Palatine,IL,60067,N
-353,V101960,Boyle & Sons Collision,Body Shop,Chicago,IL,60621,Y
-360,V101963,Liberty Auto Rebuilders,Body Shop,Chicago,IL,60621,N
+1,V100970,Williams & Sons Collision,Body Shop,Elgin,IL,60124,Y
+6,V111691,"Scott & Burnell, P.C.",Plaintiff Law Firm,Chicago,IL,,N
+8,V105808,Huntley Physical Therapy Associates,Medical Provider,Huntley,IL,60142,N
+10,V100519,Illini Auto Rebuilders,Body Shop,Bolingbrook,IL,60440,N
+15,V109424,Union Records Retrieval,Medical Review Service,Des Moines,IA,,N
+19,V102122,Suburban Auto Rebuilders,Body Shop,Joliet,IL,60435,N
+20,V103423,Crystal Lake Towing & Recovery,Towing Company,Crystal Lake,IL,60014,N
+25,V111352,Shi Injury Law,Plaintiff Law Firm,Chicago,IL,,N
+30,V113699,Illini Casualty Company,Other Insurer,Columbus,OH,,N
+33,V105999,Calumet Orthopedics,Medical Provider,Roselle,IL,60172,N
+35,V111245,Bates Injury Law,Plaintiff Law Firm,Springfield,IL,,N
+54,V109210,Evergreen Appraisal Service,Independent Appraiser,Indianapolis,IN,,N
+58,V105372,Blackhawk Imaging Center,Medical Provider,Chicago,IL,60624,N
+60,V104606,Heartland Imaging Center,Medical Provider,Chicago,IL,60651,N
+62,V102494,Watkins & Sons Collision,Body Shop,Evanston,IL,60202,Y
+66,V109836,Villasenor Law Group,Plaintiff Law Firm,Indianapolis,IN,,N
+67,V105258,Elgin Community Medical Group,Medical Provider,Elgin,IL,60120,N
+68,V105405,Parkside Health Clinic of Chicago,Medical Provider,Chicago,IL,60632,N
+69,V100267,Piggott's Auto Body,Body Shop,Chicago,IL,60647,N
+72,V102795,Egan & Sons Collision,Body Shop,Chicago,IL,60636,N
+74,V107790,Great Lakes Health Clinic of Chicago,Medical Provider,Chicago,IL,60607,N
+83,V113746,Reliable Mutual Insurance Company,Other Insurer,Indianapolis,IN,,N
+84,V100197,Joliet Collision Center,Body Shop,Joliet,IL,60435,Y
+88,V112148,Fleming Injury Law,Plaintiff Law Firm,Springfield,IL,,N
+98,V110627,"Campbell & Fortune, P.C.",Plaintiff Law Firm,Chicago,IL,,N
+113,V104119,Burney Towing,Towing Company,Great Lakes,IL,60088,N
+118,V109044,Union Health Clinic of New Lenox,Medical Provider,New Lenox,IL,60451,N
+120,V112755,Law Offices of Lorraine Banks,Plaintiff Law Firm,Indianapolis,IN,,N
+121,V101061,Kriebel & Sons Collision,Body Shop,Evanston,IL,60201,N
+124,V103232,Chicago Towing & Recovery,Towing Company,Chicago,IL,60642,N
+125,V102684,Villa Park Collision Center,Body Shop,Villa Park,IL,60181,N
+127,V108206,Suburban Health Clinic of Chicago,Medical Provider,Chicago,IL,60618,N
+132,V107145,Des Plaines Community Medical Group,Medical Provider,Des Plaines,IL,60016,N
+133,V102834,Zamora's Auto Body,Body Shop,Waukegan,IL,60085,N
+135,V113368,Frontier Federal Credit Union,Lienholder,Chicago,IL,,N
+138,V106205,Great Lakes Orthopedics,Medical Provider,Woodridge,IL,60517,N
+140,V109347,Torres Adjusting Company,Independent Appraiser,Des Moines,IA,,N
+143,V105882,Saint Charles Community Medical Group,Medical Provider,Saint Charles,IL,60175,N
+146,V105246,Riverside Orthopedics,Medical Provider,Oswego,IL,60543,N
+147,V111787,Law Offices of Vincent Mortensen,Plaintiff Law Firm,Columbus,OH,,N
+149,V107970,Garcia Chiropractic,Medical Provider,Chicago,IL,60638,N
+150,V104106,Smith Towing,Towing Company,Chicago,IL,60615,N
+151,V104529,Cain Towing,Towing Company,Montgomery,IL,60538,N
+153,V114039,Fox Valley Fire & Casualty,Other Insurer,Chicago,IL,,N
+156,V106758,Frontier Imaging Center,Medical Provider,Waukegan,IL,60085,N
+159,V109410,Riverside Medical Review,Medical Review Service,Des Moines,IA,,N
+160,V111089,Montag Injury Law,Plaintiff Law Firm,Indianapolis,IN,,N
+161,V103134,Union Car & Truck Rental,Rental Company,Chicago,IL,,N
+163,V100673,Premier Auto Rebuilders,Body Shop,Lyons,IL,60534,N
+164,V108480,Fox River Grove Physical Therapy Associates,Medical Provider,Fox River Grove,IL,60021,N
+181,V110664,Marsico Law Group,Plaintiff Law Firm,Indianapolis,IN,,N
+184,V111539,Law Offices of Matthew Tovar,Plaintiff Law Firm,Milwaukee,WI,,N
+185,V101656,Illini Collision Repair,Body Shop,Beecher,IL,60401,N
+189,V103507,Keystone Towing Service,Towing Company,Berwyn,IL,60402,N
+193,V101870,Lu's Auto Body,Body Shop,Romeoville,IL,60446,Y
+194,V111281,Law Offices of Jacqueline Castro,Plaintiff Law Firm,Chicago,IL,,N
+201,V108643,Cantu Chiropractic,Medical Provider,Joliet,IL,60435,N
+205,V107065,Mansour Chiropractic,Medical Provider,Riverside,IL,60546,N
+209,V110896,Townsend Law Group,Plaintiff Law Firm,Springfield,IL,,N
+213,V100160,Schaumburg Collision Center,Body Shop,Schaumburg,IL,60194,Y
+224,V102176,Bowen's Auto Body,Body Shop,Naperville,IL,60564,N
+227,V110267,Lopez Law Group,Plaintiff Law Firm,Milwaukee,WI,,N
+229,V113198,First Allied Savings Bank,Lienholder,Indianapolis,IN,,N
+234,V103086,Liberty Rent-A-Car,Rental Company,Indianapolis,IN,,N
+245,V112312,Law Offices of Shannon Robinson,Plaintiff Law Firm,St. Louis,MO,,N
+248,V104477,Berwyn Towing & Recovery,Towing Company,Berwyn,IL,60402,N
+251,V100996,Symington & Sons Collision,Body Shop,Chicago,IL,60623,N
+255,V101976,Ramirez & Sons Collision,Body Shop,Chicago,IL,60625,N
+256,V101235,Sterling Auto Rebuilders,Body Shop,Chicago,IL,60639,N
+258,V101963,Liberty Auto Rebuilders,Body Shop,Chicago,IL,60621,N
+259,V112629,Delarosa Law Group,Plaintiff Law Firm,Chicago,IL,,N
+263,V102837,Anderson's Auto Body,Body Shop,Carol Stream,IL,60188,N
+264,V107149,Gonzales Chiropractic,Medical Provider,Chicago,IL,60631,N
+275,V113919,Frontier Indemnity Insurance,Other Insurer,St. Louis,MO,,N
+278,V113829,Metro Mutual Insurance Company,Other Insurer,Des Moines,IA,,N
+283,V108515,Schneider Chiropractic,Medical Provider,West Chicago,IL,60185,N
+288,V109868,Dunlap Law Group,Plaintiff Law Firm,Indianapolis,IN,,N
+290,V100066,Davis's Auto Body,Body Shop,Plainfield,IL,60585,N
+294,V110198,Johnson Law Group,Plaintiff Law Firm,St. Louis,MO,,N
+295,V112333,Law Offices of Nora Brown,Plaintiff Law Firm,Milwaukee,WI,,N
+303,V105635,Allied Health Clinic of Naperville,Medical Provider,Naperville,IL,60540,N
+306,V106485,Pioneer Imaging Center,Medical Provider,Lake Zurich,IL,60047,N
+314,V113247,Central Bank & Trust,Lienholder,Des Moines,IA,,N
+316,V103968,Ayala Towing,Towing Company,Chicago,IL,60655,N
+321,V108457,Johnson Chiropractic,Medical Provider,New Lenox,IL,60451,N
+324,V101639,Windy City Collision Repair,Body Shop,Mundelein,IL,60060,N
+326,V111884,Littlejohn Law Group,Plaintiff Law Firm,Chicago,IL,,N
+329,V101741,Schultz's Auto Body,Body Shop,Chicago,IL,60645,N
+332,V103497,Richard Towing,Towing Company,Northbrook,IL,60062,N
+333,V106591,Lake Villa Community Medical Group,Medical Provider,Lake Villa,IL,60046,N
+338,V104002,Lakeshore Towing Service,Towing Company,Chicago,IL,60641,N
+343,V104969,Evergreen Orthopedics,Medical Provider,Chicago,IL,60659,N
+344,V101959,Rodgers & Sons Collision,Body Shop,Palatine,IL,60067,N
+348,V113056,Windy City Federal Credit Union,Lienholder,Chicago,IL,,N
+349,V113909,Anchor Mutual Insurance Company,Other Insurer,Des Moines,IA,,N
+353,V108248,Frontier Health Clinic of Chicago,Medical Provider,Chicago,IL,60619,N
+356,V112191,"Saunders & Shady, P.C.",Plaintiff Law Firm,Indianapolis,IN,,N
+360,V113955,Guardian Indemnity Insurance,Other Insurer,Indianapolis,IN,,N
+366,V113477,Pioneer Federal Credit Union,Lienholder,Chicago,IL,,N
+367,V107999,Blackhawk Health Clinic of Chicago,Medical Provider,Chicago,IL,60632,N

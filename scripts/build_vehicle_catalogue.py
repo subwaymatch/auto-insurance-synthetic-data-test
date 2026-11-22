@@ -184,8 +184,13 @@ VCLASS = [  # (regex on EPA VClass, catalogue class)
 BODY_OF_CLASS = {"Small SUV": "SUV", "Standard SUV": "SUV", "SUV": "SUV", "Small Pickup": "Pickup", "Standard Pickup": "Pickup",
                  "Heavy-Duty Pickup": "Pickup", "Minivan": "Minivan", "Passenger Van": "Van", "Small Wagon": "Wagon",
                  "Midsize Wagon": "Wagon"}
+# A bi-fuel truck also runs on gasoline, and for heavy-duty pickups (exempt from fuel economy labels) its label is
+# often the model year's only EPA row, so it stands for the whole line: gasoline.
 FUEL = {"Hybrid": "Hybrid", "Plug-in Hybrid": "Plug-in Hybrid", "EV": "Electric", "Diesel": "Diesel", "FFV": "Flex Fuel",
-        "CNG": "Natural Gas", "Bifuel (CNG)": "Natural Gas", "Bifuel (LPG)": "Propane", "FCV": "Hydrogen", "eFCV": "Hydrogen"}
+        "CNG": "Natural Gas", "Bifuel (CNG)": "Gasoline", "Bifuel (LPG)": "Gasoline", "FCV": "Hydrogen", "eFCV": "Hydrogen"}
+# When a model year's EPA versions are tied on fuel, the one sold most widely: fuel-cell cars (sold only in
+# California, where the hydrogen stations are) and natural gas cars come last.
+FUEL_REACH = ["Gasoline", "Flex Fuel", "Hybrid", "Diesel", "Plug-in Hybrid", "Electric", "Natural Gas", "Hydrogen"]
 DRIVE = {"Front-Wheel Drive": "FWD", "Rear-Wheel Drive": "RWD", "All-Wheel Drive": "AWD", "4-Wheel or All-Wheel Drive": "4WD",
          "4-Wheel Drive": "4WD", "Part-time 4-Wheel Drive": "4WD", "2-Wheel Drive": "RWD"}
 
@@ -275,6 +280,12 @@ def mode(s: pd.Series):
     return m.iloc[0] if len(m) else np.nan
 
 
+def fuel_mode(s: pd.Series):
+    """The commonest fuel among a model year's versions; a tie goes to the fuel sold most widely (FUEL_REACH)."""
+    m = s.dropna().mode()
+    return min(m, key=lambda x: FUEL_REACH.index(x) if x in FUEL_REACH else len(FUEL_REACH)) if len(m) else np.nan
+
+
 def clean_epa(path: Path) -> pd.DataFrame:
     """EPA rows -> one row per (make, model, model year) with class, body, fuel, drive and engine."""
     e = pd.read_csv(zipfile.ZipFile(path).open("vehicles.csv"), low_memory=False)
@@ -316,7 +327,7 @@ def clean_epa(path: Path) -> pd.DataFrame:
                                 low.str.contains(r"wagon|avant|touring|estate|sportwagen|allroad")],
                                ["Convertible", "Coupe", "Hatchback", "Wagon"], default="")
     g = e.groupby(["make", "name", "year"])
-    my = g.agg(vclass=("vclass", mode), fuel=("fuel", mode), drive=("drv", mode), cylinders=("cylinders", mode),
+    my = g.agg(vclass=("vclass", mode), fuel=("fuel", fuel_mode), drive=("drv", mode), cylinders=("cylinders", mode),
                displacement=("displ", "median"), n_configs=("id", "size"),
                body_hint=("body_hint", lambda s: mode(s.replace("", np.nan)) if (s != "").mean() >= 0.5 else "")).reset_index()
     my = my.rename(columns={"name": "model", "year": "model_year"})
@@ -506,12 +517,19 @@ def main() -> None:
                      & (cat.msrp_2024 < 28_000),
                      cat.msrp_2024 < 24_000],
                     ["ev", "minivan", "truck", "sports", "luxury", "economy", "economy"], default="mainstream")
-    cat["segment"] = np.where(pd.notna(cs), cs, seg)
+    cat["segment"] = np.where(cat.fuel.eq("Electric"), "ev", np.where(pd.notna(cs), cs, seg))   # an electric version is "ev" whatever its model
     tf = pd.to_numeric(get("theft_factor", np.nan), errors="coerce")
     cat["theft_factor"] = np.where(np.isnan(tf), np.select([cat.segment.eq("ev"), cat.segment.eq("minivan")], [0.3, 0.75], 1.0), tf)
     sp = pd.to_numeric(get("sales_prior", np.nan), errors="coerce")
-    default_prior = 40 * (30_000 / cat.msrp_2024) ** 1.5 * np.where(cat.segment.eq("sports"), 0.3, 1.0)
-    cat["sales_prior"] = np.where(np.isnan(sp), default_prior, sp)
+    # A model's sales fall with its price, and steeply above about $60,000 (a $400,000 car sells in the hundreds a
+    # year, not the tens of thousands). Electric cars before 2011 (Ranger EV, S-10 Electric, Think City, RAV4 EV)
+    # were pilot fleets of a few hundred or thousand, and fuel-cell cars are sold only in California, so both get
+    # almost none of a make's unnamed crash records (ASSUMED shape; the prior only shares out records the crash
+    # data does not name by model, and sets the floor for models it never names).
+    default_prior = (40 * (30_000 / cat.msrp_2024) ** 1.5 * np.minimum(1.0, (60_000 / cat.msrp_2024) ** 1.5)
+                     * np.where(cat.segment.eq("sports"), 0.3, 1.0))
+    niche = (cat.fuel.eq("Electric") & (cat.model_year < 2011)) | cat.fuel.eq("Hydrogen")
+    cat["sales_prior"] = np.where(np.isnan(sp), default_prior, sp) * np.where(niche, 0.01, 1.0)
 
     cat = cat.sort_values(["make", "model", "model_year"], key=lambda s: s.str.lower() if s.dtype == object else s).reset_index(drop=True)
     hit, oth = crash_counts(a.cache / "chi_crash_vehicles.csv", cat)

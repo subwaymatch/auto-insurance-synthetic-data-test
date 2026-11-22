@@ -51,11 +51,29 @@ def holidays(first_year: int = 1980, last_year: int = 2040) -> np.ndarray:
 HOLIDAYS = holidays()
 
 
+def closed_days(first_year: int = 1980, last_year: int = 2040) -> tuple[np.ndarray, np.ndarray]:
+    """(holidays on their own dates when they fall at a weekend, the four days offices are closed and agents do
+    not quote: New Year's Day, Independence Day, Thanksgiving and Christmas)."""
+    actual, major = [], []
+    for y in range(first_year, last_year + 1):
+        fixed = [f"{y}-01-01", f"{y}-07-04", f"{y}-11-11", f"{y}-12-25"] + ([f"{y}-06-19"] if y >= 2021 else [])
+        actual += list(map(np.datetime64, fixed))
+        major += [np.datetime64(f"{y}-01-01"), np.datetime64(f"{y}-07-04"), _nth_weekday(y, 11, 3, 4), np.datetime64(f"{y}-12-25")]
+    return np.array(actual, dtype="M8[D]"), np.array(major, dtype="M8[D]")
+
+
+ACTUAL_HOLIDAYS, MAJOR_HOLIDAYS = closed_days()
+
+
 def day_weight(cal: "Calendar", day, w) -> np.ndarray:
-    """Weight of each day given w = (..., 3) weights for a weekday, a Saturday, and a Sunday or holiday."""
+    """Weight of each day given w = (..., 3) weights for a weekday, a Saturday, and a Sunday or holiday, or
+    (..., 4) with a fourth for the four major holidays (closed_days)."""
     wd, hol = cal.weekday(day), cal.is_holiday(day)
     w = np.asarray(w, dtype=float)
-    return np.where(hol | (wd == 6), w[..., 2], np.where(wd == 5, w[..., 1], w[..., 0]))
+    out = np.where(hol | (wd == 6), w[..., 2], np.where(wd == 5, w[..., 1], w[..., 0]))
+    if w.shape[-1] > 3:
+        out = np.where(np.isin(cal.date(day).astype("M8[D]"), MAJOR_HOLIDAYS), w[..., 3], out)
+    return out
 
 
 @dataclass
@@ -86,7 +104,10 @@ class Calendar:
         return np.is_busday(self.date(day).astype("M8[D]"), holidays=HOLIDAYS)
 
     def is_holiday(self, day) -> np.ndarray:
-        return np.isin(self.date(day).astype("M8[D]"), HOLIDAYS)
+        """A holiday as observed, or on its own date when that falls at a weekend (a Saturday New Year's Day is
+        no ordinary Saturday). Business days count only the observed one (the weekend is closed anyway)."""
+        d = self.date(day).astype("M8[D]")
+        return np.isin(d, HOLIDAYS) | np.isin(d, ACTUAL_HOLIDAYS)
 
     def _roll(self, day, how: str) -> np.ndarray:
         d = np.busday_offset(self.date(day).astype("M8[D]"), 0, roll=how, holidays=HOLIDAYS)

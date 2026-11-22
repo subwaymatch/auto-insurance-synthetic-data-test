@@ -17,6 +17,7 @@ from .simulate import DRIVER_REMOVAL_REASONS, END_ENDORSED, END_GONE, REMOVAL_RE
 POLICY_BASE = 1_000_000
 VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789"           # characters allowed in a VIN (no I, O or Q)
 VIN_YEAR = "ABCDEFGHJKLMNPRSTVWXY123456789"                 # model-year codes (position 10), 1980 = A, cycling every 30
+DIGITS, LETTERS = VIN_CHARS[-10:], VIN_CHARS[:-10]
 SR22_VIOLATIONS = ["DUI", "Driving while suspended", "Leaving the scene"]   # convictions that require an SR-22 filing
 SR22_YEARS = 3
 YN = np.array(["N", "Y"])
@@ -69,24 +70,32 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
 
     ag = pop.agencies
     az = z.iloc[ag.zi.clip(0)]
+    # an agency was appointed by the day it wrote its first policy here (a policy in the opening book may predate the
+    # appointment drawn for its agency)
+    inception = cal.day_of(pol.first_month - pol.tenure_terms * pol.term_months, pol.dom)
+    first = pd.Series(inception).groupby(pol.agency_id.to_numpy()).min().reindex(ag.agency_id).to_numpy()
+    appointed = -ag.appointed_days_before_start.to_numpy()
+    appointed = np.where(np.isnan(first), appointed, np.minimum(appointed, cal.prev_business(np.nan_to_num(first).astype(np.int64))))
     T["agency"] = pd.DataFrame({
         "agency_id": ag.agency_id, "agency_name": ag.name, "channel": ag.channel,
         "city": np.where(ag.zi >= 0, az.city.to_numpy(), "Chicago"), "state": "IL",
         "zip_code": np.where(ag.zi >= 0, az.zip.to_numpy(), "60606"),
-        "appointment_date": D(-ag.appointed_days_before_start.to_numpy()),
+        "appointment_date": D(appointed),
         "new_business_commission_pct": (ag.commission_new * 100).round(1),
         "renewal_commission_pct": (ag.commission_renewal * 100).round(1)})
-    producers, policy_producer = _producers(cfg, ref, ag, pol)
+    producers, policy_producer = _producers(cfg, ref, ag, appointed, pol, inception)
     T["producer"] = pd.DataFrame({
         "producer_id": producers.producer + 1, "agency_id": producers.agency_id, "first_name": producers.first_name,
         "last_name": producers.last_name, "start_date": D(producers.start.to_numpy())})
     T["underwriting_company"] = pd.DataFrame(C.COMPANIES, columns=["company_id", "company_name",
                                                                 "tier", "city"]).assign(**{"state": "IL"})
     T["claim_office"] = pd.DataFrame(C.BRANCHES, columns=["claim_office_id", "office_name", "city"])
+    clock = lambda h: f"{int(min(h * 60, 1439)) // 60:02d}:{int(min(h * 60, 1439)) % 60:02d}"
     T["catastrophe"] = pd.DataFrame(
-        [(e[0], e[1], e[2], C.PERIL_DESCRIPTION[e[3]]) for e in C.CAT_EVENTS
-         if cfg.start <= e[1] <= cfg.valuation],
-        columns=["catastrophe_id", "event_date", "description", "peril"]).assign(note="NOAA Storm Events; losses simulated")
+        [(e[0], e[1], clock(C.CAT_HOURS[e[0]][0]), clock(C.CAT_HOURS[e[0]][1]), e[2], C.PERIL_DESCRIPTION[e[3]])
+         for e in C.CAT_EVENTS if cfg.start <= e[1] <= cfg.valuation],
+        columns=["catastrophe_id", "event_date", "start_time", "end_time", "description", "peril"]
+    ).assign(note="NOAA Storm Events; losses simulated")
     out = [(d, round(chg * 100, 1)) for d, chg in C.RATE_CHANGES if cfg.start <= d <= cfg.valuation]
     T["rate_change"] = pd.DataFrame(out, columns=["effective_date", "rate_change_pct"])
 
@@ -126,9 +135,13 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     last = terms.sort_values(["pol", "s"], kind="stable").groupby("pol").tail(1).set_index("pol").reindex(pol["pol"])
     status = np.where(last.cancel_day >= 0, "Canceled", np.where(last.nonrenewal_reason != "", "Non-Renewed", "In Force"))
     ni_drv = pol.ni_drv.to_numpy()
-    inception = cal.day_of(pol.first_month - pol.tenure_terms * pol.term_months, pol.dom)
     removed_v = np.where(veh.removed_day.to_numpy() > V, -1, veh.removed_day.to_numpy())    # nothing after the valuation date is known
     removed_d = np.where(drv.removed_day.to_numpy() > V, -1, drv.removed_day.to_numpy())
+    # the last day each driver was insured here: their removal, or the end of the policy's cover (a cancellation or a
+    # non-renewal), or the valuation date. The insurer orders driving records and files SR-22s only until then
+    pol_end = np.where(last.cancel_day.to_numpy() >= 0, last.cancel_day.to_numpy(),
+                       np.where(last.nonrenewal_reason.to_numpy() != "", last.e.to_numpy(), V)).clip(None, V)
+    drv_end = np.where(removed_d >= 0, np.minimum(removed_d, pol_end[drv.pol.to_numpy()]), pol_end[drv.pol.to_numpy()])
     score = pol.insurance_score
     T["policy"] = pd.DataFrame({
         "policy_id": polno(pol["pol"]), "location_id": z.location_id.to_numpy()[pol.zi],
@@ -143,7 +156,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
 
     # ---- drivers ------------------------------------------------------------------------------
     inc = pop.incidents
-    good_student = truth.good_student(drv.good_grades, drv.school_end_day, drv.dob_day, drv.added_day)
+    # as the rest of the driver record: the status on the last day the driver was insured here (by the valuation date)
+    good_student = truth.good_student(drv.good_grades, drv.school_end_day, drv.dob_day, np.maximum(drv_end, drv.added_day))
     T["driver"] = pd.DataFrame({
         "driver_id": drv.drv + 1, "policy_id": polno(drv.pol),
         "driver_role": np.array(["Named Insured", "Spouse", "Other Adult", "Child"])[drv.role],
@@ -152,7 +166,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         "added_date": D(drv.added_day), "removed_date": np.where(removed_d >= 0, D(removed_d.clip(0)), ""),
         "removal_reason": np.where(removed_d >= 0, np.array(DRIVER_REMOVAL_REASONS)[drv.removal_reason], ""),
         "good_student": YN[good_student.astype(int)], "miles_to_work": drv.commute_miles.astype(int),
-        **_sr22(cfg, cal, inc, drv, V, D)})
+        **_sr22(cfg, cal, inc, drv, drv_end, D)})
 
     # Each incident carries the day the insurer learned of it: a violation when the conviction posts to the
     # driving record, an earlier accident when it appears on a claims-history report, and the company's own
@@ -179,7 +193,11 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         pd.DataFrame({"drv": early.drv, "day": early.day, "known": early.chargeable_day, "incident_type": "At-Fault Accident",
                       "description": "At-fault accident (company claim before the extract)", "source": "Company Claim (Before Extract)",
                       "claim_id": pd.array([pd.NA] * len(early), dtype="Int64")})], ignore_index=True)
-    records = records[(records.day <= V) & (records.known <= V)].sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
+    records = records[(records.day <= V) & (records.known <= V)]
+    # a violation reaches the insurer only through a driving record ordered while the driver is insured here
+    mvr = records.source.to_numpy() == "Motor Vehicle Record"
+    records = records[~mvr | (records.known.to_numpy() <= drv_end[records.drv.to_numpy()])]
+    records = records.sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
     T["driver_incident"] = pd.DataFrame({
         "incident_id": np.arange(1, len(records) + 1), "driver_id": records.drv + 1, "incident_date": D(records.day),
         "known_date": D(records.known), "conviction_date": _conviction_dates(cfg, cal, records, D),
@@ -295,17 +313,25 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     emp, desks = payments.employees(cfg, cal, ref, pd.Series(branch).value_counts())
     vend = payments.vendors(cfg, ref)
     ni_pay = ni_hist.at(claims.pol.to_numpy()[pays.claim_id.to_numpy() - 1], pays.day.to_numpy())[0]
-    surname = drv.last_name.astype(str).to_numpy()[ni_pay].astype(object)
-    if res.sim.name_changes:
-        # the surname the named insured had on the payment date: before a later change of name, the old one
-        q = pd.DataFrame({"drv": ni_pay.astype(np.int64), "day": pays.day.to_numpy().astype(np.int64), "i": np.arange(len(pays))})
-        ch = pd.concat(res.sim.name_changes, ignore_index=True).astype({"drv": np.int64, "day": np.int64})
-        m = pd.merge_asof(q.sort_values("day", kind="stable"), ch.sort_values("day", kind="stable"), on="day", by="drv",
-                          direction="forward", allow_exact_matches=False)
-        hit = m.old.notna().to_numpy()
-        surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
-    insured = drv.first_name.astype(str).to_numpy()[ni_pay] + " " + surname
-    detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured,
+    changes = (pd.concat(res.sim.name_changes, ignore_index=True).astype({"drv": np.int64, "day": np.int64})
+               if res.sim.name_changes else None)
+
+    def name_on(person: np.ndarray, days: np.ndarray) -> np.ndarray:
+        """Each person's name on each day: before a later change of surname, the old one."""
+        surname = drv.last_name.astype(str).to_numpy()[person].astype(object)
+        if changes is not None:
+            q = pd.DataFrame({"drv": person.astype(np.int64), "day": days.astype(np.int64), "i": np.arange(len(person))})
+            m = pd.merge_asof(q.sort_values("day", kind="stable"), changes.sort_values("day", kind="stable"), on="day",
+                              by="drv", direction="forward", allow_exact_matches=False)
+            hit = m.old.notna().to_numpy()
+            surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
+        return drv.first_name.astype(str).to_numpy()[person] + " " + surname
+
+    insured = name_on(ni_pay, pays.day.to_numpy())
+    # the policy's own person in the loss (an uninsured motorist claim's first claimant): the driver, or the named insured
+    drv_pay = claims.drv.to_numpy()[pays.claim_id.to_numpy() - 1]
+    party = name_on(np.where(drv_pay >= 0, drv_pay, ni_pay), pays.day.to_numpy())
+    detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured, party,
                                         np.where(cg.open.to_numpy(), cal.horizon + 1, cg.close_day.to_numpy()), emp, desks, vend)
     T["employee"], T["vendor"] = _employee_table(emp, desks, V, D), _vendor_table(vend)
     T["claim"] = pd.DataFrame({
@@ -385,7 +411,8 @@ HOUR_GROUP = {"AF_MV": "crash", "AF_SV": "crash", "NAF": "crash", "PARKED": "par
 def _loss_times(cfg, cal, claims: pd.DataFrame) -> np.ndarray:
     """Time of day of each loss as the insured reported it (HH:MM). The hour follows the peril's profile for
     that weekday (crashes and thefts from Chicago's records, refdata._hour_profiles); the minute bunches on the
-    hour and the half hour, as reported times do. A descriptive attribute: nothing else depends on it."""
+    hour and the half hour, as reported times do. A catastrophe claim's falls in its storm's hours. A descriptive
+    attribute: nothing else depends on it."""
     R = stream(cfg.seed, "loss time")
     day, n = claims.day.to_numpy(), len(claims)
     group = claims.peril.map(HOUR_GROUP).to_numpy()
@@ -397,6 +424,12 @@ def _loss_times(cfg, cal, claims: pd.DataFrame) -> np.ndarray:
     p = np.array(list(C.LOSS_MINUTE_HEAPING.values()))
     k = R.choice(len(heaps) + 1, n, p=np.r_[p, 1 - p.sum()])
     minute = np.where(k < len(heaps), np.array(heaps + [0])[k], R.integers(0, 60, n))
+    # a catastrophe struck in its storm's hours (config.CAT_HOURS), reported to the nearest five minutes
+    cat = claims.cat.to_numpy()
+    lo, hi = (np.array([C.CAT_HOURS[e[0]][j] for e in C.CAT_EVENTS]) for j in (0, 1))
+    at = np.round((lo[cat.clip(0)] + R.random(n) * (hi - lo)[cat.clip(0)]) * 12) * 5           # minutes after midnight
+    at = np.clip(at, lo[cat.clip(0)] * 60, np.minimum(hi[cat.clip(0)] * 60, 1439)).astype(int)
+    hour, minute = np.where(cat >= 0, at // 60, hour), np.where(cat >= 0, at % 60, minute)
     return np.char.add(np.char.add(np.char.zfill(hour.astype(str), 2), ":"), np.char.zfill(minute.astype(str), 2))
 
 
@@ -412,7 +445,10 @@ def _vehicle_codes(mdl: pd.DataFrame) -> dict:
     code = lambda x, k: "".join(VIN_CHARS[(x // len(VIN_CHARS) ** j) % len(VIN_CHARS)] for j in range(k))
     wmi = {m: "0" + code(zlib.crc32(m.encode()), 2) for m in mdl.make.unique()}
     vds = {(a, b): code(zlib.crc32(f"model-{a}-{b}".encode()), 5) for a, b in zip(mdl.make, mdl.model)}
-    pattern = [wmi[a] + vds[(a, b)] + "*" + VIN_YEAR[(y - 1980) % len(VIN_YEAR)] for a, b, y in zip(mdl.make, mdl.model, mdl.model_year)]
+    # position 7 tells the 30-year cycles of the year code apart, as in real VINs: a digit for 1980-2009, a letter after
+    p7 = lambda a, b, y: (DIGITS if y <= 2009 else LETTERS)[zlib.crc32(f"p7-{a}-{b}".encode()) % len(DIGITS if y <= 2009 else LETTERS)]
+    pattern = [wmi[a] + vds[(a, b)][:3] + p7(a, b, y) + vds[(a, b)][4] + "*" + VIN_YEAR[(y - 1980) % len(VIN_YEAR)]
+               for a, b, y in zip(mdl.make, mdl.model, mdl.model_year)]
     seg, body = mdl.segment.to_numpy(), mdl.body_type.to_numpy()
     pd_symbol = np.floor(np.log(np.maximum(mdl.msrp.to_numpy(), 9_000) / 9_000) / np.log(1.09)) + 1 \
         + np.select([seg == "sports", np.isin(seg, ["luxury", "ev"])], [2, 1], default=0)
@@ -471,16 +507,19 @@ def _renewal_offers(of: pd.DataFrame, D, polno) -> tuple[pd.DataFrame, pd.DataFr
     return table, truth_
 
 
-def _sr22(cfg, cal, inc: pd.DataFrame, drv: pd.DataFrame, V: int, D) -> dict:
+def _sr22(cfg, cal, inc: pd.DataFrame, drv: pd.DataFrame, end_day: np.ndarray, D) -> dict:
     """SR-22 filings: after a conviction for driving under the influence, driving while suspended or leaving
-    the scene, the insurer files proof of insurance with the state for three years (the latest filing shown)."""
-    q = inc[inc.description.isin(SR22_VIOLATIONS) & (inc.known_day <= V)]
+    the scene, the insurer files proof of insurance with the state for three years (the latest filing shown).
+    Only while the driver is insured here: `end_day` is each driver's last day on the policy (or the valuation
+    date), and a filing certifies cover in force, so none is filed after it."""
+    known_end = end_day[inc.drv.to_numpy()]
+    q = inc[inc.description.isin(SR22_VIOLATIONS) & (inc.known_day.to_numpy() <= known_end)]
     latest = q.groupby("drv").known_day.max().reindex(drv.drv).to_numpy()
     R = stream(cfg.seed, "sr22")
     filed = np.maximum(np.nan_to_num(latest, nan=-10 ** 6), drv.added_day.to_numpy()) + R.integers(0, 8, len(drv))
     filed = np.where(np.isnan(latest), filed, cal.spread_business(np.where(np.isnan(latest), 0, filed), R.random(len(drv))))    # filed with the state on a business day
     end = np.nan_to_num(latest, nan=-10 ** 6) + int(SR22_YEARS * 365.25)
-    on = ~np.isnan(latest) & (end > filed) & (filed <= V) & ((drv.removed_day.to_numpy() < 0) | (drv.removed_day.to_numpy() > filed))
+    on = ~np.isnan(latest) & (end > filed) & (filed <= end_day)
     # dates before the start are real dates (day numbers count back from it), so they are written as they are
     return {"sr22_filed_date": np.where(on, D(np.where(on, filed, 0)), ""), "sr22_end_date": np.where(on, D(np.where(on, end, 0)), "")}
 
@@ -583,6 +622,8 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, notices
         add(term_pol.reindex(g.term).to_numpy(), g.day.to_numpy(), purpose, **kw)
     npay = terms[terms.cancel_reason == "Non-Payment"]
     add(npay.pol, npay.cancel_day, "Cancellation for Non-Payment", digital_ok=False)
+    uw = terms[terms.cancel_reason == "Underwriting"]
+    add(uw.pol, cal.prev_business(uw.cancel_day.to_numpy() - C.UW_NOTICE_DAYS), "Notice of Cancellation", digital_ok=False)
     other = terms[(terms.cancel_day >= 0) & (terms.cancel_reason != "Non-Payment")]
     add(other.pol, other.cancel_day, "Cancellation Confirmation")
     # every endorsement (a mid-term change re-rating the policy) and every car taken off after a loss
@@ -605,9 +646,10 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, notices
                          "policy_id": polno(c.pol), "contact_date": D(c.day), "purpose": c.purpose})
 
 
-def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
-    """The producers (licensed agents) who work at each agency, and the one who services each policy (-1 for
-    direct business, which has none). Bigger agencies have more; a few write most of an agency's business."""
+def _producers(cfg, ref, agencies: pd.DataFrame, appointed_day, pol: pd.DataFrame, inception) -> tuple[pd.DataFrame, np.ndarray]:
+    """The producers (licensed agents) who work at each agency, and the one who wrote and services each policy (-1
+    for direct business, which has none). Bigger agencies have more, hired over the agency's life (its principal from
+    the appointment); a few write most of an agency's business, each only policies written once they had started."""
     R = stream(cfg.seed, "producers")
     count = pol.groupby("agency_id").size().reindex(agencies.agency_id).fillna(0).to_numpy()
     agent = (agencies.channel != "Direct").to_numpy()
@@ -617,9 +659,10 @@ def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.
     ns = ref.names
     group = ns.draw_group(R, ns.zip_mix(ref.zips.iloc[zi]))
     male = R.random(len(a)) < 0.5
-    appointed = -agencies.appointed_days_before_start.to_numpy()[a]
+    appointed = np.asarray(appointed_day)[a]
     first_of_agency = np.r_[True, a[1:] != a[:-1]]
-    start = np.where(first_of_agency, appointed, np.minimum(appointed + R.integers(0, 6_000, len(a)), -30))
+    life = np.maximum(ref.cal.valuation_day - 60 - appointed, 0)
+    start = np.where(first_of_agency, appointed, ref.cal.next_business(appointed + np.floor(R.random(len(a)) * life).astype(np.int64)))
     # an agency's first producer is its principal, whose name the agency often carries
     prod = pd.DataFrame(dict(producer=np.arange(len(a)), agency_id=agencies.agency_id.to_numpy()[a],
                              first_name=np.where(first_of_agency, agencies.principal_first.to_numpy()[a],
@@ -628,9 +671,14 @@ def _producers(cfg, ref, agencies: pd.DataFrame, pol: pd.DataFrame) -> tuple[pd.
                              start=start, weight=np.exp(R.normal(0, 0.8, len(a)))))
     out = np.full(len(pol), -1)
     by_agency = pol.agency_id.to_numpy()
+    inception = np.asarray(inception)
     for aid, g in prod.groupby("agency_id"):
         m = np.flatnonzero(by_agency == aid)
-        out[m] = R.choice(g.producer.to_numpy(), len(m), p=(g.weight / g.weight.sum()).to_numpy())
+        g = g.sort_values("start", kind="stable")
+        on = np.maximum(np.searchsorted(g.start.to_numpy(), inception[m], side="right"), 1)    # producers working then
+        cw = np.cumsum(g.weight.to_numpy())
+        pick = np.minimum(np.searchsorted(cw, R.random(len(m)) * cw[on - 1], side="right"), on - 1)
+        out[m] = g.producer.to_numpy()[pick]
     return prod, out
 
 

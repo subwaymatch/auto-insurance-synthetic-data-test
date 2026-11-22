@@ -13,8 +13,8 @@ description: Who Lakefront is: three underwriting companies, 134 agencies and tw
 |---|---|
 | Business | Personal auto insurance only: private passenger cars, SUVs, pickups and vans |
 | Territory | Cook, DuPage, Lake, Will, Kane, McHenry and Kendall counties: 290 ZIP codes |
-| Size | About 22,500 policies and 39,000 cars in force at the end of 2026, and some $52 million of premium a year: roughly 1% of the area’s household vehicles |
-| History in the data | 1 January 2022 to 31 December 2026. 19,745 policies were already in force on the first day; 43,368 policies were written or renewed in all |
+| Size | About 22,200 policies and 39,000 cars in force at the end of 2026, and some $51 million of premium a year: roughly 1% of the area’s household vehicles |
+| History in the data | 1 January 2022 to 31 December 2026. 19,747 policies were already in force on the first day; 43,368 policies were written or renewed in all |
 | Companies | Three underwriting companies, for preferred, standard and non-standard risks |
 | Distribution | 120 independent agencies, 14 exclusive agents’ offices, and direct sales online and by phone |
 | Claims | Six claim offices and 46 claims staff |
@@ -37,9 +37,9 @@ The company’s three-letter code is part of every policy number: `0830512-LFM-4
 
 Customers reach Lakefront in three ways. The channel matters: it changes who buys, how much they pay in commission, and how long they stay.
 
-**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 48 or fewer Lakefront policies in force, the largest has 493, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
+**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 46 or fewer Lakefront policies in force, the largest has 500, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
 
-**Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 439 policies each and earn somewhat less commission.
+**Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 431 policies each and earn somewhat less commission.
 
 **Direct.** Two in-house units, `Direct - Online` and `Direct - Contact Center`, which pay no commission.
 
@@ -124,10 +124,10 @@ Each increase made Lakefront dearer than its competitors until they caught up, s
 
 | Year end | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---:|---:|---:|---:|---:|
-| Policies in force | 20,586 | 19,525 | 20,101 | 21,385 | 22,514 |
-| Loss ratio, by accident year | 82.2% | 77.3% | 66.3% | 67.3% | 66.1% |
+| Policies in force | 20,523 | 19,431 | 19,918 | 21,111 | 22,219 |
+| Loss ratio, by accident year | 77.9% | 77.7% | 68.8% | 59.7% | 66.3% |
 
-The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Ten catastrophes, all real storms from NOAA’s Storm Events Database (hailstorms, two derechos and flash floods, from 2023 on), add between 1 and 6.5 points a year from 2023 (`catastrophe`); the storms are real, the claims on them simulated.
+The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Ten catastrophes, all real storms from NOAA’s Storm Events Database (hailstorms, two derechos and flash floods, from 2023 on), add between 0.6 and 6 points a year from 2023 (`catastrophe`); the storms are real, the claims on them simulated.
 
 ## What the books leave out
 

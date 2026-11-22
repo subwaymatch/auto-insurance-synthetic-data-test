@@ -58,7 +58,7 @@ KEY_SYSTEMS = {
     "insured_vehicle": ("added_date", C.FOUNDED), "exposure": ("rating_date", C.FOUNDED),
     "premium_transaction": ("processed_date", C.FOUNDED), "renewal_offer": ("offer_date", C.FOUNDED),
     "driver_incident": ("known_date", C.FOUNDED), "agency": ("appointment_date", C.FOUNDED),
-    "producer": ("start_date", C.FOUNDED), "agency_statement": ("payment_date", C.FOUNDED),
+    "producer": ("start_date", C.FOUNDED), "agency_statement": ("statement_month", C.FOUNDED),
     "gl_journal": ("posting_date", C.FOUNDED), "employee": ("hire_date", C.FOUNDED),
     "billing_invoice": ("issue_date", "2008-07-01"), "billing_receipt": ("receipt_date", "2008-07-01"),
     "claim": ("report_date", "2012-10-01"), "claim_feature": ("open_date", "2012-10-01"),
@@ -116,7 +116,7 @@ def full_vins(patterns: np.ndarray, makes: np.ndarray, group: np.ndarray, rng: n
 # ------------------------------------------------------------------------------------------- numbering
 def _gapped(order_key: np.ndarray, rng: np.random.Generator, mean_gap: float, start: int = 0, by=None) -> np.ndarray:
     """Sequence numbers in the order of `order_key`, with random gaps (other business draws from the same
-    counter), restarting within each `by` group (a year) if given."""
+    counter), restarting near 1 within each `by` group (a year) if given."""
     idx = np.argsort(order_key, kind="stable")
     step = 1 + rng.geometric(1 / mean_gap, len(idx)) - 1 if mean_gap > 1 else np.ones(len(idx), dtype=np.int64)
     out = np.empty(len(idx), dtype=np.int64)
@@ -127,7 +127,8 @@ def _gapped(order_key: np.ndarray, rng: np.random.Generator, mean_gap: float, st
         cs = np.cumsum(step)
         first = np.r_[True, g[1:] != g[:-1]]
         base = np.maximum.accumulate(np.where(first, cs - step, 0))
-        offs = pd.Series(rng.integers(1_000, 9_000, len(pd.unique(g))), index=pd.unique(g)).reindex(g).to_numpy()
+        offs = pd.Series(rng.geometric(1 / max(mean_gap, 1.0), len(pd.unique(g))) - 1,
+                         index=pd.unique(g)).reindex(g).to_numpy()        # the year's first records elsewhere in the company
         out[idx] = cs - base + offs
     return out
 
@@ -267,10 +268,13 @@ def surrogate_keys(cfg: C.Config, cal, T: dict, K: dict) -> None:
         n = len(t)
         if table == "policy":
             created = written
+        elif table == "agency_statement":                       # a statement is drawn up when its month closes
+            created = day(pd.to_datetime(t[col] + "-01") + pd.offsets.MonthEnd(0))
         elif col:
             created = day(t[col])
-        else:                                                    # undated (the vendor file): spread from go-live on
-            created = live + (np.arange(n) * (V - live) / max(n, 1)).astype(np.int64)
+            assert (created > np.iinfo(np.int64).min).all(), f"{table}.{col} dates its records' creation, so it cannot be blank"
+        else:                                                    # undated (the vendor file): set up over the years in no
+            created = np.sort(R.integers(live, V + 1, n))[R.permutation(n)]     # particular order of vendor type
         created = np.clip(created, live, cal.horizon)            # a record older than its system was migrated in
         # the company's records a day from 2022 on: from this book's own rate in the extract, or over the system's
         # life for a table the book rarely adds to (agencies, staff)

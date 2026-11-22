@@ -181,7 +181,9 @@ def integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes) -> 
     rep.check("an insured at fault is over 50% at fault, and one not at fault is under 51%",
               ((fault["at_fault"] == "Y") == (fault["insured_fault_pct"] > 50)).all())
     siu = clm[clm["siu_referral_date"].notna()]
-    rep.check("fraud referrals come after the claim is reported", (siu["siu_referral_date"] >= siu["report_date"]).all())
+    rep.check("fraud referrals are made while the claim is open: on or after its report, and on or before its close",
+              (siu["siu_referral_date"] >= siu["report_date"]).all()
+              and ~(siu["siu_referral_date"] > siu["close_date"]).any(), f"{len(siu):,} referrals")
     b = quotes[quotes["bound"] == "Y"].merge(term[term["business_type"] == "New"], on="policy_id")
     rep.check("every bound quote is a new-business policy starting on the quoted date",
               (b["proposed_effective_date"] == b["effective_date"]).all() and (quotes["quote_date"] <= quotes["proposed_effective_date"]).all(),
@@ -210,7 +212,7 @@ def vin_check_digit(vin: pd.Series) -> pd.Series:
     return (total % 11).map(lambda r: "X" if r == 10 else str(r))
 
 
-def integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, contact) -> None:
+def integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, contact, emp, agency, producer, inv) -> None:
     """Work done by staff, banks and courts falls on business days."""
     all_on = lambda *cols: all(business_day(c).all() for c in cols)
     reviews = reserves.loc[reserves["transaction_type"] != "Initial Reserve", "transaction_date"]
@@ -218,6 +220,11 @@ def integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, co
               all_on(pay["payment_date"], pay["cleared_date"], clm["close_date"], feat["close_date"], reviews, feat["suit_date"],
                      clm["siu_referral_date"]),
               f"{len(pay):,} payments; {1 - business_day(clm['report_date']).mean():.1%} of claims are reported on a weekend or holiday")
+    rep.check("staff are hired and leave, agencies are appointed, producers start and bills are written off on business days",
+              all_on(emp["hire_date"], emp["termination_date"], agency["appointment_date"], producer["start_date"],
+                     inv["write_off_date"]),
+              f"{len(emp):,} staff, {len(agency):,} agencies, {len(producer):,} producers, "
+              f"{inv['write_off_date'].notna().sum():,} write-offs")
     mvr = inc[inc["source"] == "Motor Vehicle Record"]
     renewals = term[term["business_type"] == "Renewal"]
     keyed = ledger[ledger["transaction_type"] == "Endorsement"]
@@ -238,9 +245,11 @@ def integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy
               and digits.map(lambda x: int(x) % 97 == 1).all())
     pattern = vmy.set_index("vehicle_model_year_id")["vin_pattern"].reindex(veh["vehicle_model_year_id"]).to_numpy()
     vin = veh["vin"]
-    rep.check("every VIN is unique, has 17 characters and a valid check digit, and follows its model year's pattern",
+    rep.check("every VIN is unique, has 17 characters and a valid check digit, and follows its model year's pattern "
+              "(position 7 a digit to 2009 and a letter after, telling the year code's 30-year cycles apart)",
               vin.is_unique and (vin.str.len() == 17).all() and (vin.str[8] == vin_check_digit(vin)).all()
-              and (vin.str[:8] == pd.Series(pattern).str[:8]).all() and (vin.str[9] == pd.Series(pattern).str[9]).all())
+              and (vin.str[:8] == pd.Series(pattern).str[:8]).all() and (vin.str[9] == pd.Series(pattern).str[9]).all()
+              and (vmy["vin_pattern"].str[6].str.isdigit() == (vmy["model_year"] <= 2009)).all())
     number = clm.set_index("claim_id")["claim_number"].reindex(feat["claim_id"]).to_numpy()
     rep.check("claim, feature and quote numbers are unique; a feature's number extends its claim's",
               clm["claim_number"].is_unique and feat["feature_number"].is_unique and quotes["quote_number"].is_unique
@@ -320,6 +329,26 @@ def integrity_billing(rep, inv, rec, term, ledger, pol, valuation, contact=None)
         got = mailed.groupby(x["policy_term_id"]).any()
         rep.check("every cancellation for non-payment had a notice of cancellation mailed at least ten days before it",
                   got.all(), f"{len(got):,} cancellations whose missed bill fell due in the extract; {(~got).sum():,} without")
+        # any other cancellation by the company: at least 30 days' notice, mailed in the policy's first 60 days
+        uw = term.loc[term["cancel_reason"] == "Underwriting", ["policy_term_id", "policy_id", "effective_date", "cancel_date"]]
+        y = uw[uw["effective_date"] >= contact["contact_date"].min()].merge(notice, on="policy_id", how="left")
+        ahead = (dt(y["cancel_date"]) - dt(y["contact_date"])).dt.days
+        warned = ((y["contact_method"] == "Written Letter") & (ahead >= 30)
+                  & (dt(y["contact_date"]) - dt(y["effective_date"])).dt.days.between(0, 59)).groupby(y["policy_term_id"]).any()
+        rep.check("every underwriting cancellation had a notice of cancellation mailed in the policy's first 60 days, at "
+                  "least 30 days before it", warned.all(),
+                  f"{len(warned):,} underwriting cancellations; {(~warned).sum():,} without")
+        # a notice for an unpaid bill goes while one is past due and unpaid
+        nt = notice.reset_index(drop=True)
+        w = nt.reset_index().merge(uw[["policy_id", "cancel_date"]], on="policy_id")
+        is_uw = (dt(w["cancel_date"]) - dt(w["contact_date"])).dt.days.between(30, 60).groupby(w["index"]).any()
+        bill_notice = nt[~is_uw.reindex(nt.index, fill_value=False).to_numpy()]
+        bills = inv.loc[inv["invoice_type"] != "Final Balance", ["policy_id", "due_date", "paid_date"]]
+        z = bill_notice.reset_index().merge(bills, on="policy_id")
+        owing = (z["due_date"] < z["contact_date"]) & (z["paid_date"].isna() | (z["paid_date"] > z["contact_date"]))
+        late = int((~owing.groupby(z["index"]).any().reindex(bill_notice.index, fill_value=False)).sum())
+        rep.check("every billing notice of cancellation is mailed while a bill on the policy is past due and unpaid",
+                  late == 0, f"{len(bill_notice):,} notices; {late:,} after the bill was paid")
     # money moved by a bank or by staff (a cheque banked, a bank draft taken or returned, a refund cheque) moves on
     # a business day; a card, online or agency payment can be made any day
     banked = rec[rec["payment_method"].isin(["Check", "EFT"])]
@@ -354,12 +383,12 @@ def integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term
               adj["job_title"].notna().all() and ((adj["claim_office_id"].to_numpy() == clm["claim_office_id"].to_numpy())
                                                   | (adj["job_title"].to_numpy() == "Claims Manager")).all())
     kind = vend.set_index("vendor_id")["vendor_type"].reindex(pay["vendor_id"]).to_numpy()
-    org = pay["payee_type"].isin(["Vendor", "Lienholder", "Other Insurer", "Claimant and Attorney"]).to_numpy()
+    org = pay["payee_type"].isin(["Vendor", "Lienholder", "Other Insurer", "Claimant and Attorney", "Insured and Attorney"]).to_numpy()
     rep.check("a payment to an organization names a vendor of the right kind; a payment to a person names none",
               (pay["vendor_id"].notna().to_numpy() == org).all() and pay["payee_name"].notna().all()
               and (kind[(pay["payee_type"] == "Lienholder").to_numpy()] == "Lienholder").all()
               and (kind[(pay["payee_type"] == "Other Insurer").to_numpy()] == "Other Insurer").all()
-              and (kind[(pay["payee_type"] == "Claimant and Attorney").to_numpy()] == "Plaintiff Law Firm").all(),
+              and (kind[pay["payee_type"].isin(["Claimant and Attorney", "Insured and Attorney"]).to_numpy()] == "Plaintiff Law Firm").all(),
               f"{pay['payee_type'].value_counts().to_dict()}")
     cleared = pay["payment_status"] == "Cleared"
     rep.check("a cleared payment cleared on or after the day it was issued; outstanding and voided ones have no cleared date",
@@ -402,11 +431,20 @@ def integrity_payees(rep, pay, clm, feat, veh, drv) -> None:
               and owed["claim_feature_id"].isin(lien["claim_feature_id"]).all(),
               f"{len(lien):,} payments, ${lien['amount'].sum():,.0f}; "
               f"{v['ownership'].reindex(car).value_counts().to_dict()} (latest ownership)")
+    kept = f.loc[f["owner_retained_salvage"] == "Y"].index
+    leased_tl = feat[(feat["total_loss"] == "Y")
+                     & (v["ownership"].reindex(c["insured_vehicle_id"].reindex(feat["claim_id"])).to_numpy() == "Leased")]
+    to_lessee = pay[pay["claim_feature_id"].isin(leased_tl["claim_feature_id"]) & (pay["payment_type"] == "Loss")
+                    & (pay["payee_type"] != "Lienholder")]
+    rep.check("an owner keeps the salvage only of a car owned outright (no lender is paid on it), and a leased car's "
+              "settlement, fees and supplements all go to the leasing company",
+              not lien["claim_feature_id"].isin(kept).any() and len(to_lessee) == 0,
+              f"{len(kept):,} owner-retained total losses, {len(leased_tl):,} leased total losses")
     # an injury claimant is paid jointly with an attorney only from the day the attorney is retained, and from then
     # on always (a void is made out like the check it cancels)
     inj = pay.assign(att=f["attorney_date"].reindex(pay["claim_feature_id"]).to_numpy(),
                      cvg=f["coverage_code"].reindex(pay["claim_feature_id"]).to_numpy())
-    joint = inj["payee_type"] == "Claimant and Attorney"
+    joint = inj["payee_type"].isin(["Claimant and Attorney", "Insured and Attorney"])
     after = inj["att"].notna() & (inj["payment_date"] >= inj["att"]) & inj["cvg"].isin(["BI", "UM"]) \
         & (inj["payment_type"] == "Loss") & (inj["transaction_type"] != "Void")
     rep.check("a claimant is paid jointly with an attorney only on or after the day the attorney was retained, and "
@@ -423,15 +461,19 @@ def integrity_payees(rep, pay, clm, feat, veh, drv) -> None:
     on = ((dt(d["added_date"]).reindex(who).to_numpy() <= loss_day)
           & ~(dt(d["removed_date"]).reindex(who).to_numpy() <= loss_day)
           & (d["policy_id"].reindex(who).to_numpy() == clm["policy_id"].to_numpy()))
-    # (by first name: a named insured who married since may now carry another surname than the one on the check)
-    ins = pay[pay["payee_type"] == "Insured"][["payment_id", "claim_id", "payment_date", "payee_name"]]
+    # (by first name: a named insured who married since may now carry another surname than the one on the check).
+    # The insured's own uninsured motorist claim pays the person injured, who was on the policy on the loss date
+    ins = pay[pay["payee_type"].isin(["Insured", "Insured and Attorney"])][["payment_id", "claim_id", "payment_date", "payee_name"]]
     ins = ins.assign(policy_id=c["policy_id"].reindex(ins["claim_id"]).to_numpy(),
+                     loss_date=c["loss_date"].reindex(ins["claim_id"]).to_numpy(),
                      first_name=ins["payee_name"].str.split(" ", n=1).str[0])
     m = ins.merge(drv[["policy_id", "first_name", "last_name", "added_date", "removed_date"]], on=["policy_id", "first_name"], how="left")
-    named = (m["added_date"] <= m["payment_date"]) & ~(m["removed_date"] <= m["payment_date"])
-    same = named & (m["payee_name"] == m["first_name"] + " " + m["last_name"])
-    rep.check("each claim's driver was on the policy on the loss date, and each payment to the insured names someone on "
-              "the policy on the payment date",
+    on_day = lambda col: (m["added_date"] <= m[col]) & ~(m["removed_date"] <= m[col])
+    named = on_day("payment_date") | on_day("loss_date")
+    same = named & pd.Series([str(a).startswith(f"{b} {c}") for a, b, c in zip(m["payee_name"], m["first_name"], m["last_name"])],
+                             index=m.index)
+    rep.check("each claim's driver was on the policy on the loss date, and each payment to the insured (an uninsured "
+              "motorist claimant's included) names someone on the policy on the loss or payment date",
               on.all() and named.groupby(m["payment_id"]).any().all(),
               f"{len(clm):,} claims ({(c['at_fault'] == 'N').sum():,} not at fault); {len(ins):,} payments to the insured, "
               f"{(~same.groupby(m['payment_id']).any()).sum():,} under a surname the insured has since changed")
@@ -452,6 +494,15 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
     at, after = years.get(first, 0.0), years.reindex(range(first + 1, first + 4)).fillna(0).mean()
     rep.check("no pile-up of older cars at the catalog's first model year", at <= 1.5 * after + 10,
               f"{first}: {at:,.0f} car-years, the next three years {after:,.0f} each on average", statistical=True)
+    x = veh.merge(vmy, on="vehicle_model_year_id")
+    theft_wave = x["make"].isin(["Kia", "Hyundai"]) & (x["fuel_type"] != "Electric") & x["model_year"].between(2011, 2021)
+    rep.check("the key-start Kias and Hyundais of the theft wave have no immobiliser (anti-theft device)",
+              (x.loc[theft_wave, "anti_theft_device"] == "N").all(),
+              f"{theft_wave.sum():,} theft-wave cars; anti-theft on {(x.loc[~theft_wave, 'anti_theft_device'] == 'Y').mean():.0%} "
+              f"of the rest, automatic emergency braking on {(x['automatic_emergency_braking'] == 'Y').mean():.0%}")
+    lease = x[x["replaces_insured_vehicle_id"].notna() & (x["ownership"] == "Leased")]
+    rep.check("a replacement car taken on a new lease is new (its model year no older than the year before)",
+              (pd.to_datetime(lease["added_date"]).dt.year - lease["model_year"] <= 1).all(), f"{len(lease):,} leased replacements")
     drawn = vmy[vmy["vehicle_model_year_id"].isin(veh["vehicle_model_year_id"])]
     print(f"  {drawn.groupby(['make', 'model']).ngroups:,} models from {drawn['make'].nunique()} makes are insured; "
           f"top makes {veh.merge(vmy, on='vehicle_model_year_id')['make'].value_counts(normalize=True).head(6).round(3).to_dict()}")
@@ -484,6 +535,12 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
               and s_.loc[scored, "driving_score"].between(1, 100).all()
               and ((s_.loc[scored, "earned_discount_pct"] == rule[scored]) | (s_.loc[scored, "earned_discount_pct"] == 0)).all(),
               f"{len(s_):,} scores, mean {s_['driving_score'].mean():.1f}, average earned discount {s_['earned_discount_pct'].mean():.1f}%")
+    plug = e["device_type"].reindex(s_["enrollment_id"]).to_numpy() == "Plug-in Device"
+    phone = s_["phone_use_minutes_per_100_miles"]
+    rep.check("a plug-in device records no phone use and the other devices always do; any mileage takes a trip",
+              phone[plug].isna().all() and phone[~plug].notna().all()
+              and ((s_["miles_driven"] > 0) == (s_["trips"] > 0)).all(),
+              f"{plug.sum():,} plug-in scores without phone use")
     # a score is one driver's driving of one car: the driver is the car's rated driver (exposure rows) on every day
     # scored, and a period before the car's first exposure row is its first row's driver (the opening assignment)
     x = s_[["score_id", "insured_vehicle_id", "driver_id", "period_start_date", "period_end_date"]].merge(
@@ -613,6 +670,9 @@ def integrity_limits(rep, f) -> None:
               and (by_accident(um, paid) <= first(um, split("um_limit", 1)) - by_accident(um, offset) + cent).all()
               and (um == f["um_uim_type"].notna()).all() and (f["other_insurer_payment"].notna() == uim).all(),
               f"{(um & ~uim).sum():,} uninsured and {uim.sum():,} underinsured motorist features")
+    rep.check("underinsured motorist claims arise only on policies whose uninsured motorist limits are above the "
+              "25/50 minimum (215 ILCS 5/143a-2(4))", not (uim & (f["um_limit"] == "25/50")).any(),
+              f"{uim.sum():,} underinsured features: {f.loc[uim, 'um_limit'].value_counts().to_dict()}")
     # a vehicle is worth at most its value on the risk row (rounded to $10), and the deductible comes off
     value = f["vehicle_value"] + 5
     glass_free = (f["cause_of_loss"] == "GLASS") & (f["full_glass_coverage"] == "Y")
@@ -678,6 +738,83 @@ def integrity_reserve_sharing(rep, f, pay, reserves) -> None:
               "within its per-accident limit", not over.any(),
               f"{len(shared):,} accidents with several claimants under one coverage; {full.sum():,} of them reserved or "
               f"paid up to the limit at some point; {over.sum():,} days over")
+
+
+def integrity_records(rep, risk, veh, pay, stmt, quotes, inv, rec, vend, feat, reserves, offers, term) -> None:
+    """Record-level consistency the audits of November 2026 asked for: discounts that match the policy as it stood,
+    one firm of each kind per claim, keys in creation order and no leak of the outcome into a quote's number."""
+    v = veh[["policy_id", "added_date", "removed_date"]].merge(risk[["exposure_id", "policy_id", "coverage_start_date",
+                                                                     "multi_car_discount"]], on="policy_id")
+    on = (v["added_date"] <= v["coverage_start_date"]) & ~(v["removed_date"] <= v["coverage_start_date"])
+    cars = on.groupby(v["exposure_id"]).sum().reindex(risk["exposure_id"]).fillna(0).to_numpy()
+    multi = (risk["multi_car_discount"] == "Y").to_numpy()
+    rep.check("the multi-car discount is on a row only while the policy has two or more cars (a car totaled and not yet "
+              "replaced does not count)", (cars[multi] >= 2).all(),
+              f"{multi.sum():,} rows with the discount; {(cars[multi] < 2).sum():,} with fewer than two cars")
+    firms = pay[pay["transaction_type"].isin(["DCC Expense", "A&O Expense"])]
+    kind = vend.set_index("vendor_id")["vendor_type"].reindex(firms["vendor_id"]).to_numpy()
+    per = firms.groupby([firms["claim_id"].to_numpy(), kind])["vendor_id"].nunique()
+    rep.check("a claim uses one firm of each kind: one defense counsel, one bill review service, one appraiser",
+              (per <= 1).all(), f"{len(per):,} claim and expense kinds")
+    order = stmt.sort_values("statement_id")
+    rep.check("agency statements are numbered in the order they were drawn up (by month), paid or not",
+              pd.to_datetime(order["statement_month"] + "-01").is_monotonic_increasing,
+              f"{stmt['payment_date'].isna().sum():,} unpaid")
+    q = quotes.assign(rank=quotes.groupby("quote_date")["quote_id"].rank(pct=True))
+    gap = q.loc[q["bound"] == "Y", "rank"].mean() - q.loc[q["bound"] == "N", "rank"].mean()
+    rep.check("a quote's number says nothing about whether it bound: within a day bound and lost quotes are mixed",
+              abs(gap) < 0.05, f"mean within-day rank of bound quotes less lost ones {gap:+.3f}")
+    claims_open = feat[feat["feature_status"] == "Open"]
+    fin = pay[pay["transaction_type"] == "Final Payment"].groupby("claim_feature_id")["payment_date"].min()
+    settled = claims_open[claims_open["claim_feature_id"].isin(fin.index) & claims_open["reopen_date"].isna()]
+    rev = reserves[(reserves["transaction_type"] == "Reserve Review") & (reserves["reserve_type"] == "Loss")]
+    rev = rev.assign(fin=fin.reindex(rev["claim_feature_id"]).to_numpy(),
+                     reo=feat.set_index("claim_feature_id")["reopen_date"].reindex(rev["claim_feature_id"]).to_numpy())
+    after = (rev["transaction_date"] > rev["fin"]) & ~(rev["transaction_date"] >= rev["reo"])
+    rep.check("a final payment settles a feature: no loss reserve is held, or reviewed, after it (until a reopening)",
+              (settled["case_reserve"] == 0).all() and not after.any(),
+              f"{len(settled):,} open features awaiting closure after their final payment")
+    offers_ok = (offers["vehicles_offered"] >= 1).all() and (offers["renewal_premium"] > 0).all()
+    rep.check("every renewal offer is for at least one car and a premium; every term has cars on it",
+              offers_ok and term["policy_term_id"].isin(risk["policy_term_id"]).all(),
+              f"{len(offers):,} offers, {len(term):,} terms")
+    paid_in = rec.groupby("invoice_id")["amount"].sum()
+    can = inv[inv["invoice_status"] == "Canceled"]["invoice_id"]
+    rep.check("a canceled bill keeps no money: what was received on it was returned or refunded",
+              (paid_in.reindex(can).fillna(0).abs() < 0.005).all(), f"{len(can):,} canceled bills")
+
+
+def integrity_people(rep, pol, term, drv, inc) -> None:
+    """Who is on a policy, and what the insurer learns about them, while they are on it."""
+    d = drv.merge(pol[["policy_id", "named_insured_driver_id"]], on="policy_id")
+    current = d[(d["driver_role"] == "Named Insured") & d["removed_date"].isna()]
+    rep.check("a policy has one current named insured, the one it names (a deceased one keeps the role, removed)",
+              current.groupby("policy_id").size().max() <= 1
+              and (current["driver_id"] == current["named_insured_driver_id"]).all())
+    dead = term[term["cancel_reason"] == "Insured Deceased"][["policy_id", "cancel_date"]]
+    ni = dead.merge(pol[["policy_id", "named_insured_driver_id"]], on="policy_id").merge(
+        drv[["driver_id", "removed_date", "removal_reason"]], left_on="named_insured_driver_id", right_on="driver_id")
+    rep.check("every policy cancelled because its insured died shows that named insured as deceased on that day",
+              ((ni["removal_reason"] == "Deceased") & (ni["removed_date"] == ni["cancel_date"])).all(), f"{len(ni):,} policies")
+    adults = drv[drv["driver_role"].isin(["Named Insured", "Spouse", "Other Adult"])]
+    joined_at = (pd.to_datetime(adults["added_date"]) - pd.to_datetime(adults["date_of_birth"])).dt.days / 365.25
+    rep.check("adults join a policy at 18 or older, and no two drivers on a policy share a full name",
+              (joined_at >= 18).all() and not drv.duplicated(["policy_id", "first_name", "last_name"]).any(),
+              f"youngest adult on joining {joined_at.min():.2f}")
+    # the last day each driver was insured here: their removal or the end of the policy's cover
+    last = term.sort_values(["policy_id", "effective_date"]).groupby("policy_id").tail(1).set_index("policy_id")
+    pol_end = last["cancel_date"].where(last["cancel_date"].notna(),
+                                        last["expiration_date"].where(last["nonrenewal_reason"].notna(), "9999-12-31"))
+    end = drv.set_index("driver_id")["removed_date"].fillna("9999-12-31")
+    a, b = end.to_numpy().astype(str), pol_end.reindex(drv.set_index("driver_id")["policy_id"]).to_numpy().astype(str)
+    end = np.where(a < b, a, b)
+    end = pd.Series(end, index=drv["driver_id"].to_numpy())
+    mvr = inc[inc["source"] == "Motor Vehicle Record"]
+    late = mvr["known_date"].to_numpy().astype(str) > end.reindex(mvr["driver_id"]).to_numpy()
+    sr = drv[drv["sr22_filed_date"].notna()]
+    rep.check("violations reach the insurer, and SR-22s are filed, only while the driver is insured here",
+              not late.any() and (sr["sr22_filed_date"].to_numpy().astype(str) <= end.reindex(sr["driver_id"]).to_numpy()).all(),
+              f"{len(mvr):,} driving-record violations, {len(sr):,} SR-22 filings")
 
 
 def integrity_links(rep, risk, term, veh, drv, clm, feat, pay, reserves) -> None:
@@ -819,6 +956,12 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
     rep.check("the company's own claims reach the driving record after the loss date, never on it", (own.k > own.d).all(),
               f"{len(own):,} chargeable company claims")
     rep.check("no good-student discount at 25 or older", not ((risk["rated_good_student"] == "Y") & (risk["rated_driver_age"] >= 25)).any())
+    in_force = drv["policy_id"].isin(pol.loc[pol["policy_status"] == "In Force", "policy_id"])
+    known = drv[drv["removed_date"].notna() | in_force]
+    last_day = np.where(known["removed_date"].notna(), known["removed_date"], str(valuation.date()))
+    age_then = (pd.to_datetime(last_day) - dt(known["date_of_birth"])).dt.days / 365.25
+    rep.check("a driver's good-student status is as of their last day insured (by the valuation date), as the rest "
+              "of the driver record", not ((known["good_student"] == "Y") & (age_then >= 25)).any())
 
     # drivers: rated and claiming drivers were on the policy at the time
     d = drv.set_index("driver_id")
@@ -994,13 +1137,25 @@ def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm,
               ((j["debit"] - j["credit"]).abs() < 0.005).all() and gl["account_number"].isin(acct["account_number"]).all()
               and ((gl["debit"] >= 0) & (gl["credit"] >= 0) & ((gl["debit"] == 0) | (gl["credit"] == 0))).all()
               and gl["journal_number"].str.count("-").ge(4).all(), f"{len(j):,} journals, {len(gl):,} lines")
-    opening = gl["journal_type"] == "Opening balances"
+    opening, closing = gl["journal_type"] == "Opening balances", gl["journal_type"] == "Year-end closing"
     net = lambda rows: (rows["debit"] - rows["credit"]).groupby(rows["account_number"]).sum()
-    activity, balance = net(gl[~opening]), net(gl)
+    activity, balance = net(gl[~opening & ~closing]), net(gl)
     get = lambda s_, a: float(s_.get(a, 0.0))
     booked = np.maximum(pd.to_datetime(ledger["effective_date"]).to_numpy(), pd.to_datetime(ledger["processed_date"]).to_numpy())
     inside = (booked >= start) & (booked <= valuation)
     close = lambda a, b, tol=0.05: abs(a - b) <= tol + 2e-9 * abs(b)
+    income = acct.loc[acct["financial_statement"] == "Income statement", "account_number"]
+    year = gl["accounting_period"].str[:4]
+    closed = sorted(year[closing].unique())
+    on_income = gl[gl["account_number"].isin(income) & year.isin(closed)]
+    left = (on_income["debit"] - on_income["credit"]).groupby([year[on_income.index], on_income["company_id"]]).sum()
+    moved = gl[closing & (gl["account_number"] == 3000)]
+    rep.check("each year-end closes the year's income statement accounts to surplus, in December",
+              (left.abs() < 0.005).all() and (gl.loc[closing, "accounting_period"].str[5:] == "12").all()
+              and close(-(moved["debit"] - moved["credit"]).sum(),
+                           -(gl.loc[~opening & ~closing & gl["account_number"].isin(income) & year.isin(closed), "debit"]
+                             - gl.loc[~opening & ~closing & gl["account_number"].isin(income) & year.isin(closed), "credit"]).sum()),
+              f"years closed {closed}; surplus at the valuation date ${-get(balance, 3000):,.0f}")
     rep.check("premiums written and commission expense in the ledger are the premium transactions booked in the extract "
               "(on the later of their effective and processed dates)",
               close(-get(activity, 4000), ledger.loc[inside, "written_premium"].sum(), 1.0)
@@ -1150,14 +1305,21 @@ def main() -> None:
                    ("TOW", "towing_premium"))))
     integrity_limits(rep, cov_ok)
     integrity_reserve_sharing(rep, cov_ok, pay, reserves)
+    integrity_records(rep, risk, veh, pay, stmt, quotes, inv, rec, vend, feat, reserves, offers, term)
+    integrity_people(rep, pol, term, drv, inc)
     age = (pd.to_datetime(drv["added_date"]) - pd.to_datetime(drv["date_of_birth"])).dt.days.to_numpy() / 365.25
     rep.check("all drivers are 16 or older when first insured", age.min() >= 16, f"youngest {age.min():.1f}, oldest {age.max():.1f}")
     integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end, valuation)
     integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes)
     integrity_vehicles(rep, vmy, veh, risk, clm)
+    storm = clm.dropna(subset=["catastrophe_id"]).merge(t["catastrophe"], on="catastrophe_id")
+    rep.check("a catastrophe claim's loss is on its event's day, within the storm's hours",
+              (storm["loss_date"] == storm["event_date"]).all()
+              and storm["loss_time"].between(storm["start_time"], storm["end_time"]).all(),
+              f"{len(storm):,} catastrophe claims")
     integrity_telematics(rep, enrol, tscores, risk, term, pd.Timestamp(valuation), pol, veh, drv)
     integrity_renewals(rep, offers, term, risk, valuation)
-    integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, contact)
+    integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, contact, emp, agency, t["producer"], inv)
     integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy)
     integrity_billing(rep, inv, rec, term, ledger, pol, valuation, contact)
     integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term)
@@ -1169,6 +1331,14 @@ def main() -> None:
                                                                   else [1.0] * len(d["factors"]))
                   for k, d in filed.items() for cov in plan["relativities"]),
               "; ".join(f"{k} {list(d['factors'].values())}" for k, d in filed.items()))
+    agent_of = pol.merge(t["agency"][["agency_id", "appointment_date"]], on="agency_id", how="left").merge(
+        t["producer"][["producer_id", "agency_id", "start_date"]], on="producer_id", how="left", suffixes=("", "_producer"))
+    sold = agent_of[agent_of["producer_id"].notna()]
+    rep.check("a policy is written by an appointed agency, and by a producer of that agency working there by then",
+              (agent_of["original_inception_date"] >= agent_of["appointment_date"]).all()
+              and (sold["agency_id"] == sold["agency_id_producer"]).all()
+              and (sold["original_inception_date"] >= sold["start_date"]).all(),
+              f"{len(t['producer']):,} producers, {(t['producer']['start_date'] >= '2022').sum():,} hired since 2022")
     first_tx = ledger[ledger["transaction_type"].isin(["New Business", "Renewal"])].groupby("policy_term_id")["written_premium"].sum()
     gap = term["written_premium"] - first_tx.reindex(term["policy_term_id"]).fillna(0).to_numpy()
     rep.check("each term's written premium is its new-business or renewal transaction",
@@ -1243,7 +1413,8 @@ def main() -> None:
         if y in years and y < years[-1]:     # industry ratios include catastrophes: the year's are added
             rep.band(f"{y} expected loss ratio (answer key) plus catastrophes vs industry",
                      (overlap * exp_rate).sum() / (overlap * rate).sum() + cat_lr[y], b, "{:.1%}")
-    rep.band("overall loss ratio", clm["net_incurred_loss"].sum() / ep, OVERALL_LOSS_RATIO_BAND, "{:.1%}")
+    in_extract = pd.to_datetime(clm["loss_date"]) >= pd.Timestamp(start)      # the warm-up's 2021 accidents earned no premium here
+    rep.band("overall loss ratio", clm.loc[in_extract, "net_incurred_loss"].sum() / ep, OVERALL_LOSS_RATIO_BAND, "{:.1%}")
     whole = pd.Timestamp(valuation).strftime("%m-%d") == "12-31"
     print(f"  note: {years[-1]} is {'the latest accident year, the least developed' if whole else 'a partial year'}: its "
           "claims not yet reported are missing and its injury claims are young, so it looks better than it will develop.")

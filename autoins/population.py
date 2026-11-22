@@ -115,14 +115,19 @@ def _agencies(ref: Reference, rng: np.random.Generator) -> pd.DataFrame:
     # appointed (first contracted) some years before the extract begins
     # (no earlier than the company's founding, when its direct units opened)
     since_founding = (ref.cal.start.astype("M8[D]") - np.datetime64(C.FOUNDED, "D")).astype(int)
-    ag["appointed_days_before_start"] = np.where(agent, rng.integers(400, since_founding, len(ag)), since_founding)
+    appointed = -np.where(agent, rng.integers(400, since_founding, len(ag)), since_founding)
+    ag["appointed_days_before_start"] = -ref.cal.next_business(appointed)       # contracts take effect on business days
     return ag
 
 
-def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers: bool = False) -> Population:
+YOUNG_DIRECT = 0.25        # share of named insureds under 35 who buy direct, online (ASSUMED)
+
+
+def build(cfg: C.Config, ref: Reference, tag: str = "", channel_w=None, shoppers: bool = False) -> Population:
     """The insured population. `tag` draws different households (for quotes that never bound) while keeping
-    the same ZIP hazards and agencies; `channel_p` overrides the distribution channel mix; `shoppers` spreads
-    the households over the months as everyone who asks for a quote, not only those who buy (market.py)."""
+    the same ZIP hazards and agencies; `channel_w` weights each channel's share of households of a given age (as
+    quotes outnumber policies by one over the channel's conversion); `shoppers` spreads the households over the
+    months as everyone who asks for a quote, not only those who buy (market.py)."""
     z, cal = ref.zips, ref.cal
     n = cfg.n_policies
     Z = len(z)
@@ -166,8 +171,14 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers
 
     # Channel first, then the household's hidden stability (config.STABILITY_*): the book already in force has
     # been selected by years of renewals, new customers arrive less settled, and the channels differ.
-    channel = r.choice(3, n, p=C.CHANNEL_P if channel_p is None else channel_p)
-    channel = np.where((ni_age < 35) & (r.random(n) < 0.25), 2, channel)
+    # a quarter of households under 35 buy direct, whatever the rest's mix would be
+    if channel_w is None:
+        channel = r.choice(3, n, p=C.CHANNEL_P)
+        channel = np.where((ni_age < 35) & (r.random(n) < YOUNG_DIRECT), 2, channel)
+    else:
+        mix = np.array(C.CHANNEL_P)
+        young_mix = (1 - YOUNG_DIRECT) * mix + YOUNG_DIRECT * (np.arange(3) == 2)
+        channel = row_choice(np.where((ni_age < 35)[:, None], young_mix, mix) * np.asarray(channel_w)[None, :], r)
     # new business arrives when households shop and the company's prices win them (market.month_weights)
     mw = np.cumsum(market.month_weights(cal, n_months, shoppers), axis=1)
     arrive = np.minimum((month_u[:, None] * mw[channel, -1:] > mw[channel]).sum(axis=1), n_months - 1)
@@ -238,12 +249,16 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers
     parts = []
     parts.append(pd.DataFrame(dict(pol=np.arange(n), role=0, age=ni_age)))
     s_idx = np.flatnonzero(spouse)
-    parts.append(pd.DataFrame(dict(pol=s_idx, role=1, age=np.clip(ni_age[s_idx] + r.normal(0, 3.5, len(s_idx)), 18, 92))))
+    sp_age = np.clip(ni_age[s_idx] + r.normal(0, 3.5, len(s_idx)), 18, 92)
+    parts.append(pd.DataFrame(dict(pol=s_idx, role=1, age=sp_age)))
     o_idx = np.flatnonzero(other_adult)
     parts.append(pd.DataFrame(dict(pol=o_idx, role=2, age=np.clip(ni_age[o_idx] + r.normal(0, 10, len(o_idx)), 18, 90))))
     k_idx = np.repeat(np.arange(n), n_kids)
     kid_age = 16 + r.random(len(k_idx)) * np.minimum(9, ni_age[k_idx] - 19 - 16).clip(1)
-    parts.append(pd.DataFrame(dict(pol=k_idx, role=3, age=kid_age)))
+    younger = np.asarray(ni_age, dtype=float).copy()
+    younger[s_idx] = np.minimum(younger[s_idx], sp_age)
+    kid_age = np.minimum(kid_age, younger[k_idx] - 18)            # each parent was at least 18 at the birth
+    parts.append(pd.DataFrame(dict(pol=k_idx, role=3, age=kid_age))[kid_age >= 16])
     drv = pd.concat(parts, ignore_index=True)
     drv["neg_age"] = -drv.age
     drv = drv.sort_values(["pol", "role", "neg_age"], kind="stable").drop(columns="neg_age").reset_index(drop=True)
@@ -260,7 +275,7 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers
     p_wid = np.interp(age, [18, 55, 70, 85], [0.0, 0.02, 0.15, 0.45])
     single_status = np.where(u < p_wid, "W", np.where(u < p_wid + p_div, "D", "S"))
     drv["marital"] = np.where((drv.role <= 1) & married[p_], "M", np.where(drv.role == 3, "S", single_status))
-    drv["dob_day"] = (pol.first_day.to_numpy()[p_] - age * 365.25).astype(int)
+    drv["dob_day"] = np.floor(pol.first_day.to_numpy()[p_] - age * 365.25).astype(int)
     transit = zr.pct_commute_transit.to_numpy()[p_]
     delay = r.exponential(np.where(drv.role == 3, 0.6, 0.8 + 5.0 * transit))
     drv["licensed_day"] = drv.dob_day + ((16 + np.minimum(delay, (age - 16).clip(0))) * 365.25).astype(int)
@@ -297,6 +312,15 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_p=None, shoppers
     partner_male = np.where(role == 0, sp_male[p_], male[ni_of[p_]])
     may_keep = ((role == 0) & has_sp[p_] & ~male & partner_male) | ((role == 1) & ~(male & ~partner_male))
     drv["last_name"] = np.where((role == 2) | (may_keep & keep), own, shared[p_])
+    # no two people in a household share a full name: a clash is named again
+    born = np.floor(cal.year_frac(drv.dob_day.to_numpy())).astype(int)
+    for _ in range(20):
+        dup = drv.duplicated(["pol", "first_name", "last_name"]).to_numpy()
+        if not dup.any():
+            break
+        fn = drv.first_name.to_numpy().copy()
+        fn[dup] = ns.first_name(nr, group[dup], male[dup], born[dup])
+        drv["first_name"] = fn
     n_drv = drv.groupby("pol").size().reindex(range(n)).to_numpy()
     pol["n_drv"] = n_drv
 
@@ -406,7 +430,9 @@ def _opening_book_added_days(cfg, cal, pol: pd.DataFrame, drv: pd.DataFrame, veh
                            pol.dom.to_numpy())
     before_rating = first - (C.RENEWAL_OFFER_LEAD_DAYS[1] + 1)
     dp = drv.pol.to_numpy()
-    joined = np.minimum(np.maximum(inception[dp], drv.licensed_day.to_numpy()), first[dp])
+    # a child joins on being licensed; a spouse or other adult no younger than 18
+    adult = np.where(drv.role.to_numpy() == 3, drv.licensed_day.to_numpy(), drv.dob_day.to_numpy() + int(18 * 365.25) + 1)
+    joined = np.minimum(np.maximum(np.maximum(inception[dp], drv.licensed_day.to_numpy()), adult), first[dp])
     drv["added_day"] = np.where(renewing[dp], joined, first[dp])
     vp = veh.pol.to_numpy()
     on_sale = (np.array([f"{y - 1}-10-01" for y in veh.model_year.to_numpy()], dtype="datetime64[D]")
@@ -546,16 +572,25 @@ def draw_vehicles(ref: Reference, r: np.random.Generator, pol_idx, year_frac, in
     veh["theft_factor"] = mdl.theft_factor.to_numpy()[mi_]
     veh["kia_hyundai"] = np.isin(mdl.make.to_numpy()[mi_], ["Kia", "Hyundai"]) & (mdl.fuel_type.to_numpy()[mi_] != "Electric") \
         & (model_year >= C.KIA_HYUNDAI_MODEL_YEARS[0]) & (model_year <= C.KIA_HYUNDAI_MODEL_YEARS[1])
+    # equipment by model year (config.AEB_SHARE, IMMOBILISER_SHARE): luxury cars and EVs had both a couple of years
+    # early, Teslas from the start; the theft-wave Kias and Hyundais are the ones built without an immobiliser
     lux = np.isin(veh.segment, ["luxury", "ev"])
-    veh["adas"] = r.random(nv) < np.clip((model_year - np.where(lux, 2013, 2015)) / 7, 0, 0.96)
-    veh["anti_theft"] = r.random(nv) < np.where(model_year >= 2010, 0.85, 0.40)
+    tesla = mdl.make.to_numpy()[mi_] == "Tesla"
+    share = lambda table, year: np.interp(year, list(table), list(table.values()))
+    veh["adas"] = r.random(nv) < np.where(tesla & (model_year >= 2015), 1.0, share(C.AEB_SHARE, model_year + 2 * lux))
+    veh["anti_theft"] = (r.random(nv) < np.where(tesla, 1.0, share(C.IMMOBILISER_SHARE, model_year + 3 * lux))) \
+        & ~veh.kia_hyundai.to_numpy()
     return veh
 
 
-def draw_ownership(r: np.random.Generator, vehicle_age) -> np.ndarray:
+def draw_ownership(r: np.random.Generator, vehicle_age, acquired: bool = False) -> np.ndarray:
+    """How a car is held, by its age. A car the household has just acquired is leased only if (nearly) new; the
+    cars a household already has include leases a few years into their term."""
     u = r.random(len(vehicle_age))
     p_fin = np.interp(vehicle_age, [0, 3, 6, 10, 15], [0.62, 0.55, 0.30, 0.08, 0.01])
     p_lease = np.interp(vehicle_age, [0, 2, 3.5, 4], [0.22, 0.18, 0.04, 0.0])
+    if acquired:
+        p_lease = np.where(np.asarray(vehicle_age) <= 1.0, p_lease, 0.0)
     return np.where(u < p_lease, "Leased", np.where(u < p_lease + p_fin, "Financed", "Owned"))
 
 

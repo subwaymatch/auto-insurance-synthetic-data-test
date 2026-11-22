@@ -14,8 +14,8 @@ removed_date = "First day the vehicle was no longer insured on the policy (the d
 primary_use = "`Pleasure`, `Commute` or `Business`, as declared when the vehicle joined. A rating variable."
 annual_mileage = "Annual miles the customer reported, rounded to 500 (1,000 to 30,000). Customers tend to understate how far they drive. The rating plan uses it in bands."
 parking = "Where the vehicle is usually parked: `Street`, `Driveway/Lot` or `Garage`, at the latest status (it can change when the household moves). Not a rating variable."
-anti_theft_device = "`Y` if the vehicle has an anti-theft device, otherwise `N`. Not a rating variable."
-automatic_emergency_braking = "`Y` if the vehicle has automatic emergency braking, otherwise `N`; commoner on newer and luxury models. Not a rating variable."
+anti_theft_device = "`Y` if the vehicle has an engine immobiliser or factory anti-theft system, otherwise `N`: rare before the mid-1990s, nearly universal from 2015, never on the 2011-2021 key-start Kias and Hyundais of the theft wave. Not a rating variable."
+automatic_emergency_braking = "`Y` if the vehicle has automatic emergency braking, otherwise `N`: by model year, from about half of 2018 models to nearly all from 2023, earlier on luxury models and EVs, every Tesla from 2015. Not a rating variable."
 collision_coverage = "`Y` if the vehicle carries collision coverage at its latest status, otherwise `N`. Owners of older cars drop it at renewals; `exposure.collision_deductible` shows what was in force on each date."
 collision_deductible = "Collision deductible in dollars at the latest status: `250`, `500`, `1000` or `2000`. `0` means no collision coverage."
 comprehensive_coverage = "`Y` if the vehicle carries comprehensive (other than collision) coverage at its latest status, otherwise `N`. Every vehicle with collision also has comprehensive."
@@ -44,7 +44,7 @@ drive_type = "`FWD`, `RWD`, `AWD` or `4WD` for the most common configuration. Bl
 engine_cylinders = "Number of engine cylinders of the most common configuration. Blank for electric and most hydrogen fuel-cell models."
 engine_displacement_l = "Engine displacement in liters (the median over the model year's EPA configurations, one decimal). Blank where `engine_cylinders` is blank."
 msrp = "Approximate base price new, in dollars of that model year, rounded to $100: a 2024 base price (curated for about 900 models, estimated for the rest) adjusted by 2.4% a year. Ignores trim and options. The plan rates it in bands, and `exposure.vehicle_value` is derived from it."
-vin_pattern = "Ten-character VIN pattern for the model year: positions 1 to 8 stand for the make and model, position 9 (the check digit) is masked as `*`, and position 10 is the standard model-year code. The first ten characters of `insured_vehicle.vin` match it, apart from the check digit."
+vin_pattern = "Ten-character VIN pattern for the model year: positions 1 to 8 stand for the make and model (position 7 is a digit for model years to 2009 and a letter from 2010, which tells apart model years 30 years apart that share a year code, as in real VINs), position 9 (the check digit) is masked as `*`, and position 10 is the standard model-year code. The first ten characters of `insured_vehicle.vin` match it, apart from the check digit."
 physical_damage_symbol = "This dataset's own physical damage symbol, 1 to 30: one step higher for about every 9% of price new above $9,000, plus 2 for sports and 1 for luxury and electric models. Not ISO's symbols, and not used by the rating plan, which rates price new, segment and vehicle age directly."
 liability_symbol = "This dataset's own liability symbol, 1 to 5, from the accident frequency and severity typical of the model's segment and body type (minivans `1`, sports models `5`). Not ISO's symbols, and not used by the rating plan."
 
@@ -174,13 +174,13 @@ channel = "`Independent Agent`, `Exclusive Agent` or `Direct`. Every policy of t
 city = "City of the agency's office, from its ZIP code; `Chicago` for the direct units."
 state = "Always `IL`."
 zip_code = "ZIP code of the agency's office; `60606` (downtown Chicago) for the direct units."
-appointment_date = "Day the agency was first appointed to sell for Lakefront, between 1998 and 2020. The direct units carry a date in January 1996. No agency is appointed or terminated during the extract."
+appointment_date = "Day the agency was first appointed to sell for Lakefront (a business day), no later than the first policy it wrote: from 2000, when the company was founded and its direct units opened, to 2018. No agency is appointed or terminated during the extract."
 new_business_commission_pct = "Commission on a policy's first term, in percent of written premium: `12`, `13` or `15` for independent agencies, `10`, `11` or `12` for exclusive agents, `0` for the direct units."
 renewal_commission_pct = "Commission on later terms, in percent of written premium: 2 points below the new-business rate for independent agencies and 3 points below for exclusive agents; `0` for the direct units."
 
 [producer]
 grain = "Producer (licensed agent) at an agency"
-summary = """The licensed agents who work at each independent agency and exclusive agent's office: one to twelve per agency, more at bigger ones, and none at the direct units. Each agent-written policy has one servicing producer (`policy.producer_id`, blank for direct business). Nobody joins or leaves during the extract."""
+summary = """The licensed agents who work at each independent agency and exclusive agent's office: one to twelve per agency, more at bigger ones, and none at the direct units. Each agent-written policy has the producer who wrote it (`policy.producer_id`, blank for direct business). Producers are hired over the agency's life, some during the extract; nobody leaves."""
 
 [producer.columns]
 producer_id = "Primary key."
@@ -188,7 +188,7 @@ producer_code = "Business key: the agency code and the producer's two-digit numb
 agency_id = "The agency the producer works at."
 first_name = "First name. An agency's first producer is its owner or principal, whose name the agency often carries."
 last_name = "Last name."
-start_date = "Day the producer started at the agency: the agency's appointment date for its principal, later for the others, and always at least 30 days before January 1, 2022."
+start_date = "Day the producer started at the agency, a business day: the agency's appointment date for its principal, later for the others (up to 60 days before the valuation date). A producer writes only policies incepting on or after it."
 
 [agency_statement]
 grain = "Agency and accounting month"
@@ -210,6 +210,8 @@ summary = """Hail, wind and flood events that struck the area between January 1,
 [catastrophe.columns]
 catastrophe_id = "Primary key. `CAT-`, the year and a sequence within the year, for example `CAT-2024-02`."
 event_date = "Day of the event; its claims have this `loss_date`."
+start_time = "When the storm struck, `HH:MM` on the local clock: its first report to NOAA."
+end_time = "When it had passed, `HH:MM` on the local clock: the time by which nine in ten of its NOAA reports had ended. Its claims' `loss_time` falls between `start_time` and `end_time`."
 description = "Description of the event and the area it hit."
 peril = "`Hail (catastrophe)`, `Wind or tree damage (catastrophe)` or `Flood (catastrophe)`, the description of the cause of loss on its claims (`cause_of_loss`)."
 note = "A note on the event, the same for every row."

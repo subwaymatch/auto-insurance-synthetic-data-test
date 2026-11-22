@@ -1,49 +1,49 @@
 vehicle_model_year_id,make,model,model_year,body_type,vehicle_class,segment,fuel_type,drive_type,engine_cylinders,engine_displacement_l,msrp,vin_pattern,physical_damage_symbol,liability_symbol
-1,AMC,Eagle,1981,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,17100,0P91LSUW*B,8,2
-2,AMC,Eagle,1982,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,17500,0P91LSUW*C,8,2
-3,AMC,Eagle,1983,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,18000,0P91LSUW*D,9,2
-4,AMC,Eagle,1984,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,18400,0P91LSUW*E,9,2
-5,AMC,Eagle,1985,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,18800,0P91LSUW*F,9,2
-6,AMC,Eagle,1986,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,19300,0P91LSUW*G,9,2
-7,AMC,Eagle,1987,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,19800,0P91LSUW*H,10,2
-8,Acura,ADX,2025,SUV,Small SUV,Luxury,Gasoline,AWD,4,1.5,35800,07KEG0BX*S,18,2
-9,Acura,ADX,2026,SUV,Small SUV,Luxury,Gasoline,AWD,4,1.5,36700,07KEG0BX*T,18,2
-10,Acura,CL,1997,Coupe,Subcompact Car,Luxury,Gasoline,FWD,4,2.2,18400,07KH99US*V,10,2
-11,Acura,CL,1998,Coupe,Subcompact Car,Luxury,Gasoline,FWD,4,2.3,18900,07KH99US*W,10,2
-12,Acura,CL,1999,Coupe,Subcompact Car,Luxury,Gasoline,FWD,4,2.3,19300,07KH99US*X,10,2
-13,Acura,CL,2001,Coupe,Compact Car,Luxury,Gasoline,FWD,6,3.2,20300,07KH99US*1,11,2
-14,Acura,CL,2002,Coupe,Compact Car,Luxury,Gasoline,FWD,6,3.2,20800,07KH99US*2,11,2
-15,Acura,CL,2003,Coupe,Compact Car,Luxury,Gasoline,FWD,6,3.2,21300,07KH99US*3,11,2
-16,Acura,ILX,2013,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.0,22300,07K3ZCE8*D,12,2
-17,Acura,ILX,2014,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.0,22900,07K3ZCE8*E,12,2
-18,Acura,ILX,2015,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.2,23400,07K3ZCE8*F,13,2
-19,Acura,ILX,2016,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,24000,07K3ZCE8*G,13,2
-20,Acura,ILX,2017,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,24600,07K3ZCE8*H,13,2
-21,Acura,ILX,2018,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,25200,07K3ZCE8*J,13,2
-22,Acura,ILX,2019,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,25800,07K3ZCE8*K,14,2
-23,Acura,ILX,2020,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,26400,07K3ZCE8*L,14,2
-24,Acura,ILX,2021,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,27000,07K3ZCE8*M,14,2
-25,Acura,ILX,2022,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,27700,07K3ZCE8*N,15,2
-26,Acura,Integra,1986,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,13400,07KLTUUH*G,6,2
-27,Acura,Integra,1987,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,13700,07KLTUUH*H,6,2
-28,Acura,Integra,1988,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,14100,07KLTUUH*J,7,2
-29,Acura,Integra,1989,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,14400,07KLTUUH*K,7,2
-30,Acura,Integra,1990,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,14700,07KLTUUH*L,7,2
-31,Acura,Integra,1991,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,15100,07KLTUUH*M,8,2
-32,Acura,Integra,1992,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,15400,07KLTUUH*N,8,2
-33,Acura,Integra,1993,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,15800,07KLTUUH*P,8,2
-34,Acura,Integra,1994,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,16200,07KLTUUH*R,8,2
-35,Acura,Integra,1995,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,16600,07KLTUUH*S,9,2
-36,Acura,Integra,1996,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,17000,07KLTUUH*T,9,2
-37,Acura,Integra,1997,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,17400,07KLTUUH*V,9,2
-38,Acura,Integra,1998,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,17800,07KLTUUH*W,9,2
-39,Acura,Integra,1999,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,18200,07KLTUUH*X,10,2
-40,Acura,Integra,2000,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,18700,07KLTUUH*Y,10,2
-41,Acura,Integra,2001,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,19100,07KLTUUH*1,10,2
-42,Acura,Integra,2023,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,32200,07KLTUUH*P,16,2
-43,Acura,Integra,2024,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,33000,07KLTUUH*R,17,2
-44,Acura,Integra,2025,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,33800,07KLTUUH*S,17,2
-45,Acura,Integra,2026,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,34600,07KLTUUH*T,17,2
+1,AMC,Eagle,1981,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,17100,0P91LS0W*B,8,2
+2,AMC,Eagle,1982,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,17500,0P91LS0W*C,8,2
+3,AMC,Eagle,1983,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,18000,0P91LS0W*D,9,2
+4,AMC,Eagle,1984,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,18400,0P91LS0W*E,9,2
+5,AMC,Eagle,1985,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,18800,0P91LS0W*F,9,2
+6,AMC,Eagle,1986,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,19300,0P91LS0W*G,9,2
+7,AMC,Eagle,1987,SUV,Standard SUV,Mainstream,Gasoline,4WD,6,4.2,19800,0P91LS0W*H,10,2
+8,Acura,ADX,2025,SUV,Small SUV,Luxury,Gasoline,AWD,4,1.5,35800,07KEG0PX*S,18,2
+9,Acura,ADX,2026,SUV,Small SUV,Luxury,Gasoline,AWD,4,1.5,36700,07KEG0PX*T,18,2
+10,Acura,CL,1997,Coupe,Subcompact Car,Luxury,Gasoline,FWD,4,2.2,18400,07KH994S*V,10,2
+11,Acura,CL,1998,Coupe,Subcompact Car,Luxury,Gasoline,FWD,4,2.3,18900,07KH994S*W,10,2
+12,Acura,CL,1999,Coupe,Subcompact Car,Luxury,Gasoline,FWD,4,2.3,19300,07KH994S*X,10,2
+13,Acura,CL,2001,Coupe,Compact Car,Luxury,Gasoline,FWD,6,3.2,20300,07KH994S*1,11,2
+14,Acura,CL,2002,Coupe,Compact Car,Luxury,Gasoline,FWD,6,3.2,20800,07KH994S*2,11,2
+15,Acura,CL,2003,Coupe,Compact Car,Luxury,Gasoline,FWD,6,3.2,21300,07KH994S*3,11,2
+16,Acura,ILX,2013,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.0,22300,07K3ZCH8*D,12,2
+17,Acura,ILX,2014,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.0,22900,07K3ZCH8*E,12,2
+18,Acura,ILX,2015,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.2,23400,07K3ZCH8*F,13,2
+19,Acura,ILX,2016,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,24000,07K3ZCH8*G,13,2
+20,Acura,ILX,2017,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,24600,07K3ZCH8*H,13,2
+21,Acura,ILX,2018,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,25200,07K3ZCH8*J,13,2
+22,Acura,ILX,2019,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,25800,07K3ZCH8*K,14,2
+23,Acura,ILX,2020,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,26400,07K3ZCH8*L,14,2
+24,Acura,ILX,2021,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,27000,07K3ZCH8*M,14,2
+25,Acura,ILX,2022,Sedan,Compact Car,Luxury,Gasoline,FWD,4,2.4,27700,07K3ZCH8*N,15,2
+26,Acura,Integra,1986,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,13400,07KLTU9H*G,6,2
+27,Acura,Integra,1987,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,13700,07KLTU9H*H,6,2
+28,Acura,Integra,1988,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,14100,07KLTU9H*J,7,2
+29,Acura,Integra,1989,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.6,14400,07KLTU9H*K,7,2
+30,Acura,Integra,1990,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,14700,07KLTU9H*L,7,2
+31,Acura,Integra,1991,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,15100,07KLTU9H*M,8,2
+32,Acura,Integra,1992,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,15400,07KLTU9H*N,8,2
+33,Acura,Integra,1993,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,15800,07KLTU9H*P,8,2
+34,Acura,Integra,1994,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,16200,07KLTU9H*R,8,2
+35,Acura,Integra,1995,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,16600,07KLTU9H*S,9,2
+36,Acura,Integra,1996,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,17000,07KLTU9H*T,9,2
+37,Acura,Integra,1997,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,17400,07KLTU9H*V,9,2
+38,Acura,Integra,1998,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,17800,07KLTU9H*W,9,2
+39,Acura,Integra,1999,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,18200,07KLTU9H*X,10,2
+40,Acura,Integra,2000,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,18700,07KLTU9H*Y,10,2
+41,Acura,Integra,2001,Hatchback,Subcompact Car,Luxury,Gasoline,FWD,4,1.8,19100,07KLTU9H*1,10,2
+42,Acura,Integra,2023,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,32200,07KLTUWH*P,16,2
+43,Acura,Integra,2024,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,33000,07KLTUWH*R,17,2
+44,Acura,Integra,2025,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,33800,07KLTUWH*S,17,2
+45,Acura,Integra,2026,Hatchback,Large Car,Luxury,Gasoline,FWD,4,1.5,34600,07KLTUWH*T,17,2
 46,Acura,Legend,1986,Sedan,Compact Car,Luxury,Gasoline,FWD,6,2.5,14200,07KXNH54*G,7,2
 47,Acura,Legend,1987,Sedan,Compact Car,Luxury,Gasoline,FWD,6,2.6,14600,07KXNH54*H,7,2
 48,Acura,Legend,1988,Sedan,Compact Car,Luxury,Gasoline,FWD,6,2.7,14900,07KXNH54*J,7,2
@@ -54,48 +54,48 @@ vehicle_model_year_id,make,model,model_year,body_type,vehicle_class,segment,fuel
 53,Acura,Legend,1993,Sedan,Compact Car,Luxury,Gasoline,FWD,6,3.2,16800,07KXNH54*P,9,2
 54,Acura,Legend,1994,Sedan,Compact Car,Luxury,Gasoline,FWD,6,3.2,17200,07KXNH54*R,9,2
 55,Acura,Legend,1995,Sedan,Compact Car,Luxury,Gasoline,FWD,6,3.2,17600,07KXNH54*S,9,2
-56,Acura,MDX,2001,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,29800,07KH15FR*1,15,2
-57,Acura,MDX,2002,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,30600,07KH15FR*2,16,2
-58,Acura,MDX,2003,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,31300,07KH15FR*3,16,2
-59,Acura,MDX,2004,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,32000,07KH15FR*4,16,2
-60,Acura,MDX,2005,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,32800,07KH15FR*5,17,2
-61,Acura,MDX,2006,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,33600,07KH15FR*6,17,2
-62,Acura,MDX,2007,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.7,34400,07KH15FR*7,17,2
-63,Acura,MDX,2008,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.7,35200,07KH15FR*8,17,2
-64,Acura,MDX,2009,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.7,36100,07KH15FR*9,18,2
-65,Acura,MDX,2010,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,36900,07KH15FR*A,18,2
-66,Acura,MDX,2011,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,37800,07KH15FR*B,18,2
-67,Acura,MDX,2012,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,38700,07KH15FR*C,18,2
-68,Acura,MDX,2013,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,39700,07KH15FR*D,19,2
-69,Acura,MDX,2014,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,40600,07KH15FR*E,19,2
-70,Acura,MDX,2015,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,41600,07KH15FR*F,19,2
-71,Acura,MDX,2016,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,42600,07KH15FR*G,20,2
-72,Acura,MDX,2017,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,43600,07KH15FR*H,20,2
-73,Acura,MDX,2018,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,44700,07KH15FR*J,20,2
-74,Acura,MDX,2019,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,45700,07KH15FR*K,20,2
-75,Acura,MDX,2020,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,46800,07KH15FR*L,21,2
-76,Acura,MDX,2022,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,49100,07KH15FR*N,21,2
-77,Acura,MDX,2023,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,50300,07KH15FR*P,21,2
-78,Acura,MDX,2024,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,51500,07KH15FR*R,22,2
-79,Acura,MDX,2025,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,52700,07KH15FR*S,22,2
-80,Acura,MDX,2026,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,54000,07KH15FR*T,22,2
-81,Acura,NSX,1991,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,73200,07KFK8AB*M,27,5
-82,Acura,NSX,1992,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,74900,07KFK8AB*N,27,5
-83,Acura,NSX,1993,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,76700,07KFK8AB*P,27,5
-84,Acura,NSX,1994,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,78500,07KFK8AB*R,28,5
-85,Acura,NSX,1995,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,80400,07KFK8AB*S,28,5
-86,Acura,NSX,1996,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,82400,07KFK8AB*T,28,5
-87,Acura,NSX,1998,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,86400,07KFK8AB*W,29,5
-88,Acura,NSX,1999,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,88400,07KFK8AB*X,29,5
-89,Acura,NSX,2000,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,90600,07KFK8AB*Y,29,5
-90,Acura,NSX,2001,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,92700,07KFK8AB*1,30,5
-91,Acura,NSX,2002,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,95000,07KFK8AB*2,30,5
-92,Acura,NSX,2003,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,97200,07KFK8AB*3,30,5
-93,Acura,NSX,2004,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,99600,07KFK8AB*4,30,5
-94,Acura,NSX,2005,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,102000,07KFK8AB*5,30,5
-95,Acura,NSX,2017,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,135500,07KFK8AB*H,30,5
-96,Acura,NSX,2018,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,138800,07KFK8AB*J,30,5
-97,Acura,NSX,2019,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,142100,07KFK8AB*K,30,5
-98,Acura,NSX,2020,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,145500,07KFK8AB*L,30,5
-99,Acura,NSX,2021,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,149000,07KFK8AB*M,30,5
-100,Acura,NSX,2022,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,152600,07KFK8AB*N,30,5
+56,Acura,MDX,2001,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,29800,07KH150R*1,15,2
+57,Acura,MDX,2002,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,30600,07KH150R*2,16,2
+58,Acura,MDX,2003,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,31300,07KH150R*3,16,2
+59,Acura,MDX,2004,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,32000,07KH150R*4,16,2
+60,Acura,MDX,2005,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,32800,07KH150R*5,17,2
+61,Acura,MDX,2006,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.5,33600,07KH150R*6,17,2
+62,Acura,MDX,2007,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.7,34400,07KH150R*7,17,2
+63,Acura,MDX,2008,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.7,35200,07KH150R*8,17,2
+64,Acura,MDX,2009,SUV,Small SUV,Luxury,Gasoline,4WD,6,3.7,36100,07KH150R*9,18,2
+65,Acura,MDX,2010,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,36900,07KH15ZR*A,18,2
+66,Acura,MDX,2011,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,37800,07KH15ZR*B,18,2
+67,Acura,MDX,2012,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,38700,07KH15ZR*C,18,2
+68,Acura,MDX,2013,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.7,39700,07KH15ZR*D,19,2
+69,Acura,MDX,2014,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,40600,07KH15ZR*E,19,2
+70,Acura,MDX,2015,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,41600,07KH15ZR*F,19,2
+71,Acura,MDX,2016,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,42600,07KH15ZR*G,20,2
+72,Acura,MDX,2017,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,43600,07KH15ZR*H,20,2
+73,Acura,MDX,2018,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,44700,07KH15ZR*J,20,2
+74,Acura,MDX,2019,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,45700,07KH15ZR*K,20,2
+75,Acura,MDX,2020,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,46800,07KH15ZR*L,21,2
+76,Acura,MDX,2022,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,49100,07KH15ZR*N,21,2
+77,Acura,MDX,2023,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,50300,07KH15ZR*P,21,2
+78,Acura,MDX,2024,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,51500,07KH15ZR*R,22,2
+79,Acura,MDX,2025,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,52700,07KH15ZR*S,22,2
+80,Acura,MDX,2026,SUV,Small SUV,Luxury,Gasoline,AWD,6,3.5,54000,07KH15ZR*T,22,2
+81,Acura,NSX,1991,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,73200,07KFK83B*M,27,5
+82,Acura,NSX,1992,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,74900,07KFK83B*N,27,5
+83,Acura,NSX,1993,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,76700,07KFK83B*P,27,5
+84,Acura,NSX,1994,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,78500,07KFK83B*R,28,5
+85,Acura,NSX,1995,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,80400,07KFK83B*S,28,5
+86,Acura,NSX,1996,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.0,82400,07KFK83B*T,28,5
+87,Acura,NSX,1998,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,86400,07KFK83B*W,29,5
+88,Acura,NSX,1999,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,88400,07KFK83B*X,29,5
+89,Acura,NSX,2000,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,90600,07KFK83B*Y,29,5
+90,Acura,NSX,2001,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,92700,07KFK83B*1,30,5
+91,Acura,NSX,2002,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,95000,07KFK83B*2,30,5
+92,Acura,NSX,2003,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,97200,07KFK83B*3,30,5
+93,Acura,NSX,2004,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,99600,07KFK83B*4,30,5
+94,Acura,NSX,2005,Coupe,Two-Seater,Sports,Gasoline,RWD,6,3.1,102000,07KFK83B*5,30,5
+95,Acura,NSX,2017,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,135500,07KFK8UB*H,30,5
+96,Acura,NSX,2018,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,138800,07KFK8UB*J,30,5
+97,Acura,NSX,2019,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,142100,07KFK8UB*K,30,5
+98,Acura,NSX,2020,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,145500,07KFK8UB*L,30,5
+99,Acura,NSX,2021,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,149000,07KFK8UB*M,30,5
+100,Acura,NSX,2022,Coupe,Two-Seater,Sports,Hybrid,AWD,6,3.5,152600,07KFK8UB*N,30,5

@@ -182,8 +182,8 @@ class GeneratorTest(unittest.TestCase):
                          ["a claimant is paid jointly with an attorney only on or after the day the attorney was retained, and always after it"])
 
         # a claim's driver who joined the policy after the loss; a payment to the insured naming someone who joined later
-        who_check = ("each claim's driver was on the policy on the loss date, and each payment to the insured names someone on "
-                     "the policy on the payment date")
+        who_check = ("each claim's driver was on the policy on the loss date, and each payment to the insured (an uninsured "
+                     "motorist claimant's included) names someone on the policy on the loss or payment date")
         c0 = clm.iloc[0]
         later = drv[drv["added_date"] > c0["loss_date"]].iloc[0]
         bad = clm.copy()
@@ -528,7 +528,7 @@ class GeneratorTest(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             validate.integrity_calendar(rep, t["policy_term"], t["claim"], t["claim_feature"], t["claim_payment"],
                                         t["claim_reserve_transaction"], t["driver_incident"], t["driver"], t["premium_transaction"],
-                                        t["customer_contact"])
+                                        t["customer_contact"], t["employee"], agency, self.read("producer"), t["billing_invoice"])
             validate.integrity_identifiers(rep, t["policy"], t["policy_term"], t["driver"], t["insured_vehicle"], t["exposure"],
                                            t["claim"], t["claim_feature"], t["quote"], t["vehicle_model_year"])
             validate.integrity_billing(rep, t["billing_invoice"], t["billing_receipt"], t["policy_term"], t["premium_transaction"],

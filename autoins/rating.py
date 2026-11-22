@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+import pandas as pd
 
 from . import config as C
 from . import refdata, truth
@@ -72,13 +73,26 @@ def territories(ref) -> tuple[np.ndarray, np.ndarray]:
     return out[0], out[1]
 
 
+def cars_on(v: dict, pol: np.ndarray, s: np.ndarray) -> np.ndarray:
+    """How many cars each policy `pol` has insured on day `s` (added by then and not yet removed): the multi-car
+    discount follows the cars on the policy that day, so a car totaled and not yet replaced does not count."""
+    keep = (v["added_day"] <= s.max()) & ((v["removed_day"] < 0) | (v["removed_day"] > s.min()))
+    cars = pd.DataFrame({"pol": v["pol"][keep], "a": v["added_day"][keep],
+                         "r": np.where(v["removed_day"][keep] < 0, np.iinfo(np.int64).max, v["removed_day"][keep])})
+    rows = pd.DataFrame({"pol": pol, "s": s, "i": np.arange(len(pol))}).drop_duplicates(["pol", "s"])
+    m = rows.merge(cars, on="pol")
+    n = m[(m.a <= m.s) & (m.r > m.s)].groupby(["pol", "s"]).size()
+    return n.reindex(pd.MultiIndex.from_arrays([pol, s])).fillna(0).to_numpy()
+
+
 def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarray, accidents: np.ndarray,
           tenure_years: np.ndarray, household: dict = None) -> dict:
     """Rating variable levels for vehicles V rated as of day s. points, accidents (the primary driver's
     record) and tenure_years are per vehicle row. The household (each car's rated driver, the driver's marital
     status, the address, homeowner, multi-car and occasional-youthful status) is the policy as it stands now,
     unless `household` gives it as it stood on an earlier day: per row "drv", "married", "zi", "homeowner",
-    "multi_car" and "occasional_youthful" (a renewal offer evaluated from the policy's history)."""
+    "multi_car", "occasional_youthful", "reported_miles" and "use" (a renewal offer evaluated from the policy's
+    history)."""
     v, p = st.v, st.p
     drv = st.pop.drv
     pol = v["pol"][V]
@@ -100,8 +114,9 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
         last_rank = np.full(len(s_pol), -1)
         np.maximum.at(last_rank, v["pol"][v["active"]], v["rank"][v["active"]])
         household = {"married": (drv.marital.to_numpy()[d] == "M").astype(int), "zi": v["zi"][V],
-                     "homeowner": p["homeowner"][pol].astype(int), "multi_car": (p["n_veh"][pol] > 1).astype(int),
-                     "occasional_youthful": (young_unassigned[pol] & (v["rank"][V] == last_rank[pol])).astype(int)}
+                     "homeowner": p["homeowner"][pol].astype(int), "multi_car": (cars_on(v, pol, s) > 1).astype(int),
+                     "occasional_youthful": (young_unassigned[pol] & (v["rank"][V] == last_rank[pol])).astype(int),
+                     "reported_miles": v["reported_miles"][V], "use": v["use"][V]}
     return {
         "class": cls,
         "married": np.asarray(household["married"]).astype(int),
@@ -115,8 +130,8 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
         "segment": st.v["seg_code"][V],
         "vehicle_age": np.searchsorted([3, 6, 10, 15], vage, side="right"),
         "vehicle_value": np.searchsorted([24_000, 30_000, 38_000, 48_000, 62_000], v["msrp"][V], side="right"),
-        "mileage": np.searchsorted([5_000, 8_000, 12_000, 16_000], v["reported_miles"][V], side="right"),
-        "use": np.where(v["use"][V] == "Business", 2, np.where(v["use"][V] == "Commute", 1, 0)),
+        "mileage": np.searchsorted([5_000, 8_000, 12_000, 16_000], household["reported_miles"], side="right"),
+        "use": np.where(household["use"] == "Business", 2, np.where(household["use"] == "Commute", 1, 0)),
         "multi_car": np.asarray(household["multi_car"]).astype(int),
         "homeowner": np.asarray(household["homeowner"]).astype(int),
         "multi_policy": p["multi_policy"][pol].astype(int),
@@ -167,14 +182,28 @@ def relativity(plan: Plan, cov: str, cd: dict, table: str = "factors") -> np.nda
     return out
 
 
-def premium(plan: Plan, cd: dict, lim: dict, rate_level: np.ndarray, term_years: np.ndarray) -> dict:
-    return {cov: np.round(plan.base[cov] * relativity(plan, cov, cd) * lim[cov] * rate_level * term_years, 2)
+def premium(plan: Plan, cd: dict, lim: dict, rate_level: np.ndarray, term_years: np.ndarray, table: str = "factors") -> dict:
+    """Premium by coverage. table="indicated" prices every rating variable at what it is truly worth (the plan
+    without its filed round discounts and planted distortions): roughly what a well-informed competitor charges."""
+    return {cov: np.round(plan.base[cov] * relativity(plan, cov, cd, table) * lim[cov] * rate_level * term_years, 2)
             for cov in C.COVERAGES}
 
 
 def filed_factors(cov: str) -> dict:
     """The filed discount and surcharge tables as they apply to one coverage (1.0 where a discount does not)."""
     return {k: np.array(f if cov in covs else [1.0] * len(f)) for k, (f, covs) in C.FILED_DISCOUNTS.items()}
+
+
+def _non_increasing(x: np.ndarray) -> np.ndarray:
+    """The closest non-increasing sequence (pool adjacent violators, equal weights)."""
+    blocks = []                                   # [mean, count]
+    for v in np.asarray(x, dtype=float):
+        blocks.append([v, 1])
+        while len(blocks) > 1 and blocks[-2][0] < blocks[-1][0]:
+            m2, n2 = blocks.pop()
+            m1, n1 = blocks.pop()
+            blocks.append([(m1 * n1 + m2 * n2) / (n1 + n2), n1 + n2])
+    return np.concatenate([np.full(n, m) for m, n in blocks])
 
 
 def _minimum_bias(variables: dict, y: np.ndarray, sweeps: int = 40, credibility: float = 25.0, offset=None) -> dict:
@@ -258,8 +287,14 @@ def fit(cfg: C.Config, ref, st: truth.Static, points0: np.ndarray, accidents0: n
         f = {k: a.copy() for k, a in fitted.items()}
         for ordered in ("violation_points", "at_fault_accidents"):      # a filed plan would not reward a worse record
             f[ordered] = np.maximum.accumulate(f[ordered])
-        for level, mult in C.PLANTED_DISTORTIONS["class"].items():
-            f["class"][CLASS_LEVELS.index(level)] *= mult
+        # nor charge a better insurance score more (No Hit, the first level, apart): fitted noise is pooled away
+        tiers = f["score_tier"]
+        base = int(np.argmin(np.abs(tiers - 1.0)))
+        tiers = np.r_[tiers[0], _non_increasing(tiers[1:])]
+        f["score_tier"] = tiers / tiers[base]
+        if cov in C.DRIVER_COVERAGES:                 # the young and old drivers are under-priced where age matters
+            for level, mult in C.PLANTED_DISTORTIONS["class"].items():
+                f["class"][CLASS_LEVELS.index(level)] *= mult
         f["mileage"] = f["mileage"] ** C.PLANTED_DISTORTIONS["mileage_exponent"]
         plan.factors[cov] = {k: np.round(a, 3) for k, a in f.items()}
         plan.base[cov] = 1.0

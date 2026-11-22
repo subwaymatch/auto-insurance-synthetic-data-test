@@ -18,8 +18,9 @@ to pick the storms that damage many parked and driven cars (the kind a catastrop
 A day that qualifies on hail is a hail event even if it also brought wind or floods. Each event's footprint is the
 median position of its reports and the 80th-percentile distance from it, kept within RADIUS miles for its peril.
 How likely a car at the centre is to be hit (the peak) is ASSUMED, scaled by the event's severity within the
-range the generator used before (hail 3% to 5%, flood 1% to 1.4%, wind 1% to 1.2%). Only the date, place, peril
-and relative size are real: the claims and losses are simulated. NOAA publishes with a lag of a few months, so
+range the generator used before (hail 3% to 5%, flood 1% to 1.4%, wind 1% to 1.2%). Its hours (config.CAT_HOURS)
+run from its first report to the time nine in ten of its reports had ended, on the local clock. Only the date,
+hours, place, peril and relative size are real: the claims and losses are simulated. NOAA publishes with a lag of a few months, so
 the latest events may be missing until the list is rebuilt.
 
 The script prints the list to paste into autoins/config.py; it writes nothing.
@@ -65,14 +66,22 @@ def money(x) -> float:
 
 
 def load(cache: Path) -> pd.DataFrame:
-    cols = ["BEGIN_YEARMONTH", "BEGIN_DAY", "STATE", "CZ_NAME", "EVENT_TYPE", "MAGNITUDE", "DAMAGE_PROPERTY", "BEGIN_LAT",
-            "BEGIN_LON"]
+    cols = ["BEGIN_YEARMONTH", "BEGIN_DAY", "BEGIN_TIME", "END_YEARMONTH", "END_DAY", "END_TIME", "STATE", "CZ_NAME",
+            "EVENT_TYPE", "MAGNITUDE", "DAMAGE_PROPERTY", "BEGIN_LAT", "BEGIN_LON"]
     files = [sorted(cache.glob(f"StormEvents_details-ftp_v1.0_d{y}_c*.csv.gz"))[-1:] for y in YEARS]
     d = pd.concat([pd.read_csv(f, usecols=cols, low_memory=False) for fs in files for f in fs], ignore_index=True)
     d = d[(d.STATE == "ILLINOIS") & d.CZ_NAME.str.upper().isin(COUNTIES)].copy()
     ym = d.BEGIN_YEARMONTH.astype(str)
     d["date"] = ym.str[:4] + "-" + ym.str[4:] + "-" + d.BEGIN_DAY.astype(str).str.zfill(2)
     d["damage"] = d.DAMAGE_PROPERTY.map(money)
+    # report times are in Central Standard Time (CST-6) all year: on the local clock, an hour later in summer
+    local = lambda ym, day, t: (pd.to_datetime(ym.astype(str) + day.astype(str).str.zfill(2) + t.astype(str).str.zfill(4),
+                                               format="%Y%m%d%H%M") + pd.Timedelta(hours=6)).dt.tz_localize("UTC") \
+        .dt.tz_convert("America/Chicago")
+    begin, end = local(d.BEGIN_YEARMONTH, d.BEGIN_DAY, d.BEGIN_TIME), local(d.END_YEARMONTH, d.END_DAY, d.END_TIME)
+    d["begin_hour"] = begin.dt.hour + begin.dt.minute / 60
+    d["end_hour"] = (end.dt.tz_localize(None).dt.normalize() - begin.dt.tz_localize(None).dt.normalize()).dt.days * 24 \
+        + end.dt.hour + end.dt.minute / 60
     return d
 
 
@@ -98,8 +107,10 @@ def events(d: pd.DataFrame) -> list[tuple]:
         dist = 69 * np.hypot(r.BEGIN_LAT - lat, (r.BEGIN_LON - lon) * 0.745)
         radius = float(np.clip(np.percentile(dist, 80), *RADIUS[peril]))
         counties = ", ".join(r.CZ_NAME.str.title().str.replace("Du Page", "DuPage").value_counts().index[:4])
+        storm = x[x.EVENT_TYPE.isin(["Hail", "Thunderstorm Wind", "Tornado", "Flash Flood", "Flood"])]
+        hours = (np.floor(storm.begin_hour.min() * 4) / 4, min(np.ceil(storm.end_hour.quantile(0.9) * 4) / 4, 24.0))
         out.append((date, peril, round(lat, 2), round(lon, 2), round(radius, 1), round(peak, 4), len(hail), len(tornado),
-                    len(wind), flood.damage.sum() / 1e6, counties))
+                    len(wind), flood.damage.sum() / 1e6, counties, hours))
     return out
 
 
@@ -111,9 +122,10 @@ def main() -> None:
         download(a.cache)
     ev = events(load(a.cache))
     print(f"{'date':12s}{'peril':11s}{'lat':>7s}{'lon':>8s}{'radius':>8s}{'peak':>8s}{'big hail':>10s}{'tornadoes':>11s}"
-          f"{'wind':>6s}{'flood $M':>10s}  counties")
+          f"{'wind':>6s}{'flood $M':>10s}{'hours':>14s}  counties")
     for e in ev:
-        print(f"{e[0]:12s}{e[1]:11s}{e[2]:7.2f}{e[3]:8.2f}{e[4]:8.1f}{e[5]:8.4f}{e[6]:10d}{e[7]:11d}{e[8]:6d}{e[9]:10.1f}  {e[10]}")
+        print(f"{e[0]:12s}{e[1]:11s}{e[2]:7.2f}{e[3]:8.2f}{e[4]:8.1f}{e[5]:8.4f}{e[6]:10d}{e[7]:11d}{e[8]:6d}{e[9]:10.1f}"
+              f"{e[11][0]:7.2f}-{e[11][1]:5.2f}  {e[10]}")
     print(f"\n{len(ev)} events; by year {pd.Series([e[0][:4] for e in ev]).value_counts().sort_index().to_dict()}", file=sys.stderr)
 
 
