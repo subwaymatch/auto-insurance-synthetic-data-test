@@ -430,21 +430,33 @@ OVERLAY = "#E5484D"
 
 # --------------------------------------------------------------------------- the final logo
 
-LOGO = SUNRISE[1]  # B: Inter's o, three bands
+# The logo is wave variation E, ripples (WAVES, below): the sun on a wavy horizon over three rippling
+# bands, in the wordmark's o and, for the favicon, in a plain circle with no tile behind it.
+LOGO_WAVES = "e-ripples"
 
-# The favicon: variation D's two bands in a plain circle, with no tile behind it. Drawn on a
-# 32-unit grid with every horizontal edge on an even unit, so the bands fall on whole pixels at
-# 16, 32 and 48 px: the top half ends at 16, then a gap, a band, a gap and the last band.
-FAVICON_EDGES = {"horizon": 16, "gap1": 18, "band1": 24, "gap2": 26}
+# Before the waves the o had variation B's straight bands and the favicon variation D's two bands, drawn
+# on a 32-unit grid with every edge on an even unit (so they fell on whole pixels at 16, 32 and 48 px).
+# Kept for comparison in waves/preview.html.
+STRAIGHT_LOGO = SUNRISE[1]  # B: Inter's o, three bands
+STRAIGHT_FAVICON_EDGES = {"horizon": 16, "gap1": 18, "band1": 24, "gap2": 26}
+
+
+def logo_waves() -> "Waves":
+    return next(v for v in WAVES if v.slug == LOGO_WAVES)
 
 
 def favicon_body(c) -> tuple[str, str]:
-    e = FAVICON_EDGES
+    """The favicon: the logo's ripples in a plain circle on the 32-unit grid."""
+    return wave_circle(logo_waves(), c, "sun")
+
+
+def straight_favicon_svg() -> str:
+    e = STRAIGHT_FAVICON_EDGES
     defs = '<clipPath id="sun"><circle cx="16" cy="16" r="15"/></clipPath>'
     sky = rect(0, 0, 32, e["horizon"])
     lake = rect(0, e["gap1"], 32, e["band1"] - e["gap1"]) + rect(0, e["gap2"], 32, 32 - e["gap2"])
-    return defs, (f'<g clip-path="url(#sun)"><path fill="{c["ink"]}" d="{sky}"/>'
-                  f'<path fill="{c["lake"]}" d="{lake}"/></g>')
+    return svg(32, 32, f'<g clip-path="url(#sun)"><path fill="{LIGHT["ink"]}" d="{sky}"/>'
+                       f'<path fill="{LIGHT["lake"]}" d="{lake}"/></g>', defs)
 
 
 def favicon_svg() -> str:
@@ -569,13 +581,17 @@ def waves_mark(v: Waves, c, uid, height=56):
     return defs, f'<g transform="{move}">{body}</g>'
 
 
-def waves_favicon(v: Waves, c=LIGHT) -> str:
-    """The favicon's plain circle (32-unit grid, no tile) with the waves of `v`."""
-    clip = f"fav-{v.slug}"
+def wave_circle(v: Waves, c, clip: str) -> tuple[str, str]:
+    """(defs, body) of the favicon's plain circle (32-unit grid, no tile) with the waves of `v`."""
     defs = f'<clipPath id="{clip}"><circle cx="16" cy="16" r="15"/></clipPath>'
     sky, lake = wave_parts(v, -1, 33, 1, 16, 31, 15 / 28)
-    return svg(32, 32, f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{sky}"/>'
-                       f'<path fill="{c["lake"]}" d="{lake}"/></g>', defs)
+    return defs, (f'<g clip-path="url(#{clip})"><path fill="{c["ink"]}" d="{sky}"/>'
+                  f'<path fill="{c["lake"]}" d="{lake}"/></g>')
+
+
+def waves_favicon(v: Waves, c=LIGHT) -> str:
+    defs, body = wave_circle(v, c, f"fav-{v.slug}")
+    return svg(32, 32, body, defs)
 
 
 def png(svg_text: str, size: int, height: int | None = None) -> bytes:
@@ -588,7 +604,7 @@ def social_card_svg(w=1200, h=630) -> str:
     line, o = wordmark_o()
     x0, y0, x1, y1 = line.bbox
     scale = 104 / (y1 - y0)
-    defs, sun = sunrise_o(LIGHT, "card", o, LOGO)
+    defs, sun = waves_o(LIGHT, "card", o, logo_waves())
     logo = (wordmark_body(line, INK, -x0, -y0, skip={"o"}) + f'<g transform="translate({f(-x0)} {f(-y0)})">{sun}</g>')
     tag = []
     for i, text in enumerate(["Five years of a Chicago", "auto insurer’s data"]):
@@ -617,8 +633,8 @@ def build_logo(out: Path) -> list[str]:
     """brand/logo/: the logo for light and dark backgrounds and the favicon set."""
     logo_dir = out / "logo"
     logo_dir.mkdir(parents=True, exist_ok=True)
-    (logo_dir / "lakefront-logo.svg").write_text(sunrise_lockup(LOGO, LIGHT, "logo"))
-    (logo_dir / "lakefront-logo-dark.svg").write_text(sunrise_lockup(LOGO, DARK, "logo"))
+    (logo_dir / "lakefront-logo.svg").write_text(waves_lockup(logo_waves(), LIGHT, "logo"))
+    (logo_dir / "lakefront-logo-dark.svg").write_text(waves_lockup(logo_waves(), DARK, "logo"))
     fav = favicon_svg()
     (logo_dir / "favicon.svg").write_text(fav)
     (logo_dir / "favicon.ico").write_bytes(ico([(n, png(fav, n)) for n in (16, 32, 48)]))
@@ -874,18 +890,20 @@ def sunrise_preview(files: dict) -> str:
 
 def waves_preview(files: dict) -> str:
     glance = []
-    defs, body = sunrise_mark(LOGO, LIGHT, "now")
+    defs, body = sunrise_mark(STRAIGHT_LOGO, LIGHT, "before")
     glance.append(f'<figure class="o before">{img(svg(64, 64, body, defs), 112)}'
-                  f"<figcaption>Now: straight bands</figcaption></figure>")
+                  f"<figcaption>Before: straight bands</figcaption></figure>")
+    chosen = lambda v: " (the logo)" if v.slug == LOGO_WAVES else ""
     for v in WAVES:
         defs, body = waves_mark(v, LIGHT, v.slug)
         glance.append(f'<figure class="o">{img(svg(64, 64, body, defs), 112)}'
-                      f"<figcaption>{v.slug[0].upper()}. {v.name}</figcaption></figure>")
-    favs = [("Now", favicon_svg())] + [(v.slug[0].upper(), files[f"waves/{v.slug}-favicon.svg"]) for v in WAVES]
+                      f"<figcaption>{v.slug[0].upper()}. {v.name}{chosen(v)}</figcaption></figure>")
+    favs = [("Before", straight_favicon_svg())] + [(v.slug[0].upper() + chosen(v), files[f"waves/{v.slug}-favicon.svg"])
+                                                   for v in WAVES]
     fav_row = "".join(f'<figure class="fav">{img(svg_text, 48)}{img(svg_text, 32)}{img(svg_text, 16)}'
                       f"<figcaption>{label}</figcaption></figure>" for label, svg_text in favs)
     rows = "".join(
-        section(v.slug[0].upper(), v.name, v.note, files[f"waves/{v.slug}-lockup.svg"],
+        section(v.slug[0].upper(), v.name + chosen(v), v.note, files[f"waves/{v.slug}-lockup.svg"],
                 files[f"waves/{v.slug}-lockup-dark.svg"], files[f"waves/{v.slug}-icon.svg"])
         for v in WAVES)
     return page(

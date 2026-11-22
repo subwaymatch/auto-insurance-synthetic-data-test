@@ -5,14 +5,15 @@
 ![Lakefront](logo/lakefront-logo.svg)
 
 The wordmark is Inter Display SemiBold at -0.04em, converted to outlines. Its o is the sun rising over
-the lake: Inter's own o, filled, navy above the horizon and three lake-blue bands below (variation B
-below). The favicon is a plain circle with variation D's two bands and no background.
+the lake: Inter's own o, filled, navy above a wavy horizon and three rippling lake-blue bands below, every
+wave rising and falling in step (wave variation E, below). The favicon is a plain circle with the same
+ripples and no background.
 
 | File in [`logo/`](logo/) | Use |
 |---|---|
 | `lakefront-logo.svg` | The logo on light backgrounds |
 | `lakefront-logo-dark.svg` | The logo on dark backgrounds |
-| `favicon.svg` | Favicon for browsers that take SVG. Drawn on a 32-unit grid so its bands fall on whole pixels at 16, 32 and 48 px |
+| `favicon.svg` | Favicon for browsers that take SVG, drawn on a 32-unit grid. At 16 px the ripples soften into stripes |
 | `favicon.ico` | The same at 16, 32 and 48 px, for everything else |
 | `apple-touch-icon.png` | 180 x 180 home-screen icon. iOS needs an opaque square, so this one has a white background |
 | `social-card.png` | 1200 x 630 image shown when a link to the website is shared |
@@ -72,7 +73,7 @@ the outline of Inter's o over each version.
 
 ### Wave variations
 
-[`waves/`](waves/) tries waves in the lower half of the logo's o, keeping its outline (Inter's o, filled).
+Variation B was the logo until the waves; E (ripples) replaced it. [`waves/`](waves/) tries waves in the lower half of the logo's o, keeping its outline (Inter's o, filled).
 The bottom edge of the ink is a wave too, so the white line under the sun is wavy, and every wavy edge
 shares one wavelength, height and phase: the waves rise and fall in step, and each white gap keeps its
 width all the way across. The waves are centered on the o, so each version is symmetric. Open
@@ -91,9 +92,9 @@ version in the favicon's plain circle at 48, 32 and 16 px.
 | F | One wave line | No bands: one solid lake under a single white wave line |
 
 Waves need room: at header size (about 22 px tall) the finer ones (C and E) read as textured bands, and
-at 16 px B, D and F keep their waves best. None has replaced the logo in [`logo/`](logo/) yet; each
-variation is an entry in the `WAVES` list in `make_logos.py`: the bands (as the sunrise bands), the wave
-height, wavelength and phase.
+at 16 px B, D and F keep their waves best. E was chosen and is the logo in [`logo/`](logo/)
+(`LOGO_WAVES` in `make_logos.py`); each variation is an entry in the `WAVES` list: the bands (as the
+sunrise bands), the wave height, wavelength and phase.
 
 ### Files
 
