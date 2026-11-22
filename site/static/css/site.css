@@ -137,7 +137,7 @@ hr { border: 0; margin: 48px 0; }
 }
 .header-inner { display: flex; align-items: center; gap: 28px; height: 64px; }
 .brand { display: flex; align-items: center; flex: none; }
-.brand .logo { height: 23px; width: auto; }
+.brand .logo { height: 20px; width: auto; }
 .site-nav { display: flex; align-items: center; gap: 2px; flex: 1; }
 .site-nav a {
   color: var(--muted); text-decoration: none; font-size: 14.5px; font-weight: 500;
