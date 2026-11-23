@@ -1,101 +1,101 @@
 payment_id,claim_feature_id,claim_id,payment_date,payment_type,transaction_type,amount,payee_type,payee_name,vendor_id,payment_method,check_number,payment_status,cleared_date,approved_by_employee_id
-309847,202675,116844,2021-03-02,Loss,Final Payment,78.13,Insured,Alan Puckett,,Check,3418207,Cleared,2021-03-29,35
-309959,202653,116844,2021-03-03,Expense,A&O Expense,258.43,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-03-04,35
-310197,202653,116844,2021-03-05,Loss,Partial Payment,4838.26,Insured,Alan Puckett,,Check,3418208,Cleared,2021-03-29,35
-310804,202653,116844,2021-03-10,Loss,Final Payment,2629.17,Insured,Alan Puckett,,Check,3418209,Cleared,2021-04-06,35
-312443,204299,117719,2021-03-24,Loss,Final Payment,7840.56,Other Insurer,Riverside Indemnity Insurance,47,Check,3418210,Cleared,2021-03-30,69
-313282,204299,117719,2021-03-31,Expense,A&O Expense,182.94,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-04-02,69
-314878,202634,116844,2021-04-13,Expense,A&O Expense,152.01,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-04-14,35
-315697,206198,118826,2021-04-20,Expense,A&O Expense,132.54,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-04-22,29
-318427,206535,119065,2021-05-14,Expense,A&O Expense,111.98,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-05-17,22
-318490,206582,119065,2021-05-14,Loss,Final Payment,320.0,Insured,Herbert Clawson,,EFT,,Cleared,2021-05-18,22
-318995,206178,118826,2021-05-18,Loss,Final Payment,2001.65,Other Insurer,Sterling Casualty Company,1582,Check,3418211,Cleared,2021-05-27,29
-320806,209637,120826,2021-06-02,Loss,Partial Payment,1956.37,Vendor,Shutter & Sons Collision,2973,Check,3418212,Cleared,2021-06-07,109
-321750,206535,119065,2021-06-10,Loss,Final Payment,914.34,Vendor,Mullis & Sons Collision,1922,EFT,,Cleared,2021-06-11,22
-321808,210217,121133,2021-06-10,Expense,A&O Expense,348.91,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-06-11,73
-321859,209637,120826,2021-06-11,Expense,A&O Expense,485.01,Vendor,Evergreen Appraisal Service,746,Check,3418213,Cleared,2021-06-23,109
-321900,209682,120826,2021-06-11,Loss,Final Payment,100.0,Insured,Glenn Stephens,,Check,3418214,Cleared,2021-06-21,109
-322218,210877,121530,2021-06-14,Loss,Final Payment,100.0,Insured,Alejandro Morel,,Check,3418215,Cleared,2021-06-25,29
-322482,210851,121530,2021-06-16,Expense,A&O Expense,271.39,Vendor,Keystone Claims Services,1219,Check,3418216,Cleared,2021-06-22,29
-322563,202634,116844,2021-06-17,Loss,Final Payment,1369.85,Claimant,Patricia Edney,,Check,3418217,Cleared,2021-07-21,35
-322605,210217,121133,2021-06-17,Loss,Final Payment,4267.11,Insured,Nicolas Zamora,,EFT,,Cleared,2021-06-21,73
-322654,210836,121530,2021-06-17,Expense,A&O Expense,387.35,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-06-21,29
-323126,211331,121809,2021-06-21,Loss,Final Payment,100.0,Insured,Jonathan Johnson,,Check,3418218,Cleared,2021-07-16,22
-323265,210836,121530,2021-06-22,Loss,Partial Payment,1474.91,Claimant,Justin Nadler,,Check,3418219,Cleared,2021-07-19,29
-323503,210836,121530,2021-06-24,Loss,Final Payment,9974.33,Claimant,Justin Nadler,,Check,3418220,Cleared,2021-07-02,29
-323626,209637,120826,2021-06-25,Loss,Final Payment,318.25,Vendor,Shutter & Sons Collision,2973,Check,3418221,Cleared,2021-07-07,109
-324386,211969,122206,2021-07-01,Loss,Partial Payment,465.8,Insured,Robert Desai,,Check,3418222,Cleared,2021-07-08,25
-324506,211969,122206,2021-07-02,Loss,Partial Payment,859.58,Insured,Robert Desai,,Check,3418223,Cleared,2021-07-12,25
-325326,211289,121809,2021-07-09,Expense,A&O Expense,129.12,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-07-12,22
-325351,211969,122206,2021-07-09,Loss,Partial Payment,200.66,Insured,Robert Desai,,Check,3418224,Cleared,2021-07-29,25
-325380,211969,122206,2021-07-09,Loss,Partial Payment,274.79,Insured,Robert Desai,,Check,3418225,Cleared,2021-07-28,25
-325407,212292,122402,2021-07-09,Expense,A&O Expense,382.79,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-07-12,41
-325427,212594,122597,2021-07-09,Expense,A&O Expense,767.33,Vendor,Valencia Adjusting Company,1198,EFT,,Cleared,2021-07-12,48
-325442,212631,122597,2021-07-09,Expense,A&O Expense,392.11,Vendor,Valencia Adjusting Company,1198,EFT,,Cleared,2021-07-12,48
-325728,211969,122206,2021-07-12,Loss,Final Payment,95.28,Insured,Robert Desai,,Check,3418226,Cleared,2021-08-06,25
-325791,211969,122206,2021-07-12,Expense,DCC Expense,285.18,Vendor,Frontier Medical Examiners,158,EFT,,Cleared,2021-07-14,25
-325864,211307,121809,2021-07-13,Loss,Final Payment,420.0,Insured,Jonathan Johnson,,Check,3418227,Cleared,2021-07-19,22
-325928,212631,122597,2021-07-13,Loss,Partial Payment,2969.32,Insured,Wallace Pool,,EFT,,Cleared,2021-07-14,48
-326017,212414,122440,2021-07-14,Expense,A&O Expense,240.17,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-07-15,31
-326576,204283,117719,2021-07-19,Loss,Final Payment,11400.0,Claimant and Attorney,"Wayne Decano and Henne & Ortega, P.C.",2120,Check,3418228,Cleared,2021-07-26,124
-326607,211273,121809,2021-07-19,Loss,Partial Payment,587.54,Vendor,Parkside Health Clinic of Round Lake,2611,Check,3418229,Cleared,2021-07-23,22
-326646,212631,122597,2021-07-19,Loss,Final Payment,2683.22,Insured,Wallace Pool,,EFT,,Cleared,2021-07-20,48
-326835,211995,122206,2021-07-21,Loss,Final Payment,11368.56,Insured,Robert Desai,,Check,3418230,Cleared,2021-07-27,25
-326945,212014,122206,2021-07-22,Loss,Final Payment,480.46,Vendor,Union Car & Truck Rental,2285,EFT,,Cleared,2021-07-26,25
-327009,212292,122402,2021-07-22,Loss,Final Payment,920.05,Vendor,Allied Auto Rebuilders,809,EFT,,Cleared,2021-07-23,41
-327438,212318,122402,2021-07-26,Loss,Final Payment,510.0,Vendor,Keystone Car & Truck Rental,102,EFT,,Cleared,2021-07-27,41
-327583,211273,121809,2021-07-27,Loss,Final Payment,412.46,Vendor,Parkside Health Clinic of Round Lake,2611,Check,3418231,Cleared,2021-08-02,22
-327804,213228,122965,2021-07-29,Expense,A&O Expense,432.99,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-07-30,35
-328277,214437,123683,2021-08-02,Expense,A&O Expense,224.11,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-08-03,111
-328518,210836,121530,2021-08-04,Loss,Supplemental Payment,676.54,Claimant,Justin Nadler,,Check,3418232,Cleared,2021-08-10,29
-328558,214021,123412,2021-08-04,Expense,A&O Expense,168.62,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-08-05,31
-328593,214491,123683,2021-08-04,Loss,Final Payment,1740.41,Insured,Danielle Daly,,EFT,,Cleared,2021-08-05,111
-328668,214491,123683,2021-08-05,Expense,A&O Expense,248.75,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-08-06,111
-328752,204243,117719,2021-08-06,Loss,Final Payment,29000.0,Claimant,Thomas Glidewell,,Check,3418233,Cleared,2021-08-16,124
-328789,213215,122965,2021-08-06,Loss,Final Payment,1604.25,Claimant,Gabrielle Appel,,Check,3418234,Cleared,2021-09-09,35
-328823,214397,123628,2021-08-06,Expense,A&O Expense,417.35,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-08-09,29
-329159,204232,117719,2021-08-09,Loss,Final Payment,1200.0,Claimant,Carolyn Mai,,Check,3418235,Cleared,2021-09-08,69
-329238,212414,122440,2021-08-10,Loss,Final Payment,3653.29,Insured,David Helbing,,Check,3418236,Cleared,2021-08-18,31
-329292,214467,123683,2021-08-10,Loss,Partial Payment,174.14,Insured,Danielle Daly,,Check,3418237,Cleared,2021-09-02,111
-329338,213201,122965,2021-08-11,Loss,Final Payment,750.0,Claimant and Attorney,Arthur Hussain and Quinones Law Group,1157,Check,3418238,Cleared,2021-08-23,35
-329364,215013,123990,2021-08-11,Expense,A&O Expense,69.93,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-08-13,62
-329392,215367,124158,2021-08-11,Loss,Partial Payment,108.58,Vendor,Buffalo Grove Collision Center,1225,EFT,,Cleared,2021-08-12,29
-329416,215367,124158,2021-08-11,Loss,Final Payment,1704.53,Vendor,Buffalo Grove Collision Center,1225,EFT,,Cleared,2021-08-12,29
-329451,214021,123412,2021-08-12,Loss,Final Payment,2252.43,Claimant,Abraham Lopez,,Check,3418239,Cleared,2021-09-09,31
-329493,215013,123990,2021-08-12,Loss,Final Payment,100.63,Insured,Stephanie Harris,,Check,3418240,Cleared,2021-08-18,62
-329544,215338,124138,2021-08-12,Loss,Final Payment,99.92,Vendor,Gaines Towing,239,EFT,,Cleared,2021-08-16,73
-329612,214397,123628,2021-08-13,Loss,Partial Payment,353.06,Claimant,Melvin Scott,,Check,3418241,Cleared,2021-08-19,29
-329921,213228,122965,2021-08-16,Loss,Final Payment,3096.67,Insured,Tonia Minchala,,Check,3418242,Cleared,2021-09-02,35
-329980,214397,123628,2021-08-16,Loss,Final Payment,3805.83,Claimant,Melvin Scott,,Check,3418243,Cleared,2021-08-23,29
-330075,215323,124138,2021-08-17,Expense,A&O Expense,145.42,Vendor,Great Lakes Appraisal Service,1135,Check,3418244,Cleared,2021-08-25,73
-330158,213201,122965,2021-08-18,Expense,DCC Expense,113.25,Vendor,Lakeshore Medical Review,1051,EFT,,Cleared,2021-08-19,35
-330205,215384,124158,2021-08-18,Loss,Final Payment,2755.17,Vendor,Watkins & Sons Collision,133,EFT,,Cleared,2021-08-19,29
-330249,215783,124384,2021-08-18,Expense,A&O Expense,297.43,Vendor,Oneil Adjusting Company,369,EFT,,Cleared,2021-08-19,73
-330408,212382,122440,2021-08-20,Loss,Final Payment,565.19,Claimant,Linda Macarthur,,Check,3418245,Cleared,2021-08-31,31
-330454,215995,124384,2021-08-20,Expense,A&O Expense,221.04,Vendor,Oneil Adjusting Company,369,EFT,,Cleared,2021-08-23,73
-330497,215871,124458,2021-08-20,Expense,A&O Expense,487.37,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-08-23,35
-330768,213253,122965,2021-08-23,Loss,Final Payment,210.0,Vendor,Keystone Car & Truck Rental,102,EFT,,Cleared,2021-08-24,35
-330813,215871,124458,2021-08-23,Loss,Final Payment,2487.18,Insured,Nicholas Riddell,,EFT,,Cleared,2021-08-24,35
-330844,216299,124698,2021-08-23,Loss,Final Payment,1651.07,Vendor,Midwest Collision Repair,1318,EFT,,Cleared,2021-08-24,35
-330991,213527,123146,2021-08-25,Loss,Final Payment,552.37,Insured,Michele Gomez,,Check,3418246,Cleared,2021-09-17,31
-331035,216504,124820,2021-08-25,Loss,Final Payment,4570.91,Vendor,Fox Valley Auto Rebuilders,1782,EFT,,Cleared,2021-08-26,134
-331073,216504,124820,2021-08-25,Expense,A&O Expense,132.74,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-08-26,134
-331124,213551,123146,2021-08-26,Loss,Final Payment,120.0,Insured,Michele Gomez,,Check,3418247,Cleared,2021-09-09,31
-331195,215818,124421,2021-08-26,Expense,A&O Expense,182.03,Vendor,Central Claims Services,2092,EFT,,Cleared,2021-08-27,134
-331278,215855,124458,2021-08-27,Expense,A&O Expense,540.33,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-08-30,35
-331346,216345,124737,2021-08-27,Expense,A&O Expense,270.01,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-08-30,69
-331930,216299,124698,2021-09-01,Expense,A&O Expense,77.53,Vendor,Keystone Claims Services,1219,EFT,,Cleared,2021-09-02,35
-332001,215100,124043,2021-09-02,Expense,A&O Expense,139.45,Vendor,Compass Appraisal Service,2573,Check,3418248,Cleared,2021-09-14,41
-332024,215818,124421,2021-09-02,Loss,Final Payment,1163.47,Insured,Julia Egert,,EFT,,Cleared,2021-09-03,134
-332049,217066,125175,2021-09-02,Expense,A&O Expense,122.52,Vendor,Keystone Claims Services,1219,Check,3418249,Cleared,2021-09-13,134
-332072,217116,125223,2021-09-02,Expense,A&O Expense,106.69,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-09-07,25
-332112,217158,125223,2021-09-02,Loss,Final Payment,100.0,Vendor,Crest Hill Towing & Recovery,1755,EFT,,Cleared,2021-09-07,25
-332786,215832,124421,2021-09-08,Loss,Final Payment,295.02,Vendor,Union Car & Truck Rental,2285,EFT,,Cleared,2021-09-09,134
-332861,216867,125067,2021-09-08,Expense,A&O Expense,310.1,Vendor,Compass Appraisal Service,2573,EFT,,Cleared,2021-09-10,22
-332960,214467,123683,2021-09-09,Loss,Partial Payment,493.87,Insured,Danielle Daly,,Check,3418250,Cleared,2021-09-17,111
-333392,216333,124714,2021-09-13,Loss,Final Payment,1429.77,Vendor,Shutter & Sons Collision,2973,Check,3418251,Cleared,2021-09-22,36
-333439,216345,124737,2021-09-13,Loss,Final Payment,2146.36,Vendor,Lakeland Auto Rebuilders,140,EFT,,Cleared,2021-09-14,69
-333471,217605,125490,2021-09-13,Expense,A&O Expense,404.33,Vendor,Valencia Adjusting Company,1198,EFT,,Cleared,2021-09-14,36
-333547,209682,120826,2021-09-14,Subrogation Recovery,Recovery,-78.17,Other Insurer,Windy City Casualty Company,2490,Deposit,,Deposited,2021-09-14,109
-333628,215129,124043,2021-09-15,Loss,Final Payment,270.0,Vendor,Keystone Car & Truck Rental,102,Check,3418252,Cleared,2021-09-20,41
-333658,217631,125490,2021-09-15,Loss,Final Payment,100.0,Vendor,Gaines Towing,239,EFT,,Cleared,2021-09-16,36
+307629,200897,114691,2021-02-26,Expense,A&O Expense,230.1,Vendor,Compass Appraisal Service,1453,Check,3418207,Cleared,2021-03-05,31
+308191,200897,114691,2021-03-03,Loss,Final Payment,3197.67,Vendor,Great Lakes Collision Repair,1801,Check,3418208,Cleared,2021-03-08,31
+308314,200867,114691,2021-03-04,Expense,A&O Expense,205.47,Vendor,Compass Appraisal Service,1453,Check,3418209,Cleared,2021-03-09,31
+310832,200867,114691,2021-03-25,Loss,Final Payment,417.62,Other Insurer,Sterling Casualty Company,770,EFT,,Cleared,2021-03-26,31
+312369,203220,116014,2021-04-07,Loss,Partial Payment,499.17,Vendor,Summit Health Clinic of Elgin,810,EFT,,Cleared,2021-04-08,18
+315664,203220,116014,2021-05-05,Loss,Partial Payment,3487.78,Vendor,Summit Health Clinic of Elgin,810,EFT,,Cleared,2021-05-06,18
+317502,203220,116014,2021-05-20,Loss,Final Payment,1344.46,Vendor,Summit Health Clinic of Elgin,810,EFT,,Cleared,2021-05-21,18
+317975,206847,118171,2021-05-24,Loss,Final Payment,9815.1,Other Insurer,Cornerstone Casualty Company,2514,EFT,,Cleared,2021-05-26,26
+318101,206847,118171,2021-05-25,Expense,A&O Expense,237.95,Vendor,Central Claims Services,2705,EFT,,Cleared,2021-05-27,26
+318188,206873,118171,2021-05-26,Loss,Partial Payment,22.23,Vendor,Suburban Health Clinic of Chicago,2934,EFT,,Cleared,2021-05-28,26
+318224,206897,118171,2021-05-26,Loss,Final Payment,100.0,Insured,Terry Wilson,,EFT,,Cleared,2021-05-27,26
+318274,207733,118627,2021-05-26,Expense,A&O Expense,566.13,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-05-27,23
+318350,207733,118627,2021-05-27,Loss,Final Payment,1333.0,Insured,Peter Bachman,,Check,3418210,Cleared,2021-06-16,23
+318953,207705,118627,2021-06-01,Loss,Final Payment,2728.77,Other Insurer,Windy City Casualty Company,2093,Check,3418211,Cleared,2021-06-07,23
+319892,208900,119269,2021-06-09,Loss,Partial Payment,104.2,Vendor,Cooter Chiropractic,2232,EFT,,Cleared,2021-06-10,158
+320000,208804,119223,2021-06-10,Expense,A&O Expense,335.4,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-06-11,158
+320092,206873,118171,2021-06-11,Loss,Partial Payment,75.78,Vendor,Suburban Health Clinic of Chicago,2934,EFT,,Cleared,2021-06-15,26
+320159,208804,119223,2021-06-11,Loss,Final Payment,258.74,Vendor,Heartland Auto Rebuilders,2653,EFT,,Cleared,2021-06-14,158
+320513,208754,119223,2021-06-14,Loss,Partial Payment,560.96,Other Insurer,Windy City Casualty Company,2093,EFT,,Cleared,2021-06-15,158
+320759,209112,119431,2021-06-16,Loss,Partial Payment,11765.44,Insured,Patricia Rosen,,Check,3418212,Cleared,2021-07-14,21
+321294,206873,118171,2021-06-21,Loss,Partial Payment,209.18,Vendor,Suburban Health Clinic of Chicago,2934,EFT,,Cleared,2021-06-22,26
+321349,209632,119703,2021-06-21,Expense,A&O Expense,126.39,Vendor,Keystone Claims Services,1710,Check,3418213,Cleared,2021-07-01,158
+321413,208900,119269,2021-06-22,Loss,Partial Payment,624.58,Vendor,Cooter Chiropractic,2232,EFT,,Cleared,2021-06-23,158
+321473,209957,119870,2021-06-22,Expense,A&O Expense,218.35,Vendor,Parkside Claims Services,1484,EFT,,Cleared,2021-06-23,75
+321540,208754,119223,2021-06-23,Expense,A&O Expense,214.98,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-06-25,158
+321613,209112,119431,2021-06-23,Expense,A&O Expense,440.11,Vendor,Keystone Claims Services,1710,Check,3418214,Cleared,2021-06-29,45
+321704,208754,119223,2021-06-24,Loss,Final Payment,5996.76,Other Insurer,Windy City Casualty Company,2093,EFT,,Cleared,2021-06-25,158
+321790,209728,119743,2021-06-25,Expense,A&O Expense,288.83,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-06-29,30
+321836,209972,119870,2021-06-25,Expense,A&O Expense,339.68,Vendor,Parkside Claims Services,1484,EFT,,Cleared,2021-06-28,75
+322144,209632,119703,2021-06-28,Loss,Final Payment,9380.68,Vendor,Ferrer's Auto Body,2884,Check,3418215,Cleared,2021-07-06,158
+322267,209112,119431,2021-06-29,Loss,Final Payment,9412.69,Insured,Patricia Rosen,,Check,3418216,Cleared,2021-07-07,45
+322501,210619,120211,2021-07-01,Loss,Partial Payment,3745.19,Insured,Arthur Wilson,,EFT,,Cleared,2021-07-02,26
+322637,210619,120211,2021-07-02,Expense,A&O Expense,266.58,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-06,26
+323073,206873,118171,2021-07-06,Loss,Final Payment,2.4,Vendor,Suburban Health Clinic of Chicago,2934,EFT,,Cleared,2021-07-07,26
+323117,209673,119743,2021-07-06,Expense,A&O Expense,319.73,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-07,30
+323156,210928,120376,2021-07-06,Expense,A&O Expense,120.08,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-08,158
+323211,209972,119870,2021-07-07,Loss,Final Payment,1504.75,Vendor,Schultz's Auto Body,11,EFT,,Cleared,2021-07-09,75
+323275,210619,120211,2021-07-07,Loss,Final Payment,446.08,Insured,Arthur Wilson,,EFT,,Cleared,2021-07-08,26
+323339,209728,119743,2021-07-08,Loss,Final Payment,2590.85,Vendor,Reliable Auto Rebuilders,265,EFT,,Cleared,2021-07-09,30
+323400,209989,119870,2021-07-08,Loss,Final Payment,240.0,Vendor,Union Car & Truck Rental,2293,Check,3418217,Cleared,2021-07-15,75
+323469,210928,120376,2021-07-09,Loss,Final Payment,375.33,Vendor,Tri-State Collision Repair,865,EFT,,Cleared,2021-07-13,158
+323521,211228,120558,2021-07-09,Expense,A&O Expense,282.62,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-13,31
+324069,210275,120050,2021-07-14,Expense,A&O Expense,266.56,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-16,18
+324121,211265,120558,2021-07-14,Loss,Final Payment,100.0,Insured,Ronald Gaines,,EFT,,Cleared,2021-07-15,31
+324219,211205,120558,2021-07-15,Expense,A&O Expense,258.67,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-16,31
+324300,209673,119743,2021-07-16,Loss,Partial Payment,578.39,Other Insurer,Premier Mutual Insurance Company,63,Check,3418218,Cleared,2021-07-22,30
+324352,210894,120376,2021-07-16,Expense,A&O Expense,485.27,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-19,158
+324407,211927,120936,2021-07-16,Expense,A&O Expense,165.35,Vendor,Compass Appraisal Service,1453,Check,3418219,Cleared,2021-07-27,158
+324810,208887,119269,2021-07-20,Loss,Final Payment,3477.99,Claimant,Christopher Charleston,,Check,3418220,Cleared,2021-08-06,158
+324832,209673,119743,2021-07-20,Loss,Final Payment,2485.02,Other Insurer,Premier Mutual Insurance Company,63,Check,3418221,Cleared,2021-07-29,30
+324859,211228,120558,2021-07-20,Loss,Final Payment,5256.21,Insured,Ronald Gaines,,EFT,,Cleared,2021-07-21,31
+324892,211927,120936,2021-07-20,Loss,Final Payment,4374.2,Vendor,Evergreen Auto Rebuilders,2960,Check,3418222,Cleared,2021-07-23,158
+324974,209651,119703,2021-07-21,Loss,Final Payment,960.0,Vendor,Keystone Car & Truck Rental,2945,Check,3418223,Cleared,2021-07-29,158
+325487,210597,120211,2021-07-26,Expense,A&O Expense,361.57,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-27,26
+325532,211551,120752,2021-07-26,Loss,Final Payment,183.3,Vendor,Egan & Sons Collision,2568,Check,3418224,Cleared,2021-08-02,125
+325567,211913,120936,2021-07-26,Loss,Partial Payment,297.99,Claimant,Rachel Beckman,,Check,3418225,Cleared,2021-08-02,158
+325632,211913,120936,2021-07-27,Expense,A&O Expense,198.74,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-07-28,158
+325686,212420,121219,2021-07-27,Loss,Final Payment,45.16,Insured,Stephen Olson,,Check,3418226,Cleared,2021-08-10,26
+326387,211245,120558,2021-08-02,Loss,Final Payment,500.0,Vendor,Keystone Car & Truck Rental,2945,EFT,,Cleared,2021-08-04,31
+326624,211862,120883,2021-08-04,Expense,A&O Expense,219.78,Vendor,Keystone Claims Services,1710,EFT,,Cleared,2021-08-05,23
+326699,211876,120883,2021-08-04,Loss,Final Payment,840.0,Vendor,Union Car & Truck Rental,2293,EFT,,Cleared,2021-08-05,23
+326783,212935,121540,2021-08-05,Loss,Partial Payment,792.53,Other Insurer,Metro Casualty Company,2068,EFT,,Cleared,2021-08-06,31
+326890,210894,120376,2021-08-06,Loss,Final Payment,1732.16,Other Insurer,Windy City Casualty Company,2093,EFT,,Cleared,2021-08-09,158
+327248,211848,120883,2021-08-09,Loss,Final Payment,6261.5,Other Insurer,Windy City Casualty Company,2093,Check,3418227,Cleared,2021-08-13,23
+327275,213584,121873,2021-08-09,Expense,A&O Expense,256.08,Vendor,Evergreen Appraisal Service,1212,EFT,,Cleared,2021-08-10,26
+327296,213612,121873,2021-08-09,Loss,Partial Payment,134.94,Insured,Alicia Gonzalez,,Check,3418228,Cleared,2021-09-01,26
+327314,213612,121873,2021-08-09,Loss,Partial Payment,1740.74,Insured,Alicia Gonzalez,,Check,3418229,Cleared,2021-08-20,26
+327337,213627,121873,2021-08-09,Loss,Final Payment,100.0,Insured,Alicia Gonzalez,,Check,3418230,Cleared,2021-08-13,26
+327376,213612,121873,2021-08-10,Loss,Final Payment,53.89,Insured,Alicia Gonzalez,,Check,3418231,Cleared,2021-08-26,26
+327423,213680,121914,2021-08-10,Expense,A&O Expense,164.57,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-08-12,31
+327467,213922,122050,2021-08-10,Loss,Final Payment,100.0,Insured,Brian Cunningham,,EFT,,Cleared,2021-08-11,15
+327516,213612,121873,2021-08-11,Expense,A&O Expense,454.01,Vendor,Evergreen Appraisal Service,1212,Check,3418232,Cleared,2021-08-16,26
+327579,213713,121914,2021-08-11,Loss,Partial Payment,1458.9,Insured,Candy Patton,,Check,3418233,Cleared,2021-08-17,31
+327635,212935,121540,2021-08-12,Loss,Partial Payment,61.85,Other Insurer,Metro Casualty Company,2068,EFT,,Cleared,2021-08-13,31
+327683,213851,122012,2021-08-12,Loss,Partial Payment,23.26,Vendor,Keystone Auto Rebuilders,155,EFT,,Cleared,2021-08-13,73
+327716,213851,122012,2021-08-12,Expense,A&O Expense,505.28,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-08-16,73
+327801,214106,122145,2021-08-13,Loss,Final Payment,20000.0,Claimant,Anthony Cowan,,Check,3418234,Cleared,2021-08-19,142
+328145,212935,121540,2021-08-16,Loss,Final Payment,6602.24,Other Insurer,Metro Casualty Company,2068,EFT,,Cleared,2021-08-18,31
+328175,213880,122012,2021-08-16,Loss,Final Payment,100.0,Vendor,Smith Towing,1183,EFT,,Cleared,2021-08-17,73
+328213,214254,122235,2021-08-16,Loss,Final Payment,174.02,Vendor,Miller & Sons Collision,578,EFT,,Cleared,2021-08-18,30
+328249,214254,122235,2021-08-16,Loss,Partial Payment,1136.49,Vendor,Miller & Sons Collision,578,EFT,,Cleared,2021-08-17,30
+328279,208900,119269,2021-08-17,Loss,Partial Payment,283.6,Vendor,Cooter Chiropractic,2232,EFT,,Cleared,2021-08-19,158
+328298,209606,119703,2021-08-17,Loss,Final Payment,1765.49,Vendor,Melrose Park Collision Center,950,EFT,,Cleared,2021-08-18,158
+328308,211913,120936,2021-08-17,Loss,Final Payment,1792.89,Claimant,Rachel Beckman,,Check,3418235,Cleared,2021-09-21,158
+328327,213023,121596,2021-08-17,Loss,Final Payment,3691.79,Claimant,Gloria Jacobs,,Check,3418236,Cleared,2021-08-25,23
+328342,213680,121914,2021-08-17,Loss,Partial Payment,221.64,Other Insurer,Windy City Casualty Company,2093,EFT,,Cleared,2021-08-18,31
+328356,213851,122012,2021-08-17,Loss,Final Payment,820.16,Vendor,Keystone Auto Rebuilders,155,EFT,,Cleared,2021-08-19,73
+328379,213864,122012,2021-08-17,Expense,A&O Expense,155.33,Vendor,Compass Appraisal Service,1453,Check,3418237,Cleared,2021-08-23,73
+328395,214488,122331,2021-08-17,Expense,A&O Expense,245.7,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-08-18,23
+328430,210275,120050,2021-08-18,Loss,Final Payment,5247.38,Vendor,Miller & Sons Collision,578,EFT,,Cleared,2021-08-19,18
+328466,213952,122063,2021-08-18,Expense,A&O Expense,195.61,Vendor,Compass Appraisal Service,1453,Check,3418238,Cleared,2021-08-30,126
+328509,214528,122235,2021-08-18,Expense,A&O Expense,767.48,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-08-19,30
+328585,214254,122235,2021-08-19,Expense,A&O Expense,267.52,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-08-23,30
+328684,211862,120883,2021-08-20,Loss,Final Payment,12256.68,Insured,James Padilla,,Check,3418239,Cleared,2021-09-02,23
+328751,214493,122331,2021-08-20,Loss,Final Payment,100.0,Vendor,Preciado Towing,640,EFT,,Cleared,2021-08-24,23
+329058,211936,120936,2021-08-23,Loss,Final Payment,680.0,Vendor,Union Car & Truck Rental,2293,EFT,,Cleared,2021-08-24,158
+329102,213584,121873,2021-08-23,Loss,Final Payment,12445.46,Other Insurer,Windy City Casualty Company,2093,EFT,,Cleared,2021-08-25,142
+329133,213911,122050,2021-08-23,Expense,A&O Expense,119.48,Vendor,Evergreen Appraisal Service,1212,EFT,,Cleared,2021-08-24,15
+329312,215147,122673,2021-08-25,Expense,A&O Expense,195.52,Vendor,Compass Appraisal Service,1453,EFT,,Cleared,2021-08-27,26
+329378,213600,121873,2021-08-26,Loss,Partial Payment,58.16,Vendor,Sterling Imaging Center,717,EFT,,Cleared,2021-08-27,26
