@@ -14,12 +14,12 @@ An audit of v1.1.7 (commit `529956c`) rebuilt the default run (content hash `6a3
 independent seed (101, `dc2325b798e03cb4`), found the previous round's five fixes holding, and reported three
 record-level issues; both books passed every check. All three reproduce and are **confirmed and fixed**; for
 the third, at the owner's request, a crash death of an insured is now modeled rather than excluded. "After" figures are from the default run after
-this change (content hash `1884deeddc78519f`) and seed 101 (`27bf943b8147de16`).
+this change (content hash `a56af83ba99746bd`) and seed 101 (`9c8304182f417e5b`).
 
 | # | Finding | Verdict | Before (default; seed 101) | After |
 |---|---|---|---|---|
 | F1 | Subrogation received before a reopening's supplement had been paid | Confirmed and fixed | 15 features ($7,934); 15 | 0; 0 |
-| F2 | A car handed to another driver keeps the old driver's mileage and use | Confirmed and fixed | 1,295 of 1,295 switches unchanged; 1,421 of 1,421 | 1,260 switches, 93% re-rated; 1,376, 92% |
+| F2 | A car handed to another driver keeps the old driver's mileage and use | Confirmed and fixed | 1,295 of 1,295 switches unchanged; 1,421 of 1,421 | 1,363 switches, 92% re-rated; seed 101 likewise |
 | F3 | A first-party fatality whose driver keeps driving | Confirmed and fixed: crash deaths modeled | 0; 1 | 0; 0 (every insured killed in a crash recorded as deceased) |
 
 **F1. Recoveries ahead of payments.** Confirmed, and the cause is as described: subrogation was set on the
@@ -58,16 +58,18 @@ losses leave out the deaths' own claims, a small amount ([limitations.md](limita
 ### What changed in the data
 
 Recoveries move later on reopened features (their totals are unchanged); cars passed to another driver are
-re-rated on new mileage and use, which changes their premiums and true claim rates a little; a handful of
-first-party injuries are no longer labeled fatalities. Because the handover redraws change later random draws,
-every figure of the default run moves a little: loss ratios by accident year 82.9%, 77.0%, 64.8%, 61.5% and 67.6%
-for 2022 to 2026 (were 81.3%, 70.4%, 67.5%, 58.2% and 65.5%), overall 69.7% (was 67.6%; 68.9% to 72.2% across five
-seeds), annualized retention 81.3%; 22,901 claims (was 23,097). `validate.py` runs 174 checks (was 171), all
-passing on the default run and on seeds 7, 11, 23 and 42; the test suite has 76 tests.
+re-rated on new mileage and use, which changes their premiums and true claim rates a little; insureds can die in
+crashes (14 in the default run, 5 of them with a claim of their own), which ends or passes on their policies.
+Because these change later random draws, every figure of the default run moves a little: loss ratios by accident
+year 88.2%, 79.7%, 64.5%, 62.7% and 62.9% for 2022 to 2026 (were 81.3%, 70.4%, 67.5%, 58.2% and 65.5%), overall
+70.0% (was 67.6%; 69.8% to 73.0% across five seeds), annualized retention 81.1%; 22,649 claims (was 23,097).
+`validate.py` runs 174 checks (was 171), all passing on the default run and on seeds 7, 11, 23, 42 and 101; the
+test suite has 78 tests.
 
-Seed 101 passes every integrity check but its bodily injury frequency is 0.66 per 100 car-years, below the
-0.70 floor of that calibration band: its bodily injury losses are 0.89 times the answer key's expected ones,
-which is claim luck (calibration moves expected and actual together); the other five seeds run 0.71 to 0.78. The band is not widened; [benchmarks.md](benchmarks.md) gives the spread.
+Seed 101, rebuilt after these changes, is inside every calibration band. Before them, it had missed one: its bodily
+injury frequency came to 0.66 per 100 car-years against a floor of 0.70, with its bodily injury losses 0.89 times
+the answer key's expected ones, which is claim luck (calibration moves expected and actual together). Across the
+five seeds in [benchmarks.md](benchmarks.md) that frequency runs 0.70 to 0.81; the band is not widened.
 
 ## Follow-up checks (22 November 2026)
 

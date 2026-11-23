@@ -85,7 +85,7 @@ published files; it is given where the changelog recorded it.
 | [v1.1.5](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.5) | 2026-11-21 | `4a13b9f` | #11 (#12 and #13 change no data) | 43,368 policies to 2026-12-31 | `963889a73f229de8` |
 | [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6) | 2026-11-22 | `c28d1cd` | #14 | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
 | [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7) | 2026-11-22 | `529956c` | #15 | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `1884deeddc78519f` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `a56af83ba99746bd` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
@@ -93,7 +93,7 @@ byte-identical files with the pinned library versions (`requirements.txt`).
 ## Unreleased: a further audit
 
 A realism audit of v1.1.7 (default run and an independent seed, 101) found three record-level issues; both books
-passed every check. Figures are for the default run after these changes (content hash `1884deeddc78519f`).
+passed every check. Figures are for the default run after these changes (content hash `a56af83ba99746bd`).
 `docs/review_response.md` ("Audit of v1.1.7") answers each finding.
 
 - **Subrogation recovers what has been paid.** A feature's subrogation was set on its eventual paid loss and
@@ -121,16 +121,15 @@ passed every check. Figures are for the default run after these changes (content
   another driver are rated on a newly declared mileage or use; an insured killed in a crash is recorded as deceased
   within a month. Unit tests feed the recovery check the audit's example and check how a crash death cuts a
   policy's period.
-- **The default run** (content hash `1884deeddc78519f`): loss ratios by accident year 82.9%, 77.0%, 64.8%, 61.5% and 67.6% for
-  2022 to 2026, of which catastrophes 0.0%, 3.8%, 2.5%, 0.8% and 6.5%; overall 69.7% (was 67.6%; 68.9% to 72.2%
-  across five seeds); annualized retention 81.3%. 195,633 policy terms, 437,693 exposure rows, $211.9 million
-  earned premium, 22,901 claims, 39,937 features, 60,883 claim payments, 104,009 reserve transactions, 881,483
-  bills and 893,226 receipts, 118,642 quotes and 169,131 renewal offers. The handover redraws move later random
-  draws, so every figure moves a little. 174 checks pass on the default run and on seeds 7, 11, 23 and 42
-  (content hashes `a621a357f57f3c10`, `1971ec234a02ad74`, `eb6a6e2b94a1acec`, `0d7a537249d6f94a`).
-  Seed 101 passes every integrity check but its bodily injury frequency is 0.66 per 100 car-years, below the
-  0.70 floor of that calibration band: its bodily injury losses are 0.89 times the answer key's expected ones,
-  which is claim luck (calibration moves expected and actual together); the other five seeds run 0.71 to 0.78. The test suite has 76 tests (75 pass, and one needs `pyarrow`).
+- **The default run** (content hash `a56af83ba99746bd`): loss ratios by accident year 88.2%, 79.7%, 64.5%, 62.7% and
+  62.9% for 2022 to 2026, of which catastrophes 0.0%, 4.0%, 2.2%, 0.7% and 6.1%; overall 70.0% (was 67.6%; 69.8% to
+  73.0% across five seeds); annualized retention 81.1%. 194,925 policy terms, 436,850 exposure rows, $210.7 million
+  earned premium, 22,649 claims, 39,704 features, 60,405 claim payments, 103,651 reserve transactions, 877,153
+  bills and 888,505 receipts, 118,642 quotes and 168,474 renewal offers; 14 insureds killed in crashes. The handover
+  redraws and crash deaths move later random draws, so every figure moves a little. 174 checks pass on the default
+  run and on seeds 7, 11, 23, 42 and 101 (content hashes `781b54e91c01870b`, `5217eaeea87bfeaa`,
+  `729530117e3a2198`, `31924d3ebeb03970`, `9c8304182f417e5b`); seed 101 is back inside every calibration band.
+  The test suite has 78 tests (77 pass, and one needs `pyarrow`).
 
 ## 2026-11-22, [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7): Follow-up checks ([PR #15](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/15))
 
