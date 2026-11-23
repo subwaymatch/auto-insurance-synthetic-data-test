@@ -12,15 +12,15 @@ now listed in [limitations.md](limitations.md)), or **agreed, already documented
 
 An audit of v1.1.7 (commit `529956c`) rebuilt the default run (content hash `6a360e75d7d87f3f`) and an
 independent seed (101, `dc2325b798e03cb4`), found the previous round's five fixes holding, and reported three
-record-level issues; both books passed every check. All three reproduce and are **confirmed and fixed** (the
-third by excluding the unsupported outcome, as the audit allows). "After" figures are from the default run after
+record-level issues; both books passed every check. All three reproduce and are **confirmed and fixed**; for
+the third, at the owner's request, a crash death of an insured is now modeled rather than excluded. "After" figures are from the default run after
 this change (content hash `1884deeddc78519f`) and seed 101 (`27bf943b8147de16`).
 
 | # | Finding | Verdict | Before (default; seed 101) | After |
 |---|---|---|---|---|
 | F1 | Subrogation received before a reopening's supplement had been paid | Confirmed and fixed | 15 features ($7,934); 15 | 0; 0 |
 | F2 | A car handed to another driver keeps the old driver's mileage and use | Confirmed and fixed | 1,295 of 1,295 switches unchanged; 1,421 of 1,421 | 1,260 switches, 93% re-rated; 1,376, 92% |
-| F3 | A first-party fatality whose driver keeps driving | Confirmed; outcome excluded and documented | 0; 1 | 0; 0 |
+| F3 | A first-party fatality whose driver keeps driving | Confirmed and fixed: crash deaths modeled | 0; 1 | 0; 0 (every insured killed in a crash recorded as deceased) |
 
 **F1. Recoveries ahead of payments.** Confirmed, and the cause is as described: subrogation was set on the
 feature's eventual paid loss and received after its first close, so a feature that later reopened had already
@@ -39,13 +39,20 @@ no longer given the car. Not every switch changes the rated figures (a redraw ca
 mileage); `validate.py` checks that most do.
 
 **F3. First-party fatality.** Confirmed on seed 101: an uninsured motorist claim's first claimant, the policy's
-own driver, was labeled a fatality while staying on the policy. Injury types are set from a claim's eventual cost
-after the simulation, so a death never reached the household's records, which come from general mortality.
-Feeding a crash death back into the simulation (a dated death, succession, cancellation, estate payees) would make
-claims schedule household events mid-term; this change takes the alternative the audit offers: the policy's own
-injured people (an uninsured motorist claim's first claimant, medical payments) are at worst head or spinal
-injuries, however costly, and [limitations.md](limitations.md) says a crash death of an insured is not modeled.
-Third-party claimants, whom the data does not follow, can still be killed. `validate.py` checks it.
+own driver, was labeled a fatality while staying on the policy. Injury types were set from a claim's eventual cost
+after the simulation, so a death never reached the household's records. A crash can now kill the insured at the
+wheel (`config.CRASH_DEATH_*`: assumed rates sized on NHTSA's counts, higher in single-vehicle and severe crashes
+and for older drivers), and the death is fed back into the simulation as the audit recommends: the driver leaves
+the policy the day after dying, on the day of the crash or within a month (a LEAVE event, `simulate._crash_deaths`),
+so a surviving spouse takes the policy over or it is canceled, their cars pass to the household's other drivers,
+the policy's rows end that day and it is re-rated without them, and they drive nothing after the crash. Their own
+claims (medical payments, uninsured or underinsured motorist) are fatalities, valued above the limit and so paid
+it, and paid to their estate after the death; any other first-party injury is at worst a head or spinal one, and
+third-party claimants, whom the data does not follow, can still be killed. A death that cannot be placed
+coherently (in a replacement car that joined mid-period, or on a term's last day) leaves the driver badly hurt
+instead. `validate.py` checks that every insured killed in a crash is recorded as deceased within a month of it;
+unit tests check how a death cuts a policy's period. Passengers are not killed, and the answer key's expected
+losses leave out the deaths' own claims, a small amount ([limitations.md](limitations.md)).
 
 ### What changed in the data
 

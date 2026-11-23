@@ -983,6 +983,39 @@ class RecoveryTimingTest(unittest.TestCase):
         self.assertEqual(list(validate.recoveries_ahead(pay)), [1])
 
 
+class CrashDeathTest(unittest.TestCase):
+    """simulate._crash_deaths: an insured killed in a crash leaves the policy the day after the death; the policy's
+    rows end that day, nothing on it from that day is kept, and the victim drives nothing after the crash."""
+
+    def test_cut_and_event(self):
+        from types import SimpleNamespace
+        T = SimpleNamespace(s=np.zeros(2, dtype=np.int64), x_pol=np.array([180, 180]))
+        vp = np.array([0, 0, 1])                     # two cars on policy 0, one on policy 1
+        b = np.array([100, 100, 100])
+        nb = np.array([100, 100])
+        occ = pd.DataFrame(dict(occ=[1, 2, 3, 4, 5], vrow=[0, 1, 1, 1, 2], day=[10, 8, 12, 15, 20], drv=[7, 8, 7, 8, 9]))
+        feat = pd.DataFrame(dict(occ=[1, 2, 3, 4, 5], death=[True, False, False, False, False]))
+        deaths = pd.DataFrame(dict(occ=[1], vrow=[0], pol=[0], drv=[7], day=[10], death_delay=[3]))
+        occ2, feat2, stop, how, b2, ev = simulate._crash_deaths(T, vp, b, nb, np.ones(3, dtype=bool), occ, feat, deaths,
+                                                                np.full(3, -1), np.zeros(3, dtype=int))
+        self.assertEqual(sorted(occ2.occ), [1, 2, 5])          # 3: the victim driving after the crash; 4: after leaving
+        self.assertEqual(list(b2), [14, 14, 100])              # died three days after the crash, left the day after
+        self.assertEqual(list(nb), [14, 100])
+        self.assertEqual(ev[["pol", "day", "target", "extra"]].values.tolist(), [[0, 14, 7, simulate.CRASH_DEATH]])
+        self.assertTrue(feat2.set_index("occ").death[1])
+
+    def test_not_fatal_when_the_period_has_begun(self):
+        from types import SimpleNamespace
+        T = SimpleNamespace(s=np.zeros(1, dtype=np.int64), x_pol=np.array([180]))
+        occ = pd.DataFrame(dict(occ=[1], vrow=[0], day=[10], drv=[7]))
+        feat = pd.DataFrame(dict(occ=[1], death=[True]))
+        deaths = pd.DataFrame(dict(occ=[1], vrow=[0], pol=[0], drv=[7], day=[10], death_delay=[0]))
+        _, feat2, _, _, _, ev = simulate._crash_deaths(T, np.array([0]), np.array([100]), np.array([100]), np.array([False]),
+                                                       occ, feat, deaths, np.full(1, -1), np.zeros(1, dtype=int))
+        self.assertEqual(len(ev), 0)
+        self.assertFalse(feat2.death.any())
+
+
 class MileageHistoryTest(unittest.TestCase):
     """A car's telematics period is measured on the mileage it was driven then (simulate._miles_then): a change
     inside the period counts for its days only, and a later change (a move after the offer day) not at all."""

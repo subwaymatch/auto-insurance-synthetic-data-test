@@ -1353,11 +1353,17 @@ def main() -> None:
     rep.check("most cars that pass to another driver are rated on a newly declared mileage or use (a redraw can land "
               "on the same rounded figure)", len(redrawn) == 0 or redrawn.mean() >= 0.5,
               f"{switch.sum():,} driver switches on kept cars, {redrawn.mean():.0%} re-rated" if len(redrawn) else "none")
-    # the policy's own injured people are not modeled as killed (a crash death of an insured would end their record)
+    # an insured killed in a crash (the claim's driver: an uninsured motorist claim's first claimant, or medical
+    # payments) is recorded as deceased, leaving the policy within a month of the crash (or after the valuation date)
     own = feat[((feat["coverage_code"] == "UM") & (feat["claimant_number"] == 1)) | (feat["coverage_code"] == "MED")]
-    rep.check("no uninsured motorist first claimant or medical payments claimant (the policy's own people) is recorded "
-              "as killed", not (own["injury_type"] == "Fatality").any(),
-              f"{(feat['injury_type'] == 'Fatality').sum():,} fatalities, all third-party claimants")
+    fatal = own[own["injury_type"] == "Fatality"].merge(clm[["claim_id", "involved_driver_id", "loss_date"]], on="claim_id").merge(
+        drv[["driver_id", "removal_reason", "removed_date"]], left_on="involved_driver_id", right_on="driver_id", how="left")
+    after = (pd.to_datetime(fatal["removed_date"]) - pd.to_datetime(fatal["loss_date"])).dt.days
+    not_yet = fatal["removed_date"].isna() & ((pd.Timestamp(valuation) - pd.to_datetime(fatal["loss_date"])).dt.days < 31)
+    rep.check("an insured killed in a crash is recorded as deceased, leaving the policy within a month of the crash",
+              bool((((fatal["removal_reason"] == "Deceased") & after.between(1, 31)) | not_yet).all()),
+              f"{fatal['claim_id'].nunique():,} insureds killed in a crash (with a claim of their own); "
+              f"{(feat['injury_type'] == 'Fatality').sum():,} fatalities in all")
     # a rental is paid once the car is returned: no sooner after the loss than its cost at the daily limit allows
     rent = feat.loc[feat["coverage_code"] == "RENT", ["claim_feature_id", "claim_id"]].merge(
         clm[["claim_id", "loss_date", "exposure_id"]], on="claim_id").merge(risk[["exposure_id", "rental_reimbursement"]], on="exposure_id")

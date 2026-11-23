@@ -66,7 +66,8 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
     has died go to the estate, telematics periods are measured on the mileage driven then, renewals use the
     named insured of the offer day, and the exposure rows publish the mileage and use each period was rated on.
 14. **Unreleased, A further audit.** Subrogation recovers only what has been paid by then, a car passed to
-    another driver is rated on their mileage and use, and an insured is never recorded as killed in a crash.
+    another driver is rated on their mileage and use, and a crash can kill the insured at the wheel, who then
+    leaves the policy as any death does.
 
 ### Releases
 
@@ -105,12 +106,19 @@ passed every check. Figures are for the default run after these changes (content
   be rated on the leaver's 1,500 miles of pleasure use. The new driver's commute, age, employment and whether the
   car is an extra one for them now give its mileage and use from the handover (dated, so earlier telematics
   periods keep theirs), and a child under 16 is not given the car.
-- **No first-party fatalities.** Injury types follow a claim's cost, so a very costly uninsured motorist claim of
-  the policy's own driver could be labeled a fatality while the driver kept driving (once on seed 101). A crash
-  death of an insured is not modeled, so the policy's own injured people are at worst head or spinal injuries.
+- **Deaths in crashes.** Injury types followed a claim's cost, so a very costly uninsured motorist claim of the
+  policy's own driver could be labeled a fatality while the driver kept driving (once on seed 101). A crash can now
+  kill the insured at the wheel (`config.CRASH_DEATH_*`, assumed rates sized on NHTSA's counts, higher in
+  single-vehicle and severe crashes and for older drivers). The death enters the household's record like any other:
+  the driver leaves the policy the day after dying (the day of the crash or within a month), a surviving spouse takes
+  the policy over or it is canceled, their cars pass to the other drivers, and the policy is re-rated from that day
+  (`simulate._crash_deaths`). Their own claims (medical payments, uninsured or underinsured motorist) are
+  fatalities paid to the limit, to their estate after the death; any other first-party injury is at worst a head
+  or spinal one.
 - **Checks.** `validate.py`: on no day has a feature recovered more than it had paid; most cars that pass to
-  another driver are rated on a newly declared mileage or use; no first-party claimant is recorded as killed. A
-  unit test feeds the recovery check the audit's example.
+  another driver are rated on a newly declared mileage or use; an insured killed in a crash is recorded as deceased
+  within a month. Unit tests feed the recovery check the audit's example and check how a crash death cuts a
+  policy's period.
 - **The default run** (content hash `1884deeddc78519f`): loss ratios by accident year 82.9%, 77.0%, 64.8%, 61.5% and 67.6% for
   2022 to 2026, of which catastrophes 0.0%, 3.8%, 2.5%, 0.8% and 6.5%; overall 69.7% (was 67.6%; 68.9% to 72.2%
   across five seeds); annualized retention 81.3%. 195,633 policy terms, 437,693 exposure rows, $211.9 million

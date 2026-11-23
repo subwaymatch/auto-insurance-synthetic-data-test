@@ -218,11 +218,13 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     z = np.where(gross > 0, z, -9)                     # claims never paid: alleged soft-tissue injuries
     kind = np.searchsorted([0.25, 1.9, 2.75], z) + (z >= 1.9)       # 0 soft, 2 fracture, 3 head/spinal, 4 fatality
     kind = np.where((z >= 0.25) & (z < 1.9), np.where(R.random(n) < 0.4, 1, 2), kind)
-    # the policy's own people (an uninsured motorist claim's first claimant, the insured's medical payments) live on
-    # in the policy's records: a crash death of an insured is not modeled (docs/limitations.md), so their worst
-    # injuries are head or spinal ones. Other claimants are not people the data follows
+    # the policy's own people (an uninsured motorist claim's first claimant, the insured's medical payments) are in
+    # the policy's records: their claim is a fatality exactly when the insured died in the crash (truth.simulate,
+    # simulate._crash_deaths), and otherwise at worst a head or spinal injury. Other claimants are not people the
+    # data follows, so their worst injuries can be fatal
     own = ((cvg == "UM") & (f.claimant.to_numpy() == 1)) | (cvg == "MED")
-    kind = np.where(own, np.minimum(kind, INJURY_TYPES.index("Head or Spinal Injury")), kind)
+    died = f["death"].to_numpy().astype(bool) if "death" in f else np.zeros(n, dtype=bool)
+    kind = np.where(own, np.where(died, INJURY_TYPES.index("Fatality"), np.minimum(kind, INJURY_TYPES.index("Head or Spinal Injury"))), kind)
     f["injury_type"] = np.where(injury, np.array(INJURY_TYPES)[np.clip(kind, 0, 4)], "")
     p_att = np.where(cvg == "MED", 0.05, np.where(gross > 0, 0.30 + 0.25 * (z > 0) + 0.15 * (z > 1), 0.08))
     attorney = injury & (lit | (R.random(n) < p_att))

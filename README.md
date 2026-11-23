@@ -929,6 +929,12 @@ every figure can be traced back to rows a student can see.
   (ACS 2024), mortality by age (CDC 2024), children leaving home (58% of 18-24s and 16% of 25-34s
   live with parents; CPS 2025), teen licensing ages (FHWA 2024), and vehicle ownership spells of
   five to six and a half years. A driver who leaves usually takes their own car.
+- **Deaths in crashes.** A crash can kill the insured at the wheel, more often in a single-vehicle crash, for an
+  older driver and in a severe crash (assumed rates sized on NHTSA's counts: about 0.1% to 0.4% of the crashes in
+  the data, on top of general mortality). The driver leaves the policy the day after they die, on the day of the
+  crash or within a month: a surviving spouse takes the policy over, or it is canceled; their cars pass to the
+  household's other drivers; their own claims (medical payments, uninsured motorist) are fatalities, paid to the
+  limit, and to their estate after the death.
 - **Total losses.** A car destroyed or stolen ends its cover the day after the loss, whether the
   company pays a total loss (`removal_reason` = Total Loss) or not (Destroyed or Stolen: a car
   without collision cover, a loss the other driver's insurer paid, or a claim not pursued). About

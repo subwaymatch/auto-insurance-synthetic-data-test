@@ -150,9 +150,10 @@ Those synthetic figures are plausible but unverified.
   claims still open on 1 January 2022 are missing), and 2022's calendar-year paid losses and cash flow are
   flattered. A crash in the warm-up that wrote off the car is dropped with its liability claims, since the car
   is in the opening book.
-- A crash does not kill an insured: deaths come only from general mortality, which ends the person's record and
-  can end the policy. An insured's own injuries (uninsured motorist claims, medical payments) are at worst head or
-  spinal injuries, however costly; third-party claimants, whom the data does not follow, can be killed.
+- A crash can kill the insured at the wheel (assumed rates sized on NHTSA's counts); passengers and other
+  household members are not killed in crashes, and a death claim is valued simply at the policy's limit. Deaths in
+  crashes come on top of general mortality, which already includes road deaths (about 1% of deaths), a negligible
+  overlap. The answer key's expected losses leave out the crash deaths' own claims (a small amount).
 - Two claims on one car within a few days stay possible (a car hit while parked the week after a crash); the
   car is not taken off the road while it is repaired.
 - A car its owner keeps after a total loss has no further losses in that term (a salvage car may not be driven

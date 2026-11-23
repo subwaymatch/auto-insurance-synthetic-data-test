@@ -57,6 +57,7 @@ DRIVER_REMOVAL_REASONS = ["", "Moved Out", "Moved Out", "Divorce", "Deceased"]  
 KIND = {"minor": 0, "major": 1, "accident": 2}
 # mid-term changes, in the order they are applied when several fall on one day
 ARRIVAL, TRADE, SELL, LEAVE, MARRY, TEEN, ADD, MOVE = range(8)
+CRASH_DEATH = 5         # a LEAVE event's code for an insured killed in a crash (recorded as a death, code 4)
 CHANGE_REASONS = ["Replacement Vehicle Added", "Vehicle Replaced", "Vehicle Removed", "Driver Removed",
                   "Spouse Added", "Newly Licensed Driver Added", "Vehicle Added", "Address Change"]
 END_RAN, END_ENDORSED, END_GONE = 0, 1, 2      # why a risk row ended: term end, endorsement, vehicle gone
@@ -435,6 +436,7 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         v = st.v
         V = np.flatnonzero(v["active"] & live[v["pol"]] & (v["added_day"] <= clock[v["pol"]]))
         a, why = clock[v["pol"][V]], reason_now[v["pol"][V]]
+        started = np.zeros(n, dtype=bool)
         while len(V):
             # a policy's rows are rated in date order, so a replacement car joining later in the term is rated
             # knowing the claims of cars that joined before it
@@ -442,7 +444,10 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
             first_a = np.full(n, np.iinfo(np.int64).max)
             np.minimum.at(first_a, vpol, a)
             now = a == first_a[vpol]
-            Vn, an, whyn, arrivals = _simulate_rows(sim, T, V[now], a[now], why[now], nb, out)
+            # a crash death can cut a policy's rows only in the batch that starts its period (simulate._crash_deaths)
+            fresh = ~started[vpol[now]]
+            Vn, an, whyn, arrivals = _simulate_rows(sim, T, V[now], a[now], why[now], nb, out, fresh)
+            started[vpol[now]] = True
             V, a, why = np.r_[V[~now], Vn], np.r_[a[~now], an], np.r_[why[~now], whyn]
             ev = _events(ev, arrivals)
 
@@ -453,6 +458,14 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         has_car[v["pol"][sim.pending]] = True
         # (unless it went the day after the valuation date, which is not yet known)
         empty = in_prog[~has_car[in_prog] & (T.last_gone[in_prog] >= 0) & (T.last_gone[in_prog] <= sim.ref.cal.valuation_day)]
+        # an insured killed in the crash that took the last car is dead by then: the death is recorded first (a named
+        # insured with no spouse to take over ends the policy as a death), and the policy cancelled after it
+        dead = ev[np.isin(ev.pol.to_numpy(), empty) & (ev.kind.to_numpy() == LEAVE) & (ev.extra.to_numpy() == CRASH_DEATH)]
+        if len(dead):
+            was = T.cancel_day.copy()
+            _apply_events(sim, T, dead.assign(day=np.minimum(dead.day.to_numpy(), T.last_gone[dead.pol.to_numpy()])))
+            ev = ev.drop(index=dead.index)
+            empty = empty[T.cancel_day[empty] == was[empty]]      # not those the death has just ended
         _cancel(T, empty, T.last_gone[empty], "Insured Request")
         live[empty] = False
         ev = ev[live[ev.pol.to_numpy()] | (ev.day.to_numpy() > nb[ev.pol.to_numpy()])]
@@ -489,10 +502,11 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         before_share=(np.minimum(x, 0) - np.minimum(a, 0)) / span, at_start=a == T.s[pol])
 
 
-def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
+def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     """Rate vehicles V from day a and simulate their losses up to their policy's next boundary. Appends risk
-    rows to `out`. Returns the replacements that arrive before the boundary (to simulate next) and the
-    replacements arriving later in the term, as ARRIVAL events."""
+    rows to `out`. Returns the replacements that arrive before the boundary (to simulate next), and as events the
+    replacements arriving later in the term and the insureds killed in a crash (_crash_deaths, which can bring a
+    policy's boundary forward in `nb`). fresh: the vehicle's policy has no other rows yet in this period."""
     st, cal, R, p, v = sim.st, sim.ref.cal, sim.R, sim.st.p, sim.st.v
     drv = sim.pop.drv
     vp = v["pol"][V]
@@ -505,8 +519,10 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
     watched = np.where(v["tele_on"][V], telematics.BEHAVIOUR_FACTOR, 1.0)     # drivers take more care while monitored
     for k_ in ("AF_MV", "AF_SV"):
         ctx["rate"][k_] = ctx["rate"][k_] * watched
-    occ, feat, wrecks, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
+    occ, feat, wrecks, deaths, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
     occ, feat, stop_day, how = _stop_at_total_loss(occ, feat, wrecks, len(V))
+    occ, feat, stop_day, how, b, died = _crash_deaths(T, vp, b, nb, np.ones(len(V), dtype=bool) if fresh is None else fresh,
+                                                     occ, feat, deaths, stop_day, how)
     gone = stop_day >= 0
     x = np.where(gone, stop_day + 1, b)
     truth.set_window(ctx, cal, a, x)
@@ -553,7 +569,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
     old, left = V[gone], x[gone]
     none = np.zeros(0, dtype=int)
     if len(old) == 0:
-        return none, none, np.zeros(0, dtype=object), pd.DataFrame(columns=EVENT_COLUMNS)
+        return none, none, np.zeros(0, dtype=object), died
     st.retire(old, left, np.where(how[gone] == 1, REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")))
     op = vp[gone]
     np.maximum.at(T.last_gone, op, left)
@@ -577,7 +593,46 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list):
         np.add.at(p["n_veh"], op[now], 1)
         np.maximum.at(sim.last_change, op[now], buy[now])
     Vn = np.arange(first_new, len(st.v["pol"]))
-    return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), arrivals
+    return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), _events(arrivals, died)
+
+
+def _crash_deaths(T: Term, vp, b, nb, fresh, occ, feat, deaths, stop_day, how):
+    """Insureds killed at the wheel (truth.simulate) leave the policy as a death does (a LEAVE event, code 4: a
+    surviving spouse takes the policy over, or it is cancelled; their cars pass to others), the day after they die:
+    the day of the crash or up to a month later. They drive no more after the crash, and the policy's rows end on
+    the day they leave, so the rest of the period is rated and simulated without them. A death counts only if its
+    crash happened (not after its car was destroyed), in the batch that starts the policy's period, and before the
+    term's last day; otherwise the crash leaves the driver badly hurt instead. One per policy and period. Returns
+    (occ, feat, stop_day, how, boundary per vehicle, LEAVE events)."""
+    none = pd.DataFrame(columns=EVENT_COLUMNS)
+    if len(deaths) == 0:
+        return occ, feat, stop_day, how, b, none
+    d = deaths.sort_values(["pol", "day", "occ"], kind="stable")
+    vr, day, pol = d.vrow.to_numpy().astype(int), d.day.to_numpy().astype(np.int64), d.pol.to_numpy().astype(int)
+    sd = stop_day[vr]
+    leave = np.minimum.reduce([day + 1 + d.death_delay.to_numpy().astype(np.int64), b[vr], T.x_pol[pol] - 1])
+    ok = ((sd < 0) | (day < sd) | d.occ.isin(occ.occ).to_numpy()) & fresh[vr] & (leave >= day + 1)
+    ok &= ~pd.Series(np.where(ok, pol, -1)).duplicated().to_numpy()     # the first death of each policy
+    if "death" in feat:                                   # crashes that did not kill: badly hurt instead
+        feat = feat.assign(death=feat.death.to_numpy().astype(bool) & feat.occ.isin(d.occ[ok]).to_numpy())
+    if not ok.any():
+        return occ, feat, stop_day, how, b, none
+    pol, day, leave, victim = pol[ok], day[ok], leave[ok], d.drv.to_numpy()[ok].astype(np.int64)
+    n = len(T.s)
+    cut, crash, who = np.full(n, -1, dtype=np.int64), np.full(n, -1, dtype=np.int64), np.full(n, -1, dtype=np.int64)
+    cut[pol], crash[pol], who[pol] = leave, day, victim
+    # after the crash the victim drives no more; from the day they leave, nothing on the policy is simulated here
+    op = vp[occ.vrow.to_numpy().astype(int)]
+    oday = occ.day.to_numpy()
+    drop = (cut[op] >= 0) & ((oday >= cut[op]) | ((occ.drv.to_numpy() == who[op]) & (oday > crash[op])))
+    occ = occ[~drop].reset_index(drop=True)
+    feat = feat[feat.occ.isin(occ.occ)].reset_index(drop=True)
+    vc = cut[vp]
+    late = (vc >= 0) & (stop_day >= vc)
+    stop_day, how = np.where(late, -1, stop_day), np.where(late, 0, how)
+    b = np.where(vc >= 0, np.minimum(b, vc), b)
+    np.minimum.at(nb, pol, leave)
+    return occ, feat, stop_day, how, b, pd.DataFrame(dict(pol=pol, day=leave, kind=LEAVE, target=victim, extra=CRASH_DEATH))
 
 
 WARM_DAYS = ["day", "report_day", "chargeable_day", "siu_day", "open_day", "close_day", "attorney_day", "suit_day",
@@ -610,8 +665,9 @@ def _warm_up(sim: Sim, T: Term, V, a, x, row_ids, watched) -> None:
     ctx = truth.context(st, W.cal, V[pre], s + W.off, e + W.off)
     for k_ in ("AF_MV", "AF_SV"):
         ctx["rate"][k_] = ctx["rate"][k_] * watched[pre]
-    occ, feat, wrecks, sim.n_occ = truth.simulate(ctx, st, W.cal, W.R, sim.n_occ)
-    gone = occ.occ.isin(wrecks.occ) | occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool)])
+    occ, feat, wrecks, deaths, sim.n_occ = truth.simulate(ctx, st, W.cal, W.R, sim.n_occ)
+    # (the opening book is as it stood on the start date: a car destroyed, or an insured killed, before it is not in it)
+    gone = occ.occ.isin(wrecks.occ) | occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool)]) | occ.occ.isin(deaths.occ)
     occ = occ[~gone.to_numpy()].copy()
     feat = feat[feat.occ.isin(occ.occ)]
     if len(occ) == 0:
@@ -1187,12 +1243,13 @@ def _apply_events(sim: Sim, T: Term, due: pd.DataFrame) -> dict:
 
 
 def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
-    """Drivers leave a policy (codes: 1 child or 2 other adult moved out, 3 divorce, 4 death). A leaving
-    driver's own car usually goes with them; otherwise another household driver takes it over."""
+    """Drivers leave a policy (codes: 1 child or 2 other adult moved out, 3 divorce, 4 death, 5 death in a crash,
+    recorded as 4). A leaving driver's own car usually goes with them; otherwise another household driver takes it
+    over."""
     st, p, R = sim.st, sim.st.p, sim.R
     drv = sim.pop.drv
     ok = drv.active.to_numpy()[who]
-    pol, day, who, code = pol[ok], day[ok], who[ok], code[ok]
+    pol, day, who, code = pol[ok], day[ok], who[ok], np.where(code[ok] == CRASH_DEATH, 4, code[ok])
     active = drv.active.to_numpy().copy()
     role, marital = drv.role.to_numpy().copy(), drv.marital.to_numpy().copy()
     removed, why = drv.removed_day.to_numpy().copy(), drv.removal_reason.to_numpy().copy()
