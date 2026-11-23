@@ -62,9 +62,11 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
     records after a driver left, notices after payment, lenders paid on kept wrecks, reviews after a final
     payment), a crash's costs are tied together, competitors price near the true risk, vehicles get equipment
     by model year, and the ledger closes each year-end.
-13. **Unreleased, Follow-up checks.** Rentals are paid only once the car is back, payments due to someone who
+13. **2026-11-22, [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7): Follow-up checks ([PR #15](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/15)).** Rentals are paid only once the car is back, payments due to someone who
     has died go to the estate, telematics periods are measured on the mileage driven then, renewals use the
     named insured of the offer day, and the exposure rows publish the mileage and use each period was rated on.
+14. **Unreleased, A further audit.** Subrogation recovers only what has been paid by then, a car passed to
+    another driver is rated on their mileage and use, and an insured is never recorded as killed in a crash.
 
 ### Releases
 
@@ -81,16 +83,49 @@ published files; it is given where the changelog recorded it.
 | [v1.1.4](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.4) | 2026-11-20 | `03c2634` | #9, #10 | 43,368 policies to 2026-12-31 | `7b4b15d1dcb53b95` |
 | [v1.1.5](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.5) | 2026-11-21 | `4a13b9f` | #11 (#12 and #13 change no data) | 43,368 policies to 2026-12-31 | `963889a73f229de8` |
 | [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6) | 2026-11-22 | `c28d1cd` | #14 | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
+| [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7) | 2026-11-22 | `529956c` | #15 | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `1884deeddc78519f` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
 
-## Unreleased: follow-up checks
+## Unreleased: a further audit
+
+A realism audit of v1.1.7 (default run and an independent seed, 101) found three record-level issues; both books
+passed every check. Figures are for the default run after these changes (content hash `1884deeddc78519f`).
+`docs/review_response.md` ("Audit of v1.1.7") answers each finding.
+
+- **Subrogation recovers what has been paid.** A feature's subrogation was set on its eventual paid loss and
+  received after its first close, so when a feature later reopened for a supplement the receipt already included
+  the supplement's share: 15 collision features in v1.1.7 had recovered more than they had paid on some day
+  ($7,934 in all). The share for the payments to the first close (never more than they come to, less the salvage)
+  is now received after that close, and a reopening's share after its supplement is paid; the total is the same.
+- **A car passed to another driver takes their mileage and use.** When a driver left and another took over the
+  car, it kept the old driver's mileage and use: all 1,295 such switches in v1.1.7 kept them, so a commuter could
+  be rated on the leaver's 1,500 miles of pleasure use. The new driver's commute, age, employment and whether the
+  car is an extra one for them now give its mileage and use from the handover (dated, so earlier telematics
+  periods keep theirs), and a child under 16 is not given the car.
+- **No first-party fatalities.** Injury types follow a claim's cost, so a very costly uninsured motorist claim of
+  the policy's own driver could be labeled a fatality while the driver kept driving (once on seed 101). A crash
+  death of an insured is not modeled, so the policy's own injured people are at worst head or spinal injuries.
+- **Checks.** `validate.py`: on no day has a feature recovered more than it had paid; most cars that pass to
+  another driver are rated on a newly declared mileage or use; no first-party claimant is recorded as killed. A
+  unit test feeds the recovery check the audit's example.
+- **The default run** (content hash `1884deeddc78519f`): loss ratios by accident year 82.9%, 77.0%, 64.8%, 61.5% and 67.6% for
+  2022 to 2026, of which catastrophes 0.0%, 3.8%, 2.5%, 0.8% and 6.5%; overall 69.7% (was 67.6%; 68.9% to 72.2%
+  across five seeds); annualized retention 81.3%. 195,633 policy terms, 437,693 exposure rows, $211.9 million
+  earned premium, 22,901 claims, 39,937 features, 60,883 claim payments, 104,009 reserve transactions, 881,483
+  bills and 893,226 receipts, 118,642 quotes and 169,131 renewal offers. The handover redraws move later random
+  draws, so every figure moves a little. 174 checks pass on the default run and on seeds 7, 11, 23 and 42
+  (content hashes `a621a357f57f3c10`, `1971ec234a02ad74`, `eb6a6e2b94a1acec`, `0d7a537249d6f94a`).
+  Seed 101 passes every integrity check but its bodily injury frequency is 0.66 per 100 car-years, below the
+  0.70 floor of that calibration band: its bodily injury losses are 0.89 times the answer key's expected ones,
+  which is claim luck (calibration moves expected and actual together); the other five seeds run 0.71 to 0.78. The test suite has 76 tests (75 pass, and one needs `pyarrow`).
+
+## 2026-11-22, [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7): Follow-up checks ([PR #15](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/15))
 
 Independent checks of v1.1.6 found records still at odds with their timing, and a way later events could reach
-back into earlier telematics scores. Figures are for the default run after these changes (content hash
-`6a360e75d7d87f3f`). `docs/review_response.md` ("Follow-up checks") answers each finding.
+back into earlier telematics scores. The release is content hash `6a360e75d7d87f3f`. `docs/review_response.md` ("Follow-up checks") answers each finding.
 
 - **Rentals paid once the car is back.** A rental was paid at a time drawn without regard to how long the
   car was kept, so 868 of 4,095 paid rentals in v1.1.6 were paid in full before enough days had passed since

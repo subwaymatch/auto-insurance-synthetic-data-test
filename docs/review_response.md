@@ -1,11 +1,65 @@
 # Responses to the external reviews of November 2026
 
 An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
-realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, and follow-up
-checks of the release that fixed them. The follow-up checks are answered first, then the two audits, then
-the 20 November audit at commit `03c2634`, then the third review at `9fe6062`; the first two follow. Each finding is answered:
+realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, follow-up checks
+of the release that fixed them, and an audit of v1.1.7 on 23 November 2026. The newest is answered first, then
+the follow-up checks, the two audits, the 20 November audit at commit `03c2634` and the third review at
+`9fe6062`; the first two follow. Each finding is answered:
 **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
 now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Audit of v1.1.7 (23 November 2026)
+
+An audit of v1.1.7 (commit `529956c`) rebuilt the default run (content hash `6a360e75d7d87f3f`) and an
+independent seed (101, `dc2325b798e03cb4`), found the previous round's five fixes holding, and reported three
+record-level issues; both books passed every check. All three reproduce and are **confirmed and fixed** (the
+third by excluding the unsupported outcome, as the audit allows). "After" figures are from the default run after
+this change (content hash `1884deeddc78519f`) and seed 101 (`27bf943b8147de16`).
+
+| # | Finding | Verdict | Before (default; seed 101) | After |
+|---|---|---|---|---|
+| F1 | Subrogation received before a reopening's supplement had been paid | Confirmed and fixed | 15 features ($7,934); 15 | 0; 0 |
+| F2 | A car handed to another driver keeps the old driver's mileage and use | Confirmed and fixed | 1,295 of 1,295 switches unchanged; 1,421 of 1,421 | 1,260 switches, 93% re-rated; 1,376, 92% |
+| F3 | A first-party fatality whose driver keeps driving | Confirmed; outcome excluded and documented | 0; 1 | 0; 0 |
+
+**F1. Recoveries ahead of payments.** Confirmed, and the cause is as described: subrogation was set on the
+feature's eventual paid loss and received after its first close, so a feature that later reopened had already
+received the supplement's share. The other insurer repays a claim as it is shown it: the share for the payments
+to the first close (never more than they come to, less the salvage) is now received after that close, and a
+reopening's share after its supplement is paid (`claims._schedule`). The total recovered, and so every ultimate,
+is unchanged. Salvage is the sale of the wreck, received after the settlement; it is never more than the
+settlement. `validate.py` checks the cumulative position on every payment date, and a unit test feeds the check
+the audit's example (claim 133163).
+
+**F2. Handover without new usage.** Confirmed. `_hand_over_cars` gave the car a new main driver but never
+redrew its mileage and use, as moves and replacement cars already did. It now does, from the new driver's
+commute, age, employment and whether the car is an extra one for them, dated to the handover so earlier
+telematics periods keep their mileage (`Sim.mile_changes`); the re-rated row starts that day. A child under 16 is
+no longer given the car. Not every switch changes the rated figures (a redraw can land on the same rounded
+mileage); `validate.py` checks that most do.
+
+**F3. First-party fatality.** Confirmed on seed 101: an uninsured motorist claim's first claimant, the policy's
+own driver, was labeled a fatality while staying on the policy. Injury types are set from a claim's eventual cost
+after the simulation, so a death never reached the household's records, which come from general mortality.
+Feeding a crash death back into the simulation (a dated death, succession, cancellation, estate payees) would make
+claims schedule household events mid-term; this change takes the alternative the audit offers: the policy's own
+injured people (an uninsured motorist claim's first claimant, medical payments) are at worst head or spinal
+injuries, however costly, and [limitations.md](limitations.md) says a crash death of an insured is not modeled.
+Third-party claimants, whom the data does not follow, can still be killed. `validate.py` checks it.
+
+### What changed in the data
+
+Recoveries move later on reopened features (their totals are unchanged); cars passed to another driver are
+re-rated on new mileage and use, which changes their premiums and true claim rates a little; a handful of
+first-party injuries are no longer labeled fatalities. Because the handover redraws change later random draws,
+every figure of the default run moves a little: loss ratios by accident year 82.9%, 77.0%, 64.8%, 61.5% and 67.6%
+for 2022 to 2026 (were 81.3%, 70.4%, 67.5%, 58.2% and 65.5%), overall 69.7% (was 67.6%; 68.9% to 72.2% across five
+seeds), annualized retention 81.3%; 22,901 claims (was 23,097). `validate.py` runs 174 checks (was 171), all
+passing on the default run and on seeds 7, 11, 23 and 42; the test suite has 76 tests.
+
+Seed 101 passes every integrity check but its bodily injury frequency is 0.66 per 100 car-years, below the
+0.70 floor of that calibration band: its bodily injury losses are 0.89 times the answer key's expected ones,
+which is claim luck (calibration moves expected and actual together); the other five seeds run 0.71 to 0.78. The band is not widened; [benchmarks.md](benchmarks.md) gives the spread.
 
 ## Follow-up checks (22 November 2026)
 
