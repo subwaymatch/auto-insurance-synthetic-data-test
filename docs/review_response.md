@@ -27,8 +27,9 @@ feature's eventual paid loss and received after its first close, so a feature th
 received the supplement's share. The other insurer repays a claim as it is shown it: the share for the payments
 to the first close (never more than they come to, less the salvage) is now received after that close, and a
 reopening's share after its supplement is paid (`claims._schedule`). The total recovered, and so every ultimate,
-is unchanged. Salvage is the sale of the wreck, received after the settlement; it is never more than the
-settlement. `validate.py` checks the cumulative position on every payment date, and a unit test feeds the check
+is unchanged. Salvage is the sale of the wreck, one sale received after the settlement and never more than the
+whole settlement; on a cheap car with a high deductible it can fetch more than the payments before a reopening,
+and then the wreck is sold once the supplement is paid (found on seeds 7 and 101 after the first fix). `validate.py` checks the cumulative position on every payment date, and a unit test feeds the check
 the audit's example (claim 133163).
 
 **F2. Handover without new usage.** Confirmed. `_hand_over_cars` gave the car a new main driver but never

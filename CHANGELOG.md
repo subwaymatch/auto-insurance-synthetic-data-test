@@ -101,6 +101,8 @@ passed every check. Figures are for the default run after these changes (content
   the supplement's share: 15 collision features in v1.1.7 had recovered more than they had paid on some day
   ($7,934 in all). The share for the payments to the first close (never more than they come to, less the salvage)
   is now received after that close, and a reopening's share after its supplement is paid; the total is the same.
+  A wreck that would fetch more than had been paid before a reopening (a cheap car with a high deductible) is sold
+  once the supplement is paid.
 - **A car passed to another driver takes their mileage and use.** When a driver left and another took over the
   car, it kept the old driver's mileage and use: all 1,295 such switches in v1.1.7 kept them, so a commuter could
   be rated on the leaver's 1,500 miles of pleasure use. The new driver's commute, age, employment and whether the

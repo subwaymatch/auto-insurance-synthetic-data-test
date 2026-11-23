@@ -577,7 +577,10 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     # subrogation recovers what has been paid: the part for the payments to the first close (never more than they
     # come to, less the salvage) after that close, and a reopening's share after its supplement is paid. The other
     # insurer repays a claim it is shown; the total recovered is the same
-    salvage_day = cal.spread_business(cd + R.integers(20, 70, n), R.random(n))
+    # the wreck is sold after the settlement, or, if it would fetch more than had been paid before a reopening, once
+    # the reopening's supplement is paid
+    late_sale = reopen & (salv > main)
+    salvage_day = cal.spread_business(np.where(late_sale, supp_day, cd) + R.integers(20, 70, n), R.random(n))
     lag = np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int)
     sub_main = np.minimum(np.floor(subro * main / np.maximum(P, 1)).astype(np.int64), np.maximum(main - salv, 0))
     sub_main = np.where(reopen, sub_main, subro)
