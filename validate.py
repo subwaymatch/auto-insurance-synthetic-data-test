@@ -488,6 +488,16 @@ def integrity_payees(rep, pay, clm, feat, veh, drv) -> None:
               f"{(~same.groupby(m['payment_id']).any()).sum():,} under a surname the insured has since changed")
 
 
+def recoveries_ahead(pay: pd.DataFrame) -> pd.Index:
+    """The features that on some payment date had recovered (salvage and subrogation) more than they had paid in
+    loss by then."""
+    flow = pay[pay["payment_type"].isin(["Loss", "Salvage Recovery", "Subrogation Recovery"])]
+    flow = flow.assign(paid=np.where(flow["payment_type"] == "Loss", flow["amount"], 0.0),
+                       back=np.where(flow["payment_type"] == "Loss", 0.0, -flow["amount"]))
+    run = flow.groupby(["claim_feature_id", "payment_date"])[["paid", "back"]].sum().groupby(level=0).cumsum()
+    return run[run["back"] > run["paid"] + 0.005].index.get_level_values(0).unique()
+
+
 def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
     """The make, model and model-year catalog and the vehicles that point to it."""
     rep.check("each make, model and model year appears once in the vehicle catalog",
@@ -1330,6 +1340,24 @@ def main() -> None:
     rep.check("each vehicle's use and mileage are those its latest period by the valuation date was rated on",
               bool(match.groupby(both["insured_vehicle_id"]).any().all()),
               f"{(changed > 1).sum():,} vehicles rated on more than one mileage over time")
+    # recoveries repay what has been paid: on no day has a feature recovered more than it had paid in loss by then
+    ahead = recoveries_ahead(pay)
+    rep.check("on no day has a feature recovered (salvage and subrogation) more than it had paid in loss by then",
+              len(ahead) == 0, f"{len(ahead):,} features ahead on some day")
+    # a car handed to another driver is driven as they drive: its mileage or use is declared again
+    e = risk.sort_values(["insured_vehicle_id", "coverage_start_date", "exposure_id"], kind="stable")
+    before = e.groupby("insured_vehicle_id")[["driver_id", "rated_annual_mileage", "rated_primary_use"]].shift(1)
+    switch = before["driver_id"].notna() & (e["driver_id"] != before["driver_id"])
+    redrawn = ((e["rated_annual_mileage"] != before["rated_annual_mileage"])
+               | (e["rated_primary_use"] != before["rated_primary_use"]))[switch]
+    rep.check("most cars that pass to another driver are rated on a newly declared mileage or use (a redraw can land "
+              "on the same rounded figure)", len(redrawn) == 0 or redrawn.mean() >= 0.5,
+              f"{switch.sum():,} driver switches on kept cars, {redrawn.mean():.0%} re-rated" if len(redrawn) else "none")
+    # the policy's own injured people are not modeled as killed (a crash death of an insured would end their record)
+    own = feat[((feat["coverage_code"] == "UM") & (feat["claimant_number"] == 1)) | (feat["coverage_code"] == "MED")]
+    rep.check("no uninsured motorist first claimant or medical payments claimant (the policy's own people) is recorded "
+              "as killed", not (own["injury_type"] == "Fatality").any(),
+              f"{(feat['injury_type'] == 'Fatality').sum():,} fatalities, all third-party claimants")
     # a rental is paid once the car is returned: no sooner after the loss than its cost at the daily limit allows
     rent = feat.loc[feat["coverage_code"] == "RENT", ["claim_feature_id", "claim_id"]].merge(
         clm[["claim_id", "loss_date", "exposure_id"]], on="claim_id").merge(risk[["exposure_id", "rental_reimbursement"]], on="exposure_id")

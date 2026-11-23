@@ -1233,6 +1233,7 @@ def _hand_over_cars(sim: Sim, T: Term, who, day, code) -> None:
     owner_code = dict(zip(who, code))
     cars = np.flatnonzero(v["active"] & np.isin(v["primary_drv"], who))
     d_assigned = drv.assigned.to_numpy().copy()
+    kept, when = [], []
     for car in cars:
         q, w = v["pol"][car], v["primary_drv"][car]
         n_cars = np.count_nonzero(v["active"] & (v["pol"] == q))
@@ -1241,7 +1242,12 @@ def _hand_over_cars(sim: Sim, T: Term, who, day, code) -> None:
             p["n_veh"][q] -= 1
             T.last_gone[q] = max(T.last_gone[q], owner_day[w])
             continue
-        v["primary_drv"][car], v["extra_vehicle"][car] = _driver_for_car(sim, q, d_assigned)
+        v["primary_drv"][car], v["extra_vehicle"][car] = _driver_for_car(sim, q, d_assigned, owner_day[w])
+        kept.append(car)
+        when.append(owner_day[w])
+    # the car is now driven as its new driver drives: their commute, age and employment, and whether it is an extra
+    # car for them, give its mileage and use from the handover (dated, so earlier periods keep theirs)
+    _redraw_mileage(sim, np.array(kept, dtype=np.int64), np.array(when, dtype=np.int64))
 
 
 def _driver_for_car(sim: Sim, pol: int, assigned: np.ndarray, day: int = None) -> tuple[int, bool]:

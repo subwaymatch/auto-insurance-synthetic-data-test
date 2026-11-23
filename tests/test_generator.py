@@ -970,6 +970,19 @@ class TelematicsAssignmentTest(unittest.TestCase):
             np.testing.assert_array_equal(a[k], b[k])
 
 
+class RecoveryTimingTest(unittest.TestCase):
+    """validate.recoveries_ahead flags a feature whose recoveries ran ahead of its paid loss on some day: the
+    audit's case of a subrogation receipt that included a supplement paid only after a later reopening."""
+
+    def test_recovery_ahead_of_a_later_supplement(self):
+        pay = pd.DataFrame(dict(
+            claim_feature_id=[1, 1, 1, 2, 2, 2],
+            payment_date=["2022-03-03", "2022-05-17", "2022-09-06", "2022-03-03", "2022-05-17", "2022-09-06"],
+            payment_type=["Loss", "Subrogation Recovery", "Loss", "Loss", "Subrogation Recovery", "Loss"],
+            amount=[10_096.01, -10_620.84, 2_441.40, 10_096.01, -8_500.00, 2_441.40]))
+        self.assertEqual(list(validate.recoveries_ahead(pay)), [1])
+
+
 class MileageHistoryTest(unittest.TestCase):
     """A car's telematics period is measured on the mileage it was driven then (simulate._miles_then): a change
     inside the period counts for its days only, and a later change (a move after the offer day) not at all."""
