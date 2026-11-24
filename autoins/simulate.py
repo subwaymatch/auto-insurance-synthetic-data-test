@@ -1299,6 +1299,10 @@ def _apply_events(sim: Sim, T: Term, due: pd.DataFrame) -> dict:
     # else would change it, so a car traded or a driver added the same day is not put on a canceled policy
     for kind in [LEAVE] + [k for k in range(len(CHANGE_REASONS)) if k != LEAVE]:
         e = due[due.kind == kind].drop_duplicates(["pol", "target"] if kind in (ARRIVAL, TRADE, LEAVE) else ["pol"])
+        if kind == SELL:            # one sale a day, and, apart from it, the record of a car written off
+            g = due[due.kind == kind]
+            w = g.extra.to_numpy() == WRECKED
+            e = pd.concat([g[w].drop_duplicates(["pol"]), g[~w].drop_duplicates(["pol"])])
         if kind != LEAVE:
             ended = (T.cancel_day[e.pol.to_numpy()] >= 0) & (T.cancel_day[e.pol.to_numpy()] <= e.day.to_numpy())
             e = e[~ended]

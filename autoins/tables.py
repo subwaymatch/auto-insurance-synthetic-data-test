@@ -678,16 +678,16 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, notices
     # a policy that ended with its insured's death writes to the estate: from the cancellation on, every contact
     # is a letter, and there is no notice of cancellation or change confirmation for a policy that has ended
     dead = terms[terms.cancel_reason == "Insured Deceased"].groupby("pol").cancel_day.max()
-    since = dead.reindex(c.pol.to_numpy()).to_numpy()
-    since = np.where(np.isnan(since), np.inf, since)
-    moot = (c.day.to_numpy() > since) & c.purpose.isin(["Notice of Cancellation", "Policy Change Confirmation"]).to_numpy()
-    c = c[~moot].reset_index(drop=True)
-    since = dead.reindex(c.pol.to_numpy()).to_numpy()
-    c["kind"] = np.where(c.day.to_numpy() >= np.where(np.isnan(since), np.inf, since), "Written Letter", c.kind)
+    since_of = lambda pol: np.nan_to_num(dead.reindex(pol).to_numpy().astype(float), nan=np.inf)
     # letters go out, and staff call, on business days (calls on Saturdays too); email is sent any day
     day, wd = c.day.to_numpy(), cal.weekday(c.day.to_numpy())
     c["day"] = np.where(c.kind == "Written Letter", cal.next_business(day),
                         np.where((c.kind == "Phone Call") & (wd != 5), cal.next_business(day), day))
+    late = c.day.to_numpy() >= since_of(c.pol.to_numpy())
+    c["kind"] = np.where(late, "Written Letter", c.kind)
+    c["day"] = np.where(late, cal.next_business(c.day.to_numpy()), c.day.to_numpy())
+    moot = (c.day.to_numpy() > since_of(c.pol.to_numpy())) & c.purpose.isin(["Notice of Cancellation", "Policy Change Confirmation"]).to_numpy()
+    c = c[~moot]
     c = c[(c.day >= 0) & (c.day <= V)].sort_values(["day", "pol", "purpose"], kind="stable").reset_index(drop=True)
     return pd.DataFrame({"contact_id": [f"CM{i:07d}" for i in range(1, len(c) + 1)], "contact_method": c.kind,
                          "policy_id": polno(c.pol), "contact_date": D(c.day), "purpose": c.purpose})
