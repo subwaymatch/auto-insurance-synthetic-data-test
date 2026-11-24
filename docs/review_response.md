@@ -13,14 +13,15 @@ now listed in [limitations.md](limitations.md)), or **agreed, already documented
 An audit of v1.1.7 (commit `529956c`) rebuilt the default run (content hash `6a360e75d7d87f3f`) and an
 independent seed (101, `dc2325b798e03cb4`), found the previous round's five fixes holding, and reported three
 record-level issues; both books passed every check. All three reproduce and are **confirmed and fixed**; for
-the third, at the owner's request, a crash death of an insured is now modeled rather than excluded. "After" figures are from the default run after
-this change (content hash `a56af83ba99746bd`) and seed 101 (`9c8304182f417e5b`).
+the third, at the owner's request, crash deaths are now modeled rather than excluded: of the insured at the
+wheel, and of the household's other drivers riding along. "After" figures are from the default run after
+this change (content hash `4a9b0599022f5117`) and seed 101 (`df2bb4217f33dc5e`).
 
 | # | Finding | Verdict | Before (default; seed 101) | After |
 |---|---|---|---|---|
 | F1 | Subrogation received before a reopening's supplement had been paid | Confirmed and fixed | 15 features ($7,934); 15 | 0; 0 |
-| F2 | A car handed to another driver keeps the old driver's mileage and use | Confirmed and fixed | 1,295 of 1,295 switches unchanged; 1,421 of 1,421 | 1,363 switches, 92% re-rated; seed 101 likewise |
-| F3 | A first-party fatality whose driver keeps driving | Confirmed and fixed: crash deaths modeled | 0; 1 | 0; 0 (every insured killed in a crash recorded as deceased) |
+| F2 | A car handed to another driver keeps the old driver's mileage and use | Confirmed and fixed | 1,295 of 1,295 switches unchanged; 1,421 of 1,421 | 1,339 switches, 93% re-rated; seed 101: 1,431, 92% |
+| F3 | A first-party fatality whose driver keeps driving | Confirmed and fixed: crash deaths modeled | 0; 1 | 0; 0 (everyone killed in a crash, at the wheel or riding along, recorded as deceased) |
 
 **F1. Recoveries ahead of payments.** Confirmed, and the cause is as described: subrogation was set on the
 feature's eventual paid loss and received after its first close, so a feature that later reopened had already
@@ -51,25 +52,32 @@ claims (medical payments, uninsured or underinsured motorist) are fatalities, va
 it, and paid to their estate after the death; any other first-party injury is at worst a head or spinal one, and
 third-party claimants, whom the data does not follow, can still be killed. A death that cannot be placed
 coherently (in a replacement car that joined mid-period, or on a term's last day) leaves the driver badly hurt
-instead. `validate.py` checks that every insured killed in a crash is recorded as deceased within a month of it;
-unit tests check how a death cuts a policy's period. Passengers are not killed, and the answer key's expected
+instead. At the owner's further request, the household's other listed drivers riding along (`config.RIDE_ALONG_P`)
+can die in the same crash, at a little less than the driver's risk: all of a crash's dead leave the policy the same
+day, each has a medical payments claim of their own (and an uninsured motorist claim when the other driver was
+uninsured or underinsured), and the new column `claim_feature.injured_driver_id` names the listed driver each such
+feature is for. A household member killed while another drove has no bodily injury claim on the policy (Illinois
+enforces the household exclusion then, 215 ILCS 5/143.01). `validate.py` checks that everyone killed in a crash
+is recorded as deceased within a month of it and drives in no later crash, and that a feature's injured driver was
+on the policy; unit tests check how a death cuts a policy's period, with a driver and a passenger killed together.
+Children under 16 and passengers from outside the household are not followed, and the answer key's expected
 losses leave out the deaths' own claims, a small amount ([limitations.md](limitations.md)).
 
 ### What changed in the data
 
 Recoveries move later on reopened features (their totals are unchanged); cars passed to another driver are
-re-rated on new mileage and use, which changes their premiums and true claim rates a little; insureds can die in
-crashes (14 in the default run, 5 of them with a claim of their own), which ends or passes on their policies.
-Because these change later random draws, every figure of the default run moves a little: loss ratios by accident
-year 88.2%, 79.7%, 64.5%, 62.7% and 62.9% for 2022 to 2026 (were 81.3%, 70.4%, 67.5%, 58.2% and 65.5%), overall
-70.0% (was 67.6%; 69.8% to 73.0% across five seeds), annualized retention 81.1%; 22,649 claims (was 23,097).
-`validate.py` runs 174 checks (was 171), all passing on the default run and on seeds 7, 11, 23, 42 and 101; the
-test suite has 78 tests.
+re-rated on new mileage and use, which changes their premiums and true claim rates a little; drivers and the
+household's other drivers riding along can die in crashes (11 in the default run, 2 of them riding along; 6 with a
+claim of their own), which ends or passes on their policies. Because these change later random draws, every
+figure of the default run moves a little: loss ratios by accident year 84.5%, 79.5%, 65.6%, 62.9% and 63.3% for
+2022 to 2026 (were 81.3%, 70.4%, 67.5%, 58.2% and 65.5%), overall 69.8% (was 67.6%; 69.5% to 71.5% across five
+seeds), annualized retention 81.3%; 22,933 claims (was 23,097). `validate.py` runs 175 checks (was 171), all
+passing on the default run and on seeds 7, 11, 23, 42 and 101; the test suite has 79 tests.
 
 Seed 101, rebuilt after these changes, is inside every calibration band. Before them, it had missed one: its bodily
 injury frequency came to 0.66 per 100 car-years against a floor of 0.70, with its bodily injury losses 0.89 times
 the answer key's expected ones, which is claim luck (calibration moves expected and actual together). Across the
-five seeds in [benchmarks.md](benchmarks.md) that frequency runs 0.70 to 0.81; the band is not widened.
+five seeds in [benchmarks.md](benchmarks.md) that frequency runs 0.74 to 0.79; the band is not widened.
 
 ## Follow-up checks (22 November 2026)
 

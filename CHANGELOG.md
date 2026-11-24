@@ -66,8 +66,8 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
     has died go to the estate, telematics periods are measured on the mileage driven then, renewals use the
     named insured of the offer day, and the exposure rows publish the mileage and use each period was rated on.
 14. **Unreleased, A further audit.** Subrogation recovers only what has been paid by then, a car passed to
-    another driver is rated on their mileage and use, and a crash can kill the insured at the wheel, who then
-    leaves the policy as any death does.
+    another driver is rated on their mileage and use, and a crash can kill the insured at the wheel and the
+    household's other drivers riding along, who then leave the policy as any death does.
 
 ### Releases
 
@@ -85,7 +85,7 @@ published files; it is given where the changelog recorded it.
 | [v1.1.5](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.5) | 2026-11-21 | `4a13b9f` | #11 (#12 and #13 change no data) | 43,368 policies to 2026-12-31 | `963889a73f229de8` |
 | [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6) | 2026-11-22 | `c28d1cd` | #14 | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
 | [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7) | 2026-11-22 | `529956c` | #15 | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `a56af83ba99746bd` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `4a9b0599022f5117` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
@@ -93,7 +93,7 @@ byte-identical files with the pinned library versions (`requirements.txt`).
 ## Unreleased: a further audit
 
 A realism audit of v1.1.7 (default run and an independent seed, 101) found three record-level issues; both books
-passed every check. Figures are for the default run after these changes (content hash `a56af83ba99746bd`).
+passed every check. Figures are for the default run after these changes (content hash `4a9b0599022f5117`).
 `docs/review_response.md` ("Audit of v1.1.7") answers each finding.
 
 - **Subrogation recovers what has been paid.** A feature's subrogation was set on its eventual paid loss and
@@ -117,19 +117,34 @@ passed every check. Figures are for the default run after these changes (content
   (`simulate._crash_deaths`). Their own claims (medical payments, uninsured or underinsured motorist) are
   fatalities paid to the limit, to their estate after the death; any other first-party injury is at worst a head
   or spinal one.
+- **Household members riding along can die too.** The household's other listed drivers (the named insured when
+  someone else drives, a spouse, another adult, a teenager) ride along in some crashes (`config.RIDE_ALONG_P`,
+  assumed) and can die in the same crash, at a little less than the driver's risk and with their own age's
+  frailty (`PASSENGER_DEATH_FACTOR`). All of a crash's dead leave the policy on the same day, the named insured
+  last, so a spouse killed with them does not take the policy over; none of them drives after the crash. Each gets
+  a medical payments claim of their own (claimant 2 and up) and, in a crash caused by an uninsured or underinsured
+  driver, an uninsured motorist claim, paid to the limit and to their estate. There is no bodily injury claim for
+  them on the policy when another household member drove: Illinois enforces the household exclusion then
+  (215 ILCS 5/143.01). New column `claim_feature.injured_driver_id`: the listed driver a medical payments or
+  uninsured motorist feature is for (the driver as claimant 1, or a household member riding along), so a payment
+  to an injured person is made out to them, and the deaths can be followed to `driver`.
 - **Checks.** `validate.py`: on no day has a feature recovered more than it had paid; most cars that pass to
-  another driver are rated on a newly declared mileage or use; an insured killed in a crash is recorded as deceased
-  within a month. Unit tests feed the recovery check the audit's example and check how a crash death cuts a
-  policy's period.
-- **The default run** (content hash `a56af83ba99746bd`): loss ratios by accident year 88.2%, 79.7%, 64.5%, 62.7% and
-  62.9% for 2022 to 2026, of which catastrophes 0.0%, 4.0%, 2.2%, 0.7% and 6.1%; overall 70.0% (was 67.6%; 69.8% to
-  73.0% across five seeds); annualized retention 81.1%. 194,925 policy terms, 436,850 exposure rows, $210.7 million
-  earned premium, 22,649 claims, 39,704 features, 60,405 claim payments, 103,651 reserve transactions, 877,153
-  bills and 888,505 receipts, 118,642 quotes and 168,474 renewal offers; 14 insureds killed in crashes. The handover
-  redraws and crash deaths move later random draws, so every figure moves a little. 174 checks pass on the default
-  run and on seeds 7, 11, 23, 42 and 101 (content hashes `781b54e91c01870b`, `5217eaeea87bfeaa`,
-  `729530117e3a2198`, `31924d3ebeb03970`, `9c8304182f417e5b`); seed 101 is back inside every calibration band.
-  The test suite has 78 tests (77 pass, and one needs `pyarrow`).
+  another driver are rated on a newly declared mileage or use; a feature's injured driver was on the claim's policy
+  on the loss date, and the first claimant is the claim's driver; someone killed in a crash, at the wheel or riding
+  along, is recorded as deceased within a month and drives in no later crash. Unit tests feed the recovery check
+  the audit's example and check how a crash death cuts a policy's period, a driver and a passenger killed together
+  included.
+- **A driver already gone when their leave event falls due** (a teenager killed riding along who was to move out
+  later) is now skipped without breaking the batch; seed 101 failed to build on it.
+- **The default run** (content hash `4a9b0599022f5117`): loss ratios by accident year 84.5%, 79.5%, 65.6%, 62.9% and
+  63.3% for 2022 to 2026, of which catastrophes 0.0%, 4.0%, 2.3%, 0.8% and 5.7%; overall 69.8% (was 67.6% in
+  v1.1.7; 69.5% to 71.5% across five seeds); annualized retention 81.3%. 195,658 policy terms, 439,321 exposure
+  rows, $211.8 million earned premium, 22,933 claims, 39,983 features, 61,078 claim payments, 104,420 reserve
+  transactions, 880,013 bills and 891,776 receipts, 118,642 quotes and 168,997 renewal offers; 11 people killed in
+  crashes, 2 of them riding along. The handover redraws and crash deaths move later random draws, so every figure
+  moves a little. 175 checks pass on the default run and on seeds 7, 11, 23, 42 and 101 (content hashes
+  `ac814ba495cca749`, `42e90cdaa2e9139a`, `8b597ae79e5f36ab`, `1a276372cec59eab`, `df2bb4217f33dc5e`), with every
+  calibration figure inside its band. The test suite has 79 tests (78 pass, and one needs `pyarrow`).
 
 ## 2026-11-22, [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7): Follow-up checks ([PR #15](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/15))
 
