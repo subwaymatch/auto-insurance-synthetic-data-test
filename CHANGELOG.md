@@ -131,8 +131,9 @@ passed every check. Figures are for the default run after these changes (content
   effect by the valuation date is booked by then.
 - **Catalog and dictionary.** The 1985 Subaru RX Turbo has its engine (EPA's record is blank). The dictionary lists
   `Insured and Attorney`, the estate payee, the first bill's date and the final balance's.
-- **Checks.** `validate.py` adds 18 checks, one for each finding (193 in all); 17 of them fail on v1.1.8's default
-  run. Unit tests cover the write-off cut, the change guards, refund timing and quote ages.
+- **Checks.** `validate.py` adds 18 checks and extends one (prior-carrier reports), so each finding has one (193 in
+  all); 17 fail on v1.1.8's default run, and the other two (vendor concentration, a rental after every driver died)
+  on its seed 101. Unit tests cover the write-off cut, the change guards, refund timing and quote ages.
 - **The default run** (content hash `4612b99cdbc9e521`): loss ratios by accident year 82.5%, 81.0%, 67.4%, 59.5% and
   66.4% for 2022 to 2026, of which catastrophes 0.0%, 3.5%, 2.4%, 1.0% and 6.4%; overall 70.1% (was 69.8% in
   v1.1.8; 69.6% to 72.2% across five seeds); annualized retention 81.3%. 195,621 policy terms, 446,579 exposure rows
