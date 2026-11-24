@@ -1174,8 +1174,10 @@ def integrity_audit_records(rep, t: dict, valuation) -> None:
     top = pv.groupby("vendor_type")["vendor_id"].agg(lambda x: x.value_counts(normalize=True).iloc[0])
     big = pv.groupby("vendor_type").size()
     n_v = vend.groupby("vendor_type").size()
-    worst = top[(big >= 200) & (n_v.reindex(top.index) >= 6)]
-    rep.check("no vendor trade is all one vendor: where a trade has six or more vendors, none takes three quarters of its work",
+    # (rentals excepted: an insurer bills most replacement rentals directly through one main rental company)
+    worst = top[(big >= 200) & (n_v.reindex(top.index) >= 6) & (top.index != "Rental Company")]
+    rep.check("no vendor trade is all one vendor: where a trade has six or more vendors, none takes three quarters of its "
+              "work (rentals, mostly with one main rental company, apart)",
               bool((worst <= 0.75).all()), f"largest share {worst.max():.0%} ({worst.idxmax()})" if len(worst) else "too few payments")
     # a payment to an estate is a cheque
     est = pay[pay["payee_name"].fillna("").str.startswith("Estate of ")]

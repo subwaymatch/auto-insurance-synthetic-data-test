@@ -65,9 +65,13 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
 13. **2026-11-22, [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7): Follow-up checks ([PR #15](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/15)).** Rentals are paid only once the car is back, payments due to someone who
     has died go to the estate, telematics periods are measured on the mileage driven then, renewals use the
     named insured of the offer day, and the exposure rows publish the mileage and use each period was rated on.
-14. **Unreleased, A further audit.** Subrogation recovers only what has been paid by then, a car passed to
+14. **2026-11-24, [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8): A further audit ([PR #16](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/16)).** Subrogation recovers only what has been paid by then, a car passed to
     another driver is rated on their mileage and use, and a crash can kill the insured at the wheel and the
     household's other drivers riding along, who then leave the policy as any death does.
+15. **Unreleased, An audit of v1.1.8.** Medical providers are paid again, revised renewals are billed when they
+    are rated, refunds wait for the cash, every endorsement records a change, a car written off re-rates the
+    others that day, the first driver is an adult and licensed at inception, a fatal crash has a police report,
+    and a crash's subrogation comes back together.
 
 ### Releases
 
@@ -85,12 +89,60 @@ published files; it is given where the changelog recorded it.
 | [v1.1.5](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.5) | 2026-11-21 | `4a13b9f` | #11 (#12 and #13 change no data) | 43,368 policies to 2026-12-31 | `963889a73f229de8` |
 | [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6) | 2026-11-22 | `c28d1cd` | #14 | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
 | [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7) | 2026-11-22 | `529956c` | #15 | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `4a9b0599022f5117` |
+| [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8) | 2026-11-24 | `635ea6f` | #16 | 43,368 policies to 2026-12-31 | `4a9b0599022f5117` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `4612b99cdbc9e521` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
 
-## Unreleased: a further audit
+## Unreleased: an audit of v1.1.8
+
+An audit of v1.1.8 (default run and seed 101) found 18 record-level issues that no check covered; both books
+passed every check. Figures are for the default run after these changes (content hash `4612b99cdbc9e521`).
+`docs/review_response.md` ("Audit of v1.1.8") answers each finding.
+
+- **Payees and vendors.** Medical payments go to the medical provider about 60% of the time again (PR #16's
+  injured-driver link had sent all of them to the insured, some jointly with an attorney). Payments to an estate
+  are checks, and go to the estate from the day the person is removed. Vendor sizes are log-normal, so no trade is
+  nearly all one vendor (one appraiser had taken 99.7% of seed 101's appraisals). A crash's repair, rental and tow
+  subrogation come back together, after the last of them closes.
+- **Claims.** An injury claim closed without payment is an alleged soft-tissue injury (its type and attorney
+  odds read what was paid, not the gross damages). A crash that killed someone always has a police report, and a
+  medical payments claim counts as someone hurt at the scene. A supplemental payment ends the loss reserve, and a
+  litigated feature's expense reserve closes at its first close. No rental is paid after a crash that killed
+  every driver of the household.
+- **Policies.** A scheduled change that could not happen as the policy stands (a trade of a car already written
+  off, a sale from a one-car household, a teenager whose parents are too young) no longer ends a period: there
+  were 458 endorsements with no change, some charging premium. A car written off while another stays is removed by
+  an endorsement that day, so the multi-car discount ends with it (it lasted months before). A household that loses
+  its cars one after the other and will not have a replacement before its renewal can be offered cancels, as one
+  losing its only car does. A death that ends the policy is applied before other same-day changes and hands no cars
+  over; `insured_vehicle.primary_driver_id` is the driver on the car's latest row. A change after the valuation date
+  no longer revises a pending offer.
+- **People and quotes.** The named insured is an adult and licensed at the policy's inception (a tenure that would
+  have begun earlier is shortened), so every policy's first driver joined at inception. A quote's named insured age
+  uses the birth day, as the youngest driver's does. Prior-carrier reports, like driving records, stop when the
+  driver leaves.
+- **Billing.** A term's first bill goes out on its rating date: a revised renewal bills its revised premium then,
+  not on the original offer day (8,583 had billed it early, 1,027 were paid early). A refund goes out once the
+  bills already sent are paid and the cash received covers it, so a term's cash never goes below zero. A final
+  balance waits for any bank draft still in flight, and goes out the business day after the cancellation is
+  booked. A cancellation at the customer's request is keyed within ten days, and any cancellation or change in
+  effect by the valuation date is booked by then.
+- **Catalog and dictionary.** The 1985 Subaru RX Turbo has its engine (EPA's record is blank). The dictionary lists
+  `Insured and Attorney`, the estate payee, the first bill's date and the final balance's.
+- **Checks.** `validate.py` adds 18 checks, one for each finding (193 in all); 17 of them fail on v1.1.8's default
+  run. Unit tests cover the write-off cut, the change guards, refund timing and quote ages.
+- **The default run** (content hash `4612b99cdbc9e521`): loss ratios by accident year 82.5%, 81.0%, 67.4%, 59.5% and
+  66.4% for 2022 to 2026, of which catastrophes 0.0%, 3.5%, 2.4%, 1.0% and 6.4%; overall 70.1% (was 69.8% in
+  v1.1.8; 69.6% to 72.2% across five seeds); annualized retention 81.3%. 195,621 policy terms, 446,579 exposure rows
+  (more: a write-off now re-rates the other cars), $211.5 million earned premium, 22,725 claims, 39,867 features,
+  61,127 claim payments, 104,023 reserve transactions, 882,139 bills and 893,899 receipts, 118,829 quotes and
+  169,123 renewal offers. These changes move later random draws, so every figure moves a little. 193 checks pass
+  on the default run and on seeds 7, 11, 23, 42 and 101 (content hashes `7aae95a615ec68b2`, `c4d294f697cf6dec`, `f509671da5a88d1f`, `7c84c721d975916a`, `edd0a9d11cbe5828`), with every calibration figure inside its band. The test suite
+  has 83 tests (82 pass, and one needs `pyarrow`).
+
+## 2026-11-24, [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8): A further audit ([PR #16](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/16))
 
 A realism audit of v1.1.7 (default run and an independent seed, 101) found three record-level issues; both books
 passed every check. Figures are for the default run after these changes (content hash `4a9b0599022f5117`).

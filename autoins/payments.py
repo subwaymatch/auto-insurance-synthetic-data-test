@@ -173,7 +173,8 @@ def vendors(cfg: C.Config, ref) -> pd.DataFrame:
         first, s2, _ = _people(ref, R, R.choice(len(z), count, p=pz), np.full(count, 1970))
         _, s3, _ = _people(ref, R, R.choice(len(z), count, p=pz), np.full(count, 1970))
         # business by size: log-normal, so a few vendors take more than their share but none takes nearly all of
-        # it (a Pareto shape below 1, with no mean, once gave one appraiser 99.7% of the work)
+        # it (a Pareto shape below 1, with no mean, once gave one appraiser 99.7% of the work). Rentals are the most
+        # concentrated: an insurer bills most replacement rentals directly through one main rental company
         size = np.exp(R.normal(0, conc if conc <= 1 else 0.6 * conc, count))
         for i in range(count):
             city = z.city.iloc[zi[i]] if local else R.choice(WORDS)
