@@ -601,6 +601,12 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         died.append(pd.DataFrame(dict(occ=ids[pas.i.to_numpy()], victim=pas.pid.to_numpy(), death_delay=delay[pas.i.to_numpy()])))
         return dies, pas
 
+    n_house = np.bincount(on.pol.to_numpy(), minlength=int(c["pol"].max()) + 1 if len(c["pol"]) else 0)
+
+    def no_one_left(vi, dies, pas):
+        """The crash killed every listed driver of the household: no one is left to need a rental car."""
+        return n_house[c["pol"][vi]] - dies - np.bincount(pas.i.to_numpy(), minlength=len(vi)) <= 0
+
     def passengers_of(pas, m):
         """The dead passengers of the crashes selected by mask m, indexed into the selection."""
         pos = np.cumsum(m) - 1
@@ -645,7 +651,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "",
             cap=pp[o], room=pa[o], death=death, injured=injured)
 
-    def collision_features(peril, ids, vi, day, file_p, subro_p):
+    def collision_features(peril, ids, vi, day, file_p, subro_p, no_rental=None):
         # the damage to the insured car happens whether or not anyone claims it from us
         z = sev(ids, "COLL")
         gross, paid, total = collision(z, C.COLL_PERIL_SEV[peril], c["repair"][vi],
@@ -663,8 +669,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         add("COLL", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
             subro=subro[keep], retained=retained[keep], cap=np.maximum(c["acv"][vi] - c["coll_ded"][vi], 0.0)[keep])
         paid_now = keep & (paid > 0)
-        # the other driver's insurer that pays back the repair pays back the rental and the tow in the same share
-        rental(ids[paid_now], vi[paid_now], total[paid_now], z[paid_now], share[paid_now])
+        # the other driver's insurer that pays back the repair pays back the rental and the tow in the same share;
+        # no rental when the crash killed everyone in the household who drives
+        rent = paid_now & (True if no_rental is None else ~no_rental)
+        rental(ids[rent], vi[rent], total[rent], z[rent], share[rent])
         tow(ids, vi, peril, np.where(paid_now, share, 0.0))
         w = total & ~(keep & paid_total)
         wreck(vi[w], day[w], ids[w])
@@ -786,7 +794,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]],
                     c["p_bi"][vi[m]])
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_MV"])
-    collision_features("AF_MV", ids, vi, day, C.P_FILE_COLL["AF_MV"], 0.0)
+    collision_features("AF_MV", ids, vi, day, C.P_FILE_COLL["AF_MV"], 0.0, no_one_left(vi, dies, pas))
     med_features(ids, vi, day, C.P_MED["AF_MV"], dies, pas, who)
 
     vi, day = draw("AF_SV")
@@ -800,7 +808,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     injury_features("BI", ids[m], vi[m], day[m], C.BI_SEV, c["bi_pp"][vi[m]], c["bi_pa"][vi[m]], c["bi_factor"][vi[m]],
                     C.P_BI_GIVEN_AF_SV)
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_SV"])
-    collision_features("AF_SV", ids, vi, day, C.P_FILE_COLL["AF_SV"], 0.0)
+    collision_features("AF_SV", ids, vi, day, C.P_FILE_COLL["AF_SV"], 0.0, no_one_left(vi, dies, pas))
     med_features(ids, vi, day, C.P_MED["AF_SV"], dies, pas, who)
 
     vi, day = draw("NAF")
@@ -814,8 +822,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                     C.P_UM_INJURY, dies[m], passengers_of(pas, m), who[m])
     uim = ~unins & hurt & has_uim(c)[vi]
     uim_features(ids[uim], vi[uim], day[uim], dies[uim], passengers_of(pas, uim), who[uim])
-    collision_features("NAF", ids[unins], vi[unins], day[unins], C.P_FILE_COLL["NAF_UNINSURED"], 0.0)
-    collision_features("NAF", ids[~unins], vi[~unins], day[~unins], C.P_FILE_COLL["NAF"], C.P_SUBROGATION["NAF"])
+    alone = no_one_left(vi, dies, pas)
+    collision_features("NAF", ids[unins], vi[unins], day[unins], C.P_FILE_COLL["NAF_UNINSURED"], 0.0, alone[unins])
+    collision_features("NAF", ids[~unins], vi[~unins], day[~unins], C.P_FILE_COLL["NAF"], C.P_SUBROGATION["NAF"],
+                       alone[~unins])
     med_features(ids, vi, day, C.P_MED["NAF"], dies, pas, who)
     unpaid("PD", ids, C.P_LIABILITY_DENIED["PD"])
     unpaid("BI", ids, C.P_LIABILITY_DENIED["BI"])

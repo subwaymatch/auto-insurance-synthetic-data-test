@@ -194,9 +194,10 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                       "description": "At-fault accident (company claim before the extract)", "source": "Company Claim (Before Extract)",
                       "claim_id": pd.array([pd.NA] * len(early), dtype="Int64")})], ignore_index=True)
     records = records[(records.day <= V) & (records.known <= V)]
-    # a violation reaches the insurer only through a driving record ordered while the driver is insured here
-    mvr = records.source.to_numpy() == "Motor Vehicle Record"
-    records = records[~mvr | (records.known.to_numpy() <= drv_end[records.drv.to_numpy()])]
+    # a violation, or a loss with a previous insurer, reaches the insurer only through a report it orders (a driving
+    # record, a prior-carrier claims report) while the driver is insured here
+    ordered = records.source.isin(["Motor Vehicle Record", "Prior Carrier Report"]).to_numpy()
+    records = records[~ordered | (records.known.to_numpy() <= drv_end[records.drv.to_numpy()])]
     records = records.sort_values(["day", "drv"], kind="stable").reset_index(drop=True)
     T["driver_incident"] = pd.DataFrame({
         "incident_id": np.arange(1, len(records) + 1), "driver_id": records.drv + 1, "incident_date": D(records.day),
@@ -221,13 +222,14 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     claimed[claims.set_index("claim_id").veh.reindex(tl.claim_id).to_numpy()] = True
     reason_v = np.where((reason_v == REMOVAL_REASONS.index("Total Loss")) & ~claimed,
                         REMOVAL_REASONS.index("Destroyed or Stolen"), reason_v)
-    # what a car's use, mileage and parking were as of the valuation date (or its removal): its last exposure row
+    # what a car's main driver, use, mileage and parking were as of the valuation date (or its removal): its last exposure row
     # starting by then (a move or a new driver re-rates the car on a new row); the arrays hold the simulation's last
     last_row = rows[rows.s.to_numpy() <= V].sort_values(["veh", "s"], kind="stable").groupby("veh").tail(1).set_index("veh")
     has_row = np.isin(veh.veh.to_numpy(), last_row.index)
     as_of = lambda col, latest: np.where(has_row, last_row[col].reindex(veh.veh.to_numpy()).where(has_row, latest[0] if len(latest) else 0)
                                          .to_numpy(), latest).astype(latest.dtype)
-    veh = veh.assign(use=as_of("use", veh.use.to_numpy()), reported_miles=as_of("reported_miles", veh.reported_miles.to_numpy()),
+    veh = veh.assign(primary_drv=as_of("drv", veh.primary_drv.to_numpy()),
+                     use=as_of("use", veh.use.to_numpy()), reported_miles=as_of("reported_miles", veh.reported_miles.to_numpy()),
                      parking=as_of("parking", veh.parking.to_numpy()), true_miles=as_of("true_miles", veh.true_miles.to_numpy()))
     T["insured_vehicle"] = pd.DataFrame({
         "insured_vehicle_id": veh.veh + 1, "policy_id": polno(veh.pol), "vehicle_model_year_id": vid,
@@ -332,8 +334,9 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                     & (drv.removed_day.to_numpy() >= 0), drv.removed_day.to_numpy(), np.iinfo(np.int64).max)
 
     def name_on(person: np.ndarray, days: np.ndarray) -> np.ndarray:
-        """Each person's name on each day: before a later change of surname, the old one; after their death, their
-        estate's (a payment due to someone who has died goes to the estate)."""
+        """Each person's name on each day: before a later change of surname, the old one; once they have died (from
+        the day they are removed, the day after the death), their estate's (a payment due to someone who has died
+        goes to the estate)."""
         surname = drv.last_name.astype(str).to_numpy()[person].astype(object)
         if changes is not None:
             q = pd.DataFrame({"drv": person.astype(np.int64), "day": days.astype(np.int64), "i": np.arange(len(person))})
@@ -342,7 +345,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
             hit = m.old.notna().to_numpy()
             surname[m.i.to_numpy()[hit]] = m.old.to_numpy()[hit]
         name = drv.first_name.astype(str).to_numpy()[person] + " " + surname
-        return np.where(died[person] < days, "Estate of " + name, name)
+        return np.where(died[person] <= days, "Estate of " + name, name)
 
     insured = name_on(ni_pay, pays.day.to_numpy())
     # the policy's own person each payment is for: the listed driver the feature is for (the driver, or a household
@@ -578,19 +581,34 @@ def _transactions(cfg, cal, policies, agencies, terms, rows, veh, D, polno) -> t
         pd.DataFrame({"term": rows.term[starts], "day": a[starts], "amount": (tp * (e - a) / span)[starts],
                       "reason": rows.reason[starts].fillna("")}),
         pd.DataFrame({"term": rows.term[ends], "day": x[ends], "amount": -(tp * (e - x) / span)[ends], "reason": removal[ends]})])
-    endorse = endorse.groupby(["term", "day"], sort=True).agg(
-        amount=("amount", "sum"), reason=("reason", lambda r: "; ".join(dict.fromkeys(x_ for x_ in r if x_)))).reset_index()
+    def reasons(r):
+        """The day's changes, once each; a car removed after a loss is named by why (the other cars' re-rating
+        the same day, recorded as a removal, adds nothing)."""
+        xs = [y for x_ in r if x_ for y in x_.split("; ")]
+        if any(x_.startswith("Vehicle Removed (") for x_ in xs):
+            xs = [x_ for x_ in xs if x_ != "Vehicle Removed"]
+        return "; ".join(dict.fromkeys(xs))
+
+    endorse = endorse.groupby(["term", "day"], sort=True).agg(amount=("amount", "sum"), reason=("reason", reasons)).reset_index()
     endorse["kind"] = "Endorsement"
     # most changes are keyed the day they take effect (the next business day, for a weekend); the rest a few
     # days later, backdated to the day of the change
     lag = np.where(R.random(len(endorse)) < C.ENDORSEMENT_SAME_DAY_P, 0, 1 + np.floor(R.exponential(4.0, len(endorse)))).astype(int)
     endorse["processed"] = cal.spread_business(endorse.day.to_numpy() + lag, R.random(len(endorse)))
+    # (a change that took effect by the valuation date is on the books by then: its row is in the extract)
+    V_ = cal.valuation_day
+    endorse["processed"] = np.where((endorse.day.to_numpy() <= V_) & (endorse.processed.to_numpy() > V_),
+                                    np.maximum(cal.prev_business(V_), endorse.day.to_numpy()), endorse.processed.to_numpy())
     start = pd.DataFrame({"term": terms.term, "day": terms.s, "amount": terms.written, "reason": "",
                           "kind": np.where(terms.new_business, "New Business", "Renewal"), "processed": terms.rate_day})
     c = terms[terms.cancel_day >= 0]
     # a cancellation for non-payment is booked by the billing system on the day it takes effect; the others
-    # are keyed by staff, on a business day
-    keyed = cal.spread_business(c.cancel_day.to_numpy() + np.floor(R.exponential(2.0, len(c))).astype(int), R.random(len(c)))
+    # are keyed by staff, on a business day, usually within days (backdated to the day it took effect), and by
+    # the valuation date for one that took effect by then (the extract shows only cancellations on the books)
+    late = np.minimum(np.floor(R.exponential(2.0, len(c))), C.CANCEL_KEYING_MAX_DAYS).astype(int)
+    keyed = cal.spread_business(c.cancel_day.to_numpy() + late, R.random(len(c)))
+    V_ = cal.valuation_day
+    keyed = np.where((c.cancel_day.to_numpy() <= V_) & (keyed > V_), np.maximum(cal.prev_business(V_), c.cancel_day.to_numpy()), keyed)
     cancel = pd.DataFrame({"term": c.term, "day": c.cancel_day, "amount": -c.returned, "reason": c.cancel_reason,
                            "kind": "Cancellation",
                            "processed": np.where(c.cancel_reason == "Non-Payment", c.cancel_day, keyed)})
@@ -657,10 +675,19 @@ def _communications(cfg, cal, pol, terms, rows, claims, cg, veh, offers, notices
     add(claims.pol[closed], cg.close_day.to_numpy()[closed], "Claim Closure Notice", phone=0.10)
 
     c = pd.concat(parts, ignore_index=True)
+    # a policy that ended with its insured's death writes to the estate: from the cancellation on, every contact
+    # is a letter, and there is no notice of cancellation or change confirmation for a policy that has ended
+    dead = terms[terms.cancel_reason == "Insured Deceased"].groupby("pol").cancel_day.max()
+    since_of = lambda pol: np.nan_to_num(dead.reindex(pol).to_numpy().astype(float), nan=np.inf)
     # letters go out, and staff call, on business days (calls on Saturdays too); email is sent any day
     day, wd = c.day.to_numpy(), cal.weekday(c.day.to_numpy())
     c["day"] = np.where(c.kind == "Written Letter", cal.next_business(day),
                         np.where((c.kind == "Phone Call") & (wd != 5), cal.next_business(day), day))
+    late = c.day.to_numpy() >= since_of(c.pol.to_numpy())
+    c["kind"] = np.where(late, "Written Letter", c.kind)
+    c["day"] = np.where(late, cal.next_business(c.day.to_numpy()), c.day.to_numpy())
+    moot = (c.day.to_numpy() > since_of(c.pol.to_numpy())) & c.purpose.isin(["Notice of Cancellation", "Policy Change Confirmation"]).to_numpy()
+    c = c[~moot]
     c = c[(c.day >= 0) & (c.day <= V)].sort_values(["day", "pol", "purpose"], kind="stable").reset_index(drop=True)
     return pd.DataFrame({"contact_id": [f"CM{i:07d}" for i in range(1, len(c) + 1)], "contact_method": c.kind,
                          "policy_id": polno(c.pol), "contact_date": D(c.day), "purpose": c.purpose})

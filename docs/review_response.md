@@ -2,11 +2,128 @@
 
 An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
 realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, follow-up checks
-of the release that fixed them, and an audit of v1.1.7 on 23 November 2026. The newest is answered first, then
-the follow-up checks, the two audits, the 20 November audit at commit `03c2634` and the third review at
-`9fe6062`; the first two follow. Each finding is answered:
-**confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
-now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+of the release that fixed them, an audit of v1.1.7 on 23 November 2026, and an audit of the release that answered
+it (v1.1.8) on 24 November 2026. The newest is answered first, then the audit of v1.1.7, the follow-up checks, the two
+audits, the 20 November audit at commit `03c2634` and the third review at `9fe6062`; the first two follow. Each
+finding is answered: **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this
+dataset's scope, now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Audit of v1.1.8 (24 November 2026)
+
+An audit of v1.1.8 (`main` at `635ea6f`, the merged PR #16) rebuilt the default run (content hash `4a9b0599022f5117`) and
+seed 101 (`df2bb4217f33dc5e`); both passed all 175 checks. It found the previous round's fixes holding and
+reported 18 record-level findings that no check covered. All 18 reproduce on both books (F6 and F14 on the
+default only in the form reported; F14 measured as rows that span a write-off) and all are **confirmed and
+fixed**, F10's third part in part (below). "After" figures are from the default run after this change (content
+hash `4612b99cdbc9e521`) and seed 101 (`edd0a9d11cbe5828`). Each finding now has a check in `validate.py`; the new checks fail on the
+old default run (17 of them; the vendor-concentration and solo-death rental checks pass there and failed only on
+seed 101).
+
+| # | Finding | Before (default; seed 101) | After (default; seed 101) |
+|---|---|---|---|
+| F1 | Medical providers never paid: every medical payment went to the insured (some jointly with an attorney) | 0 of 220 providers used; 0 of 220 | 154 of 220 providers used, 54% of medical payments to a provider; 147 of 220, 61% |
+| F2 | A revised renewal billed, and paid, its re-rated premium before the change that re-rated it | 8,583 first bills before the rating date, 1,027 paid; 8,450, 955 | 0; 0 |
+| F3 | Expense reserve left open on a litigated feature between its close and a reopening | 2 features; 2 (one at the valuation date) | 0; 0 |
+| F4 | Loss reserve held after the supplemental payment that settles a reopening | 325 of 692 reopenings; 305 of 613 | 0; 0 |
+| F5 | Endorsements with no change: a period ended at a change that could not happen, re-rating the policy and sending a change confirmation | 458 endorsements (785 rows); 509 | 0; 0 |
+| F6 | A revised offer dated after the valuation date | 1; 0 | 0; 0 |
+| F7 | Fatal crashes without a police report; a rental after a crash that killed the household's only driver | 3 of 13; 9 of 20 and 2 rentals | 0; 0 |
+| F8 | A car traded in on the day the policy ended with its insured's death (no exposure); main driver reassigned on a policy that had ended | 1 car, 3 drivers; 0, 8 | 0; 0 |
+| F9 | Injury claims closed without payment labeled as fractures, head injuries or a fatality | 139; 128 (one fatality) | 0; 0 |
+| F10 | Cash below zero (refunds before payment); a final balance before a returned draft; cancellations keyed after the valuation date | 75 terms, 2, 9; 74, 1, 9 | 0, 0, 0; 0, 0, 0 |
+| F11 | Named insured not yet licensed, or under 18, at inception; policies with no driver at inception | 84 policies, 15 with another driver first; 93, 26 | 0; 0 |
+| F12 | A quote's youngest driver a year older than its named insured | 125; 129 | 0; 0 |
+| F13 | Prior-carrier reports known after the driver left | 2; 3 | 0; 0 |
+| F14 | Multi-car discount kept after a write-off left one car | 3,042 rows; 2,892 | 0; 0 |
+| F15 | One vendor taking almost a whole trade (Pareto weights with no mean) | top rental firm 58%, 3 of 6 unused; top appraiser 99.7% | top rental firm 67%, all 6 used; top appraiser 22%, all 10 used |
+| F16 | A crash's rental and tow subrogation months apart from its repair's | 1.5% the same day; 1.1% | 100%; 100% (a reopening's share apart) |
+| F17 | Payments to an estate by EFT; calls and notices to a dead insured after the cancellation | 9 of 26 by EFT, 6 contacts; 26 of 60, 4 | 0; 0 |
+| F18 | 1985 Subaru RX Turbo without engine data; dictionary drift | 1 row; 1 | 0; 0 |
+
+**F1. Medical payments.** Confirmed: once every medical payments feature named its injured driver (PR #16), the
+step that pays the policy's own people as the insured overwrote the 60% of medical payments meant for providers.
+It now applies to uninsured motorist claims only; medical payments go to a provider or to the person (their estate
+after a death), never jointly with an attorney. `claim_payment.payee_type` now lists `Insured and Attorney`.
+
+**F2. Revised renewals billed early.** Confirmed. The first bill was dated the offer day but billed the premium
+booked on the rating day. It is now issued on the rating day (the revised offer, for a renewal re-rated before it
+took effect), so it bills a premium known that day and cannot be paid before it.
+
+**F3 and F4. Reserves after a close or a supplement.** Confirmed. The expense reserve now closes at the feature's
+first close (every legal bill is paid by then; a reopening pays no expense), and a supplemental payment ends the
+loss reserve as a final payment does.
+
+**F5. Endorsements with no change.** Confirmed: a scheduled change that would be refused when applied (a trade of a
+car already written off, a sale from a one-car household, a teenager whose parents are too young) still ended the
+period. Changes are now checked against the policy as it stands before they can set a boundary (`simulate._feasible`),
+and a boundary set by a change to a car lost in the same period is moved to the next change that can still happen.
+A car written off the day before its own scheduled sale or trade is recorded as removed on that boundary.
+
+**F6. Revised offer after the valuation date.** Confirmed: a car wrecked on the valuation date leaves the next day,
+and that change reached the pending offer. A change after the valuation date no longer revises an offer.
+
+**F7. Fatal crashes.** Confirmed. Every crash that killed someone now has a police report, and an injury or medical
+payments claim counts as someone hurt at the scene. A crash that killed every listed driver of the household pays
+no rental.
+
+**F8. Same-day death and changes.** Confirmed. Drivers leaving are now applied first each day; a death that ends the
+policy (no one to take it over) stops that day's other changes, and its cars are not handed over.
+`insured_vehicle.primary_driver_id` is the driver on the car's latest exposure row, as its use and mileage are.
+
+**F9. Unpaid injuries.** Confirmed: injury type and attorney involvement read the claim's gross damages rather
+than what was paid, so a claim closed without payment could be labeled severe. Both now read the payment.
+
+**F10. Billing timing.** Confirmed. (1) A refund now goes out once the bills already sent are paid and the premium
+received covers it and the refunds before it (`billing._covered`); one that is never covered is settled by the
+cancellation. (2) A final balance waits for any bank draft still in flight. (3) A cancellation at the customer's
+request is keyed within at most ten days, and one in effect by the valuation date (as is any endorsement) is booked
+by then. **In part:** a cancellation is still keyed a few days after it took effect, backdated, as in practice, so
+a bill sent in between is canceled and anything paid on it refunded; the check is that no cancellation in effect
+is missing from the ledger and that cash never goes below zero.
+
+**F11. Named insured at inception.** Confirmed. A tenure that would have begun before the named insured turned 18 is
+shortened, and one written after a late licence means they were licensed by then, so every policy's first driver
+joined it at its inception.
+
+**F12. Quote ages.** Confirmed: the named insured's age used the unrounded age, the youngest driver's the whole-day
+birth day. Both now use the birth day (`quotes._age_on`).
+
+**F13. Prior-carrier reports.** Confirmed. A prior-carrier claims report, like a driving record, is ordered only
+while the driver is insured here.
+
+**F14. Multi-car discount after a write-off.** Confirmed. A car written off while another stays is now removed by an
+endorsement on the day it leaves (`simulate._cut_at_removal`, as a crash death cuts a period), re-rating the other
+cars. When a household loses two cars this way, one after the other, and is left with none, a replacement that
+would come after its renewal can be offered now cancels the policy, as it does when it loses its only car (found
+while fixing this: a renewal offer for no cars).
+
+**F15. Vendor concentration.** Confirmed. Vendor sizes are now log-normal: a few vendors take more than their share
+of a trade, none nearly all of it, and every vendor gets work in a full-size run. Rentals stay the most concentrated
+trade on purpose (an insurer bills most replacement rentals directly through one main rental company: 67% in the
+default run, up to 91% on another seed); the check that no vendor takes three quarters of a trade leaves rentals
+out.
+
+**F16. Subrogation timing.** Confirmed. The other insurer repays a crash's repair, rental and tow together, after the
+last of them closes; a reopening's share still comes after its own supplement.
+
+**F17. Estates.** Confirmed. Payments to an estate are checks, from the day the person is removed (`<=`). After a
+policy ends with its insured's death every contact is a letter to the estate, with no notice of cancellation or
+change confirmation.
+
+**F18. Catalog and dictionary.** Confirmed. The 1985 Subaru RX Turbo has its engine (four cylinders, 1.8 litres:
+EPA's record is blank, filled in `build_vehicle_catalogue.ENGINE_GAPS`), and the dictionary's payee types, first
+bill date, final balance date and change reasons match the data.
+
+### What changed in the data
+
+Medical payments go to providers again; revised renewals are billed later and refunds wait for the cash, so
+receipts move; write-offs on multi-car policies add an endorsement (exposure rows 446,579, was 439,321) and end
+the multi-car discount sooner, which changes premiums a little; drivers who were added after their policy's
+inception now join at it, shortening a few opening-book tenures. These change later random draws, so every figure
+of the default run moves a little: loss ratios by accident year 82.5%, 81.0%, 67.4%, 59.5% and 66.4% for 2022 to
+2026 (were 84.5%, 79.5%, 65.6%, 62.9% and 63.3%), overall 70.1% (was 69.8%; 69.6% to 72.2% across five seeds),
+annualized retention 81.3%; 22,725 claims (was 22,933). `validate.py` runs 193 checks (was 175), all passing on
+the default run and on seeds 7, 11, 23, 42 and 101; the test suite has 83 tests.
 
 ## Audit of v1.1.7 (23 November 2026)
 
@@ -77,7 +194,7 @@ passing on the default run and on seeds 7, 11, 23, 42 and 101; the test suite ha
 Seed 101, rebuilt after these changes, is inside every calibration band. Before them, it had missed one: its bodily
 injury frequency came to 0.66 per 100 car-years against a floor of 0.70, with its bodily injury losses 0.89 times
 the answer key's expected ones, which is claim luck (calibration moves expected and actual together). Across the
-five seeds in [benchmarks.md](benchmarks.md) that frequency runs 0.74 to 0.79; the band is not widened.
+five seeds in [benchmarks.md](benchmarks.md) that frequency runs 0.72 to 0.79; the band is not widened.
 
 ## Follow-up checks (22 November 2026)
 

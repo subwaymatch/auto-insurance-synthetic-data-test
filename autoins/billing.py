@@ -66,6 +66,9 @@ def _schedule(cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.DataFrame):
     plan = pol.pay_plan.to_numpy()[tp]
     n_inst = np.where(plan == 0, 1, pol.term_months.to_numpy()[tp]).astype(np.int64)
     s, offer = t.s.to_numpy(), t.offer_day.to_numpy()
+    # the first bill goes out when the term is rated: with the offer, or, for a renewal re-rated by a household
+    # change before it took effect, with the revised offer (it bills the revised premium, not known before)
+    rated = t.rate_day.to_numpy() if "rate_day" in t else offer
 
     amount = _cents(tx.amount)
     start = tx.kind.isin(["New Business", "Renewal"]).to_numpy()
@@ -80,7 +83,7 @@ def _schedule(cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.DataFrame):
     I = np.repeat(np.arange(nt), n_inst)
     j = np.arange(len(I)) - base[I]
     due = np.where(j == 0, s[I], cal.day_of(t.month0.to_numpy()[I] + j, pol.dom.to_numpy()[tp][I]))
-    issue = np.where(j == 0, offer[I], due - ISSUE_LEAD_DAYS)
+    issue = np.where(j == 0, np.maximum(offer[I], rated[I]), due - ISSUE_LEAD_DAYS)
     prem = w0[I] // n_inst[I]
     prem[base + n_inst - 1] += w0 - (w0 // n_inst) * n_inst                       # the last instalment takes the cents
 
@@ -124,6 +127,29 @@ def _schedule(cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.DataFrame):
                                             due=bill.day + ISSUE_LEAD_DAYS, prem=bill.cents, fee=0))], ignore_index=True)
     inv = inv[(inv.prem > 0) & (inv.issue < pc[inv.term.to_numpy()])].reset_index(drop=True)     # never issued once cancelled
     return t, inv, refunds, net, pc
+
+
+def _covered(ref: pd.DataFrame, it, final, prem) -> pd.DataFrame:
+    """Refunds (term, day, cents) moved, where needed, to the day the premium received covers them as well as the
+    refunds before them (changes booked out of order, a return before the addition it offsets, can return more
+    than has yet been paid). One that is never covered is left to the cancellation that settles the term."""
+    paid = pd.DataFrame(dict(term=it, day=final, cents=prem))
+    paid = paid[paid.day < 10 ** 9].sort_values(["term", "day"], kind="stable")
+    by_term = {t_: (g.day.to_numpy(), np.cumsum(g.cents.to_numpy())) for t_, g in paid.groupby("term")}
+    ref = ref.sort_values(["term", "day"], kind="stable").reset_index(drop=True)
+    day, keep = ref.day.to_numpy().copy(), np.ones(len(ref), dtype=bool)
+    for t_, rows in ref.groupby("term").indices.items():
+        pdays, cum = by_term.get(t_, (np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)))
+        owed, last = 0, NO_DAY
+        for r in rows:
+            owed += int(ref.cents.iat[r])
+            k = np.searchsorted(cum, owed)              # the first payment that brings the cash received up to it
+            if k >= len(cum):
+                keep[r] = False
+                owed -= int(ref.cents.iat[r])
+                continue
+            day[r] = last = max(day[r], int(pdays[k]), last)
+    return ref.assign(day=day)[keep].reset_index(drop=True)
 
 
 def without_a_bill_to_miss(cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.DataFrame) -> np.ndarray:
@@ -204,16 +230,30 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
     inv["stop"] = pc[it]                                 # nothing is chased once the cancellation is processed
     inv["write_off"] = NO_DAY
 
+    # a return premium refunded on its own goes out once the bills already sent by then are paid: only then is the
+    # account in credit. If one of them never is (the term is cancelled first), the cancellation settles it instead
+    ref0 = pd.concat(refunds, ignore_index=True).reset_index(drop=True)
+    if len(ref0):
+        sent = pd.DataFrame(dict(term=it, issue=iissue, final=np.where(settled, final, 10 ** 9)))
+        m = ref0.reset_index().merge(sent, on="term")
+        m = m[m.issue.to_numpy() <= m.day.to_numpy()]
+        need = m.groupby("index").final.max().reindex(ref0.index).fillna(NO_DAY).to_numpy().astype(np.int64)
+        ref0 = ref0.assign(day=np.maximum(ref0.day.to_numpy(), need))[need < 10 ** 9].reset_index(drop=True)
+        ref0 = _covered(ref0, it, np.where(settled, final, 10 ** 9), inv.prem.to_numpy())
+    refunds = [ref0]
+
     # ---- settling a cancelled account: premium kept against premium paid (less anything already refunded)
     paid_prem = np.bincount(it[settled], inv.prem.to_numpy()[settled], nt).astype(np.int64)
-    ref0 = pd.concat(refunds, ignore_index=True)
     refunded = np.bincount(ref0.term.to_numpy(), ref0.cents.to_numpy(), nt).astype(np.int64)
     c = np.flatnonzero(pc < 10 ** 9)
     owed = net[c] - (paid_prem[c] - refunded[c])
     bal = owed > 0
     # the account is settled once the term's last transaction is booked (a change keyed after the cancellation)
     booked = np.maximum(pc, pd.Series(tx.processed.to_numpy()).groupby(tx.term.to_numpy()).max().reindex(np.arange(nt)).fillna(0).to_numpy().astype(np.int64))
-    fb_issue = cal.next_business(booked[c])
+    # (and once any bank draft still in flight has come back: the balance is not known before)
+    back_day = pd.Series(inv.bounce_day.to_numpy()).groupby(it).max().reindex(np.arange(nt)).fillna(NO_DAY).to_numpy().astype(np.int64)
+    booked = np.maximum(booked, back_day)
+    fb_issue = cal.next_business(booked[c] + 1)          # the next business day after
     collect = R.random(len(c)) < np.where(reason[c] == "Non-Payment", COLLECT_P["Non-Payment"], COLLECT_P["other"])
     fb_paid = fb_issue + 3 + np.floor(R.exponential(12.0, len(c))).astype(np.int64)
     fb_method = np.array(METHODS)[own[tp[c]]]

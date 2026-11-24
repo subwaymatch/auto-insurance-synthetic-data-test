@@ -172,7 +172,10 @@ def vendors(cfg: C.Config, ref) -> pd.DataFrame:
         _, s1, _ = _people(ref, R, R.choice(len(z), count, p=pz), np.full(count, 1970))
         first, s2, _ = _people(ref, R, R.choice(len(z), count, p=pz), np.full(count, 1970))
         _, s3, _ = _people(ref, R, R.choice(len(z), count, p=pz), np.full(count, 1970))
-        size = R.pareto(1.0 / conc if conc > 1 else 3.0, count) + 0.3 if conc > 1 else np.exp(R.normal(0, conc, count))
+        # business by size: log-normal, so a few vendors take more than their share but none takes nearly all of
+        # it (a Pareto shape below 1, with no mean, once gave one appraiser 99.7% of the work). Rentals are the most
+        # concentrated: an insurer bills most replacement rentals directly through one main rental company
+        size = np.exp(R.normal(0, conc if conc <= 1 else 0.6 * conc, count))
         for i in range(count):
             city = z.city.iloc[zi[i]] if local else R.choice(WORDS)
             for attempt in range(50):
@@ -252,12 +255,15 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     kind[pd_] = np.array(list(PD_PAYEE))[np.searchsorted(cuts, u[pd_], side="right").clip(0, len(cuts) - 1)]
     inj = np.isin(cvg, ["BI", "UM"])
     represented = f.attorney.to_numpy().astype(bool)
-    # the policy's own injured people: its listed drivers claiming uninsured motorist cover or medical payments
+    # the policy's own injured people: its listed drivers claiming uninsured motorist cover or medical payments.
+    # Their uninsured motorist claim pays them as the insured (with their attorney once retained); their medical
+    # payments go to the medical provider or to them, as anyone's do (a payment to them names them, or their estate)
     own = (cvg == "UM") & (f.claimant.to_numpy() == 1)
     if "injured" in f:
         own |= f["injured"].fillna(-1).to_numpy().astype(np.int64) >= 0
     kind[inj] = np.where(represented[inj], "Claimant and Attorney", "Claimant")
-    kind[own] = np.where(represented[own], "Insured and Attorney", "Insured")
+    own_um = own & inj
+    kind[own_um] = np.where(represented[own_um], "Insured and Attorney", "Insured")
     vtype = np.select([np.isin(cvg, ["COLL", "COMP"]) & (peril == "GLASS"), np.isin(cvg, ["COLL", "COMP", "PD"]), cvg == "MED",
                        cvg == "RENT", cvg == "TOW"],
                       ["Glass Vendor", "Body Shop", "Medical Provider", "Rental Company", "Towing Company"], default="")
@@ -337,7 +343,9 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     voided_pair = pd.MultiIndex.from_arrays([p.fid.to_numpy(), p.ref.to_numpy()])
     is_void, is_reissue = txn == "Void", txn == "Reissue"
     in_void = (p.ref.to_numpy() >= 0) & voided_pair.isin(voided_pair[is_void])       # the original, its void and its reissue
-    method = np.where(incoming, "Deposit", np.where((per_feature < p_eft) & ~in_void, "EFT", "Check"))
+    # a payment to a dead person's estate is a cheque made out to the estate (there is no account on file for it)
+    estate = pd.Series(name, dtype=object).astype(str).str.startswith("Estate of ").to_numpy()
+    method = np.where(incoming, "Deposit", np.where((per_feature < p_eft) & ~in_void & ~estate, "EFT", "Check"))
 
     # cheque numbers: one unbroken sequence in the order the cheques were cut; a void carries its cheque's number
     cut = (method == "Check") & ~is_void

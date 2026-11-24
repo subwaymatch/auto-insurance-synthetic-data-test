@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import release_formats  # noqa: E402
 import validate  # noqa: E402
 from autoins import config as C  # noqa: E402
-from autoins import claims, identifiers, ledger, market, names, population, rating, refdata, schema, simulate, telematics, truth  # noqa: E402
+from autoins import billing, claims, identifiers, ledger, market, names, population, quotes, rating, refdata, schema, simulate, telematics, truth  # noqa: E402
 from autoins.claims import SUIT_LIMIT_DAYS, chargeable_days, litigation_timeline  # noqa: E402
 from autoins.pipeline import generate  # noqa: E402
 from autoins.refdata import Calendar  # noqa: E402
@@ -1033,6 +1033,67 @@ class CrashDeathTest(unittest.TestCase):
         # both leave the same day, the named insured last (so the spouse does not take the policy over)
         self.assertEqual(ev[["day", "target"]].values.tolist(), [[13, 7], [13, 8]])
         self.assertEqual(feat2.death.tolist(), [True, True, False])
+
+
+class RemovalAndEventsTest(unittest.TestCase):
+    """A car written off while another stays ends the policy's period that day, with the removal recorded
+    (simulate._cut_at_removal); a scheduled change that could not happen as the policy stands sets no boundary
+    (simulate._feasible)."""
+
+    def test_cut_at_removal(self):
+        from types import SimpleNamespace
+        T = SimpleNamespace(s=np.zeros(2, dtype=np.int64), x_pol=np.array([180, 180]))
+        V = np.array([10, 11, 12])                   # cars 10 and 11 on policy 0, car 12 alone on policy 1
+        vp = np.array([0, 0, 1])
+        b, nb = np.array([100, 100, 100]), np.array([100, 100])
+        stop = np.array([39, -1, 49])                # car 10 written off on day 39, car 12 on day 49
+        occ = pd.DataFrame(dict(occ=[1, 2, 3], vrow=[0, 1, 1], day=[39, 20, 60], drv=[5, 6, 6]))
+        feat = pd.DataFrame(dict(occ=[1, 2, 3]))
+        occ2, _, stop2, _, b2, ev = simulate._cut_at_removal(T, V, vp, b, nb, np.ones(3, dtype=bool), occ, feat, stop,
+                                                             np.where(stop >= 0, 1, 0))
+        self.assertEqual(list(b2), [40, 40, 100])    # policy 0's other car is re-rated from the removal
+        self.assertEqual(list(nb), [40, 100])
+        self.assertEqual(sorted(occ2.occ), [1, 2])   # the other car's loss after the removal is simulated again
+        self.assertEqual(ev[["pol", "day", "kind", "target", "extra"]].values.tolist(),
+                         [[0, 40, simulate.SELL, 10, simulate.WRECKED]])
+        self.assertEqual(list(stop2), [39, -1, 49])   # a one-car policy: nothing to re-rate
+
+    def test_infeasible_changes_dropped(self):
+        from types import SimpleNamespace
+        v = {"pol": np.array([0, 0, 1]), "active": np.array([True, False, True])}
+        drv = pd.DataFrame(dict(pol=[0, 1, 1], active=[True, True, False], role=[0, 0, 1], marital=["M", "S", "M"],
+                                dob_day=[-12000, -9000, -9000]))
+        sim = SimpleNamespace(st=SimpleNamespace(v=v, p={"ni_drv": np.array([0, 1])}), pop=SimpleNamespace(drv=drv))
+        T = SimpleNamespace(s=np.zeros(2, dtype=np.int64))
+        ev = pd.DataFrame(dict(
+            pol=[0, 0, 1, 1, 0, 1, 1], day=[50] * 7,
+            kind=[simulate.TRADE, simulate.TRADE, simulate.SELL, simulate.SELL, simulate.MARRY, simulate.LEAVE, simulate.MOVE],
+            target=[0, 1, 2, 2, -1, 2, -1], extra=[-1, -1, -1, simulate.WRECKED, -1, 4, 0]))
+        # a trade of a car still on (yes) or gone (no); a sale from a one-car household (no); a write-off's record
+        # (yes); a married named insured's marriage (no); a driver already gone leaving (no); a move (yes)
+        self.assertEqual(simulate._feasible(sim, T, ev).tolist(), [True, False, False, True, False, False, True])
+
+
+class BillingCashTest(unittest.TestCase):
+    """billing._covered: a refund goes out only once the premium received covers it and the refunds before it."""
+
+    def test_refunds_wait_for_cash(self):
+        ref = pd.DataFrame(dict(term=[0, 0, 1], day=[10, 20, 5], cents=[700, 950, 100]))
+        it = np.array([0, 0, 0, 1])
+        final = np.array([8, 30, 40, 10 ** 9])       # term 0 pays 1,000 by day 8, 1,000 more on day 30; term 1 never
+        prem = np.array([1000, 1000, 1000, 500])
+        out = billing._covered(ref, it, final, prem)
+        self.assertEqual(out[["term", "day", "cents"]].values.tolist(), [[0, 10, 700], [0, 30, 950]])
+
+
+class QuoteAgeTest(unittest.TestCase):
+    """quotes._age_on: the named insured's age from their whole-day birth day, as the youngest driver's is."""
+
+    def test_named_insured_age_matches_birth_day(self):
+        first, age = np.array([1000.0, 1000.0]), np.array([29.9990, 45.5])
+        dob = np.floor(first - age * 365.25)
+        self.assertEqual(np.floor(quotes._age_on(first, age)).tolist(), np.floor((first - dob) / 365.25).tolist())
+        self.assertEqual(np.floor(quotes._age_on(first, age)).tolist(), [30.0, 45.0])
 
 
 class MileageHistoryTest(unittest.TestCase):

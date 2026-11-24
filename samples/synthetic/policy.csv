@@ -1,101 +1,101 @@
 policy_id,policy_number,location_id,agency_id,producer_id,company_id,distribution_channel,original_inception_date,term_months,policy_status,named_insured_driver_id,homeowner,multi_policy,prior_insurance,insurance_score,payment_plan
-321,0100001-LFM-10,91,4,1,2,Exclusive Agent,2000-01-28,12,In Force,564,N,Y,Y,754,Paid in Full
-356,0100204-LFP-48,231,5,2,1,Independent Agent,2000-01-31,6,Non-Renewed,643,Y,Y,Y,854,Paid in Full
-366,0100273-LFM-94,139,6,3,2,Independent Agent,2000-02-01,6,Non-Renewed,667,Y,N,Y,761,Monthly Bill
-431,0100604-LFM-55,181,7,5,2,Independent Agent,2000-02-07,12,In Force,806,Y,N,Y,734,Monthly EFT
-438,0100649-LFM-96,236,8,6,2,Independent Agent,2000-02-08,6,Non-Renewed,832,N,N,Y,760,Paid in Full
-509,0101003-LFP-28,67,9,7,1,Exclusive Agent,2000-02-14,6,In Force,957,Y,Y,Y,876,Paid in Full
-1081,0103720-LFM-53,257,2,,2,Direct,2000-03-31,12,In Force,1986,Y,Y,Y,804,Monthly EFT
-1087,0103721-LFM-69,172,10,10,2,Independent Agent,2000-03-31,6,In Force,2003,Y,Y,Y,801,Monthly EFT
-1137,0104009-LFP-12,111,11,11,1,Independent Agent,2000-04-05,12,Canceled,2091,Y,Y,Y,826,Paid in Full
-1216,0104459-LFP-34,163,12,12,1,Independent Agent,2000-04-12,6,In Force,2255,Y,Y,Y,753,Monthly EFT
-1502,0105786-LFM-32,30,13,13,2,Independent Agent,2000-05-05,6,In Force,2770,Y,Y,Y,693,Monthly EFT
-1558,0106108-LFM-43,171,14,14,2,Independent Agent,2000-05-10,6,In Force,2890,Y,Y,Y,741,Monthly EFT
-1759,0107056-LFM-79,247,16,16,2,Independent Agent,2000-05-25,6,Non-Renewed,3222,Y,N,Y,589,Monthly Bill
-1954,0107914-LFP-24,182,2,,1,Direct,2000-06-08,6,Non-Renewed,3562,Y,N,Y,773,Monthly Bill
-2144,0108892-LFM-64,208,17,17,2,Independent Agent,2000-06-25,6,In Force,3950,Y,Y,Y,890,Paid in Full
-2260,0109353-LFM-68,191,2,,2,Direct,2000-07-03,6,In Force,4142,Y,Y,Y,756,Paid in Full
-2382,0109949-LFP-89,72,21,20,1,Independent Agent,2000-07-13,12,Non-Renewed,4374,Y,N,Y,834,Monthly Bill
-2461,0110367-LFP-84,152,2,,1,Direct,2000-07-20,6,In Force,4561,Y,Y,Y,835,Monthly EFT
-2472,0110404-LFM-06,215,22,21,2,Independent Agent,2000-07-21,12,Canceled,4587,Y,Y,Y,749,Monthly EFT
-2665,0111296-LFM-19,260,23,22,2,Independent Agent,2000-08-05,12,In Force,4919,Y,Y,Y,794,Paid in Full
-2806,0112035-LFM-09,175,9,7,2,Exclusive Agent,2000-08-16,6,In Force,5184,Y,Y,Y,724,Monthly EFT
-2814,0112036-LFP-16,124,25,25,1,Independent Agent,2000-08-16,6,Non-Renewed,5195,Y,Y,Y,827,Paid in Full
-2863,0112262-LFP-43,127,20,19,1,Independent Agent,2000-08-20,6,In Force,5287,Y,Y,Y,741,Monthly EFT
-2965,0112730-LFP-62,164,2,,1,Direct,2000-08-28,6,Canceled,5467,Y,Y,Y,781,Paid in Full
-3145,0113593-LFM-08,263,20,19,2,Independent Agent,2000-09-10,6,Non-Renewed,5754,N,Y,Y,760,Monthly EFT
-3301,0114294-LFM-69,94,2,,2,Direct,2000-09-21,6,In Force,5969,Y,N,Y,784,Paid in Full
-3532,0115412-LFM-12,11,3,,2,Direct,2000-10-09,12,In Force,6415,Y,N,Y,845,Monthly EFT
-3830,0116818-LFM-04,36,27,28,2,Exclusive Agent,2000-11-01,6,Non-Renewed,6983,Y,Y,Y,,Paid in Full
-4063,0117815-LFP-39,165,29,30,1,Independent Agent,2000-11-18,6,Canceled,7408,Y,Y,Y,894,Paid in Full
-4164,0118232-LFP-18,227,30,31,1,Independent Agent,2000-11-25,12,In Force,7563,Y,Y,Y,755,Paid in Full
-4192,0118345-LFP-80,9,31,32,1,Independent Agent,2000-11-27,12,In Force,7622,Y,Y,Y,826,Paid in Full
-4307,0118856-LFM-20,257,32,33,2,Independent Agent,2000-12-05,12,Non-Renewed,7799,Y,Y,Y,715,Paid in Full
-4591,0120154-LFM-30,257,34,36,2,Independent Agent,2000-12-27,12,In Force,8306,Y,Y,Y,684,Monthly EFT
-4818,0121029-LFM-62,286,37,38,2,Independent Agent,2001-01-11,12,Non-Renewed,8638,N,N,Y,734,Paid in Full
-4823,0121030-LFP-69,237,16,16,1,Independent Agent,2001-01-11,12,In Force,8651,Y,N,Y,794,Paid in Full
-4830,0121090-LFM-68,122,9,7,2,Exclusive Agent,2001-01-12,12,In Force,8665,Y,Y,Y,737,Monthly EFT
-5002,0121903-LFM-78,243,3,,2,Direct,2001-01-25,6,Canceled,8993,Y,Y,Y,764,Paid in Full
-5029,0122020-LFM-10,4,38,39,2,Independent Agent,2001-01-27,6,In Force,9051,Y,Y,Y,732,Paid in Full
-5069,0122142-LFP-13,261,17,17,1,Independent Agent,2001-01-29,12,In Force,9096,Y,Y,Y,877,Paid in Full
-5108,0122308-LFM-59,225,25,25,2,Independent Agent,2001-02-01,6,Canceled,9176,Y,N,Y,752,Paid in Full
-5118,0122309-LFP-66,239,25,25,1,Independent Agent,2001-02-01,6,In Force,9190,Y,Y,Y,854,Paid in Full
-5140,0122439-LFM-21,290,3,,2,Direct,2001-02-03,6,Canceled,9226,Y,N,Y,703,Monthly Bill
-5619,0124380-LFM-37,238,26,26,2,Independent Agent,2001-03-07,12,Canceled,10054,Y,Y,Y,705,Monthly EFT
-5651,0124499-LFP-89,113,2,,1,Direct,2001-03-09,6,Canceled,10099,Y,N,Y,764,Paid in Full
-5832,0125430-LFP-47,106,2,,1,Direct,2001-03-23,6,In Force,10479,Y,Y,Y,857,Paid in Full
-5841,0125495-LFP-20,262,2,,1,Direct,2001-03-24,12,In Force,10501,Y,Y,Y,838,Monthly EFT
-6101,0126657-LFP-85,234,43,42,1,Exclusive Agent,2001-04-12,6,Canceled,10984,N,Y,Y,823,Paid in Full
-6196,0127086-LFP-62,155,44,43,1,Independent Agent,2001-04-19,12,In Force,11140,Y,Y,Y,855,Monthly EFT
-6208,0127087-LFP-78,10,3,,1,Direct,2001-04-19,6,Non-Renewed,11156,Y,Y,Y,835,Paid in Full
-6361,0127789-PPC-93,116,45,44,3,Exclusive Agent,2001-05-01,6,Non-Renewed,11487,Y,Y,Y,,Monthly EFT
-6396,0127921-LFP-36,79,46,46,1,Exclusive Agent,2001-05-03,12,Canceled,11544,Y,Y,Y,900,Paid in Full
-6419,0128039-LFP-81,4,7,5,1,Independent Agent,2001-05-05,6,Non-Renewed,11594,Y,Y,Y,826,Paid in Full
-7079,0130859-LFP-96,287,2,,1,Direct,2001-06-19,6,In Force,12788,N,N,Y,750,Monthly Bill
-7166,0131213-LFP-37,277,2,,1,Direct,2001-06-25,12,Non-Renewed,12946,Y,Y,Y,787,Monthly EFT
-7265,0131693-LFM-63,270,50,52,2,Independent Agent,2001-07-03,6,In Force,13146,Y,Y,Y,900,Paid in Full
-7273,0131694-LFM-79,241,50,52,2,Independent Agent,2001-07-03,6,In Force,13166,Y,Y,Y,576,Monthly EFT
-7295,0131806-LFP-19,206,25,25,1,Independent Agent,2001-07-05,12,In Force,13208,Y,N,Y,900,Paid in Full
-7316,0131873-LFP-24,68,51,53,1,Exclusive Agent,2001-07-06,6,In Force,13246,Y,Y,Y,899,Paid in Full
-7375,0132178-LFP-54,111,46,46,1,Exclusive Agent,2001-07-11,6,Non-Renewed,13401,Y,Y,Y,900,Monthly Bill
-7659,0133427-LFM-65,6,2,,2,Direct,2001-07-31,6,In Force,13903,Y,N,Y,806,Paid in Full
-7895,0134344-LFP-81,184,45,44,1,Exclusive Agent,2001-08-15,6,In Force,14328,Y,Y,Y,777,Paid in Full
-7929,0134457-LFM-55,275,52,54,2,Independent Agent,2001-08-17,6,Canceled,14402,Y,Y,Y,578,Monthly EFT
-7974,0134648-LFP-95,115,46,46,1,Exclusive Agent,2001-08-20,6,In Force,14489,Y,Y,Y,761,Paid in Full
-7979,0134649-LFP-14,36,27,40,1,Exclusive Agent,2001-08-20,6,Non-Renewed,14507,Y,Y,Y,759,Monthly Bill
-7984,0134707-LFM-78,255,26,26,2,Independent Agent,2001-08-21,6,Non-Renewed,14524,Y,Y,Y,763,Monthly EFT
-7992,0134708-LFM-94,39,45,44,2,Exclusive Agent,2001-08-21,6,Canceled,14534,Y,N,Y,738,Monthly EFT
-8002,0134778-LFP-41,151,2,,1,Direct,2001-08-22,12,Non-Renewed,14549,Y,Y,Y,886,Paid in Full
-8012,0134779-LFP-57,269,18,18,1,Independent Agent,2001-08-22,6,In Force,14560,Y,Y,Y,787,Monthly EFT
-8015,0134780-LFP-73,164,17,17,1,Independent Agent,2001-08-22,6,Canceled,14568,Y,Y,Y,788,Monthly Bill
-8119,0135239-LFP-45,46,3,,1,Direct,2001-08-29,12,Non-Renewed,14723,N,N,Y,798,Paid in Full
-8155,0135401-LFP-18,4,2,,1,Direct,2001-09-01,6,In Force,14821,Y,N,Y,866,Paid in Full
-8253,0135837-LFM-19,244,20,19,2,Independent Agent,2001-09-08,12,In Force,15012,Y,Y,Y,,Paid in Full
-8308,0136002-LFP-31,110,3,,1,Direct,2001-09-11,6,Non-Renewed,15093,Y,N,Y,762,Paid in Full
-8320,0136003-LFP-47,1,4,1,1,Exclusive Agent,2001-09-11,6,Non-Renewed,15096,Y,Y,Y,830,Monthly Bill
-8506,0136775-LFM-89,236,52,54,2,Independent Agent,2001-09-24,12,In Force,15470,Y,Y,Y,734,Paid in Full
-8628,0137199-LFM-83,144,2,,2,Direct,2001-10-01,6,In Force,15667,Y,N,Y,699,Monthly EFT
-8663,0137379-LFM-53,68,2,,2,Direct,2001-10-04,12,Canceled,15750,Y,Y,Y,660,Monthly EFT
-8742,0137678-LFP-75,100,38,39,1,Independent Agent,2001-10-09,6,In Force,15878,Y,Y,Y,834,Monthly EFT
-8838,0138038-LFM-24,263,34,36,2,Independent Agent,2001-10-15,6,Non-Renewed,16044,Y,Y,Y,665,Monthly EFT
-8882,0138218-LFM-91,65,54,58,2,Independent Agent,2001-10-18,6,In Force,16132,N,N,Y,741,Monthly Bill
-9043,0138874-LFP-05,89,56,60,1,Exclusive Agent,2001-10-29,6,In Force,16433,Y,Y,Y,781,Paid in Full
-9325,0140083-LFP-46,85,9,7,1,Exclusive Agent,2001-11-18,12,In Force,17006,Y,Y,Y,757,Monthly EFT
-9444,0140580-LFP-44,277,37,38,1,Independent Agent,2001-11-26,6,Non-Renewed,17244,Y,Y,Y,805,Monthly Bill
-9797,0141956-LFM-50,167,2,,2,Direct,2001-12-19,6,Non-Renewed,17856,Y,Y,Y,690,Monthly Bill
-10042,0142895-LFP-30,129,2,,1,Direct,2002-01-04,6,Canceled,18325,Y,N,Y,763,Monthly EFT
-10130,0143186-LFP-30,114,46,46,1,Exclusive Agent,2002-01-09,6,Canceled,18463,Y,Y,Y,791,Paid in Full
-10150,0143243-LFP-69,66,46,46,1,Exclusive Agent,2002-01-10,12,Non-Renewed,18504,Y,Y,Y,796,Paid in Full
-10175,0143366-LFM-09,210,59,62,2,Independent Agent,2002-01-12,6,In Force,18562,Y,Y,Y,616,Monthly Bill
-10235,0143567-LFP-15,222,62,64,1,Exclusive Agent,2002-01-15,6,In Force,18629,Y,Y,Y,840,Paid in Full
-10300,0143811-LFM-48,269,2,,2,Direct,2002-01-19,6,Canceled,18756,Y,Y,Y,726,Paid in Full
-10435,0144305-LFP-86,237,64,67,1,Independent Agent,2002-01-28,6,In Force,19016,Y,Y,Y,747,Monthly EFT
-10448,0144369-LFP-43,128,3,,1,Direct,2002-01-29,6,Canceled,19035,Y,N,Y,900,Monthly EFT
-10567,0144876-LFP-07,183,56,60,1,Exclusive Agent,2002-02-06,6,Non-Renewed,19248,Y,Y,Y,785,Paid in Full
-10609,0145046-LFP-11,77,22,21,1,Independent Agent,2002-02-09,6,In Force,19345,N,Y,Y,772,Monthly EFT
-10711,0145380-LFP-20,202,9,7,1,Exclusive Agent,2002-02-15,6,In Force,19507,Y,Y,Y,900,Paid in Full
-10720,0145381-LFP-36,55,45,44,1,Exclusive Agent,2002-02-15,12,Non-Renewed,19520,Y,N,Y,809,Paid in Full
-10727,0145382-LFM-61,206,17,17,2,Independent Agent,2002-02-15,6,In Force,19532,Y,N,Y,691,Paid in Full
-10809,0145766-LFP-85,197,2,,1,Direct,2002-02-21,6,Canceled,19687,Y,N,Y,754,Paid in Full
-10871,0146037-LFP-56,240,2,,1,Direct,2002-02-25,6,In Force,19797,Y,Y,Y,843,Paid in Full
-10960,0146338-LFP-22,251,65,70,1,Independent Agent,2002-03-02,6,In Force,19922,N,N,Y,900,Paid in Full
+321,0100001-LFM-10,91,5,1,2,Exclusive Agent,2000-01-28,12,Non-Renewed,598,Y,Y,Y,754,Paid in Full
+356,0100204-LFP-48,231,6,2,1,Independent Agent,2000-01-31,6,Non-Renewed,655,Y,Y,Y,854,Paid in Full
+366,0100273-LFM-94,139,7,3,2,Independent Agent,2000-02-01,6,Canceled,684,Y,N,Y,761,Monthly Bill
+431,0100604-LFM-55,181,8,4,2,Independent Agent,2000-02-07,12,In Force,819,Y,N,Y,734,Monthly EFT
+438,0100649-LFM-96,236,9,5,2,Independent Agent,2000-02-08,6,Non-Renewed,841,N,N,Y,760,Paid in Full
+509,0101003-LFP-28,67,10,6,1,Exclusive Agent,2000-02-14,6,In Force,953,Y,Y,Y,876,Paid in Full
+1081,0103720-LFM-53,271,1,,2,Direct,2000-03-31,12,In Force,1961,Y,Y,Y,804,Monthly EFT
+1087,0103721-LFM-69,126,11,8,2,Independent Agent,2000-03-31,6,In Force,1973,Y,Y,Y,801,Monthly EFT
+1137,0104009-LFP-12,111,12,9,1,Independent Agent,2000-04-05,12,In Force,2075,Y,Y,Y,826,Paid in Full
+1216,0104459-LFP-34,163,13,10,1,Independent Agent,2000-04-12,6,Non-Renewed,2215,Y,Y,Y,753,Monthly EFT
+1502,0105786-LFM-32,30,14,11,2,Independent Agent,2000-05-05,6,Canceled,2727,Y,Y,Y,693,Monthly EFT
+1558,0106108-LFM-43,171,15,12,2,Independent Agent,2000-05-10,6,In Force,2823,Y,Y,Y,741,Monthly EFT
+1759,0107056-LFM-79,247,18,14,2,Independent Agent,2000-05-25,6,Non-Renewed,3147,N,N,Y,589,Monthly Bill
+1954,0107914-LFP-24,182,1,,1,Direct,2000-06-08,6,Non-Renewed,3463,Y,N,Y,773,Monthly Bill
+2144,0108892-LFM-64,208,19,15,2,Independent Agent,2000-06-25,6,Non-Renewed,3825,Y,Y,Y,890,Paid in Full
+2260,0109353-LFM-68,222,1,,2,Direct,2000-07-03,6,In Force,4027,Y,Y,Y,756,Paid in Full
+2382,0109949-LFP-89,72,22,18,1,Independent Agent,2000-07-13,12,Non-Renewed,4260,Y,N,Y,834,Monthly Bill
+2461,0110367-LFP-84,152,1,,1,Direct,2000-07-20,6,In Force,4432,Y,Y,Y,835,Monthly EFT
+2472,0110404-LFM-06,215,23,19,2,Independent Agent,2000-07-21,12,In Force,4453,Y,Y,Y,749,Monthly EFT
+2665,0111296-LFM-19,279,25,20,2,Independent Agent,2000-08-05,12,In Force,4816,Y,Y,Y,794,Paid in Full
+2806,0112035-LFM-09,175,10,6,2,Exclusive Agent,2000-08-16,6,In Force,5070,Y,Y,Y,724,Monthly EFT
+2814,0112036-LFP-16,124,27,22,1,Independent Agent,2000-08-16,6,Non-Renewed,5085,Y,Y,Y,827,Paid in Full
+2863,0112262-LFP-43,127,21,17,1,Independent Agent,2000-08-20,6,In Force,5156,Y,Y,Y,741,Monthly EFT
+2965,0112730-LFP-62,164,1,,1,Direct,2000-08-28,6,In Force,5348,Y,Y,Y,781,Paid in Full
+3145,0113593-LFM-08,218,21,17,2,Independent Agent,2000-09-10,6,Non-Renewed,5668,N,Y,Y,760,Monthly EFT
+3301,0114294-LFM-69,139,1,,2,Direct,2000-09-21,6,In Force,5928,Y,N,Y,784,Paid in Full
+3532,0115412-LFM-12,16,2,,2,Direct,2000-10-09,12,In Force,6360,Y,N,Y,845,Monthly EFT
+3830,0116818-LFM-04,36,29,27,2,Exclusive Agent,2000-11-01,6,Non-Renewed,6876,Y,Y,Y,,Paid in Full
+4063,0117815-LFP-39,165,31,29,1,Independent Agent,2000-11-18,6,In Force,7294,Y,Y,Y,894,Paid in Full
+4164,0118232-LFP-18,227,32,30,1,Independent Agent,2000-11-25,12,In Force,7452,Y,Y,Y,755,Paid in Full
+4192,0118345-LFP-80,9,33,31,1,Independent Agent,2000-11-27,12,In Force,7507,Y,Y,Y,826,Paid in Full
+4307,0118856-LFM-20,257,35,32,2,Independent Agent,2000-12-05,12,Non-Renewed,7706,Y,Y,Y,715,Paid in Full
+4591,0120154-LFM-30,257,37,35,2,Independent Agent,2000-12-27,12,Non-Renewed,8204,Y,Y,Y,684,Monthly EFT
+4818,0121029-LFM-62,286,39,37,2,Independent Agent,2001-01-11,12,Non-Renewed,8561,N,N,Y,734,Paid in Full
+4823,0121030-LFP-69,237,18,14,1,Independent Agent,2001-01-11,12,In Force,8572,Y,N,Y,794,Paid in Full
+4830,0121090-LFM-68,99,10,6,2,Exclusive Agent,2001-01-12,12,Canceled,8584,Y,Y,Y,737,Monthly EFT
+5002,0121903-LFM-78,243,2,,2,Direct,2001-01-25,6,In Force,8919,Y,Y,Y,764,Paid in Full
+5029,0122020-LFM-10,4,40,38,2,Independent Agent,2001-01-27,6,In Force,8968,Y,Y,Y,732,Paid in Full
+5069,0122142-LFP-13,236,19,15,1,Independent Agent,2001-01-29,12,In Force,9019,N,Y,Y,877,Paid in Full
+5108,0122308-LFM-59,246,27,22,2,Independent Agent,2001-02-01,6,In Force,9089,Y,N,Y,752,Paid in Full
+5118,0122309-LFP-66,239,27,22,1,Independent Agent,2001-02-01,6,In Force,9098,Y,Y,Y,854,Paid in Full
+5140,0122439-LFM-21,290,2,,2,Direct,2001-02-03,6,In Force,9158,Y,N,Y,703,Monthly Bill
+5619,0124380-LFM-37,238,28,23,2,Independent Agent,2001-03-07,12,In Force,9986,Y,Y,Y,705,Monthly EFT
+5651,0124499-LFP-89,263,1,,1,Direct,2001-03-09,6,In Force,10027,Y,N,Y,764,Paid in Full
+5832,0125430-LFP-47,106,1,,1,Direct,2001-03-23,6,In Force,10376,Y,Y,Y,857,Paid in Full
+5841,0125495-LFP-20,262,1,,1,Direct,2001-03-24,12,In Force,10399,Y,Y,Y,838,Monthly EFT
+6101,0126657-LFP-85,234,41,42,1,Exclusive Agent,2001-04-12,6,Canceled,10870,N,Y,Y,823,Paid in Full
+6196,0127086-LFP-62,155,42,43,1,Independent Agent,2001-04-19,12,In Force,11070,Y,Y,Y,855,Monthly EFT
+6208,0127087-LFP-78,10,2,,1,Direct,2001-04-19,6,Non-Renewed,11075,Y,Y,Y,835,Paid in Full
+6361,0127789-PPC-93,116,43,45,3,Exclusive Agent,2001-05-01,6,In Force,11342,Y,Y,Y,,Monthly EFT
+6396,0127921-LFP-36,71,44,46,1,Exclusive Agent,2001-05-03,12,In Force,11390,Y,Y,Y,900,Paid in Full
+6419,0128039-LFP-81,4,8,4,1,Independent Agent,2001-05-05,6,Non-Renewed,11457,Y,Y,Y,826,Paid in Full
+7079,0130859-LFP-96,126,1,,1,Direct,2001-06-19,6,In Force,12614,Y,N,Y,750,Monthly Bill
+7166,0131213-LFP-37,277,1,,1,Direct,2001-06-25,12,Non-Renewed,12773,Y,Y,Y,787,Monthly EFT
+7265,0131693-LFM-63,270,49,52,2,Independent Agent,2001-07-03,6,In Force,12976,Y,Y,Y,900,Paid in Full
+7273,0131694-LFM-79,81,49,52,2,Independent Agent,2001-07-03,6,In Force,12996,N,Y,Y,576,Monthly EFT
+7295,0131806-LFP-19,206,27,22,1,Independent Agent,2001-07-05,12,In Force,13040,Y,N,Y,900,Paid in Full
+7316,0131873-LFP-24,68,50,53,1,Exclusive Agent,2001-07-06,6,In Force,13063,Y,Y,Y,899,Paid in Full
+7375,0132178-LFP-54,111,44,46,1,Exclusive Agent,2001-07-11,6,Non-Renewed,13176,Y,Y,Y,900,Monthly Bill
+7659,0133427-LFM-65,68,1,,2,Direct,2001-07-31,6,In Force,13696,N,N,Y,806,Paid in Full
+7895,0134344-LFP-81,89,43,45,1,Exclusive Agent,2001-08-15,6,In Force,14127,Y,Y,Y,777,Paid in Full
+7929,0134457-LFM-55,254,53,56,2,Independent Agent,2001-08-17,6,In Force,14221,Y,Y,Y,578,Monthly EFT
+7974,0134648-LFP-95,271,44,46,1,Exclusive Agent,2001-08-20,6,In Force,14284,Y,Y,Y,761,Paid in Full
+7979,0134649-LFP-14,36,29,39,1,Exclusive Agent,2001-08-20,6,Canceled,14299,Y,Y,Y,759,Monthly Bill
+7984,0134707-LFM-78,259,28,23,2,Independent Agent,2001-08-21,6,Non-Renewed,14313,N,Y,Y,763,Monthly EFT
+7992,0134708-LFM-94,39,43,45,2,Exclusive Agent,2001-08-21,6,In Force,14332,Y,N,Y,738,Monthly EFT
+8002,0134778-LFP-41,151,1,,1,Direct,2001-08-22,12,Non-Renewed,14344,Y,Y,Y,886,Paid in Full
+8012,0134779-LFP-57,239,20,16,1,Independent Agent,2001-08-22,6,In Force,14357,N,Y,Y,787,Monthly EFT
+8015,0134780-LFP-73,164,19,15,1,Independent Agent,2001-08-22,6,Canceled,14366,Y,Y,Y,788,Monthly Bill
+8119,0135239-LFP-45,46,2,,1,Direct,2001-08-29,12,Non-Renewed,14539,N,N,Y,798,Paid in Full
+8155,0135401-LFP-18,4,1,,1,Direct,2001-09-01,6,In Force,14619,Y,N,Y,866,Paid in Full
+8253,0135837-LFM-19,240,21,17,2,Independent Agent,2001-09-08,12,In Force,14815,N,Y,Y,,Paid in Full
+8308,0136002-LFP-31,110,2,,1,Direct,2001-09-11,6,Non-Renewed,14883,Y,N,Y,762,Paid in Full
+8320,0136003-LFP-47,1,5,1,1,Exclusive Agent,2001-09-11,6,In Force,14893,Y,Y,Y,830,Monthly Bill
+8506,0136775-LFM-89,236,53,56,2,Independent Agent,2001-09-24,12,In Force,15252,Y,Y,Y,734,Paid in Full
+8628,0137199-LFM-83,144,1,,2,Direct,2001-10-01,6,Non-Renewed,15415,Y,N,Y,699,Monthly EFT
+8663,0137379-LFM-53,68,1,,2,Direct,2001-10-04,12,In Force,15483,Y,Y,Y,660,Monthly EFT
+8742,0137678-LFP-75,100,40,38,1,Independent Agent,2001-10-09,6,In Force,15631,Y,Y,Y,834,Monthly EFT
+8838,0138038-LFM-24,263,37,35,2,Independent Agent,2001-10-15,6,Non-Renewed,15792,Y,Y,Y,665,Monthly EFT
+8882,0138218-LFM-91,65,55,62,2,Independent Agent,2001-10-18,6,In Force,15896,N,N,Y,741,Monthly Bill
+9043,0138874-LFP-05,275,57,64,1,Exclusive Agent,2001-10-29,6,In Force,16187,Y,Y,Y,781,Paid in Full
+9325,0140083-LFP-46,85,10,6,1,Exclusive Agent,2001-11-18,12,Canceled,16759,Y,Y,Y,757,Monthly EFT
+9444,0140580-LFP-44,169,39,37,1,Independent Agent,2001-11-26,6,Non-Renewed,16927,Y,Y,Y,805,Monthly Bill
+9797,0141956-LFM-50,167,1,,2,Direct,2001-12-19,6,Non-Renewed,17509,Y,Y,Y,690,Monthly Bill
+10042,0142895-LFP-30,129,1,,1,Direct,2002-01-04,6,Non-Renewed,17984,Y,N,Y,763,Monthly EFT
+10130,0143186-LFP-30,114,44,46,1,Exclusive Agent,2002-01-09,6,In Force,18135,Y,Y,Y,791,Paid in Full
+10150,0143243-LFP-69,66,44,46,1,Exclusive Agent,2002-01-10,12,Non-Renewed,18174,Y,Y,Y,796,Paid in Full
+10175,0143366-LFM-09,210,59,66,2,Independent Agent,2002-01-12,6,In Force,18235,Y,Y,Y,616,Monthly Bill
+10235,0143567-LFP-15,147,61,68,1,Exclusive Agent,2002-01-15,6,Canceled,18317,Y,Y,Y,840,Paid in Full
+10300,0143811-LFM-48,269,1,,2,Direct,2002-01-19,6,In Force,18442,Y,Y,Y,726,Paid in Full
+10435,0144305-LFP-86,237,63,71,1,Independent Agent,2002-01-28,6,In Force,18708,Y,Y,Y,747,Monthly EFT
+10448,0144369-LFP-43,128,2,,1,Direct,2002-01-29,6,In Force,18725,Y,N,Y,900,Monthly EFT
+10567,0144876-LFP-07,160,57,64,1,Exclusive Agent,2002-02-06,6,Canceled,18961,Y,Y,Y,785,Paid in Full
+10609,0145046-LFP-11,196,23,19,1,Independent Agent,2002-02-09,6,In Force,19024,Y,Y,Y,772,Monthly EFT
+10711,0145380-LFP-20,222,10,6,1,Exclusive Agent,2002-02-15,6,In Force,19216,Y,Y,Y,900,Paid in Full
+10720,0145381-LFP-36,55,43,45,1,Exclusive Agent,2002-02-15,12,Non-Renewed,19225,Y,N,Y,809,Paid in Full
+10727,0145382-LFM-61,206,19,15,2,Independent Agent,2002-02-15,6,In Force,19240,Y,N,Y,691,Paid in Full
+10809,0145766-LFP-85,63,1,,1,Direct,2002-02-21,6,Non-Renewed,19379,Y,N,Y,754,Paid in Full
+10871,0146037-LFP-56,208,1,,1,Direct,2002-02-25,6,Canceled,19491,Y,Y,Y,843,Paid in Full
+10960,0146338-LFP-22,251,64,72,1,Independent Agent,2002-03-02,6,Non-Renewed,19625,N,N,Y,900,Paid in Full
