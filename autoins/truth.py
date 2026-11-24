@@ -516,7 +516,8 @@ def _pick_driver(c, key, vi, rng):
 
 def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_offset: int):
     """Simulate losses for the vehicles in context c. Returns (occurrences, features, wrecks, crash deaths, next
-    occurrence id). A crash death (occ, vrow, pol, drv, day, death_delay) is an insured killed at the wheel.
+    occurrence id). A crash death (occ, vrow, pol, drv, day, death_delay) is a listed driver killed in a crash, at
+    the wheel or riding along.
     An occurrence is one loss event; a feature is one coverage (and claimant) paying on it. A wreck is a
     vehicle destroyed or stolen without a company-paid total loss (no physical damage cover, the other
     driver's insurer paid, or the claim was not paid); it leaves the policy all the same."""
@@ -559,30 +560,52 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         return ids
 
     def add(cov, ids, gross, paid, cwp, claimant=1, total=False, salvage=0.0, subro=0.0, retained=False, nominal=False,
-            um_type="", offset=0.0, cap=np.inf, room=np.inf, rent_days=0, death=False):
+            um_type="", offset=0.0, cap=np.inf, room=np.inf, rent_days=0, death=False, injured=-1):
         """cap: the most the feature could pay under the policy (its per-person or per-claim limit, or the car's
         value less the deductible); room: for injury coverages, what the per-accident limit allows for all the
         accident's claimants under the coverage together. Case reserves obey both, the second shared among the
         claimants from what the adjuster knows at each review (claims._share_accident_limit). rent_days: how long a
-        rental car was kept (the rental is paid once it is returned). death: the injured person is the insured who
-        died in the crash (simulate._crash_deaths takes them off the policy)."""
+        rental car was kept (the rental is paid once it is returned). injured: the policy's listed driver the
+        feature is for (its own people's medical payments and uninsured motorist claims), -1 for anyone else. death:
+        that person died in the crash (simulate._crash_deaths takes them off the policy)."""
         feats.append(pd.DataFrame(dict(occ=ids, cvg=cov, claimant=claimant, gross=gross, paid=np.where(cwp, 0.0, paid),
                                        cwp=cwp, total=total, salvage=salvage, subro=subro, retained=retained,
                                        nominal=nominal, um_type=um_type, offset=offset, cap=cap, room=room,
-                                       rent_days=rent_days, death=death)))
+                                       rent_days=rent_days, death=death, injured=injured)))
 
     died = []                                          # (occurrence, days from the crash to the death)
 
-    def fatal(ids, peril, driver, day):
-        """Whether the insured at the wheel dies in each crash (config.CRASH_DEATH_*): likelier in a severe crash."""
-        age = (day - st.pop.drv.dob_day.to_numpy()[driver]) / 365.25
-        p = C.CRASH_DEATH_P[peril] * np.interp(age, C.CRASH_DEATH_AGE_KNOTS, C.CRASH_DEATH_AGE_FACTOR)
+    drivers = st.pop.drv
+    on = drivers[drivers.active.to_numpy()]
+    household = pd.DataFrame(dict(pol=on.pol.to_numpy(), pid=on.drv.to_numpy(), role=on.role.to_numpy(),
+                                  dob=on.dob_day.to_numpy()))
+
+    def fatal(ids, vi, peril, driver, day):
+        """Who dies in each crash (config.CRASH_DEATH_*, RIDE_ALONG_P): the insured at the wheel, and the household's
+        other listed drivers riding along, likelier in a severe crash. All of a crash's dead die the same day.
+        Returns (the driver died, the dead passengers: i, the index into ids, and pid)."""
+        frail = lambda age: np.interp(age, C.CRASH_DEATH_AGE_KNOTS, C.CRASH_DEATH_AGE_FACTOR)
+        p = C.CRASH_DEATH_P[peril] * frail((day - drivers.dob_day.to_numpy()[driver]) / 365.25)
         dies = happens(ids, "DEATH", p)
         later = rng.random(len(ids)) >= C.CRASH_DEATH_SAME_DAY_P
         delay = np.where(later, np.minimum(1 + np.floor(rng.exponential(C.CRASH_DEATH_DELAY_MEAN, len(ids))),
                                            C.CRASH_DEATH_DELAY_MAX), 0).astype(np.int64)
-        died.append(pd.DataFrame(dict(occ=ids[dies], death_delay=delay[dies])))
-        return dies
+        ride = pd.DataFrame(dict(i=np.arange(len(ids)), pol=c["pol"][vi], driver=driver)).merge(household, on="pol")
+        ride = ride[ride.pid.to_numpy() != ride.driver.to_numpy()]
+        ride = ride[rng.random(len(ride)) < np.array(C.RIDE_ALONG_P)[ride.role.to_numpy()]]
+        i = ride.i.to_numpy()
+        p_ride = C.CRASH_DEATH_P[peril] * C.PASSENGER_DEATH_FACTOR * frail((day[i] - ride.dob.to_numpy()) / 365.25)
+        gone = happens(ids[i], "DEATH", p_ride)
+        pas = pd.DataFrame(dict(i=i[gone], pid=ride.pid.to_numpy()[gone])).sort_values(["i", "pid"], kind="stable")
+        died.append(pd.DataFrame(dict(occ=ids[dies], victim=driver[dies], death_delay=delay[dies])))
+        died.append(pd.DataFrame(dict(occ=ids[pas.i.to_numpy()], victim=pas.pid.to_numpy(), death_delay=delay[pas.i.to_numpy()])))
+        return dies, pas
+
+    def passengers_of(pas, m):
+        """The dead passengers of the crashes selected by mask m, indexed into the selection."""
+        pos = np.cumsum(m) - 1
+        sel = pas[m[pas.i.to_numpy()]]
+        return sel.assign(i=pos[sel.i.to_numpy()])
 
     def death_claim(gross, limit, dies):
         """A death claim is valued far above the policy's limit for the person (wrongful death, medical and funeral
@@ -594,21 +617,33 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         the crashes with one keep the average they are calibrated to (selection_lift)."""
         return selection_lift(p, rho["INJURY"] * rho["INJURY_SEV"], sigma)
 
-    def injury_features(cov, ids, vi, day, dist, pp, pa, factor, p, dies=None):
-        """dies: (uninsured motorist) the insured driver, the first claimant, died in the crash."""
+    def injury_features(cov, ids, vi, day, dist, pp, pa, factor, p, dies=None, pas=None, driver=None):
+        """For uninsured motorist claims, the policy's own people: the insured driver is the first claimant (dies:
+        died in the crash), and the household's dead passengers (pas) the next ones; other claimants are not."""
         if len(ids) == 0:
             return
         k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
+        n_pas = np.zeros(len(ids), dtype=np.int64) if pas is None else np.bincount(pas.i.to_numpy(), minlength=len(ids))
+        k = np.maximum(k, 1 + n_pas)
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
+        injured = np.full(len(o), -1, dtype=np.int64)
+        if driver is not None:
+            injured[claimant == 1] = driver[o[claimant == 1]]
+        if pas is not None and len(pas):
+            rank = pas.groupby("i").cumcount().to_numpy()
+            at = np.searchsorted(o, pas.i.to_numpy()) + 1 + rank          # claimants 2, 3, ... of the crash
+            injured[at] = pas.pid.to_numpy()
         lift = injury_lift(np.broadcast_to(p, len(ids)), dist["sigma"])[o]
         gross = dist["median"] * factor[o] * _trend(cal, "BI", day[o]) * np.exp(dist["sigma"] * sev(ids[o], "INJURY_SEV")) / lift
         death = np.zeros(len(o), dtype=bool) if dies is None else dies[o] & (claimant == 1)
+        if pas is not None and len(pas):
+            death[at] = True
         gross = round_settlement(death_claim(gross, pp[o], death), rng)
         cwp = (rng.random(len(o)) < C.CWP[cov]) & ~death                 # a death claim is paid
         paid = cap_per_accident(np.where(cwp, 0.0, np.minimum(gross, pp[o])), o, len(ids), pa)   # per-accident limit
         add(cov, ids[o], gross, paid, cwp, claimant=claimant, um_type="Uninsured" if cov == "UM" else "",
-            cap=pp[o], room=pa[o], death=death)
+            cap=pp[o], room=pa[o], death=death, injured=injured)
 
     def collision_features(peril, ids, vi, day, file_p, subro_p):
         # the damage to the insured car happens whether or not anyone claims it from us
@@ -634,16 +669,24 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         w = total & ~(keep & paid_total)
         wreck(vi[w], day[w], ids[w])
 
-    def med_features(ids, vi, day, p, dies):
-        """dies: the insured driver died in the crash (medical payments then pay their limit, not a part of it)."""
-        m = (c["med_lim"][vi] > 0) & (happens(ids, "MED", p) | dies)
-        ids, vi, day, dies = ids[m], vi[m], day[m], dies[m]
-        if len(ids):
+    def med_features(ids, vi, day, p, dies, pas, driver):
+        """Medical payments for the insured driver (dies: died in the crash; the claim then pays its limit, not a
+        part of it), and for each of the household's passengers who died (claimants 2, 3, ...)."""
+        covered = c["med_lim"][vi] > 0
+        m = covered & (happens(ids, "MED", p) | dies)
+        if m.any():
+            i, lim = np.flatnonzero(m), c["med_lim"][vi[m]]
             lift = selection_lift(np.broadcast_to(p, len(m))[m], rho["MED"] ** 2, C.MED_SEV["sigma"])
-            gross = C.MED_SEV["median"] * _trend(cal, "BI", day) * np.exp(C.MED_SEV["sigma"] * sev(ids, "MED")) / lift
-            gross = death_claim(gross, c["med_lim"][vi], dies)
-            add("MED", ids, gross, np.minimum(gross, c["med_lim"][vi]), (rng.random(len(vi)) < C.CWP["MED"]) & ~dies,
-                cap=c["med_lim"][vi], death=dies)
+            gross = C.MED_SEV["median"] * _trend(cal, "BI", day[i]) * np.exp(C.MED_SEV["sigma"] * sev(ids[i], "MED")) / lift
+            gross = death_claim(gross, lim, dies[i])
+            add("MED", ids[i], gross, np.minimum(gross, lim), (rng.random(len(i)) < C.CWP["MED"]) & ~dies[i],
+                cap=lim, death=dies[i], injured=driver[i])
+        dead = pas[covered[pas.i.to_numpy()]]
+        if len(dead):
+            i, lim = dead.i.to_numpy(), c["med_lim"][vi[dead.i.to_numpy()]]
+            gross = death_claim(np.zeros(len(i)), lim, np.ones(len(i), dtype=bool))
+            add("MED", ids[i], gross, lim, np.zeros(len(i), dtype=bool), claimant=2 + dead.groupby("i").cumcount().to_numpy(),
+                cap=lim, death=True, injured=dead.pid.to_numpy())
 
     def rental(ids, vi, total, damage=None, share=None):
         """Rental reimbursement while a covered car is repaired, or replaced after a total loss. `damage`: the
@@ -670,20 +713,26 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         back = 0.0 if share is None else np.where(cwp, 0.0, share[m] * paid)
         add("TOW", ids[m], cost, paid, cwp, subro=back, cap=C.TOWING_LIMIT)
 
-    def uim_features(ids, vi, day, dies):
+    def uim_features(ids, vi, day, dies, pas, driver):
         """Underinsured motorist: the insured's injury damages above what the at-fault driver's insurer pays,
         within the policy's own per-person limit and, for the accident, its per-accident limit less
         everything that insurer paid (215 ILCS 5/143a-2(4): the limits less amounts actually recovered)."""
         if len(ids) == 0:
             return
         k = 1 + rng.choice(4, len(ids), p=C.BI_CLAIMANTS_P)
+        k = np.maximum(k, 1 + np.bincount(pas.i.to_numpy(), minlength=len(ids)))
         o = np.repeat(np.arange(len(ids)), k)
         claimant = np.arange(len(o)) - np.repeat(np.cumsum(k) - k, k) + 1
+        injured = np.full(len(o), -1, dtype=np.int64)
+        injured[claimant == 1] = driver[o[claimant == 1]]
+        at = np.searchsorted(o, pas.i.to_numpy()) + 1 + pas.groupby("i").cumcount().to_numpy()
+        injured[at] = pas.pid.to_numpy()
         lift = injury_lift(C.P_UM_INJURY, C.UM_SEV["sigma"])
         gross = C.UM_SEV["median"] * _trend(cal, "BI", day[o]) * np.exp(C.UM_SEV["sigma"] * sev(ids[o], "INJURY_SEV")) / lift
         other_pp, other_pa = other_driver_limits(rng, len(ids))
         # a death is valued above both the other driver's limit and the policy's own (dies: the first claimant)
         death = dies[o] & (claimant == 1)
+        death[at] = True
         gross = round_settlement(death_claim(gross, other_pp[o] + c["um_pp"][vi][o], death), rng)
         excess, other = underinsured(gross, c["um_pp"][vi][o], other_pp[o], o, len(ids), other_pa)
         cwp = (rng.random(len(o)) < C.CWP["UM"]) & ~death
@@ -692,7 +741,8 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         cap = np.maximum(c["um_pp"][vi][o] - other, 0.0)
         keep = (excess > 0) & (cwp | (paid > 0))
         add("UM", ids[o][keep], gross[keep], paid[keep], cwp[keep], claimant=claimant[keep], um_type="Underinsured",
-            offset=np.round(other[keep], 2), cap=cap[keep], room=np.maximum(room, 0.0)[o][keep], death=death[keep])
+            offset=np.round(other[keep], 2), cap=cap[keep], room=np.maximum(room, 0.0)[o][keep], death=death[keep],
+            injured=injured[keep])
 
     def unpaid(cov, ids, p):
         """Claims opened and closed without payment: liability denied, or an injury claim never pursued."""
@@ -728,7 +778,7 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     vi, day = draw("AF_MV")
     who = _pick_driver(c, "key_af", vi, rng)
     ids = new_occurrences("AF_MV", vi, day, who, at_fault=True)
-    dies = fatal(ids, "AF_MV", who, day)
+    dies, pas = fatal(ids, vi, "AF_MV", who, day)
     m = rng.random(len(vi)) < C.P_PD_GIVEN_AF_MV
     g = pd_paid(sev(ids[m], "PD"), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
     add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"], cap=c["pd_lim"][vi[m]])
@@ -737,12 +787,12 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                     c["p_bi"][vi[m]])
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_MV"])
     collision_features("AF_MV", ids, vi, day, C.P_FILE_COLL["AF_MV"], 0.0)
-    med_features(ids, vi, day, C.P_MED["AF_MV"], dies)
+    med_features(ids, vi, day, C.P_MED["AF_MV"], dies, pas, who)
 
     vi, day = draw("AF_SV")
     who = _pick_driver(c, "key_af", vi, rng)
     ids = new_occurrences("AF_SV", vi, day, who, at_fault=True)
-    dies = fatal(ids, "AF_SV", who, day)
+    dies, pas = fatal(ids, vi, "AF_SV", who, day)
     m = rng.random(len(vi)) < C.P_PD_GIVEN_AF_SV
     g = pd_paid(sev(ids[m], "PD"), np.inf, c["pd_factor"][vi[m]], _trend(cal, "PD", day[m]))
     add("PD", ids[m], g, np.minimum(g, c["pd_lim"][vi[m]]), rng.random(m.sum()) < C.CWP["PD"], cap=c["pd_lim"][vi[m]])
@@ -751,22 +801,22 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                     C.P_BI_GIVEN_AF_SV)
     unpaid("BI", ids[~m], C.P_INJURY_NOT_PURSUED["AF_SV"])
     collision_features("AF_SV", ids, vi, day, C.P_FILE_COLL["AF_SV"], 0.0)
-    med_features(ids, vi, day, C.P_MED["AF_SV"], dies)
+    med_features(ids, vi, day, C.P_MED["AF_SV"], dies, pas, who)
 
     vi, day = draw("NAF")
     unins = rng.random(len(vi)) < c["p_un"][vi]
     who = _pick_driver(c, "key_any", vi, rng)
     ids = new_occurrences("NAF", vi, day, who, uninsured=unins)
-    dies = fatal(ids, "NAF", who, day)
-    hurt = happens(ids, "INJURY", C.P_UM_INJURY) | dies
+    dies, pas = fatal(ids, vi, "NAF", who, day)
+    hurt = happens(ids, "INJURY", C.P_UM_INJURY) | dies | np.isin(np.arange(len(ids)), pas.i.to_numpy())
     m = unins & hurt
     injury_features("UM", ids[m], vi[m], day[m], C.UM_SEV, c["um_pp"][vi[m]], c["um_pa"][vi[m]], np.ones(m.sum()),
-                    C.P_UM_INJURY, dies[m])
+                    C.P_UM_INJURY, dies[m], passengers_of(pas, m), who[m])
     uim = ~unins & hurt & has_uim(c)[vi]
-    uim_features(ids[uim], vi[uim], day[uim], dies[uim])
+    uim_features(ids[uim], vi[uim], day[uim], dies[uim], passengers_of(pas, uim), who[uim])
     collision_features("NAF", ids[unins], vi[unins], day[unins], C.P_FILE_COLL["NAF_UNINSURED"], 0.0)
     collision_features("NAF", ids[~unins], vi[~unins], day[~unins], C.P_FILE_COLL["NAF"], C.P_SUBROGATION["NAF"])
-    med_features(ids, vi, day, C.P_MED["NAF"], dies)
+    med_features(ids, vi, day, C.P_MED["NAF"], dies, pas, who)
     unpaid("PD", ids, C.P_LIABILITY_DENIED["PD"])
     unpaid("BI", ids, C.P_LIABILITY_DENIED["BI"])
 
@@ -822,9 +872,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
     occ = pd.concat(occs, ignore_index=True) if occs else pd.DataFrame()
     feat = pd.concat(feats, ignore_index=True) if feats else pd.DataFrame()
     # the insured who died in a crash: the death stands whether or not anything is claimed for it
-    dead = pd.concat(died, ignore_index=True) if died else pd.DataFrame(dict(occ=[], death_delay=[]))
-    deaths = occ.merge(dead, on="occ")[["occ", "vrow", "pol", "drv", "day", "death_delay"]] if len(occ) else \
-        pd.DataFrame(columns=["occ", "vrow", "pol", "drv", "day", "death_delay"])
+    dead = pd.concat(died, ignore_index=True) if died else pd.DataFrame(dict(occ=[], victim=[], death_delay=[]))
+    cols = ["occ", "vrow", "pol", "drv", "day", "death_delay"]
+    deaths = occ.drop(columns="drv").merge(dead, on="occ").rename(columns={"victim": "drv"})[cols] if len(occ) else \
+        pd.DataFrame(columns=cols)
     occ = occ[occ.occ.isin(feat.occ)].reset_index(drop=True)      # a loss with no payable coverage is not a claim
     wrecks = pd.concat(wrecks, ignore_index=True)
     wrecks.loc[~wrecks.occ.isin(occ.occ), "occ"] = -1

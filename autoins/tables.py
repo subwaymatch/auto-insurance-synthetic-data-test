@@ -285,6 +285,8 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     f = feats
     f = f.assign(incurred=f.paid_loss + f.case_reserve, recovery=f.salvage_rec + f.subro_rec)
     f["net_incurred"] = f.incurred - f.recovery
+    # the policy's own listed driver a medical payments or uninsured motorist feature is for (truth.simulate)
+    injured = (f["injured"].fillna(-1) if "injured" in f else pd.Series(-1, index=f.index)).to_numpy().astype(np.int64)
     # coverage and cause-of-loss codes, as the claims system keeps them; their names are in lookup tables
     T["coverage"] = pd.DataFrame({"coverage_code": list(C.COVERAGE_NAMES), "coverage_name": list(C.COVERAGE_NAMES.values())})
     T["cause_of_loss"] = pd.DataFrame({"cause_of_loss": list(C.PERIL_DESCRIPTION), "description": list(C.PERIL_DESCRIPTION.values())})
@@ -293,6 +295,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     T["claim_feature"] = pd.DataFrame({
         "claim_feature_id": f.feature_id, "claim_id": f.claim_id, "coverage_code": f.cvg,
         "um_uim_type": f.um_type, "claimant_number": f.claimant,
+        "injured_driver_id": pd.array(np.where(injured >= 0, injured + 1, pd.NA), dtype="Int64"),
         "feature_status": np.where(f.closed, "Closed", np.where(f.reopened, "Reopened", "Open")), "open_date": D(f.open_day),
         "close_date": np.where(f.closed, D(f.status_close_day.clip(upper=V)), ""),
         "reopen_date": np.where(f.reopened, claim_date(f.reopen_day), ""),
@@ -342,9 +345,11 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
         return np.where(died[person] < days, "Estate of " + name, name)
 
     insured = name_on(ni_pay, pays.day.to_numpy())
-    # the policy's own person in the loss (an uninsured motorist claim's first claimant): the driver, or the named insured
+    # the policy's own person each payment is for: the listed driver the feature is for (the driver, or a household
+    # member riding along), else the driver involved, or the named insured
     drv_pay = claims.drv.to_numpy()[pays.claim_id.to_numpy() - 1]
-    party = name_on(np.where(drv_pay >= 0, drv_pay, ni_pay), pays.day.to_numpy())
+    inj_pay = pd.Series(injured, index=f.feature_id.to_numpy()).reindex(pays.feature_id.to_numpy()).fillna(-1).to_numpy().astype(np.int64)
+    party = name_on(np.where(inj_pay >= 0, inj_pay, np.where(drv_pay >= 0, drv_pay, ni_pay)), pays.day.to_numpy())
     detail, adjuster = payments.details(cfg, cal, ref, pays, feats, claims, branch, zi_at_loss, insured, party,
                                         np.where(cg.open.to_numpy(), cal.horizon + 1, cg.close_day.to_numpy()), emp, desks, vend)
     T["employee"], T["vendor"] = _employee_table(emp, desks, V, D), _vendor_table(vend)

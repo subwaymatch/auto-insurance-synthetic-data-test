@@ -1353,17 +1353,35 @@ def main() -> None:
     rep.check("most cars that pass to another driver are rated on a newly declared mileage or use (a redraw can land "
               "on the same rounded figure)", len(redrawn) == 0 or redrawn.mean() >= 0.5,
               f"{switch.sum():,} driver switches on kept cars, {redrawn.mean():.0%} re-rated" if len(redrawn) else "none")
-    # an insured killed in a crash (the claim's driver: an uninsured motorist claim's first claimant, or medical
-    # payments) is recorded as deceased, leaving the policy within a month of the crash (or after the valuation date)
-    own = feat[((feat["coverage_code"] == "UM") & (feat["claimant_number"] == 1)) | (feat["coverage_code"] == "MED")]
-    fatal = own[own["injury_type"] == "Fatality"].merge(clm[["claim_id", "involved_driver_id", "loss_date"]], on="claim_id").merge(
-        drv[["driver_id", "removal_reason", "removed_date"]], left_on="involved_driver_id", right_on="driver_id", how="left")
+    # the policy's own people's features (medical payments, uninsured motorist) name the listed driver they are for:
+    # the claim's driver as the first claimant, or a household member on the policy riding along
+    own = feat.dropna(subset=["injured_driver_id"]).astype({"injured_driver_id": "int64"}).merge(clm[["claim_id", "policy_id", "involved_driver_id", "loss_date"]],
+                                                          on="claim_id")
+    who = drv.set_index("driver_id").reindex(own["injured_driver_id"])
+    loss = pd.to_datetime(own["loss_date"]).to_numpy()
+    aboard = ((who["policy_id"].to_numpy() == own["policy_id"].to_numpy())
+              & (pd.to_datetime(who["added_date"]).to_numpy() <= loss) & ~(pd.to_datetime(who["removed_date"]).to_numpy() <= loss))
+    first = own["claimant_number"] == 1
+    rep.check("a feature's injured driver is on the claim's policy on the loss date, only on medical payments and "
+              "uninsured motorist features, and the first claimant is the claim's driver",
+              bool(aboard.all() and own["coverage_code"].isin(["MED", "UM"]).all()
+                   and (own.loc[first, "injured_driver_id"] == own.loc[first, "involved_driver_id"]).all()),
+              f"{len(own):,} features for the policy's own people, {(~first).sum():,} for a household member riding along")
+    # someone killed in a crash, at the wheel or riding along, is recorded as deceased, leaving the policy within a
+    # month of the crash (or after the valuation date), and drives in no later claim
+    fatal = own[own["injury_type"] == "Fatality"].drop_duplicates(["claim_id", "injured_driver_id"]).merge(
+        drv[["driver_id", "removal_reason", "removed_date"]], left_on="injured_driver_id", right_on="driver_id", how="left")
     after = (pd.to_datetime(fatal["removed_date"]) - pd.to_datetime(fatal["loss_date"])).dt.days
     not_yet = fatal["removed_date"].isna() & ((pd.Timestamp(valuation) - pd.to_datetime(fatal["loss_date"])).dt.days < 31)
-    rep.check("an insured killed in a crash is recorded as deceased, leaving the policy within a month of the crash",
-              bool((((fatal["removal_reason"] == "Deceased") & after.between(1, 31)) | not_yet).all()),
-              f"{fatal['claim_id'].nunique():,} insureds killed in a crash (with a claim of their own); "
-              f"{(feat['injury_type'] == 'Fatality').sum():,} fatalities in all")
+    passenger = fatal["injured_driver_id"] != fatal["involved_driver_id"]
+    later = clm.merge(fatal[["injured_driver_id", "loss_date"]].rename(columns={"loss_date": "died_in"}),
+                      left_on="involved_driver_id", right_on="injured_driver_id")
+    later = later[(later["loss_date"] > later["died_in"]) & later["cause_of_loss"].isin(["AF_MV", "AF_SV", "NAF"])]
+    rep.check("someone killed in a crash, at the wheel or riding along, is recorded as deceased, leaving the policy "
+              "within a month of the crash, and drives in no later crash",
+              bool((((fatal["removal_reason"] == "Deceased") & after.between(1, 31)) | not_yet).all()) and len(later) == 0,
+              f"{len(fatal):,} people killed in {fatal['claim_id'].nunique():,} crashes ({int(passenger.sum()):,} riding "
+              f"along); {(feat['injury_type'] == 'Fatality').sum():,} fatality features in all")
     # a rental is paid once the car is returned: no sooner after the loss than its cost at the daily limit allows
     rent = feat.loc[feat["coverage_code"] == "RENT", ["claim_feature_id", "claim_id"]].merge(
         clm[["claim_id", "loss_date", "exposure_id"]], on="claim_id").merge(risk[["exposure_id", "rental_reimbursement"]], on="exposure_id")

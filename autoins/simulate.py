@@ -521,8 +521,8 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
         ctx["rate"][k_] = ctx["rate"][k_] * watched
     occ, feat, wrecks, deaths, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
     occ, feat, stop_day, how = _stop_at_total_loss(occ, feat, wrecks, len(V))
-    occ, feat, stop_day, how, b, died = _crash_deaths(T, vp, b, nb, np.ones(len(V), dtype=bool) if fresh is None else fresh,
-                                                     occ, feat, deaths, stop_day, how)
+    fresh = np.ones(len(V), dtype=bool) if fresh is None else fresh
+    occ, feat, stop_day, how, b, died = _crash_deaths(T, st.p["ni_drv"], vp, b, nb, fresh, occ, feat, deaths, stop_day, how)
     gone = stop_day >= 0
     x = np.where(gone, stop_day + 1, b)
     truth.set_window(ctx, cal, a, x)
@@ -596,14 +596,15 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), _events(arrivals, died)
 
 
-def _crash_deaths(T: Term, vp, b, nb, fresh, occ, feat, deaths, stop_day, how):
-    """Insureds killed at the wheel (truth.simulate) leave the policy as a death does (a LEAVE event, code 4: a
-    surviving spouse takes the policy over, or it is cancelled; their cars pass to others), the day after they die:
-    the day of the crash or up to a month later. They drive no more after the crash, and the policy's rows end on
-    the day they leave, so the rest of the period is rated and simulated without them. A death counts only if its
-    crash happened (not after its car was destroyed), in the batch that starts the policy's period, and before the
-    term's last day; otherwise the crash leaves the driver badly hurt instead. One per policy and period. Returns
-    (occ, feat, stop_day, how, boundary per vehicle, LEAVE events)."""
+def _crash_deaths(T: Term, ni, vp, b, nb, fresh, occ, feat, deaths, stop_day, how):
+    """Listed drivers killed in a crash (truth.simulate), at the wheel or riding along, leave the policy as a death
+    does (a LEAVE event, code 4: a surviving spouse takes the policy over, or it is cancelled; their cars pass to
+    others), the day after they die: the day of the crash or up to a month later. They drive no more after the
+    crash, and the policy's rows end on the day they leave, so the rest of the period is rated and simulated without
+    them. A fatal crash counts only if it happened (not after its car was destroyed), in the batch that starts the
+    policy's period, and before the term's last day; otherwise it leaves its victims badly hurt instead. One fatal
+    crash per policy and period, with all its dead. Returns (occ, feat, stop_day, how, boundary per vehicle, LEAVE
+    events)."""
     none = pd.DataFrame(columns=EVENT_COLUMNS)
     if len(deaths) == 0:
         return occ, feat, stop_day, how, b, none
@@ -612,19 +613,22 @@ def _crash_deaths(T: Term, vp, b, nb, fresh, occ, feat, deaths, stop_day, how):
     sd = stop_day[vr]
     leave = np.minimum.reduce([day + 1 + d.death_delay.to_numpy().astype(np.int64), b[vr], T.x_pol[pol] - 1])
     ok = ((sd < 0) | (day < sd) | d.occ.isin(occ.occ).to_numpy()) & fresh[vr] & (leave >= day + 1)
-    ok &= ~pd.Series(np.where(ok, pol, -1)).duplicated().to_numpy()     # the first death of each policy
+    first = d[ok].drop_duplicates("pol").set_index("pol").occ      # the first fatal crash of each policy, with all its dead
+    ok &= d.occ.to_numpy() == pd.Series(pol).map(first).fillna(-1).to_numpy()
     if "death" in feat:                                   # crashes that did not kill: badly hurt instead
         feat = feat.assign(death=feat.death.to_numpy().astype(bool) & feat.occ.isin(d.occ[ok]).to_numpy())
     if not ok.any():
         return occ, feat, stop_day, how, b, none
     pol, day, leave, victim = pol[ok], day[ok], leave[ok], d.drv.to_numpy()[ok].astype(np.int64)
     n = len(T.s)
-    cut, crash, who = np.full(n, -1, dtype=np.int64), np.full(n, -1, dtype=np.int64), np.full(n, -1, dtype=np.int64)
-    cut[pol], crash[pol], who[pol] = leave, day, victim
-    # after the crash the victim drives no more; from the day they leave, nothing on the policy is simulated here
+    cut, crash = np.full(n, -1, dtype=np.int64), np.full(n, -1, dtype=np.int64)
+    cut[pol], crash[pol] = leave, day
+    # after the crash its dead drive no more; from the day they leave, nothing on the policy is simulated here
     op = vp[occ.vrow.to_numpy().astype(int)]
     oday = occ.day.to_numpy()
-    drop = (cut[op] >= 0) & ((oday >= cut[op]) | ((occ.drv.to_numpy() == who[op]) & (oday > crash[op])))
+    key = lambda q, w: q.astype(np.int64) * (1 << 32) + w.astype(np.int64)
+    dead_driver = np.isin(key(op, occ.drv.to_numpy()), key(pol, victim))
+    drop = (cut[op] >= 0) & ((oday >= cut[op]) | (dead_driver & (oday > crash[op])))
     occ = occ[~drop].reset_index(drop=True)
     feat = feat[feat.occ.isin(occ.occ)].reset_index(drop=True)
     vc = cut[vp]
@@ -632,7 +636,10 @@ def _crash_deaths(T: Term, vp, b, nb, fresh, occ, feat, deaths, stop_day, how):
     stop_day, how = np.where(late, -1, stop_day), np.where(late, 0, how)
     b = np.where(vc >= 0, np.minimum(b, vc), b)
     np.minimum.at(nb, pol, leave)
-    return occ, feat, stop_day, how, b, pd.DataFrame(dict(pol=pol, day=leave, kind=LEAVE, target=victim, extra=CRASH_DEATH))
+    # the named insured last, so that a spouse killed with them does not take the policy over (_drivers_leave)
+    last = np.argsort(victim == ni[pol], kind="stable")
+    return occ, feat, stop_day, how, b, pd.DataFrame(dict(pol=pol[last], day=leave[last], kind=LEAVE, target=victim[last],
+                                                          extra=CRASH_DEATH))
 
 
 WARM_DAYS = ["day", "report_day", "chargeable_day", "siu_day", "open_day", "close_day", "attorney_day", "suit_day",

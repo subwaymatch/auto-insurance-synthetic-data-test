@@ -408,6 +408,14 @@ CRASH_DEATH_P = {"AF_MV": 0.0008, "AF_SV": 0.0035, "NAF": 0.0008}
 CRASH_DEATH_AGE_KNOTS, CRASH_DEATH_AGE_FACTOR = [16, 25, 65, 75, 85], [1.2, 1.0, 1.0, 1.7, 2.8]
 CRASH_DEATH_SAME_DAY_P = 0.7
 CRASH_DEATH_DELAY_MEAN, CRASH_DEATH_DELAY_MAX = 7.0, 30
+# The household's other listed drivers ride along in some crashes, by their role (named insured, spouse, other adult,
+# child; ASSUMED: a car trip carries about 1.5 people on average, NHTS, and most passengers are family). A passenger
+# dies with the same crash severity behind it, at a little less than the driver's risk, and their age's frailty
+# (ASSUMED, after NHTSA's occupant fatality counts: about one passenger killed for every three or four drivers, children
+# and passengers from outside the household included). Children under 16 and passengers from outside the household are
+# not people the data follows: they appear only as unnamed claimants.
+RIDE_ALONG_P = [0.18, 0.18, 0.10, 0.12]
+PASSENGER_DEATH_FACTOR = 0.8
 P_FILE_BELOW_DEDUCTIBLE = 0.75      # claims opened then closed without payment
 CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04, "RENT": 0.02, "TOW": 0.02}
 # Claims opened and closed without payment, beyond those above (ASSUMED rates). Together they bring the share

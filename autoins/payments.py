@@ -218,10 +218,11 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     claims: the reported claims in claim_id order (peril, veh), with `office`, `claim_zi` (ZIP index at the loss)
     and `close_day` (the claim's close, or beyond the horizon if open) aligned to them. `insured_name` is aligned to
     the payments: the policy's named insured on each payment's date, so a later change of named insured leaves an
-    earlier payment alone. `party_name`, aligned the same way, is the policy's own person in the loss: the driver
+    earlier payment alone. `party_name`, aligned the same way, is the policy's own person the payment is for: the
+    listed driver a feature is for (feats.injured: the driver, or a household member riding along), else the driver
     involved, or the named insured when no driver was. Uninsured motorist cover is the policy's own: its first
-    claimant is that person, paid as the insured (jointly with their attorney once one is retained); the others
-    are the car's other occupants. Returns (columns for the payment table, adjuster employee index per claim)."""
+    claimant is the driver, paid as the insured (jointly with their attorney once one is retained), as is any of the
+    household riding along; the others are the car's other occupants. Returns (columns for the payment table, adjuster employee index per claim)."""
     R = stream(cfg.seed, "payment detail")
     V = cal.valuation_day
     nC, nF = len(claims), len(feats)
@@ -251,7 +252,10 @@ def details(cfg: C.Config, cal, ref, pays: pd.DataFrame, feats: pd.DataFrame, cl
     kind[pd_] = np.array(list(PD_PAYEE))[np.searchsorted(cuts, u[pd_], side="right").clip(0, len(cuts) - 1)]
     inj = np.isin(cvg, ["BI", "UM"])
     represented = f.attorney.to_numpy().astype(bool)
-    own = (cvg == "UM") & (f.claimant.to_numpy() == 1)          # the policy's own injured person
+    # the policy's own injured people: its listed drivers claiming uninsured motorist cover or medical payments
+    own = (cvg == "UM") & (f.claimant.to_numpy() == 1)
+    if "injured" in f:
+        own |= f["injured"].fillna(-1).to_numpy().astype(np.int64) >= 0
     kind[inj] = np.where(represented[inj], "Claimant and Attorney", "Claimant")
     kind[own] = np.where(represented[own], "Insured and Attorney", "Insured")
     vtype = np.select([np.isin(cvg, ["COLL", "COMP"]) & (peril == "GLASS"), np.isin(cvg, ["COLL", "COMP", "PD"]), cvg == "MED",
