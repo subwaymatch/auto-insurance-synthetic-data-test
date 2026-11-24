@@ -1252,10 +1252,12 @@ def _apply_events(sim: Sim, T: Term, due: pd.DataFrame) -> dict:
 def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
     """Drivers leave a policy (codes: 1 child or 2 other adult moved out, 3 divorce, 4 death, 5 death in a crash,
     recorded as 4). A leaving driver's own car usually goes with them; otherwise another household driver takes it
-    over."""
+    over. Returns which of the drivers left (not one already gone: a teenager killed in a crash who was to move
+    out later)."""
     st, p, R = sim.st, sim.st.p, sim.R
     drv = sim.pop.drv
     ok = drv.active.to_numpy()[who]
+    went = np.zeros(len(who), dtype=bool)
     pol, day, who, code = pol[ok], day[ok], who[ok], np.where(code[ok] == CRASH_DEATH, 4, code[ok])
     active = drv.active.to_numpy().copy()
     role, marital = drv.role.to_numpy().copy(), drv.marital.to_numpy().copy()
@@ -1286,7 +1288,8 @@ def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
     drv["removed_day"], drv["removal_reason"] = removed, why
     left = ~active[who]
     _hand_over_cars(sim, T, who[left], day[left], code[left])
-    return left
+    went[np.flatnonzero(ok)[left]] = True
+    return went
 
 
 def _hand_over_cars(sim: Sim, T: Term, who, day, code) -> None:
