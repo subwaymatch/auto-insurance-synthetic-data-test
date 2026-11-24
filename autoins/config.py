@@ -530,6 +530,7 @@ NONPAY_GRACE_DAYS = (21, 28)         # from the missed due date to the cancellat
 UW_CANCEL_NEW_BUSINESS_P = 0.008
 UW_CANCEL_DAYS = (36, 60)            # an underwriting cancellation takes effect this many days after inception
 UW_NOTICE_DAYS = 31                  # its notice of cancellation is mailed at least this many days before
+CANCEL_KEYING_MAX_DAYS = 10                # an insured-request cancellation is keyed within two weeks of taking effect
 
 # --------------------------------------------------------------------------
 # Quotes (ASSUMED). Conversion at the market price by channel, how strongly it falls as our price rises

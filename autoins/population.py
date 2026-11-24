@@ -279,6 +279,24 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_w=None, shoppers
     transit = zr.pct_commute_transit.to_numpy()[p_]
     delay = r.exponential(np.where(drv.role == 3, 0.6, 0.8 + 5.0 * transit))
     drv["licensed_day"] = drv.dob_day + ((16 + np.minimum(delay, (age - 16).clip(0))) * 365.25).astype(int)
+    # the named insured took the policy out: an adult, and licensed, by its inception. A tenure that would start
+    # before they turned 18 is shortened (the policy was first written later), and one written after a late
+    # licence means they were licensed by then
+    ni_row = np.flatnonzero(drv.role.to_numpy() == 0)
+    ni_pol = p_[ni_row]
+    adult_day = drv.dob_day.to_numpy()[ni_row] + int(18 * 365.25) + 1
+    tenure = pol.tenure_terms.to_numpy().copy()
+    tm_, fm_, dom_ = pol.term_months.to_numpy(), pol.first_month.to_numpy(), pol.dom.to_numpy()
+    young = (tenure[ni_pol] > 0) & (cal.day_of(fm_[ni_pol] - tenure[ni_pol] * tm_[ni_pol], dom_[ni_pol]) < adult_day)
+    while young.any():
+        tenure[ni_pol[young]] -= 1
+        young = (tenure[ni_pol] > 0) & (cal.day_of(fm_[ni_pol] - tenure[ni_pol] * tm_[ni_pol], dom_[ni_pol]) < adult_day)
+    pol["tenure_terms"] = tenure
+    pol["inception_day"] = cal.day_of(fm_ - tenure * tm_, dom_)
+    lic = drv.licensed_day.to_numpy().copy()
+    renewing = tenure[ni_pol] > 0
+    lic[ni_row[renewing]] = np.minimum(lic[ni_row[renewing]], pol.inception_day.to_numpy()[ni_pol[renewing]])
+    drv["licensed_day"] = lic
     # frailty: each driver's own, times what the household shares (a random part and its stability), times the
     # book it came through (its channel and the quality of its agency)
     household = np.exp(r.normal(-C.HOUSEHOLD_SIGMA ** 2 / 2, C.HOUSEHOLD_SIGMA, n)) \

@@ -10645,7 +10645,7 @@ vehicle_id,model_key,make,model,model_year,body_type,vehicle_class,segment,fuel_
 10644,1065,Subaru,Outback,2024,SUV,Small SUV,mainstream,Gasoline,AWD,4,2.4,31000,31000,True,0.7,108,0.005675651,EPA
 10645,1065,Subaru,Outback,2025,SUV,Small SUV,mainstream,Gasoline,AWD,4,2.4,31000,31700,True,0.7,39,0.005464473,EPA
 10646,1065,Subaru,Outback,2026,SUV,Small SUV,mainstream,Gasoline,AWD,4,2.4,31000,32500,True,0.7,0,0.004893397,EPA
-10647,1066,Subaru,RX Turbo,1985,Sedan,Subcompact Car,economy,Gasoline,4WD,,,22000,8700,False,1.0,0,9.927e-06,EPA
+10647,1066,Subaru,RX Turbo,1985,Sedan,Subcompact Car,economy,Gasoline,4WD,4,1.8,22000,8700,False,1.0,0,9.927e-06,EPA
 10648,1067,Subaru,SVX,1992,Coupe,Subcompact Car,mainstream,Gasoline,4WD,6,3.3,45000,21100,True,1.0,0,0.000565675,EPA
 10649,1067,Subaru,SVX,1993,Coupe,Subcompact Car,mainstream,Gasoline,4WD,6,3.3,45000,21600,True,1.0,0,0.000769341,EPA
 10650,1067,Subaru,SVX,1994,Coupe,Subcompact Car,mainstream,Gasoline,4WD,6,3.3,45000,22100,True,1.0,0,0.000512278,EPA

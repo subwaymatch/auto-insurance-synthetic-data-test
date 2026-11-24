@@ -38,6 +38,8 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent
 FIRST_YEAR, LAST_YEAR = 1981, 2026
+# EPA records with no engine data for a combustion car (cylinders, litres): the maker's specification
+ENGINE_GAPS = {("Subaru", "RX Turbo", 1985): (4, 1.8)}          # the EA81 turbocharged flat four
 EPA_FIRST_YEAR = 1984           # the first model year in EPA's data; earlier years are carried back from it
 PRICE_GROWTH = 1.024            # nominal growth of a model's base price per model year (ASSUMED, from base MSRPs 1997-2024)
 PERSONAL_USES = {"PERSONAL", "UNKNOWN/NA", "NOT IN USE", "RIDESHARE SERVICE"}
@@ -537,6 +539,10 @@ def main() -> None:
     cat["popularity"] = popularity(cat, hit, oth)
     cat["model_key"] = cat.groupby(["make", "model"], sort=False).ngroup() + 1
     cat["vehicle_id"] = np.arange(1, len(cat) + 1)
+    # a combustion model year whose EPA record has no engine data: the published specification
+    for (mk, md, yr), (cy, dl) in ENGINE_GAPS.items():
+        hole = cat.make.eq(mk) & cat.model.eq(md) & cat.model_year.eq(yr) & cat.cylinders.isna()
+        cat.loc[hole, ["cylinders", "displacement"]] = [cy, dl]
     cat["cylinders"] = np.where(cat.fuel.eq("Electric"), np.nan, cat.cylinders)
     cat["displacement"] = np.where(cat.fuel.eq("Electric"), np.nan, cat.displacement.round(1))
     cols = ["vehicle_id", "model_key", "make", "model", "model_year", "body_type", "vehicle_class", "segment", "fuel", "drive",

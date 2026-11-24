@@ -215,7 +215,8 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     median = np.select([cvg == "BI", cvg == "UM"], [C.BI_SEV["median"], C.UM_SEV["median"]], default=C.MED_SEV["median"])
     sigma = np.select([cvg == "BI", cvg == "UM"], [C.BI_SEV["sigma"], C.UM_SEV["sigma"]], default=C.MED_SEV["sigma"])
     z = np.log(np.maximum(gross, 1) / (median * cal.sev_trend["BI"][np.clip(day, 0, cal.horizon)])) / sigma
-    z = np.where(gross > 0, z, -9)                     # claims never paid: alleged soft-tissue injuries
+    paid = f.paid.to_numpy()
+    z = np.where(paid > 0, z, -9)                      # claims closed without payment: alleged soft-tissue injuries
     kind = np.searchsorted([0.25, 1.9, 2.75], z) + (z >= 1.9)       # 0 soft, 2 fracture, 3 head/spinal, 4 fatality
     kind = np.where((z >= 0.25) & (z < 1.9), np.where(R.random(n) < 0.4, 1, 2), kind)
     # the policy's own people (its listed drivers claiming medical payments or uninsured motorist cover) are in the
@@ -228,7 +229,7 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     died = f["death"].to_numpy().astype(bool) if "death" in f else np.zeros(n, dtype=bool)
     kind = np.where(own, np.where(died, INJURY_TYPES.index("Fatality"), np.minimum(kind, INJURY_TYPES.index("Head or Spinal Injury"))), kind)
     f["injury_type"] = np.where(injury, np.array(INJURY_TYPES)[np.clip(kind, 0, 4)], "")
-    p_att = np.where(cvg == "MED", 0.05, np.where(gross > 0, 0.30 + 0.25 * (z > 0) + 0.15 * (z > 1), 0.08))
+    p_att = np.where(cvg == "MED", 0.05, np.where(paid > 0, 0.30 + 0.25 * (z > 0) + 0.15 * (z > 1), 0.08))
     attorney = injury & (lit | (R.random(n) < p_att))
     u = R.random(n)
     (p1, a1, b1), (p2, a2, b2), (_, a3, b3) = ATTORNEY_LAG_DAYS
@@ -255,9 +256,11 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, ca
     n = len(occ)
     peril = occ.peril.to_numpy()
     # what is known at the scene and the first notice, not how the claim turns out: someone was hurt (an injury
-    # claim with damages, paid in the end or not)
-    injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM"]) & (f.gross.to_numpy() > 0)]).to_numpy()
-    occ["police_report"] = R.random(n) < np.clip(occ.peril.map(POLICE_REPORT_P).fillna(0.1).to_numpy() + 0.30 * injured, 0, 0.98)
+    # or medical payments claim with damages, paid in the end or not). A crash that killed someone always has a
+    # police report: the police investigate every fatal crash
+    injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM", "MED"]) & (f.gross.to_numpy() > 0)]).to_numpy()
+    fatal = occ.occ.isin(f.occ[f.injury_type.to_numpy() == "Fatality"]).to_numpy() if "injury_type" in f else np.zeros(n, dtype=bool)
+    occ["police_report"] = fatal | (R.random(n) < np.clip(occ.peril.map(POLICE_REPORT_P).fillna(0.1).to_numpy() + 0.30 * injured, 0, 0.98))
     fault = np.select([peril == "AF_MV", peril == "AF_SV", peril == "NAF"],
                       [np.where(R.random(n) < 0.7, 100, R.integers(51, 100, n)), np.full(n, 100),
                        np.where(R.random(n) < 0.8, 0, R.integers(5, 50, n))], default=-1)
@@ -337,21 +340,24 @@ def _reserve_history(f: pd.DataFrame, pays: pd.DataFrame, cal, R: np.random.Gene
                                    pay=0.0, txn="Reopen")))
     closes = np.r_[cd, f.final_close_day.to_numpy()[ro]]
     parts.append(pd.DataFrame(dict(fid=np.r_[fid, fid[ro]], day=closes, order=2, est=np.nan, pay=0.0, txn="Close")))
-    parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=np.where(loss.txn == "Final Payment", 2, 1), est=np.nan,
-                                   pay=loss.amount, txn="Payment")))         # (order 2: a final payment ends the reserve)
+    # (order 2: a final payment ends the reserve, and so does the supplemental payment that settles a reopening)
+    settles = np.isin(loss.txn.to_numpy(), ["Final Payment", "Supplemental Payment"])
+    parts.append(pd.DataFrame(dict(fid=loss.fid, day=loss.day, order=np.where(settles, 2, 1), est=np.nan,
+                                   pay=loss.amount, txn="Payment")))
     room = f["room"].fillna(np.inf).to_numpy() if "room" in f else np.full(n, np.inf)
     shared = pd.DataFrame(dict(occ=f.occ.to_numpy(), cvg=cvg, room=room), index=fid)
     out = [_outstanding(pd.concat(parts, ignore_index=True), "Loss", MIN_RESERVE, pd.Series(cap, index=fid),
                         lambda ev, bal, paid: _share_accident_limit(ev, bal, paid, shared, cal))]
 
-    # expense reserve on litigated features: set when the suit is filed, eroded by legal bills, closed with the feature
+    # expense reserve on litigated features: set when the suit is filed, eroded by legal bills, closed with the
+    # feature's first close (the legal bills are all paid by then; a reopening pays no further expense)
     li = np.flatnonzero(f.suit_day.to_numpy() > NO_DAY)
     if len(li):
         ep = pays[(pays.kind == "Expense") & pays.fid.isin(fid[li])]
         e_est = f.expense.to_numpy()[li] * np.exp(0.3 * R.standard_normal(len(li)))
         ev = pd.concat([pd.DataFrame(dict(fid=fid[li], day=f.suit_day.to_numpy()[li], order=0, est=e_est, pay=0.0, txn="Initial Reserve")),
                         pd.DataFrame(dict(fid=ep.fid, day=ep.day, order=1, est=np.nan, pay=ep.amount, txn="Payment")),
-                        pd.DataFrame(dict(fid=fid[li], day=f.final_close_day.to_numpy()[li], order=2, est=np.nan, pay=0.0, txn="Close"))],
+                        pd.DataFrame(dict(fid=fid[li], day=cd[li], order=2, est=np.nan, pay=0.0, txn="Close"))],
                        ignore_index=True)
         out.append(_outstanding(ev, "Expense", 0))
     return pd.concat(out, ignore_index=True)
@@ -588,9 +594,15 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     sub_main = np.where(reopen, sub_main, subro)
     sub_supp = subro - sub_main
     u_sub = R.random(n)
+    # the other insurer repays one claim at once: the repair, the rental and the tow of a crash come back together,
+    # after the last of them has closed (each reopening's share still after its own supplement)
+    occ_ = f.occ.to_numpy()
+    anchor = pd.Series(np.where(sub_main > 0, cd, NO_DAY)).groupby(occ_).transform("max").to_numpy()
+    first_ = lambda x: pd.Series(x).groupby(occ_).transform("first").to_numpy()
+    sub_day = cal.spread_business(anchor + first_(lag), first_(u_sub))
     rec = pd.concat([
         _legs(np.flatnonzero(salv > 0), salvage_day[salv > 0], -salv[salv > 0], "Recovery").assign(kind="Salvage Recovery"),
-        _legs(np.flatnonzero(sub_main > 0), cal.spread_business(cd + lag, u_sub)[sub_main > 0],
+        _legs(np.flatnonzero(sub_main > 0), sub_day[sub_main > 0],
               -sub_main[sub_main > 0], "Recovery").assign(kind="Subrogation Recovery"),
         _legs(np.flatnonzero(sub_supp > 0), cal.spread_business(supp_day + lag, u_sub)[sub_supp > 0],
               -sub_supp[sub_supp > 0], "Recovery").assign(kind="Subrogation Recovery")], ignore_index=True)

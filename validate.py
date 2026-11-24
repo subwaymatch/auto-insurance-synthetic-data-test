@@ -476,7 +476,7 @@ def integrity_payees(rep, pay, clm, feat, veh, drv) -> None:
     named = on_day("payment_date") | on_day("loss_date")
     same = named & pd.Series([str(a).startswith(f"{b} {c}") for a, b, c in zip(m["person"], m["first_name"], m["last_name"])],
                              index=m.index)
-    dead = (m["removal_reason"] == "Deceased") & (m["removed_date"] < m["payment_date"])
+    dead = (m["removal_reason"] == "Deceased") & (m["removed_date"] <= m["payment_date"])
     right = (m["estate"] == dead) & same
     ok_pay, known = right.groupby(m["payment_id"]).any(), same.groupby(m["payment_id"]).any()
     rep.check("a payment due to an insured who has died goes to their estate, and only then",
@@ -828,12 +828,12 @@ def integrity_people(rep, pol, term, drv, inc) -> None:
     a, b = end.to_numpy().astype(str), pol_end.reindex(drv.set_index("driver_id")["policy_id"]).to_numpy().astype(str)
     end = np.where(a < b, a, b)
     end = pd.Series(end, index=drv["driver_id"].to_numpy())
-    mvr = inc[inc["source"] == "Motor Vehicle Record"]
+    mvr = inc[inc["source"].isin(["Motor Vehicle Record", "Prior Carrier Report"])]
     late = mvr["known_date"].to_numpy().astype(str) > end.reindex(mvr["driver_id"]).to_numpy()
     sr = drv[drv["sr22_filed_date"].notna()]
-    rep.check("violations reach the insurer, and SR-22s are filed, only while the driver is insured here",
-              not late.any() and (sr["sr22_filed_date"].to_numpy().astype(str) <= end.reindex(sr["driver_id"]).to_numpy()).all(),
-              f"{len(mvr):,} driving-record violations, {len(sr):,} SR-22 filings")
+    rep.check("violations and prior-carrier losses reach the insurer, and SR-22s are filed, only while the driver is "
+              "insured here", not late.any() and (sr["sr22_filed_date"].to_numpy().astype(str) <= end.reindex(sr["driver_id"]).to_numpy()).all(),
+              f"{len(mvr):,} driving-record violations and prior-carrier losses, {len(sr):,} SR-22 filings")
 
 
 def integrity_links(rep, risk, term, veh, drv, clm, feat, pay, reserves) -> None:
@@ -1149,6 +1149,158 @@ def market_cycle(rep, quotes, term, clm, offers, plan_changes, valuation) -> Non
     rep.band("share of non-renewals that are the company's decision", share, (0.03, 0.15), "{:.1%}")
 
 
+def integrity_audit_records(rep, t: dict, valuation) -> None:
+    """Record-level consistency found by the audit of the merged PR #16 (each is a check of what the records say
+    together): payees and vendors, bills and refunds, reserves after a close or a supplement, endorsements,
+    drivers at inception, quotes, crash deaths, the vehicle snapshot and the catalog."""
+    pol, term, risk, drv, veh = t["policy"], t["policy_term"], t["exposure"], t["driver"], t["insured_vehicle"]
+    clm, feat, pay, res = t["claim"], t["claim_feature"], t["claim_payment"], t["claim_reserve_transaction"]
+    inv, rec, ledger, contact, vend = t["billing_invoice"], t["billing_receipt"], t["premium_transaction"], t["customer_contact"], t["vendor"]
+    offers, quotes, vmy = t["renewal_offer"], t["quote"], t["vehicle_model_year"]
+    V = str(np.datetime64(valuation, "D"))
+    cov = feat.set_index("claim_feature_id")["coverage_code"]
+    loss = pay[pay["payment_type"] == "Loss"]
+
+    # medical payments go to the medical provider or to the person (their estate, once they have died)
+    med = loss[loss["claim_feature_id"].map(cov).eq("MED")]
+    vshare = (med["payee_type"] == "Vendor").mean() if len(med) else np.nan
+    mp = vend.loc[vend["vendor_type"] == "Medical Provider", "vendor_id"]
+    rep.check("medical payments are paid to medical providers or the injured person, never jointly with an attorney",
+              len(med) < 200 or (pay["vendor_id"].isin(mp).any() and 0.35 <= vshare <= 0.85
+                                 and not med["payee_type"].isin(["Insured and Attorney", "Claimant and Attorney"]).any()),
+              f"{len(med):,} medical payments, {vshare:.0%} to a provider" if len(med) else "none")
+    # no vendor type is all one vendor
+    pv = pay.dropna(subset=["vendor_id"]).merge(vend[["vendor_id", "vendor_type"]], on="vendor_id")
+    top = pv.groupby("vendor_type")["vendor_id"].agg(lambda x: x.value_counts(normalize=True).iloc[0])
+    big = pv.groupby("vendor_type").size()
+    n_v = vend.groupby("vendor_type").size()
+    worst = top[(big >= 200) & (n_v.reindex(top.index) >= 6)]
+    rep.check("no vendor trade is all one vendor: where a trade has six or more vendors, none takes three quarters of its work",
+              bool((worst <= 0.75).all()), f"largest share {worst.max():.0%} ({worst.idxmax()})" if len(worst) else "too few payments")
+    # a payment to an estate is a cheque
+    est = pay[pay["payee_name"].fillna("").str.startswith("Estate of ")]
+    rep.check("a payment to an estate is by check", bool((est["payment_method"] == "Check").all()), f"{len(est):,} payments to an estate")
+
+    # bills and cash: the first bill after the term is rated, a refund only once the cash received covers it, the
+    # final balance only once any bank draft has come back, every cancellation in force by the valuation date booked
+    first = inv[inv["invoice_type"].isin(["Paid in Full", "Down Payment"])].merge(term[["policy_term_id", "rating_date"]], on="policy_term_id")
+    paid = inv[inv["paid_date"].notna()]
+    cum = rec.groupby(["policy_term_id", "receipt_date"])["amount"].sum().groupby(level=0).cumsum()
+    fb = inv[inv["invoice_type"] == "Final Balance"].groupby("policy_term_id")["issue_date"].min()
+    back = rec[rec["receipt_type"] == "Returned Payment"].groupby("policy_term_id")["receipt_date"].max()
+    both = pd.concat([fb, back], axis=1, keys=["fb", "back"]).dropna()
+    gone = term[term["cancel_date"].notna() & (term["cancel_date"] <= V)]
+    booked = gone["policy_term_id"].isin(ledger.loc[ledger["transaction_type"] == "Cancellation", "policy_term_id"])
+    rep.check("a term's first bill goes out on or after its rating date (a revised renewal bills its revised premium), and "
+              "no bill is paid before it is sent", bool((first["issue_date"] >= first["rating_date"]).all()
+                                                        and (paid["paid_date"] >= paid["issue_date"]).all()),
+              f"{len(first):,} first bills")
+    rep.check("a term's cash received never goes below zero (a refund goes out once what was paid covers it), and a final "
+              "balance is billed only after any returned bank draft", bool((cum >= -0.01).all() and (both["fb"] > both["back"]).all()),
+              f"lowest running balance ${cum.min():,.2f}; {len(both):,} final balances after a returned draft")
+    rep.check("every cancellation in effect by the valuation date is booked in the premium ledger",
+              bool(booked.all()), f"{len(gone):,} cancellations, {(~booked).sum():,} not booked")
+
+    # reserves: none after a supplemental payment settles a reopening, no expense reserve on a closed feature
+    sup = pay[pay["transaction_type"] == "Supplemental Payment"].groupby("claim_feature_id")["payment_date"].max()
+    lr = res[(res["reserve_type"] == "Loss") & res["claim_feature_id"].isin(sup.index)]
+    after = lr[lr["transaction_date"] >= lr["claim_feature_id"].map(sup)]
+    held = after.sort_values(["claim_feature_id", "transaction_date", "reserve_transaction_id"]).groupby("claim_feature_id").tail(1)
+    er = res[res["reserve_type"] == "Expense"].sort_values(["claim_feature_id", "transaction_date", "reserve_transaction_id"])
+    first_close = res[(res["reserve_type"] == "Loss") & (res["transaction_type"] == "Close")].groupby("claim_feature_id")["transaction_date"].min()
+    er = er[er["claim_feature_id"].isin(first_close.index)]
+    e_at = er[er["transaction_date"] <= er["claim_feature_id"].map(first_close)].groupby("claim_feature_id").tail(1)
+    closed = feat.loc[feat["feature_status"] == "Closed", "expense_reserve"]
+    rep.check("a supplemental payment settles a reopening (no loss reserve after it), and a feature holds no expense "
+              "reserve once closed", bool((held["outstanding_reserve"] == 0).all() and (e_at["outstanding_reserve"] == 0).all()
+                                          and (closed == 0).all()),
+              f"{len(sup):,} supplements; {len(e_at):,} litigated features closed")
+
+    # endorsements record their change; a revised offer is known by the valuation date
+    e_rows = risk[risk["endorsement_number"] > 0]
+    e_tx = ledger[ledger["transaction_type"] == "Endorsement"]
+    rep.check("every endorsement records its change (no period ends at a change that did not happen)",
+              bool(e_rows["change_reason"].notna().all() and e_tx["change_reason"].notna().all()),
+              f"{len(e_tx):,} endorsements, {e_rows['change_reason'].isna().sum():,} rows without a reason")
+    rep.check("a revised renewal offer is dated by the valuation date",
+              bool((offers["revised_offer_date"].dropna() <= V).all()), f"{offers['revised_offer_date'].notna().sum():,} revised offers")
+
+    # injuries: a claim closed without payment is an alleged soft-tissue injury; a fatal crash has a police report
+    loss_paid = loss.groupby("claim_feature_id")["amount"].sum()
+    inj = feat[feat["coverage_code"].isin(["BI", "UM", "MED"]) & (feat["feature_status"] == "Closed")]
+    unpaid = inj[inj["claim_feature_id"].map(loss_paid).fillna(0) <= 0.005]
+    fatal = clm[clm["claim_id"].isin(feat.loc[feat["injury_type"] == "Fatality", "claim_id"])]
+    rep.check("an injury claim closed without payment is an alleged soft-tissue injury, and a crash that killed someone "
+              "has a police report", bool((unpaid["injury_type"] == "Soft Tissue").all() and (fatal["police_report"] == "Y").all()),
+              f"{len(unpaid):,} injury features closed without payment, {len(fatal):,} fatal crashes")
+    # no rental after a crash that killed every driver of the household
+    own = feat.dropna(subset=["injured_driver_id"])
+    died = own[own["injury_type"] == "Fatality"].groupby("claim_id")["injured_driver_id"].nunique()
+    c = clm[clm["claim_id"].isin(died.index)][["claim_id", "policy_id", "loss_date"]]
+    on = c.merge(drv[["driver_id", "policy_id", "added_date", "removed_date"]], on="policy_id")
+    on = on[(on["added_date"] <= on["loss_date"]) & ~(on["removed_date"] < on["loss_date"])]
+    n_on = on.groupby("claim_id").size()
+    all_dead = died[died >= n_on.reindex(died.index).fillna(0)].index
+    rent = feat[(feat["coverage_code"] == "RENT") & feat["claim_id"].isin(all_dead)]
+    rep.check("no rental car is paid after a crash that killed every driver of the household",
+              len(rent) == 0, f"{len(all_dead):,} crashes that left no driver")
+
+    # people: the first driver is the named insured, an adult and licensed when the policy was first written
+    d1 = drv[drv["driver_number"] == 1].merge(pol[["policy_id", "original_inception_date"]], on="policy_id")
+    dob = pd.to_datetime(d1["date_of_birth"])
+    age = (pd.to_datetime(d1["original_inception_date"]) - dob).dt.days / 365.25
+    rep.check("each policy's first driver joined it at its inception, licensed and at least 18",
+              bool((d1["added_date"] == d1["original_inception_date"]).all() and (d1["date_first_licensed"] <= d1["original_inception_date"]).all()
+                   and (age >= 18).all()), f"{len(d1):,} policies; youngest first driver {age.min():.1f} at inception")
+    rep.check("a quote's youngest driver is no older than its named insured (the same person on a one-driver quote)",
+              bool((quotes["youngest_driver_age"] <= quotes["named_insured_age"]).all()
+                   and (quotes.loc[quotes["number_of_drivers"] == 1, "youngest_driver_age"]
+                        == quotes.loc[quotes["number_of_drivers"] == 1, "named_insured_age"]).all()), f"{len(quotes):,} quotes")
+
+    # cars: every car insured has a row; its main driver is the one on its last row; a multi-car discount lasts only
+    # while the policy has another car
+    rows = risk[risk["coverage_start_date"] <= V].sort_values(["insured_vehicle_id", "coverage_start_date", "exposure_id"])
+    lastrow = rows.groupby("insured_vehicle_id").tail(1).set_index("insured_vehicle_id")["driver_id"]
+    rep.check("every insured vehicle has exposure, and its main driver is the driver on its latest exposure row",
+              bool(veh["insured_vehicle_id"].isin(risk["insured_vehicle_id"]).all()
+                   and (veh.set_index("insured_vehicle_id")["primary_driver_id"].reindex(lastrow.index) == lastrow).all()),
+              f"{len(veh):,} vehicles")
+    y = risk.loc[risk["multi_car_discount"] == "Y", ["exposure_id", "policy_id", "insured_vehicle_id", "coverage_end_date"]]
+    other = risk[["policy_id", "insured_vehicle_id", "coverage_start_date", "coverage_end_date"]].rename(
+        columns={"insured_vehicle_id": "insured_vehicle_id_o", "coverage_start_date": "coverage_start_date_o",
+                 "coverage_end_date": "coverage_end_date_o"})
+    m = y.merge(other, on="policy_id")
+    lastday = (pd.to_datetime(m["coverage_end_date"]) - pd.Timedelta(days=1)).dt.strftime("%Y-%m-%d")
+    m = m[(m["insured_vehicle_id_o"] != m["insured_vehicle_id"]) & (m["coverage_start_date_o"] <= lastday) & (m["coverage_end_date_o"] > lastday)]
+    alone = ~y["exposure_id"].isin(m["exposure_id"])
+    rep.check("a multi-car discount lasts only while the policy has another car (a car written off ends it that day)",
+              not alone.any(), f"{len(y):,} multi-car rows, {alone.sum():,} with no other car on their last day")
+
+    # contacts after a policy ended with its insured's death are letters to the estate
+    dead = term[term["cancel_reason"] == "Insured Deceased"].groupby("policy_id")["cancel_date"].max()
+    late = contact[contact["policy_id"].isin(dead.index)]
+    late = late[late["contact_date"] >= late["policy_id"].map(dead)]
+    rep.check("after a policy ends with its insured's death, contacts are letters to the estate, with no notice of "
+              "cancellation or change confirmation", bool((late["contact_method"] == "Written Letter").all()
+                                                          and not late.loc[late["contact_date"] > late["policy_id"].map(dead), "purpose"]
+                                                          .isin(["Notice of Cancellation", "Policy Change Confirmation"]).any()),
+              f"{len(late):,} contacts after such a cancellation")
+
+    # one claim's subrogation comes back together: the repair, the rental and the tow
+    sub = pay[pay["payment_type"] == "Subrogation Recovery"].assign(cov=lambda d: d["claim_feature_id"].map(cov))
+    sub = sub[sub["claim_feature_id"].isin(feat.loc[feat["reopen_date"].isna(), "claim_feature_id"])]
+    firsts = sub.groupby(["claim_id", "cov"])["payment_date"].min().unstack()
+    pair = [c for c in ("RENT", "TOW") if c in firsts and "COLL" in firsts]
+    same = all((firsts.dropna(subset=["COLL", c])[c] == firsts.dropna(subset=["COLL", c])["COLL"]).all() for c in pair)
+    rep.check("a claim's subrogation is recovered together: the rental and the tow with the repair", bool(same),
+              ", ".join(f"{len(firsts.dropna(subset=['COLL', c])):,} claims with {c}" for c in pair) or "none")
+
+    # the catalog gives every combustion model year its engine
+    gas = vmy[~vmy["fuel_type"].isin(["Electric", "Hydrogen"])]
+    rep.check("every combustion model year in the catalog has its engine (cylinders and displacement)",
+              bool(gas[["engine_cylinders", "engine_displacement_l"]].notna().all().all()), f"{len(gas):,} model years")
+
+
 def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation) -> None:
     """The general ledger balances and ties to the subledgers it summarizes."""
     j = gl.groupby("journal_number")[["debit", "credit"]].sum()
@@ -1406,6 +1558,7 @@ def main() -> None:
     integrity_billing(rep, inv, rec, term, ledger, pol, valuation, contact)
     integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term)
     integrity_payees(rep, pay, clm, feat, veh, drv)
+    integrity_audit_records(rep, t, valuation)
     integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation)
     filed = plan["filed_discounts"]
     rep.check("the rating plan charges the filed discounts and surcharges, on the coverages they are filed for",
