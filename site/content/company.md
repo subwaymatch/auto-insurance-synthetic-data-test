@@ -13,7 +13,7 @@ description: Who Lakefront is: three underwriting companies, 134 agencies and tw
 |---|---|
 | Business | Personal auto insurance only: private passenger cars, SUVs, pickups and vans |
 | Territory | Cook, DuPage, Lake, Will, Kane, McHenry and Kendall counties: 290 ZIP codes |
-| Size | About 22,300 policies and 39,000 cars in force at the end of 2026, and some $51 million of premium a year: roughly 1% of the area’s household vehicles |
+| Size | About 22,300 policies and 38,800 cars in force at the end of 2026, and some $51 million of premium a year: roughly 1% of the area’s household vehicles |
 | History in the data | 1 January 2022 to 31 December 2026. 19,747 policies were already in force on the first day; 43,368 policies were written or renewed in all |
 | Companies | Three underwriting companies, for preferred, standard and non-standard risks |
 | Distribution | 120 independent agencies, 14 exclusive agents’ offices, and direct sales online and by phone |
@@ -37,9 +37,9 @@ The company’s three-letter code is part of every policy number: `0830512-LFM-4
 
 Customers reach Lakefront in three ways. The channel matters: it changes who buys, how much they pay in commission, and how long they stay.
 
-**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 46 or fewer Lakefront policies in force, the largest has 495, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
+**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 47 or fewer Lakefront policies in force, the largest has 495, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
 
-**Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 427 policies each and earn somewhat less commission.
+**Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 433 policies each and earn somewhat less commission.
 
 **Direct.** Two in-house units, `Direct - Online` and `Direct - Contact Center`, which pay no commission.
 
@@ -89,7 +89,7 @@ Customers pay in full or by monthly installments, either by automatic bank draft
 
 DriveCheck is Lakefront’s usage-based (telematics) program, of the kind most US insurers now run. It is offered when a policy is written and at every renewal. Members install a phone app, a plug-in device or a windshield beacon, and each car is scored from 1 to 100 on its miles, trips, hard braking, rapid acceleration, speeding, phone handling and late-night driving. Joining earns 5% off; at each renewal the score earns a discount from none (45 or below) to 30% (95 and above). A score never raises the premium.
 
-About a fifth of new customers joined in 2022, rising to 30% by 2025, and enrolled cars grew from 14% of car-years in 2022 to 26% in 2026. See `telematics_enrollment` and `telematics_score`.
+About a fifth of new customers joined in 2022, rising to 30% by 2025, and enrolled cars grew from 14% of car-years in 2022 to 27% in 2026. See `telematics_enrollment` and `telematics_score`.
 
 ## How it handles claims
 
@@ -124,10 +124,10 @@ Each increase made Lakefront dearer than its competitors until they caught up, s
 
 | Year end | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---:|---:|---:|---:|---:|
-| Policies in force | 20,556 | 19,504 | 20,000 | 21,143 | 22,301 |
-| Loss ratio, by accident year | 81.3% | 70.4% | 67.5% | 58.2% | 65.5% |
+| Policies in force | 20,518 | 19,378 | 19,914 | 21,149 | 22,342 |
+| Loss ratio, by accident year | 84.5% | 79.5% | 65.6% | 62.9% | 63.3% |
 
-The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Ten catastrophes, all real storms from NOAA’s Storm Events Database (hailstorms, two derechos and flash floods, from 2023 on), add between 0.9 and 6 points a year from 2023 (`catastrophe`); the storms are real, the claims on them simulated.
+The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Ten catastrophes, all real storms from NOAA’s Storm Events Database (hailstorms, two derechos and flash floods, from 2023 on), add between 0.8 and 5.7 points a year from 2023 (`catastrophe`); the storms are real, the claims on them simulated.
 
 ## What the books leave out
 

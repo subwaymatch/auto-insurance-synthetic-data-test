@@ -1,101 +1,101 @@
 journal_line_id,journal_number,accounting_period,posting_date,company_id,journal_type,source_table,account_number,debit,credit
-44896,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",1000,6158313.37,0.0
-44899,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",1200,962296.02,0.0
-44900,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2100,0.0,2751373.13
-44901,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2200,0.0,51538.4
-44902,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2500,0.0,217697.86
-44904,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",3000,0.0,4100000.0
-44906,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",1000,14009728.87,0.0
-44908,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",1200,4197461.29,0.0
-44911,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2100,0.0,7004344.19
-44913,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2200,0.0,123295.97
-44915,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2500,0.0,779550.0
-44916,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",3000,0.0,10300000.0
-44917,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",1000,1580475.19,0.0
-44918,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",1200,529492.31,0.0
-44919,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2100,0.0,765180.12
-44921,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2200,0.0,13540.31
-44923,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2500,0.0,128447.07
-44925,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2510,0.0,2800.0
-44926,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",3000,0.0,1200000.0
-45193,JE-2022-01-LFP-PW,2022-01,2022-01-31,1,Premiums written,premium_transaction,1200,664611.85,0.0
-45194,JE-2022-01-LFP-PW,2022-01,2022-01-31,1,Premiums written,premium_transaction,4000,0.0,664611.85
-45195,JE-2022-01-LFP-UP,2022-01,2022-01-31,1,Change in unearned premium,premium_transaction,4010,0.0,41137.07
-45196,JE-2022-01-LFP-UP,2022-01,2022-01-31,1,Change in unearned premium,premium_transaction,2100,41137.07,0.0
-45199,JE-2022-01-LFP-CR,2022-01,2022-01-31,1,Premium cash receipts,billing_receipt,1000,691932.14,0.0
-45200,JE-2022-01-LFP-CR,2022-01,2022-01-31,1,Premium cash receipts,billing_receipt,1200,0.0,682869.14
-45201,JE-2022-01-LFP-CR,2022-01,2022-01-31,1,Premium cash receipts,billing_receipt,4200,0.0,9063.0
-45202,JE-2022-01-LFP-CE,2022-01,2022-01-31,1,Commission expense,premium_transaction,6100,46014.65,0.0
-45203,JE-2022-01-LFP-CE,2022-01,2022-01-31,1,Commission expense,premium_transaction,2200,0.0,46014.65
-45204,JE-2022-01-LFP-CP,2022-01,2022-01-31,1,Commissions paid,agency_statement,2200,51538.4,0.0
-45205,JE-2022-01-LFP-CP,2022-01,2022-01-31,1,Commissions paid,agency_statement,1000,0.0,51538.4
-45207,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,5000,444994.33,0.0
-45209,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,5100,1808.08,0.0
-45210,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,5110,15556.87,0.0
-45211,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,1000,0.0,462359.28
-45212,JE-2022-01-LFP-LR,2022-01,2022-01-31,1,Claim recoveries,claim_payment,1000,7978.9,0.0
-45213,JE-2022-01-LFP-LR,2022-01,2022-01-31,1,Claim recoveries,claim_payment,5020,0.0,7978.9
-45215,JE-2022-01-LFP-RS,2022-01,2022-01-31,1,Case reserve changes,claim_reserve_transaction,5200,175618.31,0.0
-45216,JE-2022-01-LFP-RS,2022-01,2022-01-31,1,Case reserve changes,claim_reserve_transaction,2500,0.0,175618.31
-45218,JE-2022-01-LFM-PW,2022-01,2022-01-31,2,Premiums written,premium_transaction,1200,1703936.41,0.0
-45220,JE-2022-01-LFM-PW,2022-01,2022-01-31,2,Premiums written,premium_transaction,4000,0.0,1703936.41
-45221,JE-2022-01-LFM-UP,2022-01,2022-01-31,2,Change in unearned premium,premium_transaction,4010,0.0,69470.23
-45222,JE-2022-01-LFM-UP,2022-01,2022-01-31,2,Change in unearned premium,premium_transaction,2100,69470.23,0.0
-45223,JE-2022-01-LFM-CR,2022-01,2022-01-31,2,Premium cash receipts,billing_receipt,1000,1787824.4,0.0
-45224,JE-2022-01-LFM-CR,2022-01,2022-01-31,2,Premium cash receipts,billing_receipt,1200,0.0,1762221.4
-45225,JE-2022-01-LFM-CR,2022-01,2022-01-31,2,Premium cash receipts,billing_receipt,4200,0.0,25603.0
-45226,JE-2022-01-LFM-CE,2022-01,2022-01-31,2,Commission expense,premium_transaction,6100,117129.0,0.0
-45227,JE-2022-01-LFM-CE,2022-01,2022-01-31,2,Commission expense,premium_transaction,2200,0.0,117129.0
-45228,JE-2022-01-LFM-CP,2022-01,2022-01-31,2,Commissions paid,agency_statement,2200,123295.97,0.0
-45229,JE-2022-01-LFM-CP,2022-01,2022-01-31,2,Commissions paid,agency_statement,1000,0.0,123295.97
-45230,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,5000,673016.22,0.0
-45231,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,5100,12402.42,0.0
-45232,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,5110,31091.78,0.0
-45233,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,1000,0.0,716510.42
-45234,JE-2022-01-LFM-LR,2022-01,2022-01-31,2,Claim recoveries,claim_payment,1000,15713.8,0.0
-45235,JE-2022-01-LFM-LR,2022-01,2022-01-31,2,Claim recoveries,claim_payment,5020,0.0,15713.8
-45236,JE-2022-01-LFM-RS,2022-01,2022-01-31,2,Case reserve changes,claim_reserve_transaction,5200,238349.08,0.0
-45237,JE-2022-01-LFM-RS,2022-01,2022-01-31,2,Case reserve changes,claim_reserve_transaction,2500,0.0,238349.08
-45238,JE-2022-01-PPC-PW,2022-01,2022-01-31,3,Premiums written,premium_transaction,1200,193379.36,0.0
-45240,JE-2022-01-PPC-PW,2022-01,2022-01-31,3,Premiums written,premium_transaction,4000,0.0,193379.36
-45241,JE-2022-01-PPC-UP,2022-01,2022-01-31,3,Change in unearned premium,premium_transaction,4010,0.0,5745.32
-45242,JE-2022-01-PPC-UP,2022-01,2022-01-31,3,Change in unearned premium,premium_transaction,2100,5745.32,0.0
-45243,JE-2022-01-PPC-CR,2022-01,2022-01-31,3,Premium cash receipts,billing_receipt,1000,187748.49,0.0
-45244,JE-2022-01-PPC-CR,2022-01,2022-01-31,3,Premium cash receipts,billing_receipt,1200,0.0,185835.49
-45245,JE-2022-01-PPC-CR,2022-01,2022-01-31,3,Premium cash receipts,billing_receipt,4200,0.0,1913.0
-45246,JE-2022-01-PPC-CE,2022-01,2022-01-31,3,Commission expense,premium_transaction,6100,13887.59,0.0
-45247,JE-2022-01-PPC-CE,2022-01,2022-01-31,3,Commission expense,premium_transaction,2200,0.0,13887.59
-45248,JE-2022-01-PPC-CP,2022-01,2022-01-31,3,Commissions paid,agency_statement,2200,13540.31,0.0
-45250,JE-2022-01-PPC-CP,2022-01,2022-01-31,3,Commissions paid,agency_statement,1000,0.0,13540.31
-45251,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,5000,68373.62,0.0
-45252,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,5100,1813.52,0.0
-45253,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,5110,3070.81,0.0
-45254,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,1000,0.0,73257.95
-45255,JE-2022-01-PPC-RS,2022-01,2022-01-31,3,Case reserve changes,claim_reserve_transaction,5200,22578.43,0.0
-45256,JE-2022-01-PPC-RS,2022-01,2022-01-31,3,Case reserve changes,claim_reserve_transaction,2500,0.0,22578.43
-45257,JE-2022-01-PPC-RS,2022-01,2022-01-31,3,Case reserve changes,claim_reserve_transaction,5210,0.0,1050.0
-45258,JE-2022-01-PPC-RS,2022-01,2022-01-31,3,Case reserve changes,claim_reserve_transaction,2510,1050.0,0.0
-45508,JE-2022-02-LFP-PW,2022-02,2022-02-28,1,Premiums written,premium_transaction,1200,726293.7,0.0
-45509,JE-2022-02-LFP-PW,2022-02,2022-02-28,1,Premiums written,premium_transaction,4000,0.0,726293.7
-45510,JE-2022-02-LFP-UP,2022-02,2022-02-28,1,Change in unearned premium,premium_transaction,4010,81277.66,0.0
-45511,JE-2022-02-LFP-UP,2022-02,2022-02-28,1,Change in unearned premium,premium_transaction,2100,0.0,81277.66
-45512,JE-2022-02-LFP-CR,2022-02,2022-02-28,1,Premium cash receipts,billing_receipt,1000,712769.43,0.0
-45513,JE-2022-02-LFP-CR,2022-02,2022-02-28,1,Premium cash receipts,billing_receipt,1200,0.0,703929.43
-45514,JE-2022-02-LFP-CR,2022-02,2022-02-28,1,Premium cash receipts,billing_receipt,4200,0.0,8840.0
-45515,JE-2022-02-LFP-CE,2022-02,2022-02-28,1,Commission expense,premium_transaction,6100,50069.4,0.0
-45516,JE-2022-02-LFP-CE,2022-02,2022-02-28,1,Commission expense,premium_transaction,2200,0.0,50069.4
-45517,JE-2022-02-LFP-CP,2022-02,2022-02-28,1,Commissions paid,agency_statement,2200,46014.65,0.0
-45518,JE-2022-02-LFP-CP,2022-02,2022-02-28,1,Commissions paid,agency_statement,1000,0.0,46014.65
-45519,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,5000,340372.05,0.0
-45520,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,5100,966.37,0.0
-45521,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,5110,14182.18,0.0
-45522,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,1000,0.0,355520.6
-45523,JE-2022-02-LFP-LR,2022-02,2022-02-28,1,Claim recoveries,claim_payment,1000,25978.75,0.0
-45524,JE-2022-02-LFP-LR,2022-02,2022-02-28,1,Claim recoveries,claim_payment,5020,0.0,25978.75
-45525,JE-2022-02-LFP-RS,2022-02,2022-02-28,1,Case reserve changes,claim_reserve_transaction,5200,49988.59,0.0
-45527,JE-2022-02-LFP-RS,2022-02,2022-02-28,1,Case reserve changes,claim_reserve_transaction,2500,0.0,49988.59
-45528,JE-2022-02-LFM-PW,2022-02,2022-02-28,2,Premiums written,premium_transaction,1200,1728575.84,0.0
-45529,JE-2022-02-LFM-PW,2022-02,2022-02-28,2,Premiums written,premium_transaction,4000,0.0,1728575.84
-45530,JE-2022-02-LFM-UP,2022-02,2022-02-28,2,Change in unearned premium,premium_transaction,4010,134870.89,0.0
-45531,JE-2022-02-LFM-UP,2022-02,2022-02-28,2,Change in unearned premium,premium_transaction,2100,0.0,134870.89
-45532,JE-2022-02-LFM-CR,2022-02,2022-02-28,2,Premium cash receipts,billing_receipt,1000,1754630.88,0.0
+44782,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",1000,6285827.14,0.0
+44784,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",1200,955387.35,0.0
+44785,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2100,0.0,2751373.13
+44788,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2200,0.0,51538.4
+44791,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2500,0.0,332402.96
+44793,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",2510,0.0,5900.0
+44794,JE-2021-12-LFP-OB,2021-12,2021-12-31,1,Opening balances,"premium_transaction, billing_receipt",3000,0.0,4100000.0
+44795,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",1000,13937023.14,0.0
+44796,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",1200,4215702.17,0.0
+44797,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2100,0.0,7004344.19
+44799,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2200,0.0,123295.97
+44800,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2500,0.0,724085.15
+44801,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",2510,0.0,1000.0
+44802,JE-2021-12-LFM-OB,2021-12,2021-12-31,2,Opening balances,"premium_transaction, billing_receipt",3000,0.0,10300000.0
+44804,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",1000,1577794.41,0.0
+44805,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",1200,527426.02,0.0
+44806,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2100,0.0,765180.12
+44807,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2200,0.0,13540.31
+44808,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",2500,0.0,126500.0
+44809,JE-2021-12-PPC-OB,2021-12,2021-12-31,3,Opening balances,"premium_transaction, billing_receipt",3000,0.0,1200000.0
+45077,JE-2022-01-LFP-PW,2022-01,2022-01-31,1,Premiums written,premium_transaction,1200,669345.39,0.0
+45078,JE-2022-01-LFP-PW,2022-01,2022-01-31,1,Premiums written,premium_transaction,4000,0.0,669345.39
+45079,JE-2022-01-LFP-UP,2022-01,2022-01-31,1,Change in unearned premium,premium_transaction,4010,0.0,36921.82
+45080,JE-2022-01-LFP-UP,2022-01,2022-01-31,1,Change in unearned premium,premium_transaction,2100,36921.82,0.0
+45081,JE-2022-01-LFP-CR,2022-01,2022-01-31,1,Premium cash receipts,billing_receipt,1000,681247.38,0.0
+45083,JE-2022-01-LFP-CR,2022-01,2022-01-31,1,Premium cash receipts,billing_receipt,1200,0.0,671965.38
+45085,JE-2022-01-LFP-CR,2022-01,2022-01-31,1,Premium cash receipts,billing_receipt,4200,0.0,9282.0
+45086,JE-2022-01-LFP-CE,2022-01,2022-01-31,1,Commission expense,premium_transaction,6100,46376.51,0.0
+45087,JE-2022-01-LFP-CE,2022-01,2022-01-31,1,Commission expense,premium_transaction,2200,0.0,46376.51
+45088,JE-2022-01-LFP-CP,2022-01,2022-01-31,1,Commissions paid,agency_statement,2200,51538.4,0.0
+45089,JE-2022-01-LFP-CP,2022-01,2022-01-31,1,Commissions paid,agency_statement,1000,0.0,51538.4
+45090,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,5000,279236.93,0.0
+45091,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,5100,2114.46,0.0
+45093,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,5110,11636.15,0.0
+45094,JE-2022-01-LFP-LP,2022-01,2022-01-31,1,Claim payments,claim_payment,1000,0.0,292987.54
+45095,JE-2022-01-LFP-LR,2022-01,2022-01-31,1,Claim recoveries,claim_payment,1000,706.01,0.0
+45096,JE-2022-01-LFP-LR,2022-01,2022-01-31,1,Claim recoveries,claim_payment,5020,0.0,706.01
+45099,JE-2022-01-LFP-RS,2022-01,2022-01-31,1,Case reserve changes,claim_reserve_transaction,5200,130097.04,0.0
+45100,JE-2022-01-LFP-RS,2022-01,2022-01-31,1,Case reserve changes,claim_reserve_transaction,2500,0.0,130097.04
+45101,JE-2022-01-LFP-RS,2022-01,2022-01-31,1,Case reserve changes,claim_reserve_transaction,5210,0.0,1600.0
+45102,JE-2022-01-LFP-RS,2022-01,2022-01-31,1,Case reserve changes,claim_reserve_transaction,2510,1600.0,0.0
+45104,JE-2022-01-LFM-PW,2022-01,2022-01-31,2,Premiums written,premium_transaction,1200,1706074.49,0.0
+45105,JE-2022-01-LFM-PW,2022-01,2022-01-31,2,Premiums written,premium_transaction,4000,0.0,1706074.49
+45107,JE-2022-01-LFM-UP,2022-01,2022-01-31,2,Change in unearned premium,premium_transaction,4010,0.0,67597.56
+45108,JE-2022-01-LFM-UP,2022-01,2022-01-31,2,Change in unearned premium,premium_transaction,2100,67597.56,0.0
+45109,JE-2022-01-LFM-CR,2022-01,2022-01-31,2,Premium cash receipts,billing_receipt,1000,1798069.87,0.0
+45110,JE-2022-01-LFM-CR,2022-01,2022-01-31,2,Premium cash receipts,billing_receipt,1200,0.0,1771666.87
+45111,JE-2022-01-LFM-CR,2022-01,2022-01-31,2,Premium cash receipts,billing_receipt,4200,0.0,26403.0
+45112,JE-2022-01-LFM-CE,2022-01,2022-01-31,2,Commission expense,premium_transaction,6100,117504.91,0.0
+45113,JE-2022-01-LFM-CE,2022-01,2022-01-31,2,Commission expense,premium_transaction,2200,0.0,117504.91
+45115,JE-2022-01-LFM-CP,2022-01,2022-01-31,2,Commissions paid,agency_statement,2200,123295.97,0.0
+45116,JE-2022-01-LFM-CP,2022-01,2022-01-31,2,Commissions paid,agency_statement,1000,0.0,123295.97
+45117,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,5000,508447.19,0.0
+45118,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,5100,8897.58,0.0
+45119,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,5110,23254.02,0.0
+45120,JE-2022-01-LFM-LP,2022-01,2022-01-31,2,Claim payments,claim_payment,1000,0.0,540598.79
+45122,JE-2022-01-LFM-LR,2022-01,2022-01-31,2,Claim recoveries,claim_payment,1000,5753.1,0.0
+45124,JE-2022-01-LFM-LR,2022-01,2022-01-31,2,Claim recoveries,claim_payment,5020,0.0,5753.1
+45125,JE-2022-01-LFM-RS,2022-01,2022-01-31,2,Case reserve changes,claim_reserve_transaction,5200,372478.01,0.0
+45126,JE-2022-01-LFM-RS,2022-01,2022-01-31,2,Case reserve changes,claim_reserve_transaction,2500,0.0,372478.01
+45127,JE-2022-01-LFM-RS,2022-01,2022-01-31,2,Case reserve changes,claim_reserve_transaction,5210,2650.0,0.0
+45128,JE-2022-01-LFM-RS,2022-01,2022-01-31,2,Case reserve changes,claim_reserve_transaction,2510,0.0,2650.0
+45129,JE-2022-01-PPC-PW,2022-01,2022-01-31,3,Premiums written,premium_transaction,1200,194778.41,0.0
+45130,JE-2022-01-PPC-PW,2022-01,2022-01-31,3,Premiums written,premium_transaction,4000,0.0,194778.41
+45131,JE-2022-01-PPC-UP,2022-01,2022-01-31,3,Change in unearned premium,premium_transaction,4010,0.0,4523.75
+45133,JE-2022-01-PPC-UP,2022-01,2022-01-31,3,Change in unearned premium,premium_transaction,2100,4523.75,0.0
+45134,JE-2022-01-PPC-CR,2022-01,2022-01-31,3,Premium cash receipts,billing_receipt,1000,191668.79,0.0
+45136,JE-2022-01-PPC-CR,2022-01,2022-01-31,3,Premium cash receipts,billing_receipt,1200,0.0,189878.79
+45137,JE-2022-01-PPC-CR,2022-01,2022-01-31,3,Premium cash receipts,billing_receipt,4200,0.0,1790.0
+45138,JE-2022-01-PPC-CE,2022-01,2022-01-31,3,Commission expense,premium_transaction,6100,13732.42,0.0
+45139,JE-2022-01-PPC-CE,2022-01,2022-01-31,3,Commission expense,premium_transaction,2200,0.0,13732.42
+45140,JE-2022-01-PPC-CP,2022-01,2022-01-31,3,Commissions paid,agency_statement,2200,13540.31,0.0
+45141,JE-2022-01-PPC-CP,2022-01,2022-01-31,3,Commissions paid,agency_statement,1000,0.0,13540.31
+45142,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,5000,87812.16,0.0
+45143,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,5100,611.31,0.0
+45144,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,5110,3454.74,0.0
+45145,JE-2022-01-PPC-LP,2022-01,2022-01-31,3,Claim payments,claim_payment,1000,0.0,91878.21
+45146,JE-2022-01-PPC-RS,2022-01,2022-01-31,3,Case reserve changes,claim_reserve_transaction,5200,11260.99,0.0
+45147,JE-2022-01-PPC-RS,2022-01,2022-01-31,3,Case reserve changes,claim_reserve_transaction,2500,0.0,11260.99
+45378,JE-2022-02-LFP-PW,2022-02,2022-02-28,1,Premiums written,premium_transaction,1200,718846.85,0.0
+45379,JE-2022-02-LFP-PW,2022-02,2022-02-28,1,Premiums written,premium_transaction,4000,0.0,718846.85
+45380,JE-2022-02-LFP-UP,2022-02,2022-02-28,1,Change in unearned premium,premium_transaction,4010,74057.87,0.0
+45381,JE-2022-02-LFP-UP,2022-02,2022-02-28,1,Change in unearned premium,premium_transaction,2100,0.0,74057.87
+45382,JE-2022-02-LFP-CR,2022-02,2022-02-28,1,Premium cash receipts,billing_receipt,1000,707254.62,0.0
+45383,JE-2022-02-LFP-CR,2022-02,2022-02-28,1,Premium cash receipts,billing_receipt,1200,0.0,698310.62
+45384,JE-2022-02-LFP-CR,2022-02,2022-02-28,1,Premium cash receipts,billing_receipt,4200,0.0,8944.0
+45385,JE-2022-02-LFP-CE,2022-02,2022-02-28,1,Commission expense,premium_transaction,6100,49399.03,0.0
+45386,JE-2022-02-LFP-CE,2022-02,2022-02-28,1,Commission expense,premium_transaction,2200,0.0,49399.03
+45387,JE-2022-02-LFP-CP,2022-02,2022-02-28,1,Commissions paid,agency_statement,2200,46376.51,0.0
+45388,JE-2022-02-LFP-CP,2022-02,2022-02-28,1,Commissions paid,agency_statement,1000,0.0,46376.51
+45391,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,5000,395910.63,0.0
+45392,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,5100,1263.61,0.0
+45393,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,5110,10176.44,0.0
+45394,JE-2022-02-LFP-LP,2022-02,2022-02-28,1,Claim payments,claim_payment,1000,0.0,407350.68
+45395,JE-2022-02-LFP-LR,2022-02,2022-02-28,1,Claim recoveries,claim_payment,1000,17247.43,0.0
+45396,JE-2022-02-LFP-LR,2022-02,2022-02-28,1,Claim recoveries,claim_payment,5020,0.0,17247.43
+45397,JE-2022-02-LFP-RS,2022-02,2022-02-28,1,Case reserve changes,claim_reserve_transaction,5200,0.0,22214.18
+45398,JE-2022-02-LFP-RS,2022-02,2022-02-28,1,Case reserve changes,claim_reserve_transaction,2500,22214.18,0.0
+45399,JE-2022-02-LFP-RS,2022-02,2022-02-28,1,Case reserve changes,claim_reserve_transaction,5210,15400.0,0.0
+45400,JE-2022-02-LFP-RS,2022-02,2022-02-28,1,Case reserve changes,claim_reserve_transaction,2510,0.0,15400.0

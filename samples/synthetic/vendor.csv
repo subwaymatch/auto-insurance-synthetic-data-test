@@ -1,101 +1,101 @@
 vendor_id,vendor_number,vendor_name,vendor_type,city,state,zip_code,in_network
-3,V105855,Naperville Community Medical Group,Medical Provider,Naperville,IL,60565,N
-4,V110896,Townsend Law Group,Plaintiff Law Firm,Springfield,IL,,N
-11,V101482,Metro Collision Repair,Body Shop,Lincolnwood,IL,60712,N
-16,V111178,Law Offices of Jennifer Winter,Plaintiff Law Firm,Milwaukee,WI,,N
-17,V111352,Shi Injury Law,Plaintiff Law Firm,Chicago,IL,,N
-18,V111478,Zhou Law Group,Plaintiff Law Firm,Chicago,IL,,N
-22,V105512,Prairie Health Clinic of Glenview,Medical Provider,Glenview,IL,60025,N
-23,V112508,Law Offices of Vincent Woolum,Plaintiff Law Firm,Chicago,IL,,N
-25,V113427,First Lakeland Savings Bank,Lienholder,Columbus,OH,,N
-26,V109602,Joseph & Zendejas LLC,Defense Law Firm,Chicago,IL,,N
-29,V101549,Ferrer & Sons Collision,Body Shop,Maywood,IL,60153,Y
-32,V102107,Aurora Collision Center,Body Shop,Aurora,IL,60502,N
-34,V108069,Hillside Physical Therapy Associates,Medical Provider,Hillside,IL,60162,N
-41,V109210,Evergreen Appraisal Service,Independent Appraiser,Indianapolis,IN,,N
-43,V108496,Parkside Health Clinic of Round Lake,Medical Provider,Round Lake,IL,60073,N
-50,V113166,Compass Auto Finance,Lienholder,Chicago,IL,,N
-51,V111212,Law Offices of Melissa Ramos,Plaintiff Law Firm,St. Louis,MO,,N
-61,V101810,Tinley Park Collision Center,Body Shop,Tinley Park,IL,60477,N
-68,V106670,Allied Health Clinic of Tinley Park,Medical Provider,Tinley Park,IL,60487,N
-70,V108187,Hale Chiropractic,Medical Provider,Niles,IL,60714,N
-71,V112611,Law Offices of David Jackson,Plaintiff Law Firm,Chicago,IL,,N
-74,V112221,Marsh Law Group,Plaintiff Law Firm,St. Louis,MO,,N
-87,V111549,"Onyango & Mcmillan, P.C.",Plaintiff Law Firm,Springfield,IL,,N
-90,V107893,Heritage Health Clinic of Chicago,Medical Provider,Chicago,IL,60626,N
-92,V107525,Meridian Orthopedics,Medical Provider,Saint Charles,IL,60174,N
-93,V101300,Heritage Collision Repair,Body Shop,Joliet,IL,60435,Y
-96,V111482,Benitez Injury Law,Plaintiff Law Firm,Des Moines,IA,,N
-99,V101365,Evergreen Auto Rebuilders,Body Shop,Des Plaines,IL,60018,Y
-104,V100895,Melrose Park Collision Center,Body Shop,Melrose Park,IL,60164,N
-107,V112682,Meneses Injury Law,Plaintiff Law Firm,Chicago,IL,,N
-108,V113004,Prairie Federal Credit Union,Lienholder,Milwaukee,WI,,N
-111,V100430,Park's Auto Body,Body Shop,Chicago,IL,60633,Y
-116,V101061,Kriebel & Sons Collision,Body Shop,Evanston,IL,60201,N
-118,V107149,Gonzales Chiropractic,Medical Provider,Chicago,IL,60631,N
-121,V106758,Frontier Imaging Center,Medical Provider,Waukegan,IL,60085,N
-123,V103385,Riverside Towing Service,Towing Company,Berkeley,IL,60163,N
-127,V111643,Law Offices of Charles Northrup,Plaintiff Law Firm,Indianapolis,IN,,N
-131,V104705,Union Orthopedics,Medical Provider,Round Lake,IL,60073,N
-134,V103600,Delarosa Towing,Towing Company,Chicago,IL,60619,N
-140,V112455,Law Offices of Tammy Acevedo,Plaintiff Law Firm,Indianapolis,IN,,N
-142,V113456,Great Lakes Auto Finance,Lienholder,Chicago,IL,,N
-149,V100995,Tri-State Auto Rebuilders,Body Shop,Aurora,IL,60506,Y
-153,V111455,"Elwell & Perrotta, P.C.",Plaintiff Law Firm,Chicago,IL,,N
-158,V101932,Lakeshore Auto Rebuilders,Body Shop,Chicago,IL,60625,N
-160,V103815,Illini Towing Service,Towing Company,Mchenry,IL,60050,N
-161,V112965,Sterling Bank & Trust,Lienholder,Indianapolis,IN,,N
-167,V102279,Heartland Collision Repair,Body Shop,Blue Island,IL,60406,N
-170,V110822,Law Offices of Natalie Stocking,Plaintiff Law Firm,Columbus,OH,,N
-171,V113555,Sterling Casualty Company,Other Insurer,Indianapolis,IN,,N
-177,V112148,Fleming Injury Law,Plaintiff Law Firm,Springfield,IL,,N
-179,V106898,Mcknight Chiropractic,Medical Provider,Chicago,IL,60654,N
-183,V102795,Egan & Sons Collision,Body Shop,Chicago,IL,60636,N
-186,V110431,Snyder Injury Law,Plaintiff Law Firm,Milwaukee,WI,,N
-190,V111884,Littlejohn Law Group,Plaintiff Law Firm,Chicago,IL,,N
-192,V111902,"Singh & Thakrar, P.C.",Plaintiff Law Firm,Des Moines,IA,,N
-193,V108480,Fox River Grove Physical Therapy Associates,Medical Provider,Fox River Grove,IL,60021,N
-195,V112191,"Saunders & Shady, P.C.",Plaintiff Law Firm,Indianapolis,IN,,N
-199,V100673,Premier Auto Rebuilders,Body Shop,Lyons,IL,60534,N
-212,V107681,Homer Glen Physical Therapy Associates,Medical Provider,Homer Glen,IL,60491,N
-215,V106127,Heritage Imaging Center,Medical Provider,Chicago,IL,60618,N
-219,V102784,White & Sons Collision,Body Shop,Berwyn,IL,60402,Y
-220,V113128,Crosstown Auto Finance,Lienholder,Springfield,IL,,N
-222,V104119,Burney Towing,Towing Company,Great Lakes,IL,60088,N
-225,V113919,Frontier Indemnity Insurance,Other Insurer,St. Louis,MO,,N
-227,V108072,Summit Health Clinic of Chicago,Medical Provider,Chicago,IL,60647,N
-235,V106595,Tri-State Imaging Center,Medical Provider,Saint Charles,IL,60174,N
-237,V111920,Law Offices of Eric Mcadoo,Plaintiff Law Firm,St. Louis,MO,,N
-240,V109061,Hanover Park Physical Therapy Associates,Medical Provider,Hanover Park,IL,60133,N
-241,V110478,Law Offices of Rosa Ham,Plaintiff Law Firm,Des Moines,IA,,N
-248,V105033,Lake Villa Physical Therapy Associates,Medical Provider,Lake Villa,IL,60046,N
-249,V110119,Bradford Injury Law,Plaintiff Law Firm,St. Louis,MO,,N
-262,V104689,Heritage Health Clinic of Joliet,Medical Provider,Joliet,IL,60431,N
-264,V112005,Goulart Injury Law,Plaintiff Law Firm,Chicago,IL,,N
-265,V103321,Midwest Towing Service,Towing Company,Naperville,IL,60564,N
-271,V100904,Dufault's Auto Body,Body Shop,Chicago,IL,60618,N
-273,V112613,Law Offices of Theodore Estrada,Plaintiff Law Firm,St. Louis,MO,,N
-274,V109624,"Chen, Ibay & Cypert LLP",Defense Law Firm,Indianapolis,IN,,N
-282,V101861,Denise's Auto Body,Body Shop,Orland Park,IL,60467,Y
-288,V112491,Rodgers Injury Law,Plaintiff Law Firm,Springfield,IL,,N
-294,V111730,Law Offices of Timothy Brimhall,Plaintiff Law Firm,Indianapolis,IN,,N
-296,V100267,Piggott's Auto Body,Body Shop,Chicago,IL,60647,N
-302,V101760,Rasco's Auto Body,Body Shop,Hoffman Estates,IL,60169,N
-303,V107349,Elmhurst Community Medical Group,Medical Provider,Elmhurst,IL,60126,N
-311,V110506,Law Offices of Kristine Hancock,Plaintiff Law Firm,Chicago,IL,,N
-314,V107219,Fox Valley Health Clinic of Chicago,Medical Provider,Chicago,IL,60605,N
-316,V111580,Tapia Injury Law,Plaintiff Law Firm,Indianapolis,IN,,N
-320,V102882,Allied Glass & Mirror,Glass Vendor,Chicago,IL,60644,N
-324,V100676,Reliable Collision Repair,Body Shop,Mount Prospect,IL,60056,N
-327,V105940,Metro Health Clinic of Algonquin,Medical Provider,Algonquin,IL,60102,N
-331,V109689,"Garcia, Carandang & Mills LLP",Defense Law Firm,Chicago,IL,,N
-334,V113076,Capitol Federal Credit Union,Lienholder,Springfield,IL,,N
-338,V103538,Naperville Towing & Recovery,Towing Company,Naperville,IL,60564,N
-340,V102176,Bowen's Auto Body,Body Shop,Naperville,IL,60564,N
-341,V106644,Great Lakes Imaging Center,Medical Provider,Lincolnshire,IL,60069,N
-344,V110716,"Bartholomew & Thompson, P.C.",Plaintiff Law Firm,Milwaukee,WI,,N
-350,V112535,Law Offices of James Cannon,Plaintiff Law Firm,Des Moines,IA,,N
-353,V110989,Brockmann Injury Law,Plaintiff Law Firm,Milwaukee,WI,,N
-354,V102684,Villa Park Collision Center,Body Shop,Villa Park,IL,60181,N
-357,V102915,Parkside Glass & Mirror,Glass Vendor,Aurora,IL,60504,Y
-358,V108855,Barr Chiropractic,Medical Provider,Chicago,IL,60639,N
+4,V106758,Frontier Imaging Center,Medical Provider,Waukegan,IL,60085,N
+6,V105367,Sterling Health Clinic of Chicago,Medical Provider,Chicago,IL,60618,N
+8,V109868,Dunlap Law Group,Plaintiff Law Firm,Indianapolis,IN,,N
+13,V113555,Sterling Casualty Company,Other Insurer,Indianapolis,IN,,N
+19,V106614,Reliable Health Clinic of Cicero,Medical Provider,Cicero,IL,60804,N
+21,V103462,Des Plaines Towing & Recovery,Towing Company,Des Plaines,IL,60016,N
+26,V101516,Compass Auto Rebuilders,Body Shop,Maywood,IL,60153,Y
+30,V111074,Law Offices of Fidel Mclendon,Plaintiff Law Firm,Chicago,IL,,N
+31,V104651,Keystone Imaging Center,Medical Provider,Chicago,IL,60623,N
+32,V112166,"Carmona & Jones, P.C.",Plaintiff Law Firm,Indianapolis,IN,,N
+35,V110369,Law Offices of Kimberly Herzberg,Plaintiff Law Firm,Chicago,IL,,N
+38,V102139,Mendiola's Auto Body,Body Shop,Palos Park,IL,60464,N
+43,V101960,Boyle & Sons Collision,Body Shop,Chicago,IL,60621,Y
+45,V113456,Great Lakes Auto Finance,Lienholder,Chicago,IL,,N
+53,V107527,Naperville Physical Therapy Associates,Medical Provider,Naperville,IL,60540,N
+54,V100066,Davis's Auto Body,Body Shop,Plainfield,IL,60585,N
+56,V101988,Beacon Auto Rebuilders,Body Shop,Villa Park,IL,60181,N
+57,V100276,Fox Valley Collision Repair,Body Shop,Waukegan,IL,60085,Y
+61,V110244,Law Offices of Kyle Rymer,Plaintiff Law Firm,Chicago,IL,,N
+62,V104969,Evergreen Orthopedics,Medical Provider,Chicago,IL,60659,N
+67,V110555,"Cortez & Greenwood, P.C.",Plaintiff Law Firm,Milwaukee,WI,,N
+69,V100376,Prairie Collision Repair,Body Shop,Franklin Park,IL,60131,N
+76,V110399,Wescott Injury Law,Plaintiff Law Firm,Springfield,IL,,N
+79,V105220,Hoffman Estates Community Medical Group,Medical Provider,Hoffman Estates,IL,60169,N
+81,V103199,Wire Towing,Towing Company,West Chicago,IL,60185,N
+90,V106823,Fox Valley Imaging Center,Medical Provider,Batavia,IL,60510,N
+94,V112508,Law Offices of Vincent Woolum,Plaintiff Law Firm,Chicago,IL,,N
+100,V100634,Summit Collision Repair,Body Shop,Ingleside,IL,60041,N
+102,V108635,Tri-State Health Clinic of Montgomery,Medical Provider,Montgomery,IL,60538,N
+109,V100472,Hornsby's Auto Body,Body Shop,Chicago,IL,60656,N
+110,V110572,"Deshaw & Araujo, P.C.",Plaintiff Law Firm,Springfield,IL,,N
+114,V103801,Simmons Towing,Towing Company,Chicago,IL,60608,N
+116,V103540,Nickerson Towing,Towing Company,Palos Park,IL,60464,N
+124,V112682,Meneses Injury Law,Plaintiff Law Firm,Chicago,IL,,N
+126,V112755,Law Offices of Lorraine Banks,Plaintiff Law Firm,Indianapolis,IN,,N
+130,V109933,"Parke & Quezada, P.C.",Plaintiff Law Firm,St. Louis,MO,,N
+145,V110305,Rodgers Law Group,Plaintiff Law Firm,Milwaukee,WI,,N
+149,V113685,Cornerstone Casualty Company,Other Insurer,Columbus,OH,,N
+151,V103659,Antioch Towing & Recovery,Towing Company,Antioch,IL,60002,N
+156,V103287,Eames Towing,Towing Company,Chicago,IL,60644,N
+157,V112446,Quinones Law Group,Plaintiff Law Firm,Columbus,OH,,N
+159,V102614,Riverside Collision Repair,Body Shop,Joliet,IL,60432,N
+160,V106984,Reliable Orthopedics,Medical Provider,Elmhurst,IL,60126,N
+161,V112022,Guzman Injury Law,Plaintiff Law Firm,Chicago,IL,,N
+162,V102299,Salvador & Sons Collision,Body Shop,Harvey,IL,60426,N
+163,V106898,Mcknight Chiropractic,Medical Provider,Chicago,IL,60654,N
+165,V103765,Cornerstone Towing Service,Towing Company,Schaumburg,IL,60195,N
+166,V100252,North Shore Collision Repair,Body Shop,Dolton,IL,60419,N
+167,V109294,Valencia Adjusting Company,Independent Appraiser,Indianapolis,IN,,N
+175,V109089,Midwest Health Clinic of Joliet,Medical Provider,Joliet,IL,60432,N
+179,V113247,Central Bank & Trust,Lienholder,Des Moines,IA,,N
+183,V111941,"Diaz & Covarrubias, P.C.",Plaintiff Law Firm,Columbus,OH,,N
+188,V108350,Wheeling Community Medical Group,Medical Provider,Wheeling,IL,60090,N
+198,V109907,"Wylie & Alvarez, P.C.",Plaintiff Law Firm,Chicago,IL,,N
+206,V109753,Aquino Robinson Attorneys at Law,Defense Law Firm,Springfield,IL,,N
+207,V114039,Fox Valley Fire & Casualty,Other Insurer,Chicago,IL,,N
+219,V113357,Summit Auto Finance,Lienholder,Indianapolis,IN,,N
+221,V104005,Preciado Towing,Towing Company,Grayslake,IL,60030,N
+223,V113839,Metro Casualty Company,Other Insurer,Springfield,IL,,N
+226,V108390,Fowler Chiropractic,Medical Provider,Lake Forest,IL,60045,N
+228,V107219,Fox Valley Health Clinic of Chicago,Medical Provider,Chicago,IL,60605,N
+232,V100329,Liberty Collision Repair,Body Shop,Chicago,IL,60641,N
+236,V106318,Anderson Chiropractic,Medical Provider,Elgin,IL,60123,N
+243,V102795,Egan & Sons Collision,Body Shop,Chicago,IL,60636,N
+244,V108574,Compass Health Clinic of Chicago,Medical Provider,Chicago,IL,60657,N
+247,V104222,Guardian Towing Service,Towing Company,Chicago,IL,60628,N
+252,V104777,Parkside Health Clinic of Batavia,Medical Provider,Batavia,IL,60510,N
+255,V102523,Beacon Collision Repair,Body Shop,Lake Forest,IL,60045,N
+259,V109386,Prairie Records Retrieval,Medical Review Service,Chicago,IL,,N
+263,V100493,Sanchez's Auto Body,Body Shop,Oak Park,IL,60302,N
+264,V113275,Tri-State Federal Credit Union,Lienholder,Chicago,IL,,N
+272,V107968,Holman Chiropractic,Medical Provider,Highland Park,IL,60035,N
+282,V104865,Anchor Health Clinic of Woodridge,Medical Provider,Woodridge,IL,60517,N
+284,V106543,Compass Imaging Center,Medical Provider,Chicago,IL,60625,N
+292,V106569,Heartland Health Clinic of Chicago,Medical Provider,Chicago,IL,60659,N
+305,V109689,"Garcia, Carandang & Mills LLP",Defense Law Firm,Chicago,IL,,N
+311,V101959,Rodgers & Sons Collision,Body Shop,Palatine,IL,60067,N
+316,V113844,North Shore Mutual Insurance Company,Other Insurer,Springfield,IL,,N
+323,V112276,Law Offices of Christina Nail,Plaintiff Law Firm,Springfield,IL,,N
+327,V112414,Telles Injury Law,Plaintiff Law Firm,Chicago,IL,,N
+329,V108079,Liberty Health Clinic of Chicago,Medical Provider,Chicago,IL,60649,N
+334,V107571,Precision Orthopedics,Medical Provider,Hoffman Estates,IL,60169,N
+339,V104613,Collins Chiropractic,Medical Provider,Joliet,IL,60433,N
+346,V106220,Prairie Orthopedics,Medical Provider,Richton Park,IL,60471,N
+347,V111212,Law Offices of Melissa Ramos,Plaintiff Law Firm,St. Louis,MO,,N
+348,V104707,Wheaton Physical Therapy Associates,Medical Provider,Wheaton,IL,60189,N
+352,V109061,Hanover Park Physical Therapy Associates,Medical Provider,Hanover Park,IL,60133,N
+357,V111178,Law Offices of Jennifer Winter,Plaintiff Law Firm,Milwaukee,WI,,N
+363,V113663,Windy City Casualty Company,Other Insurer,Chicago,IL,,N
+368,V108710,Razo Chiropractic,Medical Provider,La Grange,IL,60525,N
+374,V100989,Reyna & Sons Collision,Body Shop,Oswego,IL,60543,N
+377,V105551,Summit Health Clinic of Elgin,Medical Provider,Elgin,IL,60123,N
+380,V107893,Heritage Health Clinic of Chicago,Medical Provider,Chicago,IL,60626,N
+383,V108855,Barr Chiropractic,Medical Provider,Chicago,IL,60639,N
+388,V113226,First Calumet Savings Bank,Lienholder,Milwaukee,WI,,N
+390,V104455,Gootee Towing,Towing Company,Des Plaines,IL,60016,N
+395,V103086,Liberty Rent-A-Car,Rental Company,Indianapolis,IN,,N
+410,V101776,Delosrios & Sons Collision,Body Shop,Westchester,IL,60154,N
+412,V112486,Law Offices of Jeri Mann,Plaintiff Law Firm,Indianapolis,IN,,N
+414,V113512,Lakeshore Bank & Trust,Lienholder,Columbus,OH,,N

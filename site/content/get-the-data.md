@@ -15,7 +15,7 @@ description: Download the Lakefront data as CSV, SQLite or Parquet, the instruct
 | **Student data** | [%ICON(file-spreadsheet)%CSV zip](%RELEASE%/chicago-auto-insurance-data-latest-csv.zip) | [%ICON(database)%SQLite zip](%RELEASE%/chicago-auto-insurance-data-latest-sqlite.zip) | [%ICON(columns-3)%Parquet zip](%RELEASE%/chicago-auto-insurance-data-latest-parquet.zip) |
 | **Instructor answer key** | [%ICON(file-spreadsheet)%CSV zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-csv.zip) | [%ICON(database)%SQLite zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-sqlite.zip) | [%ICON(columns-3)%Parquet zip](%RELEASE%/chicago-auto-insurance-answer-key-latest-parquet.zip) |
 | Size, zipped | 95 MB | 163 MB (182 MB with the answer key) | 70 MB |
-| Size, unzipped | 404 MB | 519 MB (575 MB) | 96 MB |
+| Size, unzipped | 404 MB | 520 MB (575 MB) | 96 MB |
 
 Each student zip holds the 34 tables, `run_summary.json`, the README, the changelog and the documentation. Each answer-key zip holds the 9 answer-key tables and `rating_plan.json`, the full rating plan; in the SQLite format the instructor’s database also holds every data table, linked to the answer key.
 

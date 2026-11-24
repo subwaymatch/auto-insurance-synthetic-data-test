@@ -396,7 +396,26 @@ SUBROGATION_SHARE = (0.75, 1.00)
 # car (with the repair). Every coverage keeps its own distribution. An injury or medical payment is likelier in a
 # severe crash and costlier there, so the claims that happen would cost more on average than calibrated: their
 # costs are scaled back by that selection's known lift (truth.selection_lift), keeping expected costs unchanged.
-CRASH_SEVERITY_CORR = {"COLL": 0.6, "PD": 0.5, "INJURY": 0.45, "INJURY_SEV": 0.35, "MED": 0.4, "TOW": 0.6, "RENT_DAYS": 0.5}
+CRASH_SEVERITY_CORR = {"COLL": 0.6, "PD": 0.5, "INJURY": 0.45, "INJURY_SEV": 0.35, "MED": 0.4, "TOW": 0.6, "RENT_DAYS": 0.5,
+                       "DEATH": 0.8}
+# A crash can kill the insured at the wheel (ASSUMED, sized on NHTSA's counts: about 20,000 drivers die a year in
+# some 10 million vehicles in police-reported crashes, 0.2%; an insurance claim is often a smaller crash than a
+# police report, and single-vehicle crashes are about half of fatal ones). The chance is per crash with an insured
+# driver, rises for older drivers (frailer), and follows the crash's severity (the copula above). Most die on the
+# day of the crash; the rest within a month (NHTSA counts deaths within 30 days). A death in a crash is on top of
+# general mortality (MORTALITY_RATE), which includes road deaths, about 1% of all deaths: a negligible overlap.
+CRASH_DEATH_P = {"AF_MV": 0.0008, "AF_SV": 0.0035, "NAF": 0.0008}
+CRASH_DEATH_AGE_KNOTS, CRASH_DEATH_AGE_FACTOR = [16, 25, 65, 75, 85], [1.2, 1.0, 1.0, 1.7, 2.8]
+CRASH_DEATH_SAME_DAY_P = 0.7
+CRASH_DEATH_DELAY_MEAN, CRASH_DEATH_DELAY_MAX = 7.0, 30
+# The household's other listed drivers ride along in some crashes, by their role (named insured, spouse, other adult,
+# child; ASSUMED: a car trip carries about 1.5 people on average, NHTS, and most passengers are family). A passenger
+# dies with the same crash severity behind it, at a little less than the driver's risk, and their age's frailty
+# (ASSUMED, after NHTSA's occupant fatality counts: about one passenger killed for every three or four drivers, children
+# and passengers from outside the household included). Children under 16 and passengers from outside the household are
+# not people the data follows: they appear only as unnamed claimants.
+RIDE_ALONG_P = [0.18, 0.18, 0.10, 0.12]
+PASSENGER_DEATH_FACTOR = 0.8
 P_FILE_BELOW_DEDUCTIBLE = 0.75      # claims opened then closed without payment
 CWP = {"PD": 0.05, "BI": 0.14, "UM": 0.14, "MED": 0.05, "COLL": 0.03, "COMP": 0.04, "RENT": 0.02, "TOW": 0.02}
 # Claims opened and closed without payment, beyond those above (ASSUMED rates). Together they bring the share

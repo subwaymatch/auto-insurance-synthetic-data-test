@@ -218,6 +218,15 @@ def _injury_detail(f: pd.DataFrame, cal, R: np.random.Generator) -> pd.DataFrame
     z = np.where(gross > 0, z, -9)                     # claims never paid: alleged soft-tissue injuries
     kind = np.searchsorted([0.25, 1.9, 2.75], z) + (z >= 1.9)       # 0 soft, 2 fracture, 3 head/spinal, 4 fatality
     kind = np.where((z >= 0.25) & (z < 1.9), np.where(R.random(n) < 0.4, 1, 2), kind)
+    # the policy's own people (its listed drivers claiming medical payments or uninsured motorist cover) are in the
+    # policy's records: their claim is a fatality exactly when they died in the crash (truth.simulate,
+    # simulate._crash_deaths), and otherwise at worst a head or spinal injury. Other claimants are not people the
+    # data follows, so their worst injuries can be fatal
+    own = ((cvg == "UM") & (f.claimant.to_numpy() == 1)) | (cvg == "MED")
+    if "injured" in f:
+        own |= f["injured"].fillna(-1).to_numpy().astype(np.int64) >= 0
+    died = f["death"].to_numpy().astype(bool) if "death" in f else np.zeros(n, dtype=bool)
+    kind = np.where(own, np.where(died, INJURY_TYPES.index("Fatality"), np.minimum(kind, INJURY_TYPES.index("Head or Spinal Injury"))), kind)
     f["injury_type"] = np.where(injury, np.array(INJURY_TYPES)[np.clip(kind, 0, 4)], "")
     p_att = np.where(cvg == "MED", 0.05, np.where(gross > 0, 0.30 + 0.25 * (z > 0) + 0.15 * (z > 1), 0.08))
     attorney = injury & (lit | (R.random(n) < p_att))
@@ -567,10 +576,24 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
 
     salv = np.round(f.salvage.to_numpy() * 100).astype(np.int64)
     subro = np.round(f.subro.to_numpy() * 100).astype(np.int64)
+    # subrogation recovers what has been paid: the part for the payments to the first close (never more than they
+    # come to, less the salvage) after that close, and a reopening's share after its supplement is paid. The other
+    # insurer repays a claim it is shown; the total recovered is the same
+    # the wreck is sold after the settlement, or, if it would fetch more than had been paid before a reopening, once
+    # the reopening's supplement is paid
+    late_sale = reopen & (salv > main)
+    salvage_day = cal.spread_business(np.where(late_sale, supp_day, cd) + R.integers(20, 70, n), R.random(n))
+    lag = np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int)
+    sub_main = np.minimum(np.floor(subro * main / np.maximum(P, 1)).astype(np.int64), np.maximum(main - salv, 0))
+    sub_main = np.where(reopen, sub_main, subro)
+    sub_supp = subro - sub_main
+    u_sub = R.random(n)
     rec = pd.concat([
-        _legs(np.flatnonzero(salv > 0), cal.spread_business(cd + R.integers(20, 70, n), R.random(n))[salv > 0], -salv[salv > 0], "Recovery").assign(kind="Salvage Recovery"),
-        _legs(np.flatnonzero(subro > 0), cal.spread_business(cd + np.exp(np.log(110) + 0.6 * R.standard_normal(n)).astype(int), R.random(n))[subro > 0],
-              -subro[subro > 0], "Recovery").assign(kind="Subrogation Recovery")], ignore_index=True)
+        _legs(np.flatnonzero(salv > 0), salvage_day[salv > 0], -salv[salv > 0], "Recovery").assign(kind="Salvage Recovery"),
+        _legs(np.flatnonzero(sub_main > 0), cal.spread_business(cd + lag, u_sub)[sub_main > 0],
+              -sub_main[sub_main > 0], "Recovery").assign(kind="Subrogation Recovery"),
+        _legs(np.flatnonzero(sub_supp > 0), cal.spread_business(supp_day + lag, u_sub)[sub_supp > 0],
+              -sub_supp[sub_supp > 0], "Recovery").assign(kind="Subrogation Recovery")], ignore_index=True)
 
     pays = pd.concat([loss, expense, rec], ignore_index=True)
     pays["fid"] = f.fid.to_numpy()[pays.i.to_numpy()]

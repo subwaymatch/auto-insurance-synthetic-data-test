@@ -89,6 +89,7 @@ Columns not listed for a table keep their meaning under the new name shown.
 | `Coverage` | `coverage` |
 | `UM/UIM Type` | `um_uim_type` |
 | `Claimant Number` | `claimant_number` |
+| *(new)* | `injured_driver_id` |
 | `Feature Status` | `feature_status` |
 | `Open Date` | `open_date` |
 | `Close Date` | `close_date` |
