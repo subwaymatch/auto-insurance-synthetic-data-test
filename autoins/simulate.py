@@ -652,7 +652,9 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     op = vp[gone]
     np.maximum.at(T.last_gone, op, left)
     np.maximum.at(T.last_known, op, seen)
-    np.maximum.at(sim.last_change, op, np.maximum(left, seen))   # a pending renewal is revised once it is known
+    # a pending renewal is revised once the removal is known; one not known before the renewal takes effect does
+    # not revise it (nor hide an earlier change that does)
+    np.maximum.at(sim.last_change, op, np.where(seen <= T.e[op], np.maximum(left, seen), -10 ** 9))
     replace = R.random(len(old)) < np.where(p["n_veh"][op] > 1, C.P_REPLACE_AFTER_TOTAL_LOSS["multi"],
                                              C.P_REPLACE_AFTER_TOTAL_LOSS["single"])
     # (a replacement is put on the policy once the loss has been reported)
