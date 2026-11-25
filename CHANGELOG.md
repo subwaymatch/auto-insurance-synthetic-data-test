@@ -120,11 +120,11 @@ check. Figures are for the default run after these changes (content hash `9774ec
   licensed teenager or a new spouse without a car takes over a spare car the household already has. The surcharge
   now falls on one car, and only when a listed driver under 25 has no car of their own (98 periods had it without
   one).
-- **People and claims.** A divorcing spouse is divorced (all 646 had stayed married), and a couple killed together
-  leaves no widow. A crash that killed someone has a police report even with no claim of the victim's own, as does
-  a crash whose driver died by the next day; a rental ends when the household's only driver dies, even when the
-  death falls early in the next term. A car its owner kept after a total loss has no losses for the rest of the term,
-  storms included.
+- **People and claims.** A divorcing spouse is divorced (all 646 had stayed married), and a couple who die on the
+  same day leave no widow (the spouse no longer takes the policy over as a widow first). A crash that killed
+  someone has a police report even with no claim of the victim's own, as does a crash whose driver died by the
+  next day; a rental ends when the household's only driver dies, even when the death falls early in the next term.
+  A car its owner kept after a total loss has no losses for the rest of the term, storms included.
 - **Billing and contacts.** A policy cancelled for non-payment pays no bill due after the installment it missed
   (14 endorsement bills had been paid, five by bank draft). Changes and cancellations are confirmed when they are
   booked; nothing is confirmed, chased or warned of once a policy is canceled (844 change confirmations had gone out
@@ -139,14 +139,15 @@ check. Figures are for the default run after these changes (content hash `9774ec
 - **Checks.** `validate.py` adds ten checks, one for each finding (203 in all); on v1.1.9 eight fail on the default
   run and nine on seed 101. Two existing checks allow the backdated re-rating: a row may be rated after it starts
   when it follows a car's backdated removal (rated the day the claim was reported), and its household is judged as of
-  its start. Unit tests cover the cut's wait for the report, the rental's end (in the term and after it) and spare-car promotion.
+  its start. Unit tests cover the cut's wait for the report, the rental's end (in the term and after it), a couple
+  dying together and spare-car promotion.
 - **The default run** (content hash `9774ec39a673aeea`): loss ratios by accident year 83.7%, 80.3%, 65.0%, 60.2% and
   69.1% for 2022 to 2026, of which catastrophes 0.0%, 4.0%, 2.7%, 0.9% and 5.9%; overall 70.5% (was 70.1% in v1.1.9;
   {SEED_RANGE} across five seeds); annualized retention 81.2%. 195,405 policy terms, 444,330 exposure rows, $212.2
   million earned premium, 22,670 claims, 39,879 features, 60,877 claim payments, 103,972 reserve transactions,
   878,791 bills and 890,425 receipts, 118,697 quotes and 168,956 renewal offers. These changes move later random
   draws, so every figure moves a little. 203 checks pass on the default run and on seeds 7, 11, 23, 42 and 101
-  (content hashes {SEED_HASHES}){SEED_BANDS}. The test suite has 87 tests (86 pass, and one needs `pyarrow`).
+  (content hashes {SEED_HASHES}){SEED_BANDS}. The test suite has 88 tests (87 pass, and one needs `pyarrow`).
 
 ## 2026-11-24, [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9): An audit of v1.1.8 ([PR #17](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/17))
 

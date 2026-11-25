@@ -1124,6 +1124,23 @@ class KnownRemovalTest(unittest.TestCase):
         dev.stop_rentals(np.array([3]), np.array([105]))            # done once: the rental is already back
         self.assertEqual(dev.feats[0].paid.tolist(), [300.0, 2500.0])
 
+    def test_couple_dying_together_leaves_no_widow(self):
+        from types import SimpleNamespace
+        for order in ([0, 1], [1, 0]):                # the named insured (0) or the spouse (1) first
+            drv = pd.DataFrame(dict(active=[True, True], role=[0, 1], marital=["M", "M"], removed_day=[-1, -1],
+                                    removal_reason=[0, 0], pol=[0, 0], assigned=[True, False]))
+            rec = SimpleNamespace(add=lambda *a: None)
+            sim = SimpleNamespace(st=SimpleNamespace(p={"ni_drv": np.array([0]), "n_drv": np.array([2])},
+                                                     v={"active": np.zeros(0, dtype=bool), "primary_drv": np.zeros(0, dtype=int),
+                                                        "pol": np.zeros(0, dtype=int)}),
+                                  pop=SimpleNamespace(drv=drv), R=np.random.default_rng(0), marital=rec, ni=rec)
+            T = SimpleNamespace(cancel_day=np.array([-1]), cancel_reason=np.array([0]), x_pol=np.array([365]))
+            who = np.array(order)
+            simulate._drivers_leave(sim, T, np.zeros(2, dtype=int), np.full(2, 50), who, np.full(2, 4))
+            self.assertEqual(drv.marital.tolist(), ["M", "M"])
+            self.assertEqual(int(sim.st.p["ni_drv"][0]), 0)       # the policy ends with its named insured
+            self.assertEqual(int(T.cancel_day[0]), 50)
+
     def test_spare_car_promoted(self):
         from types import SimpleNamespace
         v = {"active": np.array([True, True, False]), "extra_vehicle": np.array([True, False, False]),

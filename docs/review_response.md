@@ -48,8 +48,9 @@ change (`simulate._promote_spares`); and a newly licensed teenager or a new spou
 car the household already has (`_give_spare_car`). The surcharge now falls on one car, and only when a listed driver
 under 25 has no car of their own.
 
-**F3. Marital status.** Confirmed. A divorcing spouse is now divorced too, and a named insured killed with their
-spouse is not recorded as widowed.
+**F3. Marital status.** Confirmed. A divorcing spouse is now divorced too, and when a couple dies on the same day
+neither is recorded as widowed: the spouse of a named insured who dies that day does not take the policy over as a
+widow, and the policy ends with its named insured.
 
 **F4. Fatal crashes.** Confirmed. A crash that killed an insured carries that fact to its claim even when no claim of
 the victim's own records it (no medical payments cover), so it has a police report; so does a crash whose driver
@@ -90,7 +91,7 @@ These change later random draws, so every figure of the default run moves a litt
 83.7%, 80.3%, 65.0%, 60.2% and 69.1% for 2022 to 2026 (were 82.5%, 81.0%, 67.4%, 59.5% and 66.4%), overall 70.5%
 (was 70.1%; {SEED_RANGE} across five seeds), annualized retention 81.2%; 22,670 claims (was 22,725).
 `validate.py` runs 203 checks (was 193), all passing on the default run and on seeds 7, 11, 23, 42 and 101; the test
-suite has 87 tests.
+suite has 88 tests.
 
 ## Audit of v1.1.8 (24 November 2026)
 

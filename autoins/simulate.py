@@ -1521,6 +1521,7 @@ def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
             continue    # no longer a spouse: widowed earlier today, and now the named insured
         if w == p["ni_drv"][q]:      # the named insured died: a surviving spouse takes the policy over, or it is cancelled
             spouse = np.flatnonzero((d_pol == q) & active & (role == 1))
+            spouse = np.array([s_ for s_ in spouse if (int(s_), int(d)) not in dying], dtype=int)  # not dying today too
             if len(spouse):
                 s0 = spouse[0]
                 role[s0], marital[s0], p["ni_drv"][q] = 0, "W", s0
