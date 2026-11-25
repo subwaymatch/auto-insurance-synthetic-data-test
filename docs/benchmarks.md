@@ -43,53 +43,53 @@ area, so even a checked figure only says the data is in a plausible range.
 
 | figure | mean | range | band | seeds inside |
 |---|--:|--:|--:|--:|
-| BI frequency per 100 car-years (tuning band) | 0.74 | 0.67 to 0.79 | 0.70 to 1.15 | 4 of 5 |
-| BI average paid loss (tuning band) | 25,185 | 24,509 to 25,835 | 20,000 to 30,000 | 5 of 5 |
-| PD frequency per 100 car-years (tuning band) | 2.65 | 2.52 to 2.73 | 2.40 to 3.40 | 5 of 5 |
-| PD average paid loss (tuning band) | 6,782 | 6,543 to 6,961 | 5,800 to 7,400 | 5 of 5 |
-| COLL frequency per 100 car-years (tuning band) | 5.32 | 5.15 to 5.39 | 4.00 to 6.20 | 5 of 5 |
-| COLL average paid loss (tuning band) | 6,443 | 6,367 to 6,502 | 5,400 to 7,400 | 5 of 5 |
-| COMP frequency per 100 car-years (tuning band) | 6.14 | 6.01 to 6.25 | 4.60 to 6.80 | 5 of 5 |
-| COMP average paid loss (tuning band) | 2,904 | 2,845 to 2,952 | 2,200 to 3,400 | 5 of 5 |
-| non-catastrophe incurred vs answer-key expected (all coverages) | 0.98 | 0.95 to 1.01 | 0.93 to 1.07 | 5 of 5 |
-| BI frequency relative to national, like for like | 1.06 | 0.91 to 1.16 | 0.85 to 1.45 | 5 of 5 |
-| BI severity relative to national, like for like | 0.98 | 0.93 to 1.06 | 0.85 to 1.15 | 5 of 5 |
-| PD frequency relative to national, like for like | 1.08 | 1.01 to 1.13 | 0.85 to 1.45 | 5 of 5 |
-| PD severity relative to national, like for like | 1.03 | 0.99 to 1.06 | 0.85 to 1.15 | 5 of 5 |
-| COLL frequency relative to national, like for like | 1.31 | 1.26 to 1.34 | 0.85 to 1.45 | 5 of 5 |
-| COLL severity relative to national, like for like | 0.90 | 0.89 to 0.94 | 0.85 to 1.15 | 5 of 5 |
-| COMP frequency relative to national, like for like | 1.22 | 1.18 to 1.26 | 0.85 to 1.45 | 5 of 5 |
-| COMP severity relative to national, like for like | 1.01 | 0.97 to 1.06 | 0.85 to 1.15 | 5 of 5 |
-| liability premium per insured car-year relative to Illinois, 2022-2024 | 1.03 | 0.99 to 1.04 | 0.90 to 1.30 | 5 of 5 |
+| BI frequency per 100 car-years (tuning band) | 0.75 | 0.69 to 0.79 | 0.70 to 1.15 | 4 of 5 |
+| BI average paid loss (tuning band) | 25,173 | 23,502 to 26,555 | 20,000 to 30,000 | 5 of 5 |
+| PD frequency per 100 car-years (tuning band) | 2.66 | 2.61 to 2.71 | 2.40 to 3.40 | 5 of 5 |
+| PD average paid loss (tuning band) | 6,777 | 6,665 to 6,955 | 5,800 to 7,400 | 5 of 5 |
+| COLL frequency per 100 car-years (tuning band) | 5.28 | 5.17 to 5.36 | 4.00 to 6.20 | 5 of 5 |
+| COLL average paid loss (tuning band) | 6,443 | 6,390 to 6,475 | 5,400 to 7,400 | 5 of 5 |
+| COMP frequency per 100 car-years (tuning band) | 6.13 | 5.98 to 6.18 | 4.60 to 6.80 | 5 of 5 |
+| COMP average paid loss (tuning band) | 2,880 | 2,844 to 2,939 | 2,200 to 3,400 | 5 of 5 |
+| non-catastrophe incurred vs answer-key expected (all coverages) | 0.98 | 0.96 to 1.00 | 0.93 to 1.07 | 5 of 5 |
+| BI frequency relative to national, like for like | 1.07 | 1.01 to 1.14 | 0.85 to 1.45 | 5 of 5 |
+| BI severity relative to national, like for like | 1.01 | 0.95 to 1.10 | 0.85 to 1.15 | 5 of 5 |
+| PD frequency relative to national, like for like | 1.08 | 1.07 to 1.10 | 0.85 to 1.45 | 5 of 5 |
+| PD severity relative to national, like for like | 1.03 | 1.02 to 1.04 | 0.85 to 1.15 | 5 of 5 |
+| COLL frequency relative to national, like for like | 1.31 | 1.27 to 1.34 | 0.85 to 1.45 | 5 of 5 |
+| COLL severity relative to national, like for like | 0.91 | 0.89 to 0.93 | 0.85 to 1.15 | 5 of 5 |
+| COMP frequency relative to national, like for like | 1.20 | 1.14 to 1.24 | 0.85 to 1.45 | 5 of 5 |
+| COMP severity relative to national, like for like | 0.99 | 0.96 to 1.04 | 0.85 to 1.15 | 5 of 5 |
+| liability premium per insured car-year relative to Illinois, 2022-2024 | 1.03 | 0.99 to 1.05 | 0.90 to 1.30 | 5 of 5 |
 | collision premium per insured car-year relative to Illinois, 2022-2024 | 0.85 | 0.82 to 0.87 | 0.80 to 1.20 | 5 of 5 |
-| comprehensive premium per insured car-year relative to Illinois, 2022-2024 | 0.91 | 0.88 to 0.93 | 0.75 to 1.20 | 5 of 5 |
-| 2022 loss ratio excluding catastrophes relative to its expected | 1.01 | 0.93 to 1.05 | 0.85 to 1.15 | 5 of 5 |
-| 2023 loss ratio excluding catastrophes relative to its expected | 1.02 | 0.96 to 1.08 | 0.85 to 1.15 | 5 of 5 |
-| 2024 loss ratio excluding catastrophes relative to its expected | 0.97 | 0.95 to 1.00 | 0.85 to 1.15 | 5 of 5 |
-| 2025 loss ratio excluding catastrophes relative to its expected | 0.95 | 0.94 to 0.97 | 0.85 to 1.15 | 5 of 5 |
-| 2022 expected loss ratio (answer key) plus catastrophes vs industry | 80.6% | 80.2% to 81.0% | 74.0% to 85.0% | 5 of 5 |
-| 2023 expected loss ratio (answer key) plus catastrophes vs industry | 78.0% | 77.4% to 78.4% | 68.0% to 80.0% | 5 of 5 |
-| 2024 expected loss ratio (answer key) plus catastrophes vs industry | 67.7% | 67.2% to 68.2% | 59.0% to 70.0% | 5 of 5 |
-| 2025 expected loss ratio (answer key) plus catastrophes vs industry | 64.0% | 63.4% to 64.6% | 55.0% to 67.0% | 5 of 5 |
-| overall loss ratio | 69.9% | 68.3% to 71.3% | 62.0% to 76.0% | 5 of 5 |
-| first month's exposure relative to the first year's average | 0.98 | 0.97 to 0.98 | 0.85 to 1.15 | 5 of 5 |
+| comprehensive premium per insured car-year relative to Illinois, 2022-2024 | 0.89 | 0.88 to 0.90 | 0.75 to 1.20 | 5 of 5 |
+| 2022 loss ratio excluding catastrophes relative to its expected | 1.04 | 0.97 to 1.11 | 0.85 to 1.15 | 5 of 5 |
+| 2023 loss ratio excluding catastrophes relative to its expected | 0.99 | 0.94 to 1.05 | 0.85 to 1.15 | 5 of 5 |
+| 2024 loss ratio excluding catastrophes relative to its expected | 1.00 | 0.91 to 1.08 | 0.85 to 1.15 | 5 of 5 |
+| 2025 loss ratio excluding catastrophes relative to its expected | 0.96 | 0.90 to 1.00 | 0.85 to 1.15 | 5 of 5 |
+| 2022 expected loss ratio (answer key) plus catastrophes vs industry | 80.6% | 79.9% to 81.1% | 74.0% to 85.0% | 5 of 5 |
+| 2023 expected loss ratio (answer key) plus catastrophes vs industry | 77.8% | 77.3% to 78.7% | 68.0% to 80.0% | 5 of 5 |
+| 2024 expected loss ratio (answer key) plus catastrophes vs industry | 67.5% | 66.9% to 68.2% | 59.0% to 70.0% | 5 of 5 |
+| 2025 expected loss ratio (answer key) plus catastrophes vs industry | 64.0% | 63.4% to 65.4% | 55.0% to 67.0% | 5 of 5 |
+| overall loss ratio | 70.1% | 68.5% to 71.2% | 62.0% to 76.0% | 5 of 5 |
+| first month's exposure relative to the first year's average | 0.98 | 0.98 to 0.98 | 0.85 to 1.15 | 5 of 5 |
 | share of drivers with no violation in 3 years | 88.4% | 88.3% to 88.5% | 78.0% to 90.0% | 5 of 5 |
 | share of drivers with no at-fault accident in 3 years | 93.3% | 93.2% to 93.6% | 86.0% to 95.0% | 5 of 5 |
-| annualized policy retention | 81.2% | 80.9% to 81.5% | 78.0% to 90.0% | 5 of 5 |
-| new business expected loss ratio above renewals (points) | 9.26 | 8.54 to 9.57 | 5.00 to 16.00 | 5 of 5 |
-| spread of expected loss ratio across agencies with 500+ car-years (90th less 10th percentile, points) | 15.24 | 14.76 to 16.07 | 6.00 to 25.00 | 5 of 5 |
-| quotes in February to April relative to October to December | 1.20 | 1.20 to 1.20 | 1.08 to 1.40 | 5 of 5 |
+| annualized policy retention | 81.1% | 80.9% to 81.4% | 78.0% to 90.0% | 5 of 5 |
+| new business expected loss ratio above renewals (points) | 9.38 | 8.49 to 9.77 | 5.00 to 16.00 | 5 of 5 |
+| spread of expected loss ratio across agencies with 500+ car-years (90th less 10th percentile, points) | 15.67 | 15.01 to 16.67 | 6.00 to 25.00 | 5 of 5 |
+| quotes in February to April relative to October to December | 1.20 | 1.20 to 1.21 | 1.08 to 1.40 | 5 of 5 |
 | conversion after a rate increase relative to before it | 0.80 | 0.78 to 0.84 | 0.60 to 0.92 | 5 of 5 |
-| terms with a claim end the policy more often than terms without (ratio) | 1.57 | 1.55 to 1.58 | 1.20 to 1.70 | 5 of 5 |
-| share of non-renewals that are the company's decision | 7.8% | 7.2% to 8.2% | 3.0% to 15.0% | 5 of 5 |
-| renewal rate of exclusive-agent customers above direct customers (points) | 4.02 | 3.59 to 4.48 | 1.00 to 8.00 | 5 of 5 |
-| share of paid bodily injury settlements that are whole-dollar amounts | 87.5% | 86.3% to 88.2% | 75.0% to 95.0% | 5 of 5 |
-| crashes on Thursdays and Fridays relative to Sundays and Mondays | 1.18 | 1.12 to 1.25 | 1.05 to 1.28 | 5 of 5 |
+| terms with a claim end the policy more often than terms without (ratio) | 1.56 | 1.51 to 1.60 | 1.20 to 1.70 | 5 of 5 |
+| share of non-renewals that are the company's decision | 7.7% | 7.4% to 7.9% | 3.0% to 15.0% | 5 of 5 |
+| renewal rate of exclusive-agent customers above direct customers (points) | 4.06 | 3.84 to 4.42 | 1.00 to 8.00 | 5 of 5 |
+| share of paid bodily injury settlements that are whole-dollar amounts | 87.1% | 86.4% to 88.3% | 75.0% to 95.0% | 5 of 5 |
+| crashes on Thursdays and Fridays relative to Sundays and Mondays | 1.18 | 1.14 to 1.21 | 1.05 to 1.28 | 5 of 5 |
 
-Every integrity check passes on every seed. One calibration band is missed: seed 42's bodily injury frequency,
-0.67 paid claims per 100 car-years against a tuning floor of 0.70. Its injury losses came to 0.97 times the answer
-key's expected ones, so it is the book that seed drew (who it insured, where, at what limits), not claim luck, that
-has fewer injury claims; like for like against the national table it is 0.91, inside its band, and the band is not
+Every integrity check passes on every seed. One calibration band is missed, as in the previous round: seed 42's
+bodily injury frequency, 0.69 paid claims per 100 car-years against a tuning floor of 0.70. Its injury losses came to
+0.93 times the answer key's expected ones, so fewer injury claims than its book should bring (claim luck) account for
+most of the shortfall; like for like against the national table it is 1.02, inside its band, and the band is not
 widened. The calibration figures that matter most for analysis are the frequencies, severities and loss ratios;
 their spread across seeds is claim luck and the draw of the book at this size, and it is the yardstick for any
 difference a case study finds between segments of one build.
@@ -98,20 +98,20 @@ difference a case study finds between segments of one build.
 
 | figure | mean | range | published | source |
 |---|--:|--:|--:|--:|
-| total-loss share, paid collision and comprehensive claims (glass apart) | 27.8% | 27.2% to 28.4% | 22.1% (2024), 22.8% (2025) | CCC Crash Course, US: all appraised vehicle claims |
-| total-loss share, paid collision claims | 31.8% | 31.2% to 32.4% | - | no US figure for collision alone |
-| total losses on cars 7+ model years old | 79.6% | 79.0% to 80.2% | 72% | CCC Crash Course, US, 2025 |
-| average value of cars paid as total losses ($) | 10,429 | 10,313 to 10,571 | 13,400 to 13,700 | CCC Crash Course, US, 2024-25 (used in setting values) |
-| closed liability and medical payments claims without payment | 43.3% | 42.5% to 44.0% | about 45% | WSJ analysis of NAIC filings, 2025 (tuned) |
-| closed collision and comprehensive claims without payment | 15.1% | 14.9% to 15.4% | just under 25% | WSJ analysis of NAIC filings, 2025 (tuned) |
-| closed collision claims without payment | 22.3% | 22.1% to 22.9% | - | (collision alone) |
-| average age of insured cars in force, last full year (years) | 10.67 | 10.62 to 10.70 | 12.6 (2024), 12.8 (2025) | S&P Global Mobility, US light vehicles in operation |
-| share of claim cost in the costliest 1% of risk rows with a claim | 16.4% | 16.0% to 17.0% | - | no US figure on these terms |
-| coefficient of variation of claim cost per risk row with a claim | 2.14 | 2.09 to 2.19 | - | no US figure on these terms |
-| bodily injury claimants paid the full per-person limit | 20.2% | 19.3% to 21.3% | - | no public US figure |
-| bodily injury paid per claimant, median ($) | 17,250 | 17,000 to 17,750 | - | no public US figure |
-| bodily injury paid per claimant, 90th percentile ($) | 51,340 | 50,000 to 56,700 | - | no public US figure |
-| bodily injury paid per claimant, 99th percentile ($) | 123,088 | 100,000 to 142,500 | - | no public US figure |
+| total-loss share, paid collision and comprehensive claims (glass apart) | 27.8% | 27.4% to 28.3% | 22.1% (2024), 22.8% (2025) | CCC Crash Course, US: all appraised vehicle claims |
+| total-loss share, paid collision claims | 31.8% | 31.5% to 32.1% | - | no US figure for collision alone |
+| total losses on cars 7+ model years old | 80.2% | 79.8% to 80.7% | 72% | CCC Crash Course, US, 2025 |
+| average value of cars paid as total losses ($) | 10,392 | 10,324 to 10,573 | 13,400 to 13,700 | CCC Crash Course, US, 2024-25 (used in setting values) |
+| closed liability and medical payments claims without payment | 43.1% | 42.5% to 43.7% | about 45% | WSJ analysis of NAIC filings, 2025 (tuned) |
+| closed collision and comprehensive claims without payment | 15.5% | 15.4% to 15.8% | just under 25% | WSJ analysis of NAIC filings, 2025 (tuned) |
+| closed collision claims without payment | 22.7% | 22.0% to 23.7% | - | (collision alone) |
+| average age of insured cars in force, last full year (years) | 10.64 | 10.61 to 10.68 | 12.6 (2024), 12.8 (2025) | S&P Global Mobility, US light vehicles in operation |
+| share of claim cost in the costliest 1% of risk rows with a claim | 16.8% | 15.9% to 17.6% | - | no US figure on these terms |
+| coefficient of variation of claim cost per risk row with a claim | 2.18 | 2.11 to 2.32 | - | no US figure on these terms |
+| bodily injury claimants paid the full per-person limit | 21.1% | 20.0% to 21.6% | - | no public US figure |
+| bodily injury paid per claimant, median ($) | 17,125 | 16,375 to 18,000 | - | no public US figure |
+| bodily injury paid per claimant, 90th percentile ($) | 51,751 | 50,000 to 57,500 | - | no public US figure |
+| bodily injury paid per claimant, 99th percentile ($) | 130,048 | 100,000 to 215,000 | - | no public US figure |
 
 What they show:
 
@@ -128,11 +128,11 @@ What they show:
 - **The insured fleet is younger than all registered cars** (10.7 years against 12.6 to 12.8): the fleet is
   tuned to the cars in Chicago crashes, which are younger than the national stock, and insured cars are
   younger than registered ones, which include cars off the road.
-- **Physical damage claims close without payment less often than the industry's** (about 15% of collision
-  and comprehensive, against just under 25%; about 22% of collision alone). Comprehensive claims here are mostly glass,
+- **Physical damage claims close without payment less often than the industry's** (about 16% of collision
+  and comprehensive, against just under 25%; about 23% of collision alone). Comprehensive claims here are mostly glass,
   theft and hail, which are rarely denied. Liability and medical claims match (43% against about 45%).
-- **The tail is thinner than a real book's.** The costliest 1% of risk rows with a claim carry about 16% of
-  claim cost, and the coefficient of variation of cost per row is about 2.1. The Spanish portfolio in
+- **The tail is thinner than a real book's.** The costliest 1% of risk rows with a claim carry about 17% of
+  claim cost, and the coefficient of variation of cost per row is about 2.2. The Spanish portfolio in
   docs/real_data_comparison.md gives 24% and 4.4, but its limits and products differ, so it is not a target.
   One in five paid injury claimants is paid the full per-person limit, which reflects the many 25/50 policies
   in a Chicago book; there is no published US rate to compare with.
@@ -146,40 +146,40 @@ between half and double their reserve. Ranges are across the five seeds.
 
 | coverage | age | features | later paid / reserve | 10th pct | median | 90th pct | within 2x |
 |---|---|--:|--:|--:|--:|--:|--:|
-| BI | 0-3 months | 870 | 1.60 (1.54-1.64) | 0.00 (0.00-0.00) | 0.00 (0.00-0.00) | 3.00 (2.85-3.11) | 16% (13%-19%) |
-| BI | 3-12 months | 894 | 1.12 (1.09-1.15) | 0.00 (0.00-0.00) | 0.86 (0.79-0.92) | 1.85 (1.78-1.97) | 49% (46%-51%) |
-| BI | 1-2 years | 240 | 1.16 (1.10-1.21) | 0.13 (0.00-0.65) | 1.11 (1.09-1.14) | 1.78 (1.70-1.90) | 81% (79%-83%) |
-| BI | over 2 years | 61 | 1.16 (1.09-1.24) | 0.91 (0.83-0.96) | 1.12 (1.01-1.17) | 1.62 (1.46-1.76) | 94% (89%-98%) |
-| BI | all ages | 2,066 | 1.23 (1.20-1.27) | 0.00 (0.00-0.00) | 0.58 (0.38-0.72) | 2.10 (2.02-2.26) | 40% (38%-42%) |
-| PD | 0-3 months | 399 | 1.14 (1.05-1.23) | 0.00 (0.00-0.00) | 0.88 (0.85-0.93) | 2.13 (1.91-2.35) | 54% (51%-56%) |
-| PD | 3-12 months | 12 | 1.01 (0.98-1.05) | 0.62 (0.34-0.95) | 0.97 (0.91-1.05) | 1.18 (1.10-1.39) | 93% (82%-100%) |
-| PD | all ages | 411 | 1.13 (1.05-1.22) | 0.00 (0.00-0.00) | 0.89 (0.86-0.93) | 2.10 (1.90-2.33) | 55% (52%-57%) |
-| UM | 0-3 months | 59 | 1.72 (1.06-2.45) | 0.00 (0.00-0.00) | 0.88 (0.41-1.30) | 4.45 (3.28-6.01) | 29% (21%-40%) |
-| UM | 3-12 months | 71 | 1.23 (1.13-1.36) | 0.67 (0.60-0.79) | 1.19 (1.08-1.29) | 2.11 (1.95-2.21) | 81% (75%-85%) |
-| UM | 1-2 years | 24 | 1.20 (1.09-1.36) | 0.90 (0.76-1.03) | 1.16 (1.06-1.35) | 1.88 (1.76-2.05) | 92% (83%-100%) |
-| UM | over 2 years | 6 | 1.15 (1.08-1.28) | 0.91 (0.80-1.03) | 1.16 (1.11-1.24) | 1.49 (1.19-1.99) | 98% (90%-100%) |
-| UM | all ages | 160 | 1.34 (1.15-1.49) | 0.10 (0.00-0.15) | 1.13 (1.08-1.17) | 2.66 (2.38-2.96) | 64% (60%-68%) |
-| MED | 0-3 months | 86 | 1.20 (1.10-1.31) | 0.32 (0.29-0.39) | 1.00 (1.00-1.01) | 2.91 (2.26-3.31) | 68% (65%-72%) |
-| MED | 3-12 months | 23 | 1.09 (0.99-1.16) | 0.57 (0.39-0.77) | 1.04 (1.00-1.08) | 1.51 (1.34-1.71) | 86% (80%-96%) |
-| MED | 1-2 years | 1 | 0.79 (0.71-0.86) | 0.79 (0.71-0.86) | 0.79 (0.71-0.86) | 0.79 (0.71-0.86) | 100% (100%-100%) |
-| MED | all ages | 109 | 1.17 (1.11-1.24) | 0.34 (0.32-0.38) | 1.00 (1.00-1.02) | 2.55 (2.05-2.82) | 72% (70%-73%) |
-| COLL | 0-3 months | 539 | 0.99 (0.95-1.06) | 0.00 (0.00-0.00) | 0.98 (0.94-1.00) | 2.38 (2.21-2.56) | 52% (50%-54%) |
-| COLL | 3-12 months | 18 | 1.00 (0.96-1.02) | 0.60 (0.35-0.76) | 0.98 (0.92-1.01) | 1.27 (1.15-1.38) | 90% (80%-100%) |
-| COLL | 1-2 years | 2 | 0.99 (0.86-1.10) | 0.94 (0.80-1.03) | 0.99 (0.84-1.14) | 1.05 (0.88-1.25) | 100% (100%-100%) |
-| COLL | all ages | 557 | 0.99 (0.95-1.06) | 0.00 (0.00-0.00) | 0.98 (0.94-1.00) | 2.34 (2.17-2.52) | 53% (51%-56%) |
-| COMP | 0-3 months | 256 | 1.21 (1.07-1.30) | 0.00 (0.00-0.00) | 0.85 (0.79-0.88) | 2.74 (2.22-3.00) | 49% (43%-53%) |
-| COMP | 3-12 months | 5 | 0.91 (0.52-1.23) | 0.38 (0.17-0.73) | 0.82 (0.41-1.05) | 1.11 (0.83-1.37) | 66% (25%-100%) |
-| COMP | 1-2 years | 1 | 0.67 (0.29-1.05) | 0.67 (0.29-1.05) | 0.67 (0.29-1.05) | 0.67 (0.29-1.05) | 50% (0%-100%) |
-| COMP | all ages | 262 | 1.20 (1.07-1.30) | 0.00 (0.00-0.00) | 0.84 (0.80-0.88) | 2.69 (2.16-2.99) | 50% (44%-54%) |
-| RENT | 0-3 months | 316 | 0.94 (0.87-0.97) | 0.39 (0.34-0.40) | 0.96 (0.93-0.97) | 1.67 (1.58-1.75) | 78% (76%-79%) |
-| RENT | 3-12 months | 6 | 0.95 (0.91-0.99) | 0.76 (0.61-0.87) | 0.95 (0.87-1.02) | 1.04 (0.98-1.09) | 94% (83%-100%) |
-| RENT | all ages | 322 | 0.94 (0.87-0.97) | 0.39 (0.34-0.40) | 0.96 (0.93-0.97) | 1.65 (1.57-1.74) | 78% (76%-80%) |
-| TOW | 0-3 months | 35 | 0.94 (0.88-0.97) | 0.79 (0.64-0.91) | 1.00 (1.00-1.00) | 1.00 (1.00-1.00) | 97% (93%-100%) |
-| TOW | all ages | 35 | 0.94 (0.88-0.97) | 0.79 (0.64-0.91) | 1.00 (1.00-1.00) | 1.00 (1.00-1.00) | 97% (93%-100%) |
+| BI | 0-3 months | 890 | 1.61 (1.36-1.83) | 0.00 (0.00-0.00) | 0.00 (0.00-0.00) | 2.92 (2.54-3.19) | 16% (14%-17%) |
+| BI | 3-12 months | 929 | 1.13 (1.11-1.15) | 0.00 (0.00-0.00) | 0.89 (0.83-0.99) | 1.83 (1.68-1.97) | 51% (49%-52%) |
+| BI | 1-2 years | 247 | 1.16 (1.08-1.24) | 0.36 (0.00-0.68) | 1.10 (1.02-1.18) | 1.75 (1.59-1.93) | 83% (80%-86%) |
+| BI | over 2 years | 61 | 1.11 (1.09-1.15) | 0.90 (0.83-0.99) | 1.12 (1.07-1.15) | 1.55 (1.41-1.61) | 95% (91%-98%) |
+| BI | all ages | 2,127 | 1.23 (1.18-1.29) | 0.00 (0.00-0.00) | 0.59 (0.43-0.77) | 2.04 (1.96-2.14) | 41% (40%-43%) |
+| PD | 0-3 months | 393 | 1.15 (1.08-1.21) | 0.00 (0.00-0.00) | 0.89 (0.87-0.91) | 2.18 (1.74-2.47) | 54% (51%-57%) |
+| PD | 3-12 months | 9 | 1.01 (0.89-1.10) | 0.79 (0.56-1.06) | 0.99 (0.89-1.12) | 1.16 (1.02-1.31) | 97% (86%-100%) |
+| PD | 1-2 years | 1 | 1.13 (0.91-1.35) | 1.13 (0.91-1.35) | 1.13 (0.91-1.35) | 1.13 (0.91-1.35) | 100% (100%-100%) |
+| PD | all ages | 403 | 1.14 (1.08-1.20) | 0.00 (0.00-0.00) | 0.89 (0.88-0.91) | 2.15 (1.71-2.47) | 55% (52%-57%) |
+| UM | 0-3 months | 53 | 1.85 (1.50-2.38) | 0.00 (0.00-0.00) | 0.99 (0.60-1.68) | 5.01 (3.40-9.29) | 35% (27%-49%) |
+| UM | 3-12 months | 69 | 1.20 (1.04-1.29) | 0.56 (0.12-0.75) | 1.19 (1.10-1.27) | 2.10 (1.79-2.38) | 79% (65%-86%) |
+| UM | 1-2 years | 23 | 1.17 (1.04-1.37) | 0.80 (0.74-0.92) | 1.17 (1.02-1.34) | 1.68 (1.36-1.95) | 92% (88%-96%) |
+| UM | over 2 years | 5 | 1.18 (0.95-1.67) | 0.88 (0.73-1.04) | 1.10 (0.94-1.31) | 1.40 (1.04-1.73) | 100% (100%-100%) |
+| UM | all ages | 150 | 1.31 (1.26-1.36) | 0.14 (0.00-0.36) | 1.15 (1.12-1.21) | 2.55 (2.11-3.13) | 66% (63%-70%) |
+| MED | 0-3 months | 82 | 1.12 (1.00-1.24) | 0.34 (0.26-0.43) | 1.00 (1.00-1.00) | 2.52 (1.82-3.41) | 68% (62%-73%) |
+| MED | 3-12 months | 29 | 1.08 (1.00-1.19) | 0.67 (0.54-0.80) | 1.01 (0.98-1.05) | 1.46 (1.23-1.68) | 92% (90%-96%) |
+| MED | 1-2 years | 1 | 0.81 (0.81-0.81) | 0.81 (0.81-0.81) | 0.81 (0.81-0.81) | 0.81 (0.81-0.81) | 100% (100%-100%) |
+| MED | all ages | 111 | 1.11 (1.02-1.17) | 0.36 (0.29-0.45) | 1.00 (1.00-1.00) | 2.14 (1.72-2.36) | 75% (71%-77%) |
+| COLL | 0-3 months | 520 | 1.03 (0.98-1.08) | 0.00 (0.00-0.00) | 0.96 (0.93-1.00) | 2.54 (2.20-2.81) | 52% (49%-54%) |
+| COLL | 3-12 months | 14 | 1.01 (0.98-1.04) | 0.69 (0.50-1.00) | 1.01 (1.00-1.02) | 1.22 (1.08-1.48) | 95% (88%-100%) |
+| COLL | all ages | 534 | 1.03 (0.98-1.08) | 0.00 (0.00-0.00) | 0.97 (0.94-1.00) | 2.48 (2.18-2.73) | 53% (50%-55%) |
+| COMP | 0-3 months | 242 | 1.23 (1.08-1.40) | 0.00 (0.00-0.00) | 0.85 (0.80-0.88) | 2.87 (2.45-3.60) | 47% (43%-53%) |
+| COMP | 3-12 months | 4 | 0.93 (0.79-1.05) | 0.40 (0.15-0.70) | 0.65 (0.31-0.96) | 1.14 (0.91-1.37) | 63% (33%-100%) |
+| COMP | 1-2 years | 2 | 0.86 (0.86-0.86) | 0.75 (0.75-0.75) | 0.88 (0.88-0.88) | 1.01 (1.01-1.01) | 100% (100%-100%) |
+| COMP | all ages | 247 | 1.23 (1.08-1.40) | 0.00 (0.00-0.00) | 0.85 (0.80-0.88) | 2.85 (2.42-3.58) | 47% (43%-53%) |
+| RENT | 0-3 months | 317 | 0.95 (0.94-0.97) | 0.38 (0.35-0.44) | 0.95 (0.94-0.96) | 1.64 (1.53-1.71) | 79% (77%-81%) |
+| RENT | 3-12 months | 4 | 0.96 (0.91-1.10) | 0.89 (0.81-1.00) | 0.97 (0.89-1.11) | 1.06 (0.95-1.25) | 100% (100%-100%) |
+| RENT | all ages | 322 | 0.95 (0.93-0.97) | 0.39 (0.35-0.44) | 0.95 (0.94-0.96) | 1.64 (1.52-1.71) | 79% (77%-81%) |
+| TOW | 0-3 months | 37 | 0.94 (0.89-0.96) | 0.84 (0.68-1.00) | 1.00 (1.00-1.00) | 1.00 (1.00-1.00) | 97% (92%-100%) |
+| TOW | all ages | 37 | 0.94 (0.89-0.96) | 0.84 (0.68-1.00) | 1.00 (1.00-1.00) | 1.00 (1.00-1.00) | 97% (92%-100%) |
 
 Reserve reviews raise the reserve about as often as they lower it, at every age. Property claims open at a
-year-end later paid within about a fifth of what was reserved for them in aggregate (collision 0.99,
-comprehensive 1.20, property damage 1.13); rental reserves are a little redundant. Young injury reserves are short, by design: early injury
+year-end later paid within about a fifth of what was reserved for them in aggregate (collision 1.03,
+comprehensive 1.23, property damage 1.14); rental reserves are a little redundant. Young injury reserves are short, by design: early injury
 estimates average about 86% of ultimate and many injury claimants present or grow later, so bodily injury
 incurred develops upward as in industry triangles. Individual features scatter widely (most claims either
 close for nothing or settle well away from the reserve), which is what case reserves look like. They are,
@@ -191,24 +191,24 @@ fewer than 20 reviews left out).
 
 | coverage | age | reviews | up | down |
 |---|---|--:|--:|--:|
-| BI | 0-3 months | 1,581 | 55% (53%-57%) | 45% (43%-47%) |
-| BI | 3-12 months | 4,068 | 55% (55%-56%) | 45% (44%-45%) |
-| BI | 1-2 years | 1,066 | 58% (56%-61%) | 42% (39%-44%) |
-| BI | over 2 years | 294 | 60% (54%-64%) | 40% (36%-46%) |
-| PD | 0-3 months | 2,483 | 48% (46%-49%) | 52% (51%-54%) |
-| PD | 3-12 months | 64 | 46% (35%-55%) | 54% (45%-65%) |
-| UM | 0-3 months | 114 | 50% (46%-54%) | 50% (46%-54%) |
-| UM | 3-12 months | 328 | 57% (54%-60%) | 43% (40%-46%) |
-| UM | 1-2 years | 107 | 58% (51%-67%) | 42% (33%-49%) |
-| UM | over 2 years | 32 | 62% (52%-67%) | 38% (33%-48%) |
-| MED | 0-3 months | 248 | 40% (37%-44%) | 60% (56%-63%) |
-| MED | 3-12 months | 86 | 63% (58%-65%) | 37% (35%-42%) |
-| COLL | 0-3 months | 2,653 | 53% (52%-53%) | 47% (47%-48%) |
-| COLL | 3-12 months | 44 | 68% (64%-73%) | 32% (27%-36%) |
-| COMP | 0-3 months | 1,085 | 56% (54%-57%) | 44% (43%-46%) |
-| COMP | 3-12 months | 5 | 54% (29%-100%) | 46% (0%-71%) |
-| RENT | 0-3 months | 2,288 | 45% (43%-47%) | 55% (53%-57%) |
-| RENT | 3-12 months | 50 | 50% (39%-59%) | 50% (41%-61%) |
+| BI | 0-3 months | 1,602 | 55% (53%-56%) | 45% (44%-47%) |
+| BI | 3-12 months | 4,096 | 55% (55%-56%) | 45% (44%-45%) |
+| BI | 1-2 years | 1,095 | 57% (55%-61%) | 43% (39%-45%) |
+| BI | over 2 years | 293 | 59% (58%-62%) | 41% (38%-42%) |
+| PD | 0-3 months | 2,513 | 47% (46%-48%) | 53% (52%-54%) |
+| PD | 3-12 months | 59 | 47% (30%-56%) | 53% (44%-70%) |
+| UM | 0-3 months | 101 | 48% (42%-56%) | 52% (44%-58%) |
+| UM | 3-12 months | 307 | 55% (52%-57%) | 45% (43%-48%) |
+| UM | 1-2 years | 103 | 58% (51%-69%) | 42% (31%-49%) |
+| UM | over 2 years | 28 | 62% (47%-77%) | 38% (23%-53%) |
+| MED | 0-3 months | 255 | 39% (32%-44%) | 61% (56%-68%) |
+| MED | 3-12 months | 93 | 57% (50%-66%) | 43% (34%-50%) |
+| COLL | 0-3 months | 2,670 | 53% (52%-54%) | 47% (46%-48%) |
+| COLL | 3-12 months | 36 | 66% (53%-87%) | 34% (13%-47%) |
+| COMP | 0-3 months | 1,083 | 55% (54%-56%) | 45% (44%-46%) |
+| COMP | 3-12 months | 9 | 63% (44%-80%) | 37% (20%-56%) |
+| RENT | 0-3 months | 2,293 | 46% (44%-48%) | 54% (52%-56%) |
+| RENT | 3-12 months | 52 | 52% (45%-55%) | 48% (45%-55%) |
 
 ## 5. What is not benchmarked
 

@@ -13,7 +13,7 @@ description: Who Lakefront is: three underwriting companies, 134 agencies and tw
 |---|---|
 | Business | Personal auto insurance only: private passenger cars, SUVs, pickups and vans |
 | Territory | Cook, DuPage, Lake, Will, Kane, McHenry and Kendall counties: 290 ZIP codes |
-| Size | About 22,200 policies and 38,300 cars in force at the end of 2026, and some $51 million of premium a year: roughly 1% of the area’s household vehicles |
+| Size | About 22,300 policies and 38,400 cars in force at the end of 2026, and some $51 million of premium a year: roughly 1% of the area’s household vehicles |
 | History in the data | 1 January 2022 to 31 December 2026. 19,747 policies were already in force on the first day; 43,368 policies were written or renewed in all |
 | Companies | Three underwriting companies, for preferred, standard and non-standard risks |
 | Distribution | 120 independent agencies, 14 exclusive agents’ offices, and direct sales online and by phone |
@@ -37,7 +37,7 @@ The company’s three-letter code is part of every policy number: `0830512-LFM-4
 
 Customers reach Lakefront in three ways. The channel matters: it changes who buys, how much they pay in commission, and how long they stay.
 
-**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 46 or fewer Lakefront policies in force, the largest has 475, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
+**Independent agents.** 120 agencies that also sell other insurers’ policies. Most are small: half have 46 or fewer Lakefront policies in force, the largest has 496, and the largest tenth write over a third of the channel’s premium. Their comparative raters show them competitors’ prices, so their quotes record the best competing premium (`quote.competitor_annual_premium`). They earn 10% to 15% commission on new business and two or three points less on renewals, depending on the agency.
 
 **Exclusive agents.** 14 offices that sell only Lakefront, each carrying its agent’s name. They average about 430 policies each and earn somewhat less commission.
 
@@ -124,10 +124,10 @@ Each increase made Lakefront dearer than its competitors until they caught up, s
 
 | Year end | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---:|---:|---:|---:|---:|
-| Policies in force | 20,566 | 19,390 | 19,896 | 21,086 | 22,236 |
-| Loss ratio, by accident year | 83.7% | 80.3% | 65.0% | 60.2% | 69.1% |
+| Policies in force | 20,564 | 19,402 | 19,958 | 21,130 | 22,283 |
+| Loss ratio, by accident year | 89.9% | 74.5% | 66.4% | 64.6% | 66.9% |
 
-The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Ten catastrophes, all real storms from NOAA’s Storm Events Database (hailstorms, two derechos and flash floods, from 2023 on), add between 0.9 and 5.9 points a year from 2023 (`catastrophe`); the storms are real, the claims on them simulated.
+The loss ratio is losses incurred on that year’s accidents, without adjustment expenses, as a share of earned premium, valued at the end of 2026; the 2026 figure is still immature. Over the same years the US industry ran 80.2%, 75.4%, 66.1% and 61.5% (2022 to 2025). Ten catastrophes, all real storms from NOAA’s Storm Events Database (hailstorms, two derechos and flash floods, from 2023 on), add between 0.8 and 6.2 points a year from 2023 (`catastrophe`); the storms are real, the claims on them simulated.
 
 ## What the books leave out
 

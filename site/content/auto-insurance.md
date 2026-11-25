@@ -65,7 +65,7 @@ The plan’s goal is that premiums match expected losses plus expenses and profi
 A term is rated on its **rating date**, using only what the insurer knows by then. A speeding ticket that hasn’t reached the driving record yet doesn’t count until the next renewal.
 
 <div class="in-the-data" markdown="1">
-`exposure` holds each car’s rated characteristics (`exposure.rated_driver_class`, `exposure.rated_violation_points`, `exposure.rated_at_fault_accidents`, `exposure.tenure_years` and more), the discounts applied and the resulting premium by coverage. Territories are on `location` (`location.liability_territory`, `location.comprehensive_territory`); vehicle symbols on `vehicle_model_year` (`vehicle_model_year.physical_damage_symbol`, `vehicle_model_year.liability_symbol`). `rate_change` lists every overall change. `driver_incident.known_date` says when each violation or accident became known.
+`exposure` holds each car’s rated characteristics (`exposure.rated_driver_class`, `exposure.rated_violation_points`, `exposure.rated_at_fault_accidents`, `exposure.tenure_years` and more), the discounts applied and the resulting premium by coverage. Territories are on `location` (`location.liability_territory`, `location.comprehensive_territory`); vehicle symbols on `vehicle_model_year` (`vehicle_model_year.physical_damage_symbol`, `vehicle_model_year.liability_symbol`). `rate_change` lists every overall change. `driver_incident.known_date` says when each violation or accident reached the records the insurer reads, and so from when rating can use it.
 </div>
 
 ## Written, earned and unearned premium
