@@ -228,11 +228,13 @@ def build(cfg: C.Config, cal, T: dict) -> dict:
             post("Case reserve changes", c, k, [(5200, res_loss[c, k]), (2500, -res_loss[c, k]),
                                                 (5210, res_exp[c, k]), (2510, -res_exp[c, k])])
     # each 31 December the year's income statement accounts are closed to surplus (a year not ended by the valuation
-    # date is left open): after closing they stand at zero, and surplus has moved by the year's net income
+    # date is left open, even when the valuation falls in December: its last period runs only to the valuation date):
+    # after closing they stand at zero, and surplus has moved by the year's net income
     income = [a[0] for a in ACCOUNTS if a[4] == "Income statement"]
     j = pd.DataFrame(lines, columns=["journal", "c", "k", "account", "debit", "credit"])
     act = j[(j.k > 0) & j.account.isin(income)]
-    year_end = {p_[:4]: k + 1 for k, p_ in enumerate(period(np.arange(n_months))) if p_.endswith("-12")}
+    year_end = {p_[:4]: k + 1 for k, p_ in enumerate(period(np.arange(n_months)))
+                if p_.endswith("-12") and first_of(k + 1) - 1 <= V}
     net = (act.debit - act.credit).groupby([act.c.to_numpy(), period(act.k.to_numpy() - 1).astype("U4"), act.account.to_numpy()]).sum()
     for (c, y), g in net.groupby(level=[0, 1]):
         if y in year_end:

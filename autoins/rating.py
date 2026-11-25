@@ -97,7 +97,9 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
     drv = st.pop.drv
     pol = v["pol"][V]
     d = v["primary_drv"][V] if household is None else household["drv"]
-    age = (s - drv.dob_day.to_numpy()[d]) / 365.25
+    # ages and years licensed in completed calendar years, as a rating class is filed: a driver moves class on the
+    # birthday itself
+    age = cal.age(s, drv.dob_day.to_numpy()[d])
     male = drv.male.to_numpy()[d]
     band = np.searchsorted([18, 21, 25, 30, 40, 50, 65, 75], age, side="right")
     cls = np.where(band <= 2, band * 2 + (~male), band + 3)
@@ -108,7 +110,7 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
         s_pol = np.zeros(len(p["zi"]), dtype=int)
         s_pol[pol] = s
         dp = drv.pol.to_numpy()
-        young = drv.active.to_numpy() & ~drv.assigned.to_numpy() & ((s_pol[dp] - drv.dob_day.to_numpy()) / 365.25 < 25)
+        young = drv.active.to_numpy() & ~drv.assigned.to_numpy() & (cal.age(s_pol[dp], drv.dob_day.to_numpy()) < 25)
         young_unassigned = np.bincount(dp, young, len(s_pol)) > 0
         # ... on whichever insured vehicle now has the highest rank (the least valuable car when first written)
         last_rank = np.full(len(s_pol), -1)
@@ -120,9 +122,9 @@ def codes(st: truth.Static, cal, V: np.ndarray, s: np.ndarray, points: np.ndarra
     return {
         "class": cls,
         "married": np.asarray(household["married"]).astype(int),
-        "inexperienced": ((s - drv.licensed_day.to_numpy()[d]) < 3 * 365.25).astype(int),
+        "inexperienced": (cal.age(s, drv.licensed_day.to_numpy()[d]) < 3).astype(int),
         "good_student": truth.good_student(drv.good_grades.to_numpy()[d], drv.school_end_day.to_numpy()[d],
-                                           drv.dob_day.to_numpy()[d], s).astype(int),
+                                           drv.dob_day.to_numpy()[d], s, cal).astype(int),
         "violation_points": np.minimum(points, 4),
         "at_fault_accidents": np.minimum(accidents, 2),
         "score_tier": np.where(np.isnan(score), 0, 1 + np.searchsorted(SCORE_EDGES, np.nan_to_num(score), side="right")),

@@ -8,7 +8,7 @@ claim_number = "The claim number printed on documents: two-digit report year and
 policy_id = "The policy the loss falls under."
 policy_term_id = "The policy term in force on the loss date."
 exposure_id = "The exposure row (vehicle and endorsement period) in force at the loss: the rating and coverage terms the claim is paid under."
-involved_driver_id = "For crashes (`AF_MV`, `AF_SV`, `NAF`), the insured driver at the wheel. For parked-car and comprehensive losses no driver was involved and this is the policy's named insured on the loss date, so do not charge those claims to that driver."
+involved_driver_id = "For crashes (`AF_MV`, `AF_SV`, `NAF`) and collisions with an animal (`ANIMAL`), the insured driver at the wheel: one of the car's drivers, as they share it. For parked-car and other comprehensive losses no driver was involved and this is the policy's named insured on the loss date, so do not charge those claims to that driver."
 insured_vehicle_id = "The insured vehicle involved."
 vehicle_model_year_id = "The make, model and model year of the vehicle, the same as on `insured_vehicle`."
 loss_date = "Date of the accident or loss, on or before the valuation date."
@@ -53,7 +53,7 @@ grain = "Payment, void or recovery on a claim feature"
 summary = """Every loss payment, expense payment, void and salvage or subrogation recovery dated on or before the valuation date (December 31, 2026), with its payee, method, check and bank detail and approver; it is the basis for paid development triangles. `amount` is signed (payments positive, voids and recoveries negative), so filter on `payment_type` before summing. A voided payment keeps its row and a separate `Void` row cancels it."""
 
 [claim_payment.columns]
-payment_id = "Primary key. Numbered in date order."
+payment_id = "Primary key. Numbered in date order, and within a day in the order the payments happened: a void after the check it cancels and its reissue after the void, so replaying payments by `payment_id` never runs a feature's paid loss below zero."
 claim_feature_id = "The feature the payment is made on."
 claim_id = "The claim the payment belongs to."
 payment_date = "Date the payment was issued or the recovery received, always a business day."
@@ -186,7 +186,7 @@ financial_statement = "`Balance sheet` or `Income statement`."
 
 [gl_journal]
 grain = "Journal line: one account in one monthly journal entry"
-summary = """Monthly journal entries for each underwriting company and kind of activity, each summarizing a published subledger table, plus one opening entry on December 31, 2021 that sets the opening balances, cash and surplus included, and a closing entry each December 31 that moves the year's income-statement balances into surplus. All lines sharing a `journal_number` balance. An account's balance is the running sum of `debit` minus `credit` from the opening entry, so after each year-end the income-statement accounts start again from zero and surplus carries the year's result. For a year's income statement, sum its periods leaving out `Year-end closing`."""
+summary = """Monthly journal entries for each underwriting company and kind of activity, each summarizing a published subledger table, plus one opening entry on December 31, 2021 that sets the opening balances, cash and surplus included, and a closing entry each December 31 that moves the year's income-statement balances into surplus (only for a December 31 on or before the valuation date: with a valuation in mid-December the year to date stays open). All lines sharing a `journal_number` balance. An account's balance is the running sum of `debit` minus `credit` from the opening entry, so after each year-end the income-statement accounts start again from zero and surplus carries the year's result. For a year's income statement, sum its periods leaving out `Year-end closing`."""
 
 [gl_journal.columns]
 journal_line_id = "Primary key. Ordered by period, company and journal."
@@ -254,7 +254,7 @@ summary = """Each vehicle's true annual mileage and whether it belongs to the Ki
 [insured_vehicle_truth.columns]
 insured_vehicle_id = "Primary key, and the `insured_vehicle` described."
 true_annual_mileage = "Miles the vehicle is actually driven a year at its latest status (as `insured_vehicle.annual_mileage`), which drives its true claim frequency; `exposure_truth.true_annual_mileage` has it for each period. `insured_vehicle.annual_mileage` is the customer's report: this figure understated (by about 10% for the typical car), rounded to 500 and held between 1,000 and 30,000."
-kia_hyundai_theft_exposure = "`Y` for Kia and Hyundai model years 2011 to 2021 that are not electric, the key-start cars hit by the theft wave: their vehicle theft rate is multiplied by a yearly factor peaking at 6 in 2023. Students can rebuild the flag from `vehicle_model_year`."
+kia_hyundai_theft_exposure = "`Y` for a Kia or Hyundai of model year 2011 to 2021, not electric, built without an immobiliser (`insured_vehicle.anti_theft_device` = `N`): the steel-key, turn-to-start cars the theft wave targeted. Their vehicle theft rate is multiplied by a yearly factor peaking at 6 in 2023. Students can rebuild the flag from `vehicle_model_year` and `insured_vehicle.anti_theft_device`; make and model year alone over-count it, since many of those series offered or fitted an immobiliser."
 
 [location_truth]
 grain = "ZIP code"

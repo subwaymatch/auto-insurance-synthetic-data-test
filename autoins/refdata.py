@@ -76,6 +76,18 @@ def day_weight(cal: "Calendar", day, w) -> np.ndarray:
     return out
 
 
+def completed_years(start, day, birth_day) -> np.ndarray:
+    """Whole years completed between `birth_day` and `day` (day numbers from `start`), as an age is counted: it goes
+    up on the birthday's calendar date, and a 29 February birthday is reached on 1 March in a common year. Also
+    years licensed, from the license date."""
+    d = start + np.asarray(day).astype("timedelta64[D]")
+    b = start + np.asarray(birth_day).astype("timedelta64[D]")
+    year = lambda x: x.astype("M8[Y]").astype(np.int64)
+    # (month, day of month) as one number, to tell whether the anniversary has come this year
+    md = lambda x: (x.astype("M8[M]").astype(np.int64) % 12) * 32 + (x.astype("M8[D]") - x.astype("M8[M]")).astype(np.int64)
+    return (year(d) - year(b) - (md(d) < md(b))).astype(np.int64)
+
+
 @dataclass
 class Calendar:
     """Day 0 is the start date. Arrays are indexed by day number."""
@@ -93,6 +105,10 @@ class Calendar:
 
     def date(self, day) -> np.ndarray:
         return self.start + np.asarray(day).astype("timedelta64[D]")
+
+    def age(self, day, birth_day) -> np.ndarray:
+        """Whole years completed on `day` since `birth_day` (completed_years)."""
+        return completed_years(self.start, day, birth_day)
 
     # ---- the working calendar. Day numbers may be negative (before the start) or beyond the horizon.
     def weekday(self, day) -> np.ndarray:

@@ -38,6 +38,8 @@ REJOIN_WAIT_DAYS = 730                 # a customer who left is not offered the 
 DROPOUT_RATE = 0.16                    # a year, at a middling score; poor scorers leave faster
 BEHAVIOUR_FACTOR = 0.93                # at-fault crash frequency while a car is monitored
 METRIC_NOISE = 0.35
+BASE_RATES = {"hard_brakes": 1.2, "rapid_accels": 0.7}     # an average driver's events per 100 miles
+CREDIBILITY_MILES = 100                # a score blends a window's event rates with the average over this many miles
 
 
 def _by_year(table: dict, year: np.ndarray) -> np.ndarray:
@@ -63,34 +65,78 @@ def device(r: np.random.Generator, year) -> np.ndarray:
     return np.minimum((r.random(len(p))[:, None] > np.cumsum(p, axis=1)).sum(axis=1), len(DEVICE_TYPES) - 1)
 
 
+def per_100_miles(events, miles) -> np.ndarray:
+    """Events per 100 miles, as a programme reports them: whole events over the whole miles driven (none over none)."""
+    events, miles = np.asarray(events, dtype=float), np.asarray(miles, dtype=float)
+    return np.where(miles > 0, 100 * events / np.maximum(miles, 1), 0.0)
+
+
 def metrics(r: np.random.Generator, propensity, age, true_miles, density, days) -> dict:
     """Driving metrics over a monitoring window of `days` for each car. propensity: the primary driver's at-fault
-    propensity relative to an average driver; true_miles: the car's true annual mileage."""
+    propensity relative to an average driver; true_miles: the car's true annual mileage. The device counts whole
+    miles and whole events: the driver's underlying rates of hard braking and rapid acceleration (per 100 miles) are
+    drawn first, and the events over the miles driven are drawn from them, so a published rate is always a whole
+    number of events over the miles (and a short window can have none)."""
     n = len(days)
     noise = lambda s=METRIC_NOISE: np.exp(r.normal(-s * s / 2, s, n))
     young = np.interp(age, [16, 21, 25, 30, 70, 85], [1.9, 1.6, 1.3, 1.0, 1.0, 1.15])
     m = np.clip(propensity, 0.1, 8)
-    miles = true_miles * days / 365.25 * noise(0.08)
+    miles = np.round(true_miles * days / 365.25 * noise(0.08))
     trip_len = 6.5 * np.clip(density / 5000, 0.3, 3) ** -0.15 * noise(0.15)
-    return {
+    out = {
         "miles": miles,
-        "trips": np.maximum(np.round(miles / trip_len), 1).astype(int),
-        "hard_brakes": 1.2 * m ** 0.55 * (density / 5000).clip(0.2, 5) ** 0.12 * noise(),
-        "rapid_accels": 0.7 * m ** 0.45 * young ** 0.5 * noise(0.4),
+        "trips": np.where(miles > 0, np.maximum(np.round(miles / trip_len), 1), 0).astype(int),
+        "hard_brake_rate": BASE_RATES["hard_brakes"] * m ** 0.55 * (density / 5000).clip(0.2, 5) ** 0.12 * noise(),
+        "rapid_accel_rate": BASE_RATES["rapid_accels"] * m ** 0.45 * young ** 0.5 * noise(0.4),
         "speeding_pct": np.minimum(2.5 * m ** 0.6 * young ** 0.4 * noise(0.45), 40),
         "phone_minutes": 2.5 * m ** 0.4 * young ** 0.8 * noise(0.5),
         "night_pct": np.minimum(2.5 * m ** 0.25 * young ** 1.2 * noise(0.5), 45),
     }
+    out["hard_brake_events"] = r.poisson(out["hard_brake_rate"] * miles / 100)
+    out["rapid_accel_events"] = r.poisson(out["rapid_accel_rate"] * miles / 100)
+    return with_rates(out)
+
+
+def with_rates(mt: dict) -> dict:
+    """The metrics with their published event rates, from the whole events over the whole miles."""
+    return {**mt, "hard_brakes": per_100_miles(mt["hard_brake_events"], mt["miles"]),
+            "rapid_accels": per_100_miles(mt["rapid_accel_events"], mt["miles"])}
+
+
+def part_of(r: np.random.Generator, mt: dict, frac) -> dict:
+    """The metrics of the first `frac` of each window (a customer who left the programme part-way is scored up to
+    then): its share of the miles, rounded to whole miles, with the window's events falling in those miles; the
+    shares of time and the phone use per mile are the window's."""
+    frac = np.asarray(frac, dtype=float)
+    miles = np.round(mt["miles"] * frac)
+    share = np.where(mt["miles"] > 0, miles / np.maximum(mt["miles"], 1), 0.0)
+    out = {**mt, "miles": miles,
+           "trips": np.where(miles > 0, np.maximum(np.round(mt["trips"] * frac), 1), 0).astype(int),
+           "hard_brake_events": r.binomial(mt["hard_brake_events"], share),
+           "rapid_accel_events": r.binomial(mt["rapid_accel_events"], share)}
+    return with_rates(out)
+
+
+def _credible(events, miles, base) -> np.ndarray:
+    """An event rate per 100 miles for scoring: the events over the miles, blended with the average driver's rate
+    over CREDIBILITY_MILES, so a short window (few miles, perhaps no events) scores near the middle."""
+    events, miles = np.asarray(events, dtype=float), np.asarray(miles, dtype=float)
+    return (events + base * CREDIBILITY_MILES / 100) / (miles + CREDIBILITY_MILES) * 100
 
 
 def score(mt: dict, days) -> np.ndarray:
     """A 1-100 driving score (higher is safer) from the metrics, as programmes publish them: braking, speeding
     and phone use weigh most; more miles and late-night driving count against. A plug-in device cannot see the
-    phone (phone_minutes NaN): the other behaviours then carry its weight in proportion."""
+    phone (phone_minutes NaN): the other behaviours then carry its weight in proportion. Hard braking and rapid
+    acceleration are scored on their events over the miles driven, given the average driver's rate over the first
+    CREDIBILITY_MILES (_credible): a window with no events is scored, not undefined, and a window of a few miles
+    says little either way."""
     annual = mt["miles"] * 365.25 / np.maximum(days, 1)
     phone = np.log(np.asarray(mt["phone_minutes"], dtype=float) / 2.5)
     seen = ~np.isnan(phone)
-    behaviour = (0.30 * np.log(mt["hard_brakes"] / 1.2) + 0.15 * np.log(mt["rapid_accels"] / 0.7)
+    hb, ra = BASE_RATES["hard_brakes"], BASE_RATES["rapid_accels"]
+    behaviour = (0.30 * np.log(_credible(mt["hard_brake_events"], mt["miles"], hb) / hb)
+                 + 0.15 * np.log(_credible(mt["rapid_accel_events"], mt["miles"], ra) / ra)
                  + 0.25 * np.log(np.maximum(mt["speeding_pct"], 0.05) / 2.5)
                  + 0.10 * np.log(np.maximum(mt["night_pct"], 0.05) / 2.5))
     behaviour = np.where(seen, behaviour + 0.20 * np.nan_to_num(phone), behaviour / 0.80)

@@ -2,12 +2,137 @@
 
 An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
 realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, follow-up checks
-of the release that fixed them, an audit of v1.1.7 on 23 November 2026, and audits of v1.1.8 on 24 November and
-v1.1.9 on 25 November 2026. The newest is answered first, then the earlier ones in reverse order: the audits of
-v1.1.8 and v1.1.7, the follow-up checks, the two audits, the 20 November audit at commit `03c2634` and the third
-review at `9fe6062`; the first two follow. Each finding is answered: **confirmed and fixed**, **already
-addressed**, **not adopted** (a suggestion outside this dataset's scope, now listed in
-[limitations.md](limitations.md)), or **agreed, already documented**.
+of the release that fixed them, an audit of v1.1.7 on 23 November 2026, audits of v1.1.8 on 24 November and
+v1.1.9 on 25 November 2026, and an audit of v1.1.10 the same day. The newest is answered first, then the earlier
+ones in reverse order: the audits of v1.1.9, v1.1.8 and v1.1.7, the follow-up checks, the two audits, the 20
+November audit at commit `03c2634` and the third review at `9fe6062`; the first two follow. Each finding is
+answered: **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
+now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Audit of v1.1.10 (25 November 2026)
+
+An audit of v1.1.10 (`main` at `7f6f4d1`, report in [realism-audit-v1.1.10.md](realism-audit-v1.1.10.md)) rebuilt the
+default run (content hash `9774ec39a673aeea`) and seed 101 (`ccf9e0445a89c5c8`); both passed all 203 checks. It
+reported eight findings, with record IDs, code locations and acceptance tests. All eight reproduce on the same
+builds. Seven are **confirmed and fixed** in the generator; F3 is **confirmed and fixed in the documentation** (the
+field keeps its values, whose meaning is now stated). "After" figures are from the default run after this change
+(content hash `f50d197acf7a40b4`) and seed 101 (`f7c338f8f7c20dce`); both pass all 207 checks. On v1.1.10's default
+run the four new checks and three that were tightened fail (seven in all; F7's needs a December valuation).
+
+| # | Finding | Before (default; seed 101) | After (default; seed 101) |
+|---|---|---|---|
+| F1 | Original renewal offers made from a car list and premiums rewritten later by a backdated write-off | 41 offers; 41 (the audit's counts) | 0; 0 (50 and 39 offers now keep the lost car, at the premiums of the day) |
+| F2 | Hard-braking and rapid-acceleration rates that no whole number of events can give | 40,916 and 41,213 of 61,927 windows; 40,431 and 40,652 of 61,062 | 0 and 0; 0 and 0 |
+| F3 | `driver_incident.known_date` documented as the day the insurer learned of the incident | 12,233 of 16,644 new-business rows dated before the quote | Values kept; documented as the record's posting date |
+| F4 | Every 2011-21 non-electric Kia and Hyundai without an immobilizer and in the theft wave | 6,216 of 6,216; 6,248 of 6,248 | 3,562 of 6,248; 3,490 of 6,185 |
+| F5 | Rated ages counted in 365.25-day years, so a driver changed class a day late | 577 rows (315 drivers, 70 across a class boundary); 521 (305, 58) | 0; 0 |
+| F6 | A void numbered before the check it cancels | 8 of 75 voids; 9 of 59 | 0 of 47; 0 of 46 |
+| F7 | A mid-December valuation closes the year early | 36 closing lines on 15 December, $891,643.64 to surplus (seed 11, 1,500 policies) | 0; the year to date stays open |
+| F8 | Animal collisions charged to the named insured | 529 claims, all naming the named insured; 579 | 566, naming the car's drivers as other crashes do; 582 |
+
+**F1. Original offers and backdated write-offs.** Confirmed. The offer was evaluated from the expiring term's rows in
+force on the offer day, after the whole term had been simulated, so a car written off before the offer but reported
+after it was already gone, and the other cars already carried the re-rating made at the report (without the
+multi-car discount). `simulate.known_in_force` now rebuilds the policy as the company knew it on the offer day: a row
+counts once it is rated, and a row that ended at a change learned of later (the lost car's, and the others' rows cut
+at the backdated removal) is still running. Read this way, the audit's example (policy 48529's April 8, 2022
+offer in the v1.1.10 data) holds both cars and $1,839.21 of expiring premium, as the audit worked out; the revision
+on the report date, May 9, drops the lost car. `validate.py`'s renewal check rebuilds the same view from the
+published rows (a row's end is known when the term's rows starting there were rated, or, for a write-off with no such
+row, at the claim's report) instead of the rewritten intervals. As the audit expected, its SQL still matches
+backdated rows (70 and 60 rows); the check is on the offer values. A unit test builds the two-car case and moves the
+report later: the original offer is unchanged and the revision moves with the report. **Remaining, documented:**
+when the claim is reported only after the renewal has taken effect (8 cars in each book), the renewal term is still
+rated without the lost car from its start ([limitations.md](limitations.md)).
+
+**F2. Event rates.** Confirmed. `telematics.metrics` now draws each driver's underlying rates, then whole events over
+the whole miles driven (`miles_driven` is what the device counted), and publishes the rates from those counts; a
+customer who leaves part-way is shown the miles and events up to then (`telematics.part_of`, a binomial share of the
+window's events) and the score of that driving. The score reads the events with the average driver's rate over the
+first 100 miles (`CREDIBILITY_MILES`), so a window with no events (429 in the default run) is scored, and a window
+of a few miles says little either way; zero miles record zero events. The score and discount distributions barely
+move (mean score 76.3 before and after; average earned discount 17.9% against 18.0%; windows under 500 miles score
+81.3 against 81.4). A new check confirms every rate is a whole number of events over the miles.
+
+**F3. What `known_date` means.** Confirmed: the date is the source's posting date (the conviction reaching the
+driving record, the accident reaching a claims-history report, or the company's own claim crossing $1,000), not the
+day Lakefront first looked. That is the date rating and underwriting use (an incident counts from it), and the
+insurer pulls the reports at the quote and when a driver is added, so incidents posted before then are known then.
+The values are kept and the dictionary, README and website now say so; a carrier-receipt column was not added.
+
+**F4. The theft wave's cars.** Confirmed. A 2011-21 Kia or Hyundai now has an immobilizer as its series had one that
+model year (`config.KIA_HYUNDAI_IMMOBILISER`): for 2015-19 from HLDI Bulletin 38(28) (December 2021), Table 1, which
+lists the series with the immobilizer optional or not available (so a series it leaves out had it as standard);
+other model years take the nearest year HLDI documents; series first sold after 2019 follow the 2023 software
+campaign (the 2020-21 Venue and the 2021 K5 and Seltos had steel-key trims; the Telluride is not on Kia's list).
+Where it was optional, 40% of cars are assumed to have it (the push-button-start trims, `KIA_HYUNDAI_OPTIONAL_SHARE`):
+no trim mix is published, and at 40% about three in five of the brands' 2011-21 cars are key-start, about what the
+campaign's 8.3 million eligible vehicles imply. The answer key's `kia_hyundai_theft_exposure` is now exactly the
+cohort's cars without an immobilizer. `validate.py` checks HLDI's corroborated cases (the Rio and the 2015-17 Accent
+never have one; the 2017-19 Sorento, the 2019 Veloster and the series HLDI leaves out always do; the big optional
+series have both) and prints the insured-car mix (43% of the cohort with an immobilizer) apart from HLDI's series
+mix (26% of 2015 series standard). Thefts per 1,000 comprehensive vehicle-years of the exposed cars are now 9.2,
+15.1, 8.2, 3.6 and 5.2 in 2022 to 2026 (others 1.0 to 1.5): the rate per exposed car is as before, and the equipped
+cars no longer dilute it; the counts are small, so the peak year moves between runs.
+
+**F5. Ages.** Confirmed. Ages are now completed calendar years (`refdata.completed_years`, `Calendar.age`): an age goes
+up on the birthday, and a 29 February birthday is reached on 1 March in a common year. The rated age, the class, the
+under-25 occasional operator, the good-student age limit, three years licensed (inexperienced operator) and the
+quote's ages all use it. The audit's driver (born 19 January 2001) is rated 21, class `21-24 F`, on her 21st
+birthday. A check compares every
+rated age with the driver's birth date and the class with its age band; unit tests cover the day before, on and
+after a class-changing birthday and the 29 February convention.
+
+**F6. Void order.** Confirmed: same-day legs were ordered by signed amount, so a void (negative) came first.
+`claims.in_order` now puts a void after the check it cancels and the reissue after the void, the rest by amount, and
+payment IDs follow it. A check confirms every void's ID is above its check's; a unit test replays an issue, void,
+reissue and an unrelated payment on one day without the paid balance going negative.
+
+**F7. Year-end on a December valuation.** Confirmed with the audit's build: three closings on 15 December moved
+$891,643.64 to surplus. `ledger.build` now closes a year only when its 31 December is on or before the valuation date.
+The ledger check now requires every closing on 31 December, once per company, for exactly the years ended by the
+valuation date. The same build now closes 2022 to 2024 only and passes; a unit test builds a mid-December book.
+
+**F8. Animal collisions.** Confirmed: the comprehensive path drew no driver, so the claim fell back to the named
+insured. A collision with an animal now draws the driver at the wheel from the car's usage, as other crashes do
+(`truth.simulate`); it stays a comprehensive, not-at-fault loss, and payments to the insured still go to the named
+insured. Parked-car and other comprehensive losses keep the named-insured fallback, documented as such. A check
+confirms that on cars whose rated driver is not the named insured most animal claims name someone else (84%, as
+84% of not-at-fault crashes; v1.1.10: 0%).
+
+**Found while checking.** Seed 101 turned up one more defect of the occasional youthful kind: a replacement for a car
+written off that joins in the same period was rated before the household's car assignments were refreshed, so a
+young driver whose own car had been lost still counted as having one (one period). The assignments are now
+refreshed before the replacement is rated.
+
+### External comparisons
+
+The audit's external comparisons are **agreed, already documented**; none supports retuning. Collision and
+comprehensive take-up (83.3% and 88.2% of 2023 exposure against Illinois' 82.6% and 87.5%) and national collision
+frequency and severity (1.31 and 0.90 times) are inside their bands and are tuning targets, so agreement is by
+construction, as [benchmarks.md](benchmarks.md) says. More but smaller collision claims than the national table is
+what an urban book with an older fleet would show, and the severity side is the damage model's known pull toward
+total losses on older, cheaper cars (benchmarks §3), which would need its own evidence on repair cost by age to
+change. The tail (the costliest 1% of vehicle-years with a claim carry 16.0% of synthetic cost, 23.8% of real) and
+the shared-factor Gini (0.106 against 0.222) are against a Spanish portfolio with effectively unlimited injury
+cover, other products and defective claim counts; [real_data_comparison.md](real_data_comparison.md) already lists
+both as material differences and names the frequency level, claim-count dispersion and coverage mix as things not
+to change on that evidence. The comparison script already works on vehicle-years (the audit's period-length
+caveat): rerun on this change's default book it gives 17.7% and 0.104. The audit's conclusion, that the book suits
+portfolio analysis better than extreme-loss estimates or model performance for a real Chicago insurer, matches
+[limitations.md](limitations.md).
+
+### What changed in the data
+
+Every 2011-21 Kia and Hyundai with an immobilizer leaves the theft wave (2,686 of 6,248 cars in the default run);
+telematics rates are whole events; rated ages move to the birthday (577 rows in v1.1.10's book, 70 of them across a
+class boundary); animal claims name
+the car's driver; a few dozen original offers keep a lost car. These change later random draws, so every figure of
+the default run moves a little: loss ratios by accident year 89.9%, 74.5%, 66.4%, 64.6% and 66.9% for 2022 to 2026
+(were 83.7%, 80.3%, 65.0%, 60.2% and 69.1%); 2022's actual is 1.11 times its expected, inside its band, from a few
+large injury claims (that year's bodily injury total has a standard deviation of 3.5% of premium); overall 71.2%
+(was 70.5%); annualized retention 81.3%; 22,831 claims (was 22,670). `validate.py` runs 207 checks (was 203), all
+passing on the default run and seed 101. The test suite has 93 tests.
 
 ## Audit of v1.1.9 (25 November 2026)
 

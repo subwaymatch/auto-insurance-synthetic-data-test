@@ -70,24 +70,24 @@ business is accidental; vehicle symbols are this dataset's own scales.
 `docs/real_data_comparison.md` compares the book with a real motor portfolio (Lledó and Pavía, Mendeley
 Data 2024, CC BY 4.0; almost certainly a Spanish insurer, 2015 to 2018). The two markets, currencies and
 products differ, so only shapes are compared, not levels. Where a fair comparison is possible the synthetic
-data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.25 times
-in the synthetic, newly licensed drivers 1.37 and 1.30 times, urban vehicles 1.14 and 1.15 times, and
+data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.24 times
+in the synthetic, newly licensed drivers 1.37 and 1.31 times, urban vehicles 1.14 and 1.13 times, and
 claim costs and premiums spread alike. These differences remain:
 
 1. **Tenure protects less.** Long-standing customers are safer than new ones, but less than in the real book
-   (0.69 times the claim frequency after ten years in the real data, 0.84 in the synthetic, other things
+   (0.69 times the claim frequency after ten years in the real data, 0.87 in the synthetic, other things
    equal). Claims do now cost customers as in the real book: a real contract with a claim is 1.45 times as
-   likely to end as one without, a synthetic one 1.57 times, and 900 of 11,501 synthetic non-renewals are the
+   likely to end as one without, a synthetic one 1.59 times, and 898 of 11,523 synthetic non-renewals are the
    company's decision.
 2. **Payment plan carries less risk.** Real half-yearly payers claim 1.61 times as often as annual payers,
-   other things equal; synthetic installment payers 1.10 times.
+   other things equal; synthetic installment payers 1.12 times.
 3. **The largest claims are smaller.** The costliest 1% of claim-years make up 24% of real claim cost and
-   16% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
+   18% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
    checked against US data (no US figure on comparable terms is published; see [benchmarks.md](benchmarks.md)).
 4. **Channel makes less difference.** Real broker business runs 12% above average frequency; synthetic
-   independent-agent business runs 1% above, and 6% above exclusive-agent business with other things equal.
+   independent-agent business runs 1% above, and 3% above exclusive-agent business with other things equal.
 5. **Shared factors carry less predictive signal.** A simple model on the factors both books record ranks
-   held-out real claims better (Gini 0.22) than synthetic ones (0.106), because of points 1, 2 and 4 and
+   held-out real claims better (Gini 0.22) than synthetic ones (0.104), because of points 1, 2 and 4 and
    because 30% of synthetic claims are comprehensive (glass, theft, weather), which the driver's
    characteristics barely predict.
 
@@ -141,6 +141,11 @@ Those synthetic figures are plausible but unverified.
 - A renewal is decided once, on its offer date. A revised offer after a household change re-rates the renewal
   but the customer does not decide again, and coverage changes the customer makes at renewal (deductibles,
   limits) are not offered back as a new quote, so the written premium can differ from `renewal_premium`.
+- An offer is made from the policy as the company knew it that day, so a car written off before the offer but
+  reported after it is still offered, and the revision on the report date drops it. When the report comes only
+  after the renewal has taken effect (about eight cars a run), the renewal term is nonetheless rated without the
+  lost car from its start, on its offer date; a real insurer would have issued it with the car and re-rated it
+  back to inception when the claim came in.
 
 **Claims**
 
@@ -243,7 +248,12 @@ Those synthetic figures are plausible but unverified.
   been about half what such cars fetched in 2022 to 2024), which is what brought physical damage premiums
   up to Illinois' level.
 - Equipment (automatic emergency braking, an immobiliser) follows assumed shares by model year, earlier for
-  luxury cars and EVs; the theft-wave Kias and Hyundais have no immobiliser.
+  luxury cars and EVs. A 2011-21 Kia or Hyundai has an immobiliser as its series did that model year: HLDI's
+  table of 2015-19 series (Bulletin 38(28), 2021), carried to the nearest documented year outside it, and the 2023
+  software campaign for series first sold after 2019. Where it was optional, 40% of cars are assumed to have it
+  (the push-button-start trims): no trim mix is published, so the share of the brands' cars exposed to the theft
+  wave is an assumption, and the catalog's one model per name merges series HLDI tells apart (the Santa Fe and
+  Santa Fe Sport, the Elantra and Elantra GT).
 - Price does not limit what is insured: the odd exotic car is in the book, rated like any other, as a
   regional insurer might write one (most would place it on a specialty form).
 - Collision and comprehensive take-up is tuned to Illinois' (83% and 88% of insured cars); how it falls
@@ -292,18 +302,19 @@ Those synthetic figures are plausible but unverified.
   physical damage payments here are about a quarter too high against it, and Illinois' premiums could not then be matched
   at industry loss ratios. The sources do not settle it.
 - **Collision claims are frequent and often total losses.** Collision frequency runs 31% above
-  national on the like-for-like comparison in the default run (26% to 34% across five seeds; an urban
+  national on the like-for-like comparison in the default run (27% to 34% across five seeds; an urban
   book), in the upper half of the band `validate.py` allows. About 32% of paid collision claims are total
   losses, and 28% of paid collision and comprehensive claims with glass left out, against 22% to 23% of
   all appraisals nationally (CCC); 80% of total losses are on cars seven or more model years old (CCC:
-  72%), and the average car written off is worth about $10,300 (CCC: $13,400 to $13,700). CCC also counts
+  72%), and the average car written off is worth about $10,400 (CCC: $13,400 to $13,700). CCC also counts
   appraisals that are not paid and third-party ones, which are more often repairable, so part of the gap
   is definition; the rest is the damage model, in which an old car totals more easily than real ones seem
   to (see [benchmarks.md](benchmarks.md)).
-- **Claim luck is real.** A year of this book has about 210 to 290 paid bodily injury claims, and one
-  standard deviation of their total is 1.3 to 2.5 loss-ratio points. In the default run each full year
-  comes within 7% of its expected loss ratio, without catastrophes (2022: 83.7% against 81.0%; 2025: 59.3%
-  against 63.4%); across five seeds a year's actual runs 0.93 to 1.08 times its expected. Other seeds and
+- **Claim luck is real.** A year of this book has about 210 to 270 paid bodily injury claims, and one
+  standard deviation of their total is 1.7 to 3.5 loss-ratio points. In the default run each full year
+  comes within 11% of its expected loss ratio, without catastrophes (2022: 89.9% against 81.1%, on a few large
+  injury claims; 2023: 70.4% against 74.5%); across five seeds a year's actual runs 0.90 to 1.11 times its
+  expected. Other seeds and
   sizes give other years their luck; `validate.py` holds each year's actual, without catastrophes, to 0.85
   to 1.15 times its expected.
 - **The last year is immature.** 2026 is the least developed year: young injury claims are reserved low,

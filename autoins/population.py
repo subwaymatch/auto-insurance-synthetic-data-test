@@ -600,17 +600,40 @@ def draw_vehicles(ref: Reference, r: np.random.Generator, pol_idx, year_frac, in
     veh["segment"] = mdl.segment.to_numpy()[mi_]
     veh["body_type"] = mdl.body_type.to_numpy()[mi_]
     veh["theft_factor"] = mdl.theft_factor.to_numpy()[mi_]
-    veh["kia_hyundai"] = np.isin(mdl.make.to_numpy()[mi_], ["Kia", "Hyundai"]) & (mdl.fuel_type.to_numpy()[mi_] != "Electric") \
+    make, model = mdl.make.to_numpy()[mi_], mdl.model.to_numpy()[mi_]
+    cohort = np.isin(make, ["Kia", "Hyundai"]) & (mdl.fuel_type.to_numpy()[mi_] != "Electric") \
         & (model_year >= C.KIA_HYUNDAI_MODEL_YEARS[0]) & (model_year <= C.KIA_HYUNDAI_MODEL_YEARS[1])
     # equipment by model year (config.AEB_SHARE, IMMOBILISER_SHARE): luxury cars and EVs had both a couple of years
-    # early, Teslas from the start; the theft-wave Kias and Hyundais are the ones built without an immobiliser
+    # early, Teslas from the start; a 2011-21 Kia or Hyundai has an immobiliser as its series and model year had it
+    # (config.KIA_HYUNDAI_IMMOBILISER), and the theft wave's cars are those built without one
     lux = np.isin(veh.segment, ["luxury", "ev"])
-    tesla = mdl.make.to_numpy()[mi_] == "Tesla"
+    tesla = make == "Tesla"
     share = lambda table, year: np.interp(year, list(table), list(table.values()))
     veh["adas"] = r.random(nv) < np.where(tesla & (model_year >= 2015), 1.0, share(C.AEB_SHARE, model_year + 2 * lux))
-    veh["anti_theft"] = (r.random(nv) < np.where(tesla, 1.0, share(C.IMMOBILISER_SHARE, model_year + 3 * lux))) \
-        & ~veh.kia_hyundai.to_numpy()
+    p_kh = immobiliser_share(make, model, model_year)
+    p = np.where(cohort, p_kh, np.where(tesla, 1.0, share(C.IMMOBILISER_SHARE, model_year + 3 * lux)))
+    veh["anti_theft"] = r.random(nv) < p
+    veh["kia_hyundai"] = cohort & ~veh.anti_theft.to_numpy()
     return veh
+
+
+def immobiliser_status(make, model, model_year) -> np.ndarray:
+    """Whether each 2011-21 Kia or Hyundai's series had a passive immobiliser that model year: "std", "opt" or "na"
+    (config.KIA_HYUNDAI_IMMOBILISER; a model it does not list "opt")."""
+    make, model, model_year = np.asarray(make), np.asarray(model), np.asarray(model_year)
+    out = np.full(len(make), "opt", dtype=object)
+    for (mk, md), spans in C.KIA_HYUNDAI_IMMOBILISER.items():
+        m = (make == mk) & (model == md)
+        for y0, y1, status in spans:
+            out[m & (model_year >= y0) & (model_year <= y1)] = status
+    return out
+
+
+def immobiliser_share(make, model, model_year) -> np.ndarray:
+    """The chance a 2011-21 Kia or Hyundai was built with an immobiliser: 1 where its series had one as standard, none
+    where it was not available, config.KIA_HYUNDAI_OPTIONAL_SHARE where it was an option."""
+    status = immobiliser_status(make, model, model_year)
+    return np.select([status == "std", status == "na"], [1.0, 0.0], C.KIA_HYUNDAI_OPTIONAL_SHARE)
 
 
 def draw_ownership(r: np.random.Generator, vehicle_age, acquired: bool = False) -> np.ndarray:

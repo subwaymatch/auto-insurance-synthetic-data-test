@@ -504,7 +504,8 @@ class GeneratorTest(unittest.TestCase):
         o, term, risk = self.read("renewal_offer"), self.read("policy_term"), self.read("exposure")
         rep, out = validate.Report(), io.StringIO()
         with contextlib.redirect_stdout(out):
-            validate.integrity_renewals(rep, o, term, risk, self.a["valuation"])
+            validate.integrity_renewals(rep, o, term, risk, self.a["valuation"], self.read("insured_vehicle"),
+                                        self.read("claim"), self.read("claim_feature"))
         self.assertEqual(rep.failures, 0, out.getvalue())
         declined = o[o["outcome"].isin(["Insured Did Not Renew", "Company Non-Renewal"])]
         self.assertTrue({"Renewed", "Insured Did Not Renew", "Canceled Before Renewal", "Pending"} <= set(o["outcome"]))
@@ -815,6 +816,34 @@ class MarketAndLedgerTest(unittest.TestCase):
         self.assertGreater(dearer[0], ten)                                   # used cars were dearer in 2022
 
 
+class MidDecemberValuationTest(unittest.TestCase):
+    """A valuation in mid-December leaves that year open: the ledger closes only the years whose 31 December is in
+    the extract, each once, on that day (ledger.build)."""
+
+    def test_current_year_left_open(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = replace(C.Config(), n_policies=500, seed=11, valuation="2025-12-15", out_dir=Path(tmp))
+            summary = generate(cfg)
+            gl = pd.read_csv(Path(tmp) / "gl_journal.csv")
+            closing = gl[gl["journal_type"] == "Year-end closing"]
+            self.assertEqual(sorted(closing["accounting_period"].str[:4].unique()), ["2022", "2023", "2024"])
+            self.assertTrue((closing["posting_date"].str[5:] == "12-31").all())
+            self.assertFalse(closing[closing["account_number"] == 3000].duplicated(["company_id", "accounting_period"]).any())
+            # the year to date stays on the income statement accounts
+            acct = pd.read_csv(Path(tmp) / "gl_account.csv")
+            income = acct.loc[acct["financial_statement"] == "Income statement", "account_number"]
+            ytd = gl[gl["account_number"].isin(income) & (gl["accounting_period"].str[:4] == "2025")]
+            self.assertGreater((ytd["debit"] - ytd["credit"]).abs().sum(), 0)
+            t = validate.rebuild(validate.load(Path(tmp)), summary["start"], summary["valuation"])
+            rep, out = validate.Report(), io.StringIO()
+            with contextlib.redirect_stdout(out):
+                validate.integrity_ledger(rep, t["gl_journal"], t["gl_account"], t["agency_statement"], t["premium_transaction"],
+                                          t["policy"], t["policy_term"], t["billing_invoice"], t["billing_receipt"],
+                                          t["claim_payment"], t["claim"], t["claim_feature"], t["claim_reserve_transaction"],
+                                          t["agency"], np.datetime64(summary["start"]), np.datetime64(summary["valuation"]))
+            self.assertEqual(rep.failures, 0, out.getvalue())
+
+
 class LitigationTimelineTest(unittest.TestCase):
     def test_a_short_claim_runs_longer_instead_of_suing_before_the_attorney(self) -> None:
         """Seed 7 produced a bodily injury feature opened on its loss date and drawn to close 171 days later,
@@ -1097,6 +1126,30 @@ class KnownRemovalTest(unittest.TestCase):
         self.assertEqual(ev[["pol", "day"]].values.tolist(), [[0, 40]])
         self.assertEqual(list(T.rate_from), [45, -10 ** 9])        # re-rated from the report, backdated to day 40
 
+    def test_offer_sees_the_policy_as_known_that_day(self):
+        """Two cars on one term; car 0 is written off on day 49 (removed from day 50), and the claim is first reported
+        on day `report`, when car 1 is re-rated from day 50 without its multi-car discount. An offer between the
+        removal and the report sees both cars at their old premium; one after the report sees car 1 alone. Moving the
+        report later leaves the original offer unchanged and moves the revision with it."""
+        for report in (80, 100):
+            rows = pd.DataFrame(dict(term=[0, 0, 0], pol=[0, 0, 0], veh=[0, 1, 1], s=[0, 0, 50], x=[50, 50, 180],
+                                     rated_on=[-30, -30, report], gone_known=[report, -1, -1], prem=[830.85, 1008.36, 923.17]))
+            for day, want in ((40, [0, 1]), (70, [0, 1]), (report - 1, [0, 1]), (report, [2]), (150, [2])):
+                got = simulate.known_in_force(rows, np.full(3, day))
+                self.assertEqual(list(np.flatnonzero(got)), want, (report, day))
+            self.assertAlmostEqual(rows.prem[simulate.known_in_force(rows, np.full(3, 70))].sum(), 1839.21, places=2)
+            # the validator's reading of the published rows agrees (dates as text, the write-off known from the claim)
+            D = lambda d: str(np.datetime64("2022-01-01") + np.timedelta64(int(d), "D"))
+            pub = pd.DataFrame(dict(policy_term_id=[1, 1, 1], coverage_start_date=[D(d) for d in rows.s],
+                                    coverage_end_date=[D(d) for d in rows.x], rating_date=[D(d) for d in rows.rated_on]))
+            gk = np.array([D(report), None, None], dtype=object)
+            for day in (40, 70, report - 1, report, 150):
+                np.testing.assert_array_equal(validate.known_in_force(pub, np.full(3, D(day)), gk),
+                                              simulate.known_in_force(rows, np.full(3, day)))
+        # a car sold on day 50 (its removal known that day) is not on a later offer
+        sold = pd.DataFrame(dict(term=[0, 0, 0], s=[0, 0, 50], x=[50, 50, 180], rated_on=[-30, -30, 50], gone_known=[-1, -1, -1]))
+        self.assertEqual(list(np.flatnonzero(simulate.known_in_force(sold, np.full(3, 70)))), [2])
+
     def test_rental_stops_at_the_only_driver_death(self):
         from types import SimpleNamespace
         T = SimpleNamespace(death_end=np.array([15, 10 ** 9]))
@@ -1157,6 +1210,37 @@ class KnownRemovalTest(unittest.TestCase):
         self.assertEqual(seen, {"cars": [0], "day": [30]})
 
 
+class ImmobilizerTest(unittest.TestCase):
+    """A 2011-21 Kia or Hyundai has an immobilizer as its series had one that model year (population.immobiliser_*,
+    after HLDI Bulletin 38(28), Table 1): never where it was not available, always where it was standard, on some cars
+    where it was an option. The theft wave's exposure follows the car, not its make and year."""
+
+    def test_series_and_years(self):
+        cars = [("Kia", "Rio", 2016), ("Hyundai", "Accent", 2015), ("Kia", "Sorento", 2018), ("Hyundai", "Veloster", 2019),
+                ("Kia", "Telluride", 2021), ("Hyundai", "Genesis", 2015), ("Hyundai", "Elantra", 2017), ("Kia", "Sorento", 2015),
+                ("Hyundai", "Accent", 2019), ("Kia", "Rondo", 2012)]
+        make, model, year = (np.array(c) for c in zip(*cars))
+        self.assertEqual(population.immobiliser_status(make, model, year.astype(int)).tolist(),
+                         ["na", "na", "std", "std", "std", "std", "opt", "opt", "opt", "opt"])
+        p = population.immobiliser_share(make, model, year.astype(int))
+        self.assertEqual(p[:6].tolist(), [0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+        self.assertTrue(np.allclose(p[6:], C.KIA_HYUNDAI_OPTIONAL_SHARE))
+
+
+class VoidOrderTest(unittest.TestCase):
+    """A check voided and reissued on the day it was cut is numbered issue, void, reissue (claims.in_order), and a
+    payment of the same feature that day keeps its place by amount."""
+
+    def test_same_day_void_follows_its_check(self):
+        legs = pd.DataFrame(dict(fid=[1, 1, 1, 1], day=[10, 10, 10, 10], kind="Loss",
+                                 txn=["Partial Payment", "Partial Payment", "Void", "Reissue"],
+                                 cents=[109_009, 50_000, -109_009, 109_009]))
+        got = claims.in_order(legs.iloc[[3, 2, 0, 1]])
+        self.assertEqual(got.txn.tolist(), ["Partial Payment", "Partial Payment", "Void", "Reissue"])
+        self.assertEqual(got.cents.tolist(), [50_000, 109_009, -109_009, 109_009])
+        self.assertTrue((got.cents.cumsum() >= 0).all())        # paid to date never negative, replayed in order
+
+
 class BillingCashTest(unittest.TestCase):
     """billing._covered: a refund goes out only once the premium received covers it and the refunds before it."""
 
@@ -1170,13 +1254,32 @@ class BillingCashTest(unittest.TestCase):
 
 
 class QuoteAgeTest(unittest.TestCase):
-    """quotes._age_on: the named insured's age from their whole-day birth day, as the youngest driver's is."""
+    """quotes._age_on: the named insured's age from their whole-day birth day, as the youngest driver's is, in
+    completed calendar years (refdata.completed_years), as the rated age."""
 
     def test_named_insured_age_matches_birth_day(self):
-        first, age = np.array([1000.0, 1000.0]), np.array([29.9990, 45.5])
-        dob = np.floor(first - age * 365.25)
-        self.assertEqual(np.floor(quotes._age_on(first, age)).tolist(), np.floor((first - dob) / 365.25).tolist())
-        self.assertEqual(np.floor(quotes._age_on(first, age)).tolist(), [30.0, 45.0])
+        cal = Calendar(start=np.datetime64("2022-01-01"), valuation_day=1825, horizon=1826)
+        first, age = np.array([1000, 1000]), np.array([29.9990, 45.5])
+        dob = np.floor(first - age * 365.25).astype(int)
+        self.assertEqual(quotes._age_on(cal, first, age).tolist(), cal.age(first, dob).tolist())
+        self.assertEqual(quotes._age_on(cal, first, age).tolist(), [30, 45])
+
+
+class CompletedAgeTest(unittest.TestCase):
+    """A driver's age goes up on the birthday itself (refdata.completed_years), so the rated class changes that day;
+    a 29 February birthday is reached on 1 March in a common year."""
+
+    def test_birthdays(self):
+        cal = Calendar(start=np.datetime64("2022-01-01"), valuation_day=1825, horizon=1826)
+        day = lambda s: int((np.datetime64(s) - cal.start).astype(int))
+        born = day("2001-01-19")                       # the audit's driver: 21 on 19 January 2022
+        self.assertEqual(cal.age(np.array([day("2022-01-18"), day("2022-01-19"), day("2022-01-20")]), born).tolist(), [20, 21, 21])
+        leap = day("2004-02-29")
+        got = cal.age(np.array([day(d) for d in ("2022-02-28", "2022-03-01", "2024-02-28", "2024-02-29")]), leap)
+        self.assertEqual(got.tolist(), [17, 18, 19, 20])
+        # the filed class follows: 18-20 the day before the 21st birthday, 21-24 on it
+        band = np.searchsorted([18, 21, 25, 30, 40, 50, 65, 75], cal.age(np.array([day("2022-01-18"), day("2022-01-19")]), born), side="right")
+        self.assertEqual(band.tolist(), [1, 2])
 
 
 class MileageHistoryTest(unittest.TestCase):

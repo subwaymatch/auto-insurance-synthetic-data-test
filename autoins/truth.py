@@ -50,12 +50,13 @@ TOW_MEAN = float(np.minimum(C.TOW_COST["median"] * np.exp(C.TOW_COST["sigma"] * 
 
 
 # ---------------------------------------------------------------------------- drivers and vehicles
-def good_student(good_grades, school_end_day, dob_day, day) -> np.ndarray:
-    """Good-student status on `day`: B grades, still in full-time school, and under the age limit.
-    The same rule drives the insurer's discount and the true-risk effect, so neither outlives school."""
+def good_student(good_grades, school_end_day, dob_day, day, cal: Calendar) -> np.ndarray:
+    """Good-student status on `day`: B grades, still in full-time school, and under the age limit (in completed
+    years, as the rated age). The same rule drives the insurer's discount and the true-risk effect, so neither
+    outlives school."""
     day = np.asarray(day)
     return np.asarray(good_grades, dtype=bool) & (day < np.asarray(school_end_day)) \
-        & ((day - np.asarray(dob_day)) / 365.25 < C.GOOD_STUDENT_MAX_AGE)
+        & (cal.age(day, np.asarray(dob_day)) < C.GOOD_STUDENT_MAX_AGE)
 
 
 def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
@@ -66,7 +67,7 @@ def driver_multiplier(drv: pd.DataFrame, day, cal: Calendar) -> np.ndarray:
     f = f * (1 + C.YOUNG_MALE_EXTRA * np.clip((27 - age) / 9, 0, 1) * drv.male.to_numpy())
     f = f * np.where(drv.marital.to_numpy() == "M", C.MARRIED_FACTOR, 1.0)
     f = f * np.interp(licensed, C.INEXPERIENCE_KNOTS, C.INEXPERIENCE_FACTOR)
-    gs = good_student(drv.good_grades.to_numpy(), drv.school_end_day.to_numpy(), drv.dob_day.to_numpy(), day)
+    gs = good_student(drv.good_grades.to_numpy(), drv.school_end_day.to_numpy(), drv.dob_day.to_numpy(), day, cal)
     f = f * np.where(gs, C.GOOD_STUDENT_FACTOR, 1.0)
     return f * drv.latent.to_numpy()
 
@@ -855,7 +856,10 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
                                                hail=peril in ("WEATHER", "HAIL_CAT"))
         ids = np.full(len(vi), -1)
         need = keep | towed
-        ids[need] = new_occurrences(peril, vi[need], day[need], np.full(need.sum(), -1), cat=cat)
+        # an animal is struck while someone drives the car: one of its drivers, as they share it; the other perils
+        # strike a car whoever has it (tables.py names the named insured)
+        who = _pick_driver(c, "key_any", vi[need], rng) if peril == "ANIMAL" else np.full(need.sum(), -1)
+        ids[need] = new_occurrences(peril, vi[need], day[need], who, cat=cat)
         ded = (c["glass_ded"] if peril == "GLASS" else c["comp_ded"])[vi]
         add("COMP", ids[keep], gross[keep], paid[keep], cwp[keep], total=paid_total[keep], salvage=salvage[keep],
             retained=retained[keep], cap=np.maximum(c["acv"][vi] - ded, 0.0)[keep])

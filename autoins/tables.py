@@ -159,7 +159,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
     # ---- drivers ------------------------------------------------------------------------------
     inc = pop.incidents
     # as the rest of the driver record: the status on the last day the driver was insured here (by the valuation date)
-    good_student = truth.good_student(drv.good_grades, drv.school_end_day, drv.dob_day, np.maximum(drv_end, drv.added_day))
+    good_student = truth.good_student(drv.good_grades, drv.school_end_day, drv.dob_day, np.maximum(drv_end, drv.added_day), cal)
     T["driver"] = pd.DataFrame({
         "driver_id": drv.drv + 1, "policy_id": polno(drv.pol),
         "driver_role": np.array(["Named Insured", "Spouse", "Other Adult", "Child"])[drv.role],

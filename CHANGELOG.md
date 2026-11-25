@@ -72,10 +72,15 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
     are rated, refunds wait for the cash, every endorsement records a change, a car written off re-rates the
     others that day, the first driver is an adult and licensed at inception, a fatal crash has a police report,
     and a crash's subrogation comes back together.
-16. **Unreleased, An audit of v1.1.9.** A car lost in a claim is taken off once the claim is reported (backdated),
+16. **2026-11-25, [v1.1.10](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.10): An audit of v1.1.9 ([PR #18](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/18)).** A car lost in a claim is taken off once the claim is reported (backdated),
     spare cars pass to drivers without one, divorced spouses are divorced, fatal crashes have police reports,
     lapsing policies pay no later endorsement bills, nothing is confirmed or chased after a cancellation, new
     policies are placed on what was known on their quote day, and opening telematics enrollments start with a term.
+17. **Unreleased, An audit of v1.1.10.** Original renewal offers are made from the policy as the company knew it
+    that day (a car written off but not yet reported is still on it), telematics rates are whole events over the
+    miles driven, ages are counted in completed years so a driver changes class on the birthday, only the 2011-21
+    Kias and Hyundais built without an immobiliser are in the theft wave, a void follows its check, a mid-December
+    valuation leaves the year open, and an animal collision names the driver at the wheel.
 
 ### Releases
 
@@ -95,12 +100,63 @@ published files; it is given where the changelog recorded it.
 | [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7) | 2026-11-22 | `529956c` | #15 | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
 | [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8) | 2026-11-24 | `635ea6f` | #16 | 43,368 policies to 2026-12-31 | `4a9b0599022f5117` |
 | [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9) | 2026-11-24 | `de3495e` | #17 | 43,368 policies to 2026-12-31 | `4612b99cdbc9e521` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `9774ec39a673aeea` |
+| [v1.1.10](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.10) | 2026-11-25 | `7f6f4d1` | #18 | 43,368 policies to 2026-12-31 | `9774ec39a673aeea` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `f50d197acf7a40b4` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
 
-## Unreleased: an audit of v1.1.9
+## Unreleased: an audit of v1.1.10
+
+An audit of v1.1.10 (default run and seed 101; [docs/realism-audit-v1.1.10.md](docs/realism-audit-v1.1.10.md))
+found eight issues that no check covered; both books passed every check. Figures are for the default run after
+these changes (content hash `f50d197acf7a40b4`). `docs/review_response.md` ("Audit of v1.1.10") answers each finding.
+
+- **Renewal offers from what was known on the offer day.** An offer was made from the expiring term's rows after the
+  whole term had been simulated, so a car written off before the offer but reported after it was already off the
+  offer, and the other cars already carried the re-rating made at the report (41 offers). The offer now reads the
+  policy as the company knew it that day (`simulate.known_in_force`): the lost car is offered and the others keep
+  their premium and multi-car discount; the revision on the report date drops the car. `validate.py` rebuilds the
+  same view from the published rows.
+- **Telematics events.** Hard-braking and rapid-acceleration rates were drawn as continuous numbers, so two-thirds of
+  them could not be a whole number of events over the miles. The device now counts whole miles and whole events (a
+  part-period after a customer leaves keeps its share of them), the rates are published from those counts, and the
+  score reads them with the average driver's rate over the first 100 miles, so a period with no events scores. The
+  score and discount distributions barely move.
+- **Ages on the birthday.** Ages were 365.25-day years, so a driver changed class a day late now and then (577 rows,
+  70 across a class boundary). Rated ages, classes, the under-25 surcharge, the good-student limit, years licensed
+  and the quote's ages are now completed calendar years; a 29 February birthday is reached on 1 March in a common
+  year.
+- **The Kia and Hyundai theft wave.** Every 2011-21 non-electric Kia and Hyundai had no immobiliser and was in the
+  theft wave. Each now has one as its series did that model year (HLDI Bulletin 38(28), 2021, for 2015-19; the
+  nearest documented year otherwise; the 2023 software campaign for later series), with 40% of cars equipped where it
+  was an option (ASSUMED); the answer key's exposure flag is the cars without one (3,562 of 6,248).
+- **Payments, the ledger and claims.** A void is numbered after the check it cancels (8 of 75 were before it); a
+  valuation in mid-December no longer closes the year early (a December 15 build had moved $891,644 to surplus); a
+  collision with an animal names the driver at the wheel instead of the named insured. A replacement car joining in
+  the period of a write-off is rated after the household's car assignments are refreshed (found on seed 101: a young
+  driver whose car was lost had escaped the occasional operator surcharge).
+- **Dictionary.** `driver_incident.known_date` is documented as the date the incident reached the record the insurer
+  reads (often before a new customer's quote), which is how rating uses it; the values are unchanged. The renewal
+  offer, telematics, age, immobiliser, payment, ledger and claim driver entries say what changed.
+- **Checks.** `validate.py` adds four checks (whole telematics events, void order, rated ages and classes, animal
+  claim drivers) and tightens three (renewal offers, the Kia and Hyundai immobilisers, the year-end closing): 207
+  in all. On v1.1.10's default run seven fail (the year-end one needs a December valuation). Unit tests cover the
+  offer-day view, the birthday and 29 February, the immobiliser table, the void order and a mid-December ledger.
+- **The default run** (content hash `f50d197acf7a40b4`): loss ratios by accident year 89.9%, 74.5%, 66.4%, 64.6% and
+  66.9% for 2022 to 2026, of which catastrophes 0.0%, 4.2%, 2.3%, 0.8% and 6.2%; overall 71.2% (was 70.5% in v1.1.10;
+  68.5% to 71.2% across five seeds); annualized retention 81.3%. 2022 runs 1.11 times its expected loss ratio, inside
+  its band, on a few large injury claims. 195,464 policy terms, 443,856 exposure rows, $211.6 million earned premium,
+  22,831 claims, 39,840 features, 60,830 claim payments, 104,050 reserve transactions, 880,409 bills and 892,253
+  receipts, 118,808 quotes and 168,968 renewal offers. These changes move later random draws, so every figure moves a
+  little; comprehensive frequency is a little lower with fewer theft-exposed cars (1.20 times national across
+  five seeds, was 1.22). All 207 checks
+  pass on the default run and on seeds 7, 11, 23 and 101, and every integrity check on seed 42 (content hashes
+  `c8c857569b4092d4`, `c4e2cc0bfc3eb50c`, `5f540252d0674d3b`, `f7c338f8f7c20dce` and `8bb2dbc4228c0276`); seed 42's
+  bodily injury frequency, 0.69 paid claims per 100 car-years, is again just below its tuning band's floor of 0.70
+  (`docs/benchmarks.md`). The test suite has 93 tests (92 pass, and one needs `pyarrow`).
+
+## 2026-11-25, [v1.1.10](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.10): An audit of v1.1.9 ([PR #18](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/18))
 
 An audit of v1.1.9 (default run and seed 101) found ten issues that no check covered; both books passed every
 check. Figures are for the default run after these changes (content hash `9774ec39a673aeea`).
