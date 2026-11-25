@@ -295,11 +295,13 @@ class Static:
         v.setdefault("tele_since", np.full(len(veh), -10 ** 6))
         return v
 
-    def retire(self, old: np.ndarray, day: np.ndarray, reason: int) -> None:
-        """Take vehicles `old` off their policies from `day` (the first day they are not insured)."""
+    def retire(self, old: np.ndarray, day: np.ndarray, reason: int, known=None) -> None:
+        """Take vehicles `old` off their policies from `day` (the first day they are not insured). `known`: the day
+        the company learned of it, if later (a car written off is removed, backdated, once the claim is reported)."""
         self.v["active"][old] = False
         self.v["removed_day"][old] = day
         self.v["removal_reason"][old] = reason
+        self.v["removal_known"][old] = day if known is None else np.maximum(day, known)
 
     def add_vehicles(self, new: pd.DataFrame) -> None:
         """Append vehicles (new must carry every stored vehicle column). Call set_usage before simulating them."""
@@ -876,6 +878,8 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         if not 0 <= d <= cal.valuation_day:
             continue
         p_hit = st.cat_p[i][c["zi"]] * np.array(C.PARKING_WEATHER_FACTOR)[c["park"]] * ((c["s"] <= d) & (d < c["x"]))
+        if "idle" in c:                                  # a car kept on a salvage title after a total loss
+            p_hit = p_hit * ~c["idle"]
         vi = np.flatnonzero(rng.random(c["n"]) < p_hit)
         comp_features(peril, vi, np.full(len(vi), d), cat=i)
 

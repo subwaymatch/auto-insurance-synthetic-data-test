@@ -2,11 +2,105 @@
 
 An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
 realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, follow-up checks
-of the release that fixed them, an audit of v1.1.7 on 23 November 2026, and an audit of the release that answered
-it (v1.1.8) on 24 November 2026. The newest is answered first, then the audit of v1.1.7, the follow-up checks, the two
-audits, the 20 November audit at commit `03c2634` and the third review at `9fe6062`; the first two follow. Each
-finding is answered: **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this
-dataset's scope, now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+of the release that fixed them, an audit of v1.1.7 on 23 November 2026, and audits of v1.1.8 on 24 November and
+v1.1.9 on 25 November 2026. The newest is answered first, then the earlier ones in reverse order: the audits of
+v1.1.8 and v1.1.7, the follow-up checks, the two audits, the 20 November audit at commit `03c2634` and the third
+review at `9fe6062`; the first two follow. Each finding is answered: **confirmed and fixed**, **already
+addressed**, **not adopted** (a suggestion outside this dataset's scope, now listed in
+[limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Audit of v1.1.9 (25 November 2026)
+
+An audit of v1.1.9 (`main` at `de3495e`) rebuilt the default run (content hash `4612b99cdbc9e521`) and seed 101
+(`edd0a9d11cbe5828`); both passed all 193 checks, with the previous round's 18 fixes holding. It reported ten
+findings no check covered. All reproduce (F9 on seed 101 only) and all are **confirmed and fixed**; for F7 the
+opening book's placement is documented rather than reconstructed (below). "After" figures are from the default run
+after this change (content hash `9774ec39a673aeea`) and seed 101 (`ccf9e0445a89c5c8`). Each finding has a check in
+`validate.py`; on v1.1.9 the new checks fail on the default run (8) and seed 101 (9; the salvage check fails only
+there).
+
+| # | Finding | Before (default; seed 101) | After (default; seed 101) |
+|---|---|---|---|
+| F1 | A car lost in a claim removed, re-rated, booked and confirmed before the claim was reported (some unreported at the valuation date) | 8 unreported claims' cars removed, 1,113 bookings and 1,810 re-rated rows before the report; 6, 1,145, 1,768 | 0; 0 |
+| F2 | Occasional youthful operator surcharge with no young driver lacking a car, or on two cars | 98 periods, 3 with two cars; 124, 19 | 0; 0 |
+| F3 | Divorced spouses still married; a couple killed together leaving a widow | 646 of 646; 650 of 650 and 1 couple | 0; 0 |
+| F4 | Fatal crashes without a police report; a rental after the only driver died | 3 and 1 rental ($680); 7 and 1 ($640) | 0; 0 |
+| F5 | A lapsing policy paying endorsement bills due after its missed installment | 14 (5 by bank draft); 10 | 0; 0 |
+| F6 | Staff calls on Saturday holidays; change confirmations and billing notices on or after a cancellation | 15, 844, 11; 17, 825, 15 | 0; 0 |
+| F7 | New policies placed with a company on incidents known after the quote | 85 with such an incident, 30 placed otherwise; 93, 31 | 0; 0 |
+| F8 | Opening telematics enrollments on random days rather than a term's effective date | 1,602; 1,568 | 0; 0 |
+| F9 | A car its owner kept after a total loss claiming again in the same term | 0; 2 | 0; 0 |
+| F10 | Dictionary and website wording | 5 items | fixed |
+
+**F1. Removals before the claim is reported.** Confirmed: a car's removal, the other cars' re-rating, the
+endorsement and the cancellation of an emptied policy all happened the day after the loss, whenever the claim was
+reported. The simulation now draws the claim's first notice when the loss happens (`claims.first_notice`, used by
+claims development too). A car lost in a claim with a physical damage, rental or towing feature (all opened at first
+notice, so on the claim's report date) is taken off once the company knows: the removal is still backdated to the day
+after the loss, as insurers do, but the re-rated rows carry the report date as their `rating_date`, and the
+endorsement, the cancellation and their confirmations are booked no earlier. A car whose claim is not reported by
+the valuation date stays on the policy, as far as the extract knows, with no further losses (its renewal includes
+it). A wreck with only liability claims, presented later, is the customer taking the car off, the next day.
+`validate.py`'s rule that a row is rated by its start now allows exactly these backdated rows.
+
+**F2. Occasional youthful operators.** Confirmed, all three causes. Ranks are never reused (a car written off keeps
+its rank for its replacement); a driver left with only a spare car drives it as their main car, re-rated from the
+change (`simulate._promote_spares`); and a newly licensed teenager or a new spouse without a car takes over a spare
+car the household already has (`_give_spare_car`). The surcharge now falls on one car, and only when a listed driver
+under 25 has no car of their own.
+
+**F3. Marital status.** Confirmed. A divorcing spouse is now divorced too, and when a couple dies on the same day
+neither is recorded as widowed: the spouse of a named insured who dies that day does not take the policy over as a
+widow, and the policy ends with its named insured.
+
+**F4. Fatal crashes.** Confirmed. A crash that killed an insured carries that fact to its claim even when no claim of
+the victim's own records it (no medical payments cover), so it has a police report; so does a crash whose driver
+died by the next day, whatever the death is put down to. A rental ends when the household's only driver dies
+(`simulate._rentals_until_death`), and one already settled from a loss late in a term is cut back when the death
+falls early in the next (`claims.Development.stop_rentals`: the payment and the other insurer's repayment shrink to the
+days before the death).
+
+**F5. Endorsement bills on a lapsing policy.** Confirmed. Every bill due on or after the missed installment of a
+policy cancelled for non-payment now goes unpaid; only the missed installment's own draft is attempted.
+
+**F6. Contacts.** Confirmed. No staff calls on a Saturday holiday; a change and a cancellation are confirmed when they
+are booked (`premium_transaction.processed_date`); and nothing is confirmed, chased or warned of from a policy's
+cancellation day on.
+
+**F7. Company placement.** Confirmed. A new policy's quote day is now drawn with the population, and its company is
+chosen on the score, prior insurance and record known that day; the simulation and the quote table use the same day.
+**Opening book, documented:** a policy already renewing when the extract begins is placed on its record as it
+entered the extract (known before its opening term could be offered), because its record when first written, often
+years before, is not retained (driving records go back three years). `limitations.md` and the dictionary say so.
+
+**F8. Opening telematics enrollments.** Confirmed. A policy already enrolled on 1 January 2022 joined on one of its
+earlier term effective dates, within about three years.
+
+**F9. Salvage cars.** Confirmed on seed 101: a car kept on a salvage certificate lost no further claims in its own
+period but could in a later period of the same term. It now has none for the rest of the term, a storm's included
+(a catastrophe no longer strikes a car on a salvage certificate).
+
+**F10. Documentation.** Confirmed and fixed: the prior-carrier report source, `telematics_enrolled`, the claim table's
+"totals", the ZIP code example and the v1.1.9 changelog entry.
+
+### What changed in the data
+
+Removals after a claim are booked and confirmed later, at the report, and a few cars lost late in 2026 stay on
+their policies; spare cars pass to drivers without one, so fewer cars carry the occasional youthful operator
+surcharge; lapsing policies collect less; contacts after cancellations drop; a few new policies change company.
+These change later random draws, so every figure of the default run moves a little: loss ratios by accident year
+83.7%, 80.3%, 65.0%, 60.2% and 69.1% for 2022 to 2026 (were 82.5%, 81.0%, 67.4%, 59.5% and 66.4%), overall 70.5%
+(was 70.1%; 68.3% to 71.3% across five seeds), annualized retention 81.2%; 22,670 claims (was 22,725).
+`validate.py` runs 203 checks (was 193), all passing on the default run and on seeds 7, 11, 23 and 101. Seed 42 passes
+every integrity check but falls just below one tuning band: its bodily injury frequency is 0.67 paid claims per 100
+car-years against a floor of 0.70. Its injury losses are 0.97 times the answer key's expected ones, so the book that
+seed drew has fewer injury claims, not bad luck; like for like against national it is 0.91, inside its band, and the
+band is not widened ([benchmarks.md](benchmarks.md)). The test suite has 88 tests.
+
+Checking the seeds turned up three more defects of the same kinds, fixed here: a storm could strike a car on a
+salvage title (seed 23; F9), a rental settled from a loss late in a term could run past the death of the household's
+only driver early in the next (seed 42; F4), and when a couple died on the same day the spouse could take the policy
+over as a widow first (seed 23; F3).
 
 ## Audit of v1.1.8 (24 November 2026)
 

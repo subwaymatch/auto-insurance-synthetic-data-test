@@ -115,9 +115,7 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_w, R: np.random.Generat
     st = truth.Static.build(pp, ref)
     p, v = st.p, st.v
     first = p["first_day"]
-    quote_w = np.array([C.DAY_WEIGHTS["quote"][c] for c in C.CHANNELS])[p["channel"]]
-    quote_day = first - cal.weighted_lead(first, *C.NEW_BUSINESS_QUOTE_LEAD_DAYS,
-                                          lambda d: day_weight(cal, d, quote_w[:, None, :]), R.random(len(first)))
+    quote_day = p["quote_day"]                # (the day the population placed it with a company)
     d_pol = pp.drv.pol.to_numpy()
     points, _, acc = Records(pp.incidents).as_of(len(d_pol), first[d_pol], quote_day[d_pol])
     V = np.arange(len(v["pol"]))

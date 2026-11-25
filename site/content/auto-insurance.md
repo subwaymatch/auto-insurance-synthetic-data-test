@@ -114,7 +114,7 @@ Customers pay in full or in **installments**. Each bill has a due date; a paymen
 8. **Closing.** The file closes when nothing more is owed. Many features close without payment, for example a liability claim when the insured wasn’t at fault. A closed claim can **reopen** if a new bill arrives.
 
 <div class="in-the-data" markdown="1">
-`claim` has one row per claim, with `claim.loss_date`, `claim.report_date`, `claim.close_date`, `claim.cause_of_loss` and totals. `claim.exposure_id` points to the exposure row in force on the loss date. `claim_feature` has one row per coverage and claimant. `claim_payment` lists every payment and recovery, and `claim_reserve_transaction` every change to a reserve.
+`claim` has one row per claim, with `claim.loss_date`, `claim.report_date`, `claim.close_date` and `claim.cause_of_loss`. `claim.exposure_id` points to the exposure row in force on the loss date. `claim_feature` has one row per coverage and claimant. `claim_payment` lists every payment and recovery, and `claim_reserve_transaction` every change to a reserve.
 </div>
 
 ### Claim costs

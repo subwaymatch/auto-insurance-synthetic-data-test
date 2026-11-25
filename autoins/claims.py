@@ -111,17 +111,16 @@ class Development:
         self.cal, self.R, self.R2 = cal, rng, rng_detail
         self.occs, self.feats, self.pays, self.reserves = [], [], [], []
         self.n_feat = 0
+        self.rentals = []           # paid rentals: batch, feature, policy, loss day, days kept (stop_rentals)
 
     def add(self, occ: pd.DataFrame, feat: pd.DataFrame) -> pd.DataFrame:
         """Develop a batch of new claims. Returns occ with report_day (first notice the company has of any
-        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or NO_DAY)."""
+        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or NO_DAY).
+        occ.notice, when given, is the first notice (simulate draws it when the loss happens, since a car written
+        off leaves the policy only once the company knows of it)."""
         R = self.R
         occ = occ.copy()
-        lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
-        lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
-        # first notice comes in every day (app, website, call centre), but much of a weekend's or a holiday's
-        # is held over to the next business day
-        notice = self.cal.intake_day(occ.day.to_numpy() + lag.astype(int), R.random(len(occ)))
+        notice = occ.notice.to_numpy().astype(np.int64) if "notice" in occ else first_notice(self.cal, occ, R)
 
         # the car's ownership at the loss (Owned, Financed or Leased) decides whether a lender is paid
         keep = ["occ", "day", "peril", "cat", "at_fault"] + (["ownership"] if "ownership" in occ else [])
@@ -182,11 +181,57 @@ class Development:
         posted = _chargeable(f, pays) + C.CHARGEABLE_POSTING_DAYS
         occ["chargeable_day"] = occ.occ.map(posted).fillna(NO_DAY).astype(np.int64).to_numpy()
         occ = _claim_detail(occ, f, self.R2, self.cal)
+        rent = np.flatnonzero((cvg == "RENT") & (f.paid.to_numpy() > 0))
+        if len(rent) and "pol" in occ:
+            pol_of = pd.Series(occ.pol.to_numpy(), index=occ.occ.to_numpy())
+            self.rentals.append(pd.DataFrame(dict(b=len(self.feats), fid=f.fid.to_numpy()[rent],
+                                                  pol=pol_of.reindex(f.occ.to_numpy()[rent]).to_numpy(),
+                                                  day=f.day.to_numpy()[rent], days=rent_days[rent])))
         self.reserves.append(_reserve_history(f, pays, self.cal, self.R2))
         self.occs.append(occ)
         self.feats.append(f.drop(columns=["notice", "at_fault"]))
         self.pays.append(pays)
         return occ
+
+    def stop_rentals(self, pol: np.ndarray, death: np.ndarray) -> None:
+        """A rental under way when the household's only driver dies (policy pol, on day death) is paid for the days
+        until the death: the car goes back then. For a death drawn after the rental was developed (one early in the
+        next term); simulate cuts a rental short of a death due in its own term before it is developed. The rental's
+        payment and its share of the other insurer's repayment shrink with it; its reserve history, set before the
+        death, stands (the settlement takes the reserve to nothing either way)."""
+        if not self.rentals or len(pol) == 0:
+            return
+        r = pd.concat(self.rentals, ignore_index=True)
+        end = pd.Series(np.asarray(death), index=np.asarray(pol)).groupby(level=0).min()
+        left = r.pol.map(end).to_numpy(dtype=float) - r.day.to_numpy()
+        hit = (left > 0) & (left < r.days.to_numpy())               # (NaN, no death, compares False)
+        if not hit.any():
+            return
+        r = r[hit].assign(left=left[hit])
+        for b, g in r.groupby("b"):
+            share = pd.Series((g.left / g.days).to_numpy(), index=g.fid.to_numpy())
+            kept = pd.Series(g.left.to_numpy(), index=g.fid.to_numpy())
+            f = self.feats[b]
+            m = f.fid.isin(share.index).to_numpy()
+            s = f.fid[m].map(share).to_numpy()
+            paid = np.round(f.paid.to_numpy()[m] * s, 2)
+            subro = np.round(f.subro.to_numpy()[m] * s, 2)
+            f = f.copy()
+            f.loc[m, "gross"] = f.gross.to_numpy()[m] * s
+            f.loc[m, "paid"], f.loc[m, "subro"] = paid, subro
+            f.loc[m, "rent_days"] = f.fid[m].map(kept).to_numpy()
+            self.feats[b] = f
+            new_paid = pd.Series(paid, index=f.fid.to_numpy()[m])
+            new_subro = pd.Series(subro, index=f.fid.to_numpy()[m])
+            p = self.pays[b].copy()
+            on = p.fid.isin(share.index).to_numpy()
+            loss = on & (p.kind.to_numpy() == "Loss")                 # a rental is one payment, once the car is back
+            p.loc[loss, "amount"] = p.fid[loss].map(new_paid).to_numpy()
+            rec = on & (p.kind.to_numpy() == "Subrogation Recovery")
+            p.loc[rec, "amount"] = -p.fid[rec].map(new_subro).to_numpy()
+            self.pays[b] = p[~(on & (p.amount.to_numpy() == 0))].reset_index(drop=True)
+        done = pd.MultiIndex.from_frame(r[["b", "fid"]])
+        self.rentals = [x[~pd.MultiIndex.from_frame(x[["b", "fid"]]).isin(done)] if len(x) else x for x in self.rentals]
 
     def result(self):
         cat = lambda parts: pd.concat(parts, ignore_index=True)
@@ -260,6 +305,8 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, ca
     # police report: the police investigate every fatal crash
     injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM", "MED"]) & (f.gross.to_numpy() > 0)]).to_numpy()
     fatal = occ.occ.isin(f.occ[f.injury_type.to_numpy() == "Fatality"]).to_numpy() if "injury_type" in f else np.zeros(n, dtype=bool)
+    if "fatal_crash" in occ:                  # an insured killed with no claim of their own (no medical payments)
+        fatal = fatal | occ.fatal_crash.fillna(False).to_numpy().astype(bool)
     occ["police_report"] = fatal | (R.random(n) < np.clip(occ.peril.map(POLICE_REPORT_P).fillna(0.1).to_numpy() + 0.30 * injured, 0, 0.98))
     fault = np.select([peril == "AF_MV", peril == "AF_SV", peril == "NAF"],
                       [np.where(R.random(n) < 0.7, 100, R.integers(51, 100, n)), np.full(n, 100),
@@ -432,6 +479,16 @@ def _share_accident_limit(ev: pd.DataFrame, bal: np.ndarray, paid: np.ndarray, f
     both = pd.concat([ev.assign(bal=new_bal, pt=pt), extra], ignore_index=True)
     both = both.sort_values(["fid", "day", "order", "pt"], kind="stable").reset_index(drop=True)
     return both.drop(columns=["bal", "pt"]), both.bal.to_numpy()
+
+
+def first_notice(cal, occ: pd.DataFrame, R: np.random.Generator) -> np.ndarray:
+    """The day the company first hears of each loss: a few days after it by cause, a few much later. First notice
+    comes in every day (app, website, call centre), but much of a weekend's or a holiday's is held over to the next
+    business day. A physical damage coverage is opened on this day (OPEN_LAG), so it is the claim's report day when
+    the claim has one."""
+    lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
+    lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
+    return cal.intake_day(occ.day.to_numpy() + lag.astype(int), R.random(len(occ)))
 
 
 def _open_lag(cvg: np.ndarray, R: np.random.Generator) -> np.ndarray:

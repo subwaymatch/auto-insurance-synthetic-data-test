@@ -247,6 +247,18 @@ class Term:
     ty: np.ndarray
     term_of_pol: np.ndarray
     last_gone: np.ndarray
+    # the day the company knew the last car had gone (a car written off is known from the claim's first notice,
+    # though its removal is backdated to the day after the loss); a period re-rated after a write-off is rated no
+    # earlier than the day it was known (rate_from); the day a cancellation for want of a car was known
+    last_known: np.ndarray = None
+    rate_from: np.ndarray = None
+    cancel_known: np.ndarray = None
+
+    def __post_init__(self):
+        n = len(self.s)
+        self.last_known = np.full(n, -1) if self.last_known is None else self.last_known
+        self.rate_from = np.full(n, -10 ** 9) if self.rate_from is None else self.rate_from
+        self.cancel_known = np.full(n, -10 ** 9) if self.cancel_known is None else self.cancel_known
 
 
 def run(cfg: C.Config, ref, pop) -> Result:
@@ -300,6 +312,8 @@ def run(cfg: C.Config, ref, pop) -> Result:
                         cal.weighted_lead(s_all, *C.RENEWAL_OFFER_LEAD_DAYS, lambda d: cal.is_business(d).astype(float), u_lead),
                         cal.weighted_lead(s_all, *C.NEW_BUSINESS_QUOTE_LEAD_DAYS, lambda d: day_weight(cal, d, quote_w[:, None, :]), u_lead))
         rate_day = s_all - lead               # the offer day: underwriting, the offer and telematics scoring happen on it
+        if k == 0 and "quote_day" in p:       # a new customer is quoted on the day its company was chosen
+            rate_day = np.where(term_no == 1, p["quote_day"], rate_day)
         tenure_years = (p["tenure_terms"] + k) * ty
         if k == 0:
             P = np.flatnonzero(active & (s_all <= V_DAY))
@@ -375,7 +389,7 @@ def run(cfg: C.Config, ref, pop) -> Result:
 
         terms.append(pd.DataFrame(dict(
             term=term_of_pol[P], pol=P, term_no=term_no[P], s=s_all[P], e=e_all[P], offer_day=rate_day[P], rate_day=rated[P],
-            cancel_day=cancel_day[P], cancel_reason=np.array(CANCEL_REASONS)[cancel_reason[P]],
+            cancel_day=cancel_day[P], cancel_reason=np.array(CANCEL_REASONS)[cancel_reason[P]], cancel_known=T.cancel_known[P],
             rate_level=cal.rate_level_at(s_all[P]), new_business=term_no[P] == 1, month0=p["first_month"][P] + k * tm[P],
             # the instalment whose non-payment cancelled the term (a term cancelled earlier for another reason,
             # such as its last car going, keeps that reason)
@@ -438,6 +452,17 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         # period ends only at a change the policy records
         ev = ev[_feasible(sim, T, ev)]
         upcoming = ev[live[ev.pol.to_numpy()]]
+        # a death due of a household's only driver ends the policy that day (rentals stop then)
+        d_act = sim.pop.drv.active.to_numpy()
+        n_drv_on = np.bincount(sim.pop.drv.pol.to_numpy()[d_act], minlength=n)
+        dies = upcoming[(upcoming.kind.to_numpy() == LEAVE) & (upcoming.extra.to_numpy() == 4)]
+        dies = dies[n_drv_on[dies.pol.to_numpy()] == 1]
+        T.death_end = np.full(n, np.iinfo(np.int64).max // 4)
+        np.minimum.at(T.death_end, dies.pol.to_numpy(), dies.day.to_numpy())
+        # (and one already developed, from a loss late last term, is cut short too)
+        sim.dev.stop_rentals(dies.pol.to_numpy(), dies.day.to_numpy())
+        if sim.warm is not None:
+            sim.warm.dev.stop_rentals(dies.pol.to_numpy(), dies.day.to_numpy() + sim.warm.off)
         np.minimum.at(nb, upcoming.pol.to_numpy(), upcoming.day.to_numpy())
         v = st.v
         V = np.flatnonzero(v["active"] & live[v["pol"]] & (v["added_day"] <= clock[v["pol"]]))
@@ -480,8 +505,10 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         ap = arr.pol.to_numpy()
         early = (arr.day.to_numpy() < T.e[ap] - C.RENEWAL_OFFER_LEAD_DAYS[1]) | (T.x_pol[ap] < T.e[ap])
         has_car[ap[early]] = True
-        # (unless it went the day after the valuation date, which is not yet known)
-        empty = in_prog[~has_car[in_prog] & (T.last_gone[in_prog] >= 0) & (T.last_gone[in_prog] <= sim.ref.cal.valuation_day)]
+        # (unless it went the day after the valuation date, or the company does not yet know: a car written off is
+        # known from the claim's first notice; the cancellation is then backdated to the day it went)
+        empty = in_prog[~has_car[in_prog] & (T.last_gone[in_prog] >= 0) & (T.last_gone[in_prog] <= sim.ref.cal.valuation_day)
+                        & (T.last_known[in_prog] <= sim.ref.cal.valuation_day)]
         # an insured killed in the crash that took the last car is dead by then: the death is recorded first (a named
         # insured with no spouse to take over ends the policy as a death), and the policy cancelled after it
         dead = ev[np.isin(ev.pol.to_numpy(), empty) & (ev.kind.to_numpy() == LEAVE) & (ev.extra.to_numpy() == CRASH_DEATH)]
@@ -491,6 +518,7 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
             ev = ev.drop(index=dead.index)
             empty = empty[T.cancel_day[empty] == was[empty]]      # not those the death has just ended
         _cancel(T, empty, T.last_gone[empty], "Insured Request")
+        T.cancel_known[empty] = T.last_known[empty]
         live[empty] = False
         ev = ev[live[ev.pol.to_numpy()] | (ev.day.to_numpy() > nb[ev.pol.to_numpy()])]
 
@@ -505,7 +533,7 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         for pol, lab in labels.items():
             reason_now[pol] = "; ".join(dict.fromkeys(lab))
         if labels:
-            _refresh_usage(sim)
+            _refresh_usage(sim, nb)
         clock[in_prog] = np.minimum(nb[in_prog], T.x_pol[in_prog])
         in_prog = in_prog[clock[in_prog] < T.x_pol[in_prog]]
         ev = ev[np.isin(ev.pol.to_numpy(), in_prog)]
@@ -516,8 +544,10 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
     cancelled = T.cancel_day[pol] >= 0
     # rows ending at a change that turned out to be a cancellation are cancelled like any other
     ran = (rows.end_kind.to_numpy() == END_RAN) | ((rows.end_kind.to_numpy() == END_ENDORSED) & cancelled & (x == T.cancel_day[pol]))
-    # a car destroyed on the valuation date leaves the day after it: not yet known, so its row still runs
-    ran |= (rows.end_kind.to_numpy() == END_GONE) & (x > sim.ref.cal.valuation_day)
+    # a car destroyed on the valuation date leaves the day after it, and a car written off whose claim is not yet
+    # reported is not yet known to have gone: its row still runs
+    ran |= (rows.end_kind.to_numpy() == END_GONE) & ((x > sim.ref.cal.valuation_day)
+                                                     | (rows.gone_known.to_numpy() > sim.ref.cal.valuation_day))
     rows["end_kind"] = np.where(ran, END_RAN, rows.end_kind)
     sched = np.where(ran, T.e[pol], x)                  # cover as written, before any cancellation
     return rows.assign(
@@ -536,19 +566,43 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     vp = v["pol"][V]
     b = nb[vp]
     dr = v["primary_drv"][V]
-    asof = np.where(a == T.s[vp], T.rate_day[vp], a)      # a change is rated with what is known that day
+    # a change is rated with what is known that day (a write-off's removal, backdated, once the company knows of it)
+    asof = np.where(a == T.s[vp], T.rate_day[vp], np.maximum(a, T.rate_from[vp]))
     points, _, acc = sim.recs.for_rows(dr, a, asof)
     prem, cd, fair = _premium(sim, V, a, T.s[vp], points, acc, T.tenure[vp], T.ty[vp])
     ctx = truth.context(st, cal, V, a, b)
     watched = np.where(v["tele_on"][V], telematics.BEHAVIOUR_FACTOR, 1.0)     # drivers take more care while monitored
     for k_ in ("AF_MV", "AF_SV"):
         ctx["rate"][k_] = ctx["rate"][k_] * watched
+    # a car its owner kept after a total loss earlier in the term is on a salvage certificate: not driven, no losses
+    # (and a car lost in a claim the company will not hear of by the valuation date is still insured, as far as it
+    # knows, but has no further losses)
+    salvaged = (v["salvage_day"][V] >= T.s[vp]) | v["lost_unknown"][V]
+    for k_ in ctx["rate"]:
+        ctx["rate"][k_] = ctx["rate"][k_] * ~salvaged
+    ctx["idle"] = salvaged                              # (nor is it out in a storm's path)
     occ, feat, wrecks, deaths, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
-    occ, feat, stop_day, how = _stop_at_total_loss(occ, feat, wrecks, len(V))
+    occ["notice"] = claims.first_notice(cal, occ, R)
+    occ, feat, stop_day, how, stop_occ = _stop_at_total_loss(occ, feat, wrecks, len(V))
+    # when the company knows a car has gone: from the claim's first notice when the loss is claimed here (a total
+    # loss, or a wreck with any claim on the policy), otherwise from the day after it (the customer takes it off)
+    notice = pd.Series(occ.notice.to_numpy(), index=occ.occ.to_numpy())
+    # (claimed here: a total loss, or a wreck with a physical damage, rental or towing claim, all opened at first
+    # notice; a wreck with only liability claims, presented later, is the customer taking the car off)
+    pd_feat = feat.occ.to_numpy()[np.isin(feat.cvg.to_numpy(), ["COLL", "COMP", "RENT", "TOW"])]
+    claimed = (how == 1) | ((how == 2) & np.isin(stop_occ, pd_feat))
+    known = np.where(claimed, np.maximum(notice.reindex(stop_occ).fillna(-1).to_numpy().astype(np.int64), stop_day + 1),
+                     stop_day + 1)
     fresh = np.ones(len(V), dtype=bool) if fresh is None else fresh
     occ, feat, stop_day, how, b, died = _crash_deaths(T, st.p["ni_drv"], vp, b, nb, fresh, occ, feat, deaths, stop_day, how)
-    occ, feat, stop_day, how, b, removed = _cut_at_removal(T, V, vp, b, nb, fresh, occ, feat, stop_day, how)
+    occ, feat, stop_day, how, b, removed = _cut_at_removal(T, V, vp, b, nb, fresh, occ, feat, stop_day, how, known,
+                                                           cal.valuation_day)
     died = _events(died, removed)
+    feat = _rentals_until_death(T, vp, occ, feat)
+    # a car lost in a claim not reported by the valuation date stays on the policy: the company does not know
+    unknown = (stop_day >= 0) & (known > cal.valuation_day)
+    v["lost_unknown"][V[unknown]] = True
+    stop_day, how = np.where(unknown, -1, stop_day), np.where(unknown, 0, how)
     gone = stop_day >= 0
     x = np.where(gone, stop_day + 1, b)
     truth.set_window(ctx, cal, a, x)
@@ -557,7 +611,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     sim.n_rows += len(V)
     sim.assign.add(V, a, dr, v["zi"][V])           # who drives the car, and where it is kept, from day a
     out.append(pd.DataFrame(dict(
-        row=row_ids, term=T.term_of_pol[vp], pol=vp, veh=V, drv=dr, s=a, x=x,
+        row=row_ids, term=T.term_of_pol[vp], pol=vp, veh=V, drv=dr, s=a, x=x, gone_known=np.where(gone, known, -1),
         end_kind=np.where(gone, END_GONE, np.where(b < T.x_pol[vp], END_ENDORSED, END_RAN)),
         zi=v["zi"][V], rated_on=asof, reason=why, driver_age=(a - drv.dob_day.to_numpy()[dr]) / 365.25,
         violation_points=points, at_fault_accidents=acc, tenure_years=T.tenure[vp],
@@ -576,6 +630,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
         occ["ownership"] = v["ownership"][occ.veh.to_numpy()]         # at the loss: a lender is paid off on a total loss
         kept = occ.occ.isin(feat.occ[feat.retained.to_numpy().astype(bool)])
         v["salvage_title"][V[occ.vrow[kept].to_numpy()]] = True      # owner kept a paid total loss
+        v["salvage_day"][V[occ.vrow[kept].to_numpy()]] = occ.day[kept].to_numpy()
         v["ownership"][V[occ.vrow[kept].to_numpy()]] = "Owned"        # the settlement paid off any loan or lease on it
         occ["term"] = T.term_of_pol[occ.pol.to_numpy()]
         occ["row"] = row_ids[occ.pop("vrow").to_numpy()]
@@ -596,13 +651,21 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     none = np.zeros(0, dtype=int)
     if len(old) == 0:
         return none, none, np.zeros(0, dtype=object), died
-    st.retire(old, left, np.where(how[gone] == 1, REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")))
+    seen = known[gone]                          # the day the company knew (its removal is backdated to `left`)
+    st.retire(old, left, np.where(how[gone] == 1, REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")),
+              known=seen)
     op = vp[gone]
     np.maximum.at(T.last_gone, op, left)
-    np.maximum.at(sim.last_change, op, left)
+    np.maximum.at(T.last_known, op, seen)
+    # the policy's next rows are rated no earlier than the removal is known (a car added the same day, say)
+    np.maximum.at(T.rate_from, op, np.where(seen > left, seen, -10 ** 9))
+    # a pending renewal is revised once the removal is known; one not known before the renewal takes effect does
+    # not revise it (nor hide an earlier change that does)
+    np.maximum.at(sim.last_change, op, np.where(seen <= T.e[op], np.maximum(left, seen), -10 ** 9))
     replace = R.random(len(old)) < np.where(p["n_veh"][op] > 1, C.P_REPLACE_AFTER_TOTAL_LOSS["multi"],
                                              C.P_REPLACE_AFTER_TOTAL_LOSS["single"])
-    buy = left + population.draw_lag(R, len(old), **C.TOTAL_LOSS_REPLACEMENT_DELAY)
+    # (a replacement is put on the policy once the loss has been reported)
+    buy = np.maximum(left + population.draw_lag(R, len(old), **C.TOTAL_LOSS_REPLACEMENT_DELAY), seen)
     # a household left with no car that will not have its replacement before the renewal is offered cancels the
     # policy instead (and insures the next car when it buys it): there is nothing on the policy to renew
     no_car = np.bincount(v["pol"][v["active"]], minlength=len(p["zi"]))[op] == 0
@@ -620,6 +683,38 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
         np.maximum.at(sim.last_change, op[now], buy[now])
     Vn = np.arange(first_new, len(st.v["pol"]))
     return Vn, st.v["added_day"][Vn], np.full(len(Vn), CHANGE_REASONS[ARRIVAL], dtype=object), _events(arrivals, died)
+
+
+def _rentals_until_death(T: Term, vp, occ: pd.DataFrame, feat: pd.DataFrame) -> pd.DataFrame:
+    """A rental for a crash ends when the household's only driver dies (T.death_end: the day a death is due that
+    leaves no driver, ending the policy): it is paid for the days until then, and not at all if that is the day
+    of the loss."""
+    end = getattr(T, "death_end", None)
+    if end is None or len(feat) == 0 or "rent_days" not in feat:
+        return feat
+    r = np.flatnonzero(feat.cvg.to_numpy() == "RENT")
+    if len(r) == 0:
+        return feat
+    o = occ.set_index("occ")
+    fo = feat.occ.to_numpy()[r]
+    left = end[vp[o.vrow.reindex(fo).to_numpy().astype(int)]] - o.day.reindex(fo).to_numpy()
+    days = feat.rent_days.to_numpy().astype(float)[r]
+    short = left < days
+    if not short.any():
+        return feat
+    feat = feat.copy()
+    share = np.where(short, np.clip(left, 0, None) / np.maximum(days, 1), 1.0)
+    for col in ("gross", "paid", "subro"):
+        if col in feat:
+            vals = feat[col].to_numpy().astype(float).copy()
+            vals[r] = vals[r] * share
+            feat[col] = vals
+    rd = feat.rent_days.to_numpy().astype(float).copy()
+    rd[r] = np.where(short, np.clip(left, 0, None), rd[r])
+    feat["rent_days"] = rd
+    gone = np.zeros(len(feat), dtype=bool)
+    gone[r[short & (left <= 0)]] = True
+    return feat[~gone].reset_index(drop=True)
 
 
 def _cut_rows(T: Term, vp, b, nb, occ, feat, stop_day, how, cut, crash=None, who=None):
@@ -644,13 +739,18 @@ def _cut_rows(T: Term, vp, b, nb, occ, feat, stop_day, how, cut, crash=None, who
     return occ, feat, stop_day, how, b
 
 
-def _cut_at_removal(T: Term, V, vp, b, nb, fresh, occ, feat, stop_day, how):
+def _cut_at_removal(T: Term, V, vp, b, nb, fresh, occ, feat, stop_day, how, known=None, v_day=None):
     """A car destroyed or stolen leaves the policy the day after the loss, and the policy records its removal that
     day (a SELL event marked WRECKED): the policy's other cars are re-rated from then, so a multi-car discount ends
     with the car it depended on. Only in the batch that starts the policy's period (where all its cars are), and
-    before the period's end. Returns (occ, feat, stop_day, how, boundary per vehicle, the removal events)."""
+    before the period's end. `known`: the day the company knew the car had gone (a company total loss from the
+    claim's first notice); a removal not known by the valuation date `v_day` is not made (the company still has the
+    car on the policy), and the re-rated period is rated no earlier than the day it was known (T.rate_from).
+    Returns (occ, feat, stop_day, how, boundary per vehicle, the removal events)."""
     none = pd.DataFrame(columns=EVENT_COLUMNS)
-    gone = np.flatnonzero((stop_day >= 0) & fresh)
+    known = stop_day + 1 if known is None else known
+    seen = np.ones(len(stop_day), dtype=bool) if v_day is None else known <= v_day
+    gone = np.flatnonzero((stop_day >= 0) & fresh & seen)
     if len(gone) == 0:
         return occ, feat, stop_day, how, b, none
     n = len(T.s)
@@ -666,6 +766,9 @@ def _cut_at_removal(T: Term, V, vp, b, nb, fresh, occ, feat, stop_day, how):
         return occ, feat, stop_day, how, b, none
     c = np.full(n, -1, dtype=np.int64)
     c[pol] = cut[pol]
+    if getattr(T, "rate_from", None) is not None:      # (only the removal the period ends at: a later loss is simulated again)
+        at_cut = np.isin(vp[gone], pol) & (left == cut[vp[gone]])
+        np.maximum.at(T.rate_from, vp[gone], np.where(at_cut, known[gone], -10 ** 9))
     occ, feat, stop_day, how, b = _cut_rows(T, vp, b, nb, occ, feat, stop_day, how, c)
     first = pd.Series(V[gone], index=vp[gone]).groupby(level=0).first().reindex(pol).to_numpy()
     return occ, feat, stop_day, how, b, pd.DataFrame(dict(pol=pol, day=c[pol], kind=SELL, target=first, extra=WRECKED))
@@ -722,6 +825,7 @@ def _crash_deaths(T: Term, ni, vp, b, nb, fresh, occ, feat, deaths, stop_day, ho
         feat = feat.assign(death=feat.death.to_numpy().astype(bool) & feat.occ.isin(d.occ[ok]).to_numpy())
     if not ok.any():
         return occ, feat, stop_day, how, b, none
+    occ = occ.assign(fatal_crash=occ.occ.isin(d.occ[ok]).to_numpy())        # someone died in it (a police report)
     pol, day, leave, victim = pol[ok], day[ok], leave[ok], d.drv.to_numpy()[ok].astype(np.int64)
     n = len(T.s)
     cut, crash = np.full(n, -1, dtype=np.int64), np.full(n, -1, dtype=np.int64)
@@ -975,7 +1079,12 @@ def _programme_offer(sim: Sim, P: np.ndarray, k: int, s_all, rate_day, term_no):
     was_open = (k == 0) & p["is_initial"][join]
     # a policy in the programme when the extract starts joined it some time after the policy was written
     inception = cal.day_of(p["first_month"][join] - p["tenure_terms"][join] * p["term_months"][join], p["dom"][join])
-    start = np.where(was_open, np.maximum(s_all[join] - R.integers(60, 1000, len(join)), inception), s_all[join])
+    # a customer already enrolled when the extract opens joined with an earlier term: on one of the policy's
+    # earlier effective dates, within about three years (an enrollment starts with a term, as any opt-in does)
+    tmj = p["term_months"][join]
+    back_max = np.minimum(p["tenure_terms"][join], np.maximum(36 // tmj, 1))
+    back = np.where(back_max > 0, np.floor(R.random(len(join)) * back_max).astype(int) + 1, 0)
+    start = np.where(was_open, np.maximum(cal.day_of(p["first_month"][join] - back * tmj, p["dom"][join]), inception), s_all[join])
     dev = telematics.device(R, cal.year_frac(start))
     eid = len(tl.enrol) + np.arange(len(join))
     tl.enrol.extend(zip(eid.tolist(), join.tolist(), start.tolist(), dev.tolist()))
@@ -1149,7 +1258,7 @@ def _stop_at_total_loss(occ: pd.DataFrame, feat: pd.DataFrame, wrecks: pd.DataFr
     then. A car its owner keeps after a total loss stays on the policy but has no further losses in the term: on a
     salvage certificate it may not be driven until it is rebuilt and inspected (and at renewal it loses its
     physical damage cover). Returns (occ, feat, day destroyed or -1, 1 for a company total loss / 2 for another
-    wreck)."""
+    wreck, the occurrence that destroyed it or -1)."""
     kept = occ[occ.occ.isin(feat.occ[feat.total.to_numpy().astype(bool) & feat.retained.to_numpy().astype(bool)])]
     if len(kept):
         first = kept.sort_values(["vrow", "day", "occ"], kind="stable").drop_duplicates("vrow")
@@ -1166,7 +1275,7 @@ def _stop_at_total_loss(occ: pd.DataFrame, feat: pd.DataFrame, wrecks: pd.DataFr
     ends = pd.concat([company[["vrow", "day", "occ"]].assign(how=1), wrecks[["vrow", "day", "occ"]].assign(how=2)],
                      ignore_index=True)
     if len(ends) == 0:
-        return occ, feat, stop_day, how
+        return occ, feat, stop_day, how, first_occ
     first = ends.sort_values(["vrow", "day", "how", "occ"], kind="stable").drop_duplicates("vrow")
     vr = first.vrow.to_numpy().astype(int)
     stop_day[vr], how[vr], first_occ[vr] = first.day.to_numpy(), first.how.to_numpy(), first.occ.to_numpy()
@@ -1175,12 +1284,48 @@ def _stop_at_total_loss(occ: pd.DataFrame, feat: pd.DataFrame, wrecks: pd.DataFr
     drop = (sd >= 0) & ((day > sd) | ((day == sd) & (occ.occ.to_numpy() != first_occ[ov])))
     occ = occ[~drop].reset_index(drop=True)
     feat = feat[feat.occ.isin(occ.occ)].reset_index(drop=True)
-    return occ, feat, stop_day, how
+    return occ, feat, stop_day, how, first_occ
 
 
-def _refresh_usage(sim: Sim) -> None:
-    """Rebuild who drives which car from the vehicles and drivers now on each policy."""
+def _give_spare_car(sim: Sim, pol, day, new_drv) -> None:
+    """A driver joining without a car of their own (a newly licensed teenager, a new spouse) takes over a spare car
+    the household already has (an extra car of a driver with another): the least valuable one. It is driven as they
+    drive from the day they join."""
+    v = sim.st.v
+    cars, when = [], []
+    for q, d, w in zip(pol, day, new_drv):
+        spare = np.flatnonzero((v["pol"] == q) & v["active"] & v["extra_vehicle"])
+        if len(spare) == 0:
+            continue
+        car = spare[np.argmax(v["rank"][spare])]
+        v["primary_drv"][car], v["extra_vehicle"][car] = w, False
+        cars.append(car)
+        when.append(d)
+    _redraw_mileage(sim, np.array(cars, dtype=np.int64), np.array(when, dtype=np.int64))
+
+
+def _promote_spares(sim: Sim, day_of_pol: np.ndarray) -> None:
+    """A driver left with only a spare car (their main car sold or written off) now drives it as their main car:
+    it is no longer an extra car, and its mileage and use are theirs from the day of the change."""
+    v = sim.st.v
+    act = np.flatnonzero(v["active"])
+    main = np.zeros(int(v["primary_drv"].max()) + 1 if len(v["primary_drv"]) else 0, dtype=bool)
+    main[v["primary_drv"][act[~v["extra_vehicle"][act]]]] = True
+    orphan = act[v["extra_vehicle"][act] & ~main[v["primary_drv"][act]]]
+    if len(orphan) == 0:
+        return
+    first = pd.DataFrame(dict(car=orphan, drv=v["primary_drv"][orphan], rank=v["rank"][orphan])).sort_values(
+        ["drv", "rank"], kind="stable").drop_duplicates("drv").car.to_numpy()
+    v["extra_vehicle"][first] = False
+    _redraw_mileage(sim, first, day_of_pol[v["pol"][first]])
+
+
+def _refresh_usage(sim: Sim, day_of_pol: np.ndarray = None) -> None:
+    """Rebuild who drives which car from the vehicles and drivers now on each policy (first promoting a spare car
+    whose driver has lost their main one, when the day of the change is given)."""
     v, drv = sim.st.v, sim.pop.drv
+    if day_of_pol is not None:
+        _promote_spares(sim, day_of_pol)
     act, da = np.flatnonzero(v["active"]), drv.active.to_numpy()
     usage, assigned = population.usage_table(v["veh"][act], v["pol"][act], v["primary_drv"][act], v["extra_vehicle"][act],
                                              drv.drv.to_numpy()[da], drv.pol.to_numpy()[da])
@@ -1341,8 +1486,9 @@ def _apply_events(sim: Sim, T: Term, due: pd.DataFrame) -> dict:
             age = np.minimum(age, (day - _youngest_parent_dob(sim, pol)) / 365.25 - 18)
             ok = age >= 16
             if ok.any():
-                _new_drivers(sim, pol[ok], day[ok], role=3, age=age[ok], male=R.random(ok.sum()) < 0.5, licensed=day[ok],
-                             marital="S")
+                kids = _new_drivers(sim, pol[ok], day[ok], role=3, age=age[ok], male=R.random(ok.sum()) < 0.5,
+                                    licensed=day[ok], marital="S")
+                _give_spare_car(sim, pol[ok], day[ok], kids)
         elif kind == ADD:
             ok = n_cars[pol] < 4
             _add_vehicles(sim, pol[ok], day[ok], np.full(ok.sum(), -1))
@@ -1368,12 +1514,14 @@ def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
     role, marital = drv.role.to_numpy().copy(), drv.marital.to_numpy().copy()
     removed, why = drv.removed_day.to_numpy().copy(), drv.removal_reason.to_numpy().copy()
     d_pol = drv.pol.to_numpy()
+    dying = set(zip(who[code == 4].tolist(), day[code == 4].tolist()))    # (a couple killed together: no widow)
     for q, d, w, c in zip(pol, day, who, code):
         # two drivers of one policy can leave on the same day, so each is judged as the policy now stands
         if c == 3 and role[w] != 1:
             continue    # no longer a spouse: widowed earlier today, and now the named insured
         if w == p["ni_drv"][q]:      # the named insured died: a surviving spouse takes the policy over, or it is cancelled
             spouse = np.flatnonzero((d_pol == q) & active & (role == 1))
+            spouse = np.array([s_ for s_ in spouse if (int(s_), int(d)) not in dying], dtype=int)  # not dying today too
             if len(spouse):
                 s0 = spouse[0]
                 role[s0], marital[s0], p["ni_drv"][q] = 0, "W", s0
@@ -1381,10 +1529,12 @@ def _drivers_leave(sim: Sim, T: Term, pol, day, who, code) -> np.ndarray:
                 sim.ni.add(q, d, s0)
             else:                    # no one to take it over: cancelled, and the named insured shown as deceased
                 _cancel(T, np.array([q]), np.array([d]), "Insured Deceased")
-        elif c == 3:
+        elif c == 3:                 # both are divorced: the named insured, and the spouse who leaves
             marital[p["ni_drv"][q]] = "D"
             sim.marital.add(p["ni_drv"][q], d, 0)
-        elif c == 4 and role[w] == 1:
+            marital[w] = "D"
+            sim.marital.add(w, d, 0)
+        elif c == 4 and role[w] == 1 and (int(p["ni_drv"][q]), int(d)) not in dying:
             marital[p["ni_drv"][q]] = "W"
             sim.marital.add(p["ni_drv"][q], d, 0)
         active[w], removed[w], why[w] = False, d, c
@@ -1544,6 +1694,7 @@ def _marry(sim: Sim, pol, day) -> None:
     spouse = _new_drivers(sim, pol, day, role=1, age=age, male=male, licensed=licensed, marital="M")
     brings = R.random(len(pol)) < C.SPOUSE_BRINGS_CAR_P
     _add_vehicles(sim, pol[brings], day[brings], spouse[brings])
+    _give_spare_car(sim, pol[~brings], day[~brings], spouse[~brings])
 
 
 def _add_vehicles(sim: Sim, pol, day, primary) -> None:
@@ -1577,13 +1728,15 @@ def _add_vehicles(sim: Sim, pol, day, primary) -> None:
     new["full_glass"] = new.has_comp & (R.random(len(pol)) < C.FULL_GLASS_P)
     new["has_rent"], new["rent_opt"], new["has_tow"] = population.draw_addons(R, new.has_coll.to_numpy(), new.has_comp.to_numpy())
     new["coll_ded_opt"], new["comp_ded_opt"] = population.draw_deductibles(R, p["inc_rel"][pol], p["score_z"][pol])
+    # ranks are never reused: a car written off keeps its rank for the replacement on its way
     last_rank = np.full(len(p["zi"]), -1)
-    np.maximum.at(last_rank, v["pol"][v["active"]], v["rank"][v["active"]])
+    np.maximum.at(last_rank, v["pol"], v["rank"])
     new["rank"] = last_rank[pol] + 1 + (pd.Series(pol).groupby(pol).cumcount().to_numpy())
     new["primary_drv"], new["extra_vehicle"] = primary, extra
     new["veh"] = len(v["pol"]) + np.arange(len(pol))
     new["added_day"], new["removed_day"], new["active"] = day, -1, True
     new["removal_reason"], new["replaces"], new["salvage_title"] = 0, -1, False
+    new["salvage_day"], new["removal_known"], new["lost_unknown"] = -10 ** 9, -1, False
     st.add_vehicles(new)
     np.add.at(p["n_veh"], pol, 1)
 
@@ -1730,4 +1883,5 @@ def _draw_replacements(sim: Sim, old: np.ndarray, day: np.ndarray) -> pd.DataFra
     new["veh"] = len(v["pol"]) + np.arange(len(old))
     new["added_day"], new["removed_day"], new["active"] = day, -1, True
     new["removal_reason"], new["replaces"], new["salvage_title"] = 0, old, False
+    new["salvage_day"], new["removal_known"], new["lost_unknown"] = -10 ** 9, -1, False
     return new
