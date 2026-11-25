@@ -277,7 +277,8 @@ ADAS_FREQ_FACTOR = {"AF_MV": 0.86, "AF_SV": 0.95}   # automatic emergency brakin
 # Share of each model year built with automatic emergency braking (ASSUMED, after IIHS's reports on the automakers'
 # voluntary commitment: rare before 2015, about half of 2018 models, nearly all from 2023) and with an engine
 # immobiliser or factory anti-theft system (ASSUMED: spreading through the 1990s, nearly universal by 2015, except
-# the theft-wave Kias and Hyundais). Luxury cars and EVs had them two (braking) and three (immobiliser) years early.
+# Kias and Hyundais: KIA_HYUNDAI_IMMOBILISER). Luxury cars and EVs had them two (braking) and three (immobiliser) years
+# early.
 AEB_SHARE = {2012: 0.0, 2014: 0.05, 2016: 0.20, 2017: 0.35, 2018: 0.55, 2019: 0.70, 2020: 0.82, 2021: 0.90,
              2022: 0.95, 2023: 0.98, 2026: 0.99}
 IMMOBILISER_SHARE = {1986: 0.02, 1995: 0.15, 2000: 0.45, 2005: 0.75, 2010: 0.92, 2015: 0.97, 2020: 0.99}
@@ -315,6 +316,43 @@ FREQ_TREND_CRASH = {2021: 0.96, 2022: 0.98, 2023: 1.01, 2024: 1.00, 2025: 0.99, 
 THEFT_YEAR_DAMPING = 0.55            # non-Kia/Hyundai theft follows the Chicago index ** damping (ASSUMED)
 KIA_HYUNDAI_THEFT = {2021: 1.0, 2022: 4.0, 2023: 6.0, 2024: 3.5, 2025: 2.5, 2026: 1.8}   # extra multiplier (ASSUMED, stylised)
 KIA_HYUNDAI_MODEL_YEARS = (2011, 2021)   # key-start models; electric models were not affected
+# Which 2011-21 Kias and Hyundais had a passive immobiliser, by series and model year: "std" standard, "opt" optional
+# (on some trims, those with push-button start), "na" not available. A car without one has a steel key and a
+# turn-to-start ignition, the cars the theft wave targeted (Kia's 2023 software upgrade letters to owners). 2015-19:
+# HLDI Bulletin 38(28), December 2021, Table 1, which lists every 2015-19 Hyundai and Kia series with the immobiliser
+# optional or not available, so a series it does not list had it as standard (Azera, Cadenza, Equus, Genesis, Genesis
+# Coupe, Ioniq, K900, Niro, Stinger). A catalogue model spanning several HLDI series takes its main one (Santa Fe:
+# the Santa Fe Sport, which had none, through 2018). Other model years take the nearest year HLDI documents (ASSUMED).
+# Series first sold after 2019 follow the 2023 software campaign: the 2020-21 Venue (Hyundai's first wave), the 2021
+# K5 and Seltos (Kia's eligible list) had key-start trims; the Telluride is not on Kia's list, and the Palisade on none
+# found (both ASSUMED standard). Any other model (a few discontinued before 2015) is ASSUMED to have had it optional,
+# as most of the brands' series then. HLDI counts series, not cars: 26% of 2015 and 78% of 2021 series had it standard.
+KIA_HYUNDAI_IMMOBILISER = {
+    ("Hyundai", "Accent"): [(2011, 2017, "na"), (2018, 2021, "opt")],
+    ("Hyundai", "Elantra"): [(2011, 2021, "opt")],
+    ("Hyundai", "Kona"): [(2018, 2021, "opt")],
+    ("Hyundai", "Santa Fe"): [(2011, 2018, "na"), (2019, 2021, "opt")],
+    ("Hyundai", "Sonata"): [(2011, 2021, "opt")],
+    ("Hyundai", "Tucson"): [(2011, 2021, "opt")],
+    ("Hyundai", "Veloster"): [(2011, 2018, "opt"), (2019, 2021, "std")],
+    ("Hyundai", "Venue"): [(2020, 2021, "opt")],
+    ("Kia", "Forte"): [(2011, 2021, "opt")],
+    ("Kia", "K5"): [(2021, 2021, "opt")],
+    ("Kia", "Optima"): [(2011, 2021, "opt")],
+    ("Kia", "Rio"): [(2011, 2021, "na")],
+    ("Kia", "Sedona"): [(2011, 2021, "opt")],
+    ("Kia", "Seltos"): [(2021, 2021, "opt")],
+    ("Kia", "Sorento"): [(2011, 2016, "opt"), (2017, 2021, "std")],
+    ("Kia", "Soul"): [(2011, 2021, "opt")],
+    ("Kia", "Sportage"): [(2011, 2021, "opt")],
+    **{("Hyundai", m): [(2011, 2021, "std")] for m in ("Azera", "Equus", "Genesis", "Genesis Coupe", "Ioniq", "Nexo", "Palisade")},
+    **{("Kia", m): [(2011, 2021, "std")] for m in ("Cadenza", "K900", "Niro", "Stinger", "Telluride")},
+}
+# Share of the cars of a series offering the immobiliser as an option that were built with it (its push-button-start
+# trims). ASSUMED: no trim mix is published; at 40%, about three in five of the 2011-21 Kias and Hyundais sold had a
+# steel key, about what the 2023 software upgrade's 8.3 million eligible US vehicles (3.8 million Hyundais and 4.5
+# million Kias, NHTSA) are of the two brands' sales of those years (ASSUMED, roughly 15 million).
+KIA_HYUNDAI_OPTIONAL_SHARE = 0.40
 ANIMAL_SEASONALITY = [0.75, 0.65, 0.70, 0.80, 1.05, 1.10, 0.85, 0.75, 0.85, 1.40, 1.95, 1.20]
 WEATHER_SEASONALITY = [0.55, 0.60, 0.90, 1.30, 1.55, 1.65, 1.55, 1.35, 0.85, 0.65, 0.55, 0.50]
 GLASS_SEASONALITY = [1.20, 1.15, 1.10, 1.00, 0.95, 0.90, 0.90, 0.90, 0.90, 0.95, 1.00, 1.05]

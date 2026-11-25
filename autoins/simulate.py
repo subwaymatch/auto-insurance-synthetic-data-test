@@ -12,8 +12,8 @@ A mid-term change is rated on the day it happens, with what is known that day.
 Renewals. Everything about a renewal is decided on its offer date, 30 to 45 days before it takes
 effect, from the policy as it stood that day (_renewals): the underwriting review (drivers on the
 policy then, records known then), the telematics score and programme offer, the renewal premium
-(the expiring term's exposure rows in force that day: its cars, rated drivers, address and
-coverage), and the customer's decision (that premium against what the same cars cost, and the
+(the expiring term's exposure rows in force that day as the company knew them: its cars, rated
+drivers, address and coverage), and the customer's decision (that premium against what the same cars cost, and the
 claims reported by then). The policy is simulated a whole term at a time, so by then the rest of
 the expiring term has been simulated too; the decision reads the past from effective-dated
 histories (the exposure rows, and the histories on Sim) rather than the current state, so it is
@@ -480,6 +480,10 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
             fresh = ~started[vpol[now]]
             Vn, an, whyn, arrivals = _simulate_rows(sim, T, V[now], a[now], why[now], nb, out, fresh)
             started[vpol[now]] = True
+            if len(Vn):
+                # a replacement for a car written off joins in the period: who has a car of their own is known again
+                # before it is rated (a young driver whose car was lost has none: the occasional youthful surcharge)
+                _refresh_usage(sim)
             V, a, why = np.r_[V[~now], Vn], np.r_[a[~now], an], np.r_[why[~now], whyn]
             ev = _events(ev, arrivals)
             r_ = out[-1]
@@ -613,7 +617,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     out.append(pd.DataFrame(dict(
         row=row_ids, term=T.term_of_pol[vp], pol=vp, veh=V, drv=dr, s=a, x=x, gone_known=np.where(gone, known, -1),
         end_kind=np.where(gone, END_GONE, np.where(b < T.x_pol[vp], END_ENDORSED, END_RAN)),
-        zi=v["zi"][V], rated_on=asof, reason=why, driver_age=(a - drv.dob_day.to_numpy()[dr]) / 365.25,
+        zi=v["zi"][V], rated_on=asof, reason=why, driver_age=cal.age(a, drv.dob_day.to_numpy()[dr]),
         violation_points=points, at_fault_accidents=acc, tenure_years=T.tenure[vp],
         class_code=cd["class"], score_tier=cd["score_tier"], good_student=cd["good_student"],
         homeowner=cd["homeowner"], married=cd["married"], acv=ctx["acv"], multi_car=cd["multi_car"],
@@ -994,13 +998,16 @@ def _record_scores(sim: Sim, car, d, s, e, mt, sc, s_all, leave):
     # the discount applies from the term being rated, to a car still on the policy when it starts (no day number marks
     # none: -1 is a real day, 31 December before the start)
     applies = np.where(left | ~v["active"][car], -10 ** 9, s_all[pol])
-    # a part with any mileage made at least one trip; one with none (rounded to a mile) made none
-    trips = np.where(np.round(mt["miles"] * frac) > 0, np.maximum(np.round(mt["trips"] * frac), 1), 0).astype(int)
+    # what is published is the part monitored: a customer who left part-way is shown the miles and the events up to
+    # then, and the score of that driving (a part with any mileage made at least one trip; one with none made none)
+    pub = telematics.part_of(tl.R, mt, frac)
+    shown = np.where(frac < 1, telematics.score(pub, mon), sc)
     tl.scores.append(pd.DataFrame(dict(
         eid=tl.eid[pol], pol=pol, veh=car, drv=d, s=s, e=end, days=mon,
-        miles=mt["miles"] * frac, trips=trips, hard_brakes=mt["hard_brakes"],
-        rapid_accels=mt["rapid_accels"], speeding_pct=mt["speeding_pct"], phone_minutes=mt["phone_minutes"],
-        night_pct=mt["night_pct"], score=np.where(scored, sc, -1), discount=np.where(earned, pct / 100, 0.0),
+        miles=pub["miles"], trips=pub["trips"], hard_brakes=pub["hard_brakes"], rapid_accels=pub["rapid_accels"],
+        hard_brake_events=pub["hard_brake_events"], rapid_accel_events=pub["rapid_accel_events"],
+        speeding_pct=mt["speeding_pct"], phone_minutes=mt["phone_minutes"],
+        night_pct=mt["night_pct"], score=np.where(scored, shown, -1), discount=np.where(earned, pct / 100, 0.0),
         applies_s=applies))[mon > 0])
     cars, ci = np.unique(car, return_inverse=True)
     w = np.where(earned, mon, 0).astype(np.int64)
@@ -1131,13 +1138,30 @@ def underwriting_review(sim: Sim, pols: np.ndarray, offer_day: np.ndarray, eff: 
     return (acc >= 2) | (majors >= 2) | ((acc >= 1) & (majors >= 1))
 
 
+def known_in_force(r: pd.DataFrame, day: np.ndarray) -> np.ndarray:
+    """Which of the risk rows `r` (all the rows of their terms) were in force on `day` (aligned with r) as the company
+    knew the policy that day. A row is known once it is rated. A row that ended at a change the company learned of
+    only later is still running as far as it knew: a car written off is removed from the day after the loss, but only
+    once the claim is reported, and the policy's other cars are re-rated from that day then, so on a day in between
+    the policy still has the lost car and the others at their old premium (and multi-car discount). The day a row's
+    end was known: the day the term's rows starting where it ends were rated, or, with none, the day its car was known
+    to have gone (or its end, for any other row)."""
+    term, s, x, rated = r.term.to_numpy(), r.s.to_numpy(), r.x.to_numpy(), r.rated_on.to_numpy()
+    nxt = pd.Series(rated).groupby([term, s]).min()
+    succ = nxt.reindex(pd.MultiIndex.from_arrays([term, x])).to_numpy()
+    gone = r.gone_known.to_numpy() if "gone_known" in r else np.full(len(r), -1)
+    end_known = np.where(~np.isnan(succ), np.nan_to_num(succ), np.where(gone >= 0, gone, x)).astype(np.int64)
+    return (s <= day) & (rated <= day) & ((x > day) | (end_known > day))
+
+
 def evaluate_offers(sim: Sim, pols, exp_term, offer_day, eff, since, tenure_years, term_years, ni_age, rows: pd.DataFrame,
                     tele_disc: np.ndarray) -> tuple[dict, pd.DataFrame]:
     """The renewal each policy in `pols` is offered on its offer day for the term effective `eff`, from the policy as
     it stood that day: the expiring term's exposure rows in force on the offer day (its cars, their rated drivers,
     the address and the coverage in force), the incidents known by then and the claims reported by then (since the
     previous offer, `since`). Nothing dated later is used, so the offer is the same whatever the rest of the
-    expiring term brings. Also the customer's propensity to accept it (the logit of the renewal model).
+    expiring term brings: a car written off before the offer but reported after it is still on it (known_in_force).
+    Also the customer's propensity to accept it (the logit of the renewal model).
 
     rows: exposure rows holding the expiring terms' (any superset). tele_disc: each car's telematics discount
     from the score taken on the offer day. ni_age: the named insured's age at the renewal. All other arrays are
@@ -1149,7 +1173,9 @@ def evaluate_offers(sim: Sim, pols, exp_term, offer_day, eff, since, tenure_year
     i = i_of[rows.pol.to_numpy()]
     r = rows[i >= 0]
     i = i[i >= 0]
-    snap = (r.term.to_numpy() == exp_term[i]) & (r.s.to_numpy() <= offer_day[i]) & (r.x.to_numpy() > offer_day[i])
+    mine = r.term.to_numpy() == exp_term[i]
+    r, i = r[mine], i[mine]
+    snap = known_in_force(r, offer_day[i])
     r, i = r[snap], i[snap]
     V, dr, e_ = r.veh.to_numpy(), r.drv.to_numpy(), eff[i]
     points, _, acc = sim.recs.for_rows(dr, e_, offer_day[i])

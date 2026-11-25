@@ -78,6 +78,18 @@ OVERALL_LOSS_RATIO_BAND = (0.62, 0.76)
 INDUSTRY_LOSS_RATIO_BAND = {2022: (0.74, 0.85), 2023: (0.68, 0.80), 2024: (0.59, 0.70), 2025: (0.55, 0.67)}
 
 
+def completed_age(on, born) -> np.ndarray:
+    """Whole years completed on dates `on` since dates `born` (YYYY-MM-DD text or dates): an age goes up on the
+    birthday, and a 29 February birthday is reached on 1 March in a common year."""
+    on, born = pd.to_datetime(pd.Series(np.asarray(on))), pd.to_datetime(pd.Series(np.asarray(born)))
+    before = (on.dt.month < born.dt.month) | ((on.dt.month == born.dt.month) & (on.dt.day < born.dt.day))
+    return (on.dt.year - born.dt.year - before.astype(int)).to_numpy()
+
+
+CLASS_AGES = {"16-17": (16, 17), "18-20": (18, 20), "21-24": (21, 24), "25-29": (25, 29), "30-39": (30, 39),
+              "40-49": (40, 49), "50-64": (50, 64), "65-74": (65, 74), "75+": (75, 200)}
+
+
 def load(out: Path) -> dict:
     """Every table of an output folder, read exactly as a user of the data would read the CSV files."""
     read = lambda f: pd.read_csv(f, keep_default_na=False, na_values=[""], low_memory=False, dtype={"zip_code": str, "change_reason": str})
@@ -362,7 +374,8 @@ def integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term
     dt = lambda x: pd.to_datetime(x)
     cut = pay[pay["check_number"].notna() & (pay["transaction_type"] != "Void")]
     numbers = cut["check_number"].astype(int).sort_values()
-    void = pay[pay["transaction_type"] == "Void"].merge(cut[["check_number", "amount", "payment_status", "claim_feature_id"]],
+    void = pay[pay["transaction_type"] == "Void"].merge(cut[["check_number", "amount", "payment_status", "claim_feature_id",
+                                                              "payment_id", "payment_date"]],
                                                          on="check_number", suffixes=("", "_cheque"))
     rep.check("check numbers run in one unbroken sequence in the order checks were cut; a void carries the number and "
               "amount of the check it cancels",
@@ -371,6 +384,10 @@ def integrity_payments(rep, pay, clm, feat, emp, vend, ledger, agency, pol, term
               and (void["payment_status_cheque"] == "Voided").all() and (void["claim_feature_id"] == void["claim_feature_id_cheque"]).all()
               and (pay.loc[pay["payment_method"] != "Check", "check_number"].isna()).all(),
               f"{len(cut):,} checks from {numbers.min()} to {numbers.max()}; {pay['payment_method'].value_counts().to_dict()}")
+    # replayed in payment order, a void comes after the check it cancels (on the same day too)
+    rep.check("a void comes after the check it cancels, in payment order as well as by date",
+              bool((void["payment_id"] > void["payment_id_cheque"]).all() and (void["payment_date"] >= void["payment_date_cheque"]).all()),
+              f"{len(void):,} voids, {(void['payment_date'] == void['payment_date_cheque']).sum():,} on the day of their check")
     e = emp.set_index("employee_id")
     who = e.reindex(pay["approved_by_employee_id"])
     on = dt(pay["payment_date"]).to_numpy()
@@ -498,7 +515,17 @@ def recoveries_ahead(pay: pd.DataFrame) -> pd.Index:
     return run[run["back"] > run["paid"] + 0.005].index.get_level_values(0).unique()
 
 
-def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
+# Passive immobilizers on 2015-19 Kias and Hyundais as HLDI Bulletin 38(28), December 2021, Table 1 documents them:
+# series where it was not available, and series where it was standard (those its table of optional and unavailable
+# series leaves out, and two it marks standard)
+KH_NO_IMMOBILIZER = [("Kia", "Rio", 2015, 2019), ("Hyundai", "Accent", 2015, 2017)]
+KH_STANDARD_IMMOBILIZER = [("Kia", "Sorento", 2017, 2019), ("Hyundai", "Veloster", 2019, 2019)] + [
+    (mk, md, 2015, 2019) for mk, md in (("Hyundai", "Azera"), ("Hyundai", "Equus"), ("Hyundai", "Genesis"),
+                                         ("Hyundai", "Genesis Coupe"), ("Hyundai", "Ioniq"), ("Kia", "Cadenza"),
+                                         ("Kia", "K900"), ("Kia", "Niro"), ("Kia", "Stinger"))]
+
+
+def integrity_vehicles(rep, vmy, veh, risk, clm, vtruth=None) -> None:
     """The make, model and model-year catalog and the vehicles that point to it."""
     rep.check("each make, model and model year appears once in the vehicle catalog",
               not vmy.duplicated(["make", "model", "model_year"]).any() and vmy["vehicle_model_year_id"].is_unique,
@@ -514,11 +541,24 @@ def integrity_vehicles(rep, vmy, veh, risk, clm) -> None:
     rep.check("no pile-up of older cars at the catalog's first model year", at <= 1.5 * after + 10,
               f"{first}: {at:,.0f} car-years, the next three years {after:,.0f} each on average", statistical=True)
     x = veh.merge(vmy, on="vehicle_model_year_id")
-    theft_wave = x["make"].isin(["Kia", "Hyundai"]) & (x["fuel_type"] != "Electric") & x["model_year"].between(2011, 2021)
-    rep.check("the key-start Kias and Hyundais of the theft wave have no immobiliser (anti-theft device)",
-              (x.loc[theft_wave, "anti_theft_device"] == "N").all(),
-              f"{theft_wave.sum():,} theft-wave cars; anti-theft on {(x.loc[~theft_wave, 'anti_theft_device'] == 'Y').mean():.0%} "
-              f"of the rest, automatic emergency braking on {(x['automatic_emergency_braking'] == 'Y').mean():.0%}")
+    cohort = x["make"].isin(["Kia", "Hyundai"]) & (x["fuel_type"] != "Electric") & x["model_year"].between(2011, 2021)
+    has = x["anti_theft_device"] == "Y"
+    of = lambda spans: np.logical_or.reduce([(x["make"] == mk) & (x["model"] == md) & x["model_year"].between(y0, y1)
+                                             for mk, md, y0, y1 in spans])
+    none_, std_ = of(KH_NO_IMMOBILIZER), of(KH_STANDARD_IMMOBILIZER)
+    # where it was an option some cars have it and some not (the book has enough of the big series to show both)
+    opt_ = cohort & ~none_ & ~std_ & x["model"].isin(["Elantra", "Sonata", "Optima", "Forte", "Soul", "Sportage", "Tucson"])
+    exposure = "" if vtruth is None else "; the answer key's theft-wave exposure is exactly the 2011-21 Kias and Hyundais without one"
+    ok_truth = True
+    if vtruth is not None:
+        flag = vtruth.set_index("insured_vehicle_id")["kia_hyundai_theft_exposure"].reindex(x["insured_vehicle_id"]).to_numpy() == "Y"
+        ok_truth = bool((flag == (cohort & ~has).to_numpy()).all())
+    rep.check("2011-21 Kias and Hyundais have an immobilizer as their series did that model year (HLDI): none on the "
+              "series without one, always on those with it standard, on some cars of those offering it" + exposure,
+              bool((~has[none_]).all() and has[std_].all() and has[opt_].any() and (~has[opt_]).any()) and ok_truth,
+              f"{cohort.sum():,} cars, {has[cohort].mean():.0%} with an immobilizer ({(~has[cohort]).sum():,} without, the theft "
+              f"wave's); {none_.sum():,} on series without one, {std_.sum():,} on series with it standard; anti-theft on "
+              f"{has[~cohort].mean():.0%} of other cars, automatic emergency braking on {(x['automatic_emergency_braking'] == 'Y').mean():.0%}")
     lease = x[x["replaces_insured_vehicle_id"].notna() & (x["ownership"] == "Leased")]
     rep.check("a replacement car taken on a new lease is new (its model year no older than the year before)",
               (pd.to_datetime(lease["added_date"]).dt.year - lease["model_year"] <= 1).all(), f"{len(lease):,} leased replacements")
@@ -554,6 +594,18 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
               and s_.loc[scored, "driving_score"].between(1, 100).all()
               and ((s_.loc[scored, "earned_discount_pct"] == rule[scored]) | (s_.loc[scored, "earned_discount_pct"] == 0)).all(),
               f"{len(s_):,} scores, mean {s_['driving_score'].mean():.1f}, average earned discount {s_['earned_discount_pct'].mean():.1f}%")
+    # the device counts whole events over whole miles: each rate per 100 miles is a whole number of events over the
+    # miles driven (none over none)
+    whole = []
+    for col in ("hard_brakes_per_100_miles", "rapid_accelerations_per_100_miles"):
+        miles, rate = s_["miles_driven"].to_numpy(dtype=float), s_[col].to_numpy(dtype=float)
+        events = np.round(rate * miles / 100)
+        again = np.where(miles > 0, np.round(100 * events / np.maximum(miles, 1), 2), 0.0)
+        whole.append(np.isclose(again, rate, rtol=0, atol=1e-9))
+    rep.check("each hard-braking and rapid-acceleration rate is a whole number of events over the miles driven",
+              bool(np.logical_and(*whole).all()),
+              f"{(~whole[0]).sum():,} and {(~whole[1]).sum():,} rates that are not; "
+              f"{(s_['hard_brakes_per_100_miles'] == 0).sum():,} periods without a hard brake")
     plug = e["device_type"].reindex(s_["enrollment_id"]).to_numpy() == "Plug-in Device"
     phone = s_["phone_use_minutes_per_100_miles"]
     rep.check("a plug-in device records no phone use and the other devices always do; any mileage takes a trip",
@@ -608,9 +660,41 @@ def integrity_telematics(rep, enrol, scores, risk, term, valuation, pol=None, ve
               and risk["telematics_discount_pct"].between(0, 30).all())
 
 
-def integrity_renewals(rep, offers, term, risk, valuation) -> None:
-    """Renewal offers: each is dated inside its expiring term and made from the policy as it stood on the offer date
-    (the expiring term's exposure rows in force that day), and its outcome agrees with the policy terms."""
+def writeoff_known(veh, clm, feat) -> pd.DataFrame:
+    """The day the company knew a car written off or wrecked had gone, where that was later than its removal: a car
+    claimed here (a physical damage, rental or towing feature) is taken off once the claim is reported, its removal
+    backdated to the day after the loss. One row per such car: insured_vehicle_id, removed_date and known (the
+    claim's report date)."""
+    gone = veh[veh["removal_reason"].isin(["Total Loss", "Destroyed or Stolen"])][["insured_vehicle_id", "removed_date"]]
+    pdc = feat.loc[feat["coverage_code"].isin(["COLL", "COMP", "RENT", "TOW"]), "claim_id"]
+    c = clm.loc[clm["claim_id"].isin(pdc), ["insured_vehicle_id", "loss_date", "report_date"]]
+    c = c.assign(removed_date=(pd.to_datetime(c["loss_date"]) + pd.Timedelta(days=1)).dt.strftime("%Y-%m-%d"))
+    hit = gone.merge(c, on=["insured_vehicle_id", "removed_date"])
+    return hit.groupby(["insured_vehicle_id", "removed_date"])["report_date"].max().rename("known").reset_index()
+
+
+def known_in_force(rows, day, gone_known=None) -> np.ndarray:
+    """Which exposure rows (with every row of their terms) were in force on `day` (aligned with rows) as the company
+    knew the policy then: rows rated by that day, and a row that ended at a change learned of later still running (a
+    car written off before the day but reported after it, and the other cars' rows re-rated from the day after the
+    loss once it was reported). A row's end is known when the term's rows starting where it ends were rated, or, with
+    none, when its car was known to have gone (`gone_known`, by exposure row; otherwise its end)."""
+    key = ["policy_term_id", "coverage_start_date"]
+    nxt = rows.groupby(key)["rating_date"].min()
+    succ = nxt.reindex(pd.MultiIndex.from_arrays([rows["policy_term_id"], rows["coverage_end_date"]])).to_numpy()
+    end = rows["coverage_end_date"].to_numpy()
+    if gone_known is not None:
+        end = np.where(pd.isna(gone_known), end, gone_known)
+    end_known = np.where(pd.isna(succ), end, succ)
+    day = np.asarray(day)
+    return ((rows["coverage_start_date"].to_numpy() <= day) & (rows["rating_date"].to_numpy() <= day)
+            & ((rows["coverage_end_date"].to_numpy() > day) | (end_known > day)))
+
+
+def integrity_renewals(rep, offers, term, risk, valuation, veh=None, clm=None, feat=None) -> None:
+    """Renewal offers: each is dated inside its expiring term and made from the policy as it stood on the offer date,
+    as the company knew it then (the expiring term's exposure rows in force that day, rated by then: a car written off
+    before the offer but reported after it is still on it), and its outcome agrees with the policy terms."""
     o = offers
     t = term.set_index("policy_term_id")
     exp = t.reindex(o["expiring_policy_term_id"])
@@ -622,16 +706,26 @@ def integrity_renewals(rep, offers, term, risk, valuation) -> None:
               and (exp["expiration_date"].to_numpy() == o["renewal_effective_date"].to_numpy()).all()
               and not o["expiring_policy_term_id"].duplicated().any(),
               f"{len(o):,} offers: {o['outcome'].value_counts().to_dict()}")
-    # the snapshot: the vehicles and the premium in force on the offer date
-    r = risk[["policy_term_id", "coverage_start_date", "coverage_end_date", "total_premium"]].merge(
-        o[["renewal_offer_id", "expiring_policy_term_id", "offer_date"]], left_on="policy_term_id",
-        right_on="expiring_policy_term_id")
-    r = r[(r["coverage_start_date"] <= r["offer_date"]) & (r["coverage_end_date"] > r["offer_date"])]
+    # the snapshot: the vehicles and the premium in force on the offer date, as the company knew them that day
+    cols = ["policy_term_id", "insured_vehicle_id", "coverage_start_date", "coverage_end_date", "rating_date", "total_premium"]
+    r = risk[cols].merge(o[["renewal_offer_id", "expiring_policy_term_id", "offer_date"]], left_on="policy_term_id",
+                         right_on="expiring_policy_term_id")
+    gk = None
+    if veh is not None:
+        wk = writeoff_known(veh, clm, feat)
+        gk = r[["insured_vehicle_id", "coverage_end_date"]].merge(
+            wk, left_on=["insured_vehicle_id", "coverage_end_date"], right_on=["insured_vehicle_id", "removed_date"],
+            how="left")["known"].to_numpy()
+    held = known_in_force(r, r["offer_date"].to_numpy(), gk)
+    later = held & (r["coverage_end_date"] <= r["offer_date"])
+    r = r[held]
     g = r.groupby("renewal_offer_id").agg(n=("total_premium", "size"), prem=("total_premium", "sum")).reindex(o["renewal_offer_id"]).fillna(0)
-    rep.check("each offer covers the vehicles in force on its offer date, at the premium they were then insured for",
+    rep.check("each offer covers the vehicles in force on its offer date as the company then knew them, at the premium "
+              "they were then insured for (a car written off before the offer and reported after it is still on it)",
               (g["n"].to_numpy() == o["vehicles_offered"].to_numpy()).all()
               and np.allclose(g["prem"].to_numpy(), o["expiring_premium"].to_numpy(), atol=0.05),
-              f"{(o['vehicles_offered'] == 0).sum():,} offers with no vehicle on the policy that day (a replacement to come)")
+              f"{(o['vehicles_offered'] == 0).sum():,} offers with no vehicle on the policy that day (a replacement to come); "
+              f"{later.sum():,} rows ended by a change learned of after the offer")
     # outcomes
     ren = o[o["outcome"] == "Renewed"]
     new = t.reindex(ren["renewal_policy_term_id"].astype(int))
@@ -977,10 +1071,22 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
     rep.check("the company's own claims reach the driving record after the loss date, never on it", (own.k > own.d).all(),
               f"{len(own):,} chargeable company claims")
     rep.check("no good-student discount at 25 or older", not ((risk["rated_good_student"] == "Y") & (risk["rated_driver_age"] >= 25)).any())
+    # a rated age is the driver's age in completed years on the day the row starts, and the class is filed by it
+    ra = risk[["rated_driver_age", "rated_driver_class", "coverage_start_date", "driver_id"]].merge(
+        drv[["driver_id", "date_of_birth"]], on="driver_id", how="left")
+    want = completed_age(ra["coverage_start_date"], ra["date_of_birth"])
+    band = ra["rated_driver_class"].str.split(" ").str[0].map(CLASS_AGES)
+    lo, hi = band.str[0].to_numpy(dtype=float), band.str[1].to_numpy(dtype=float)
+    rep.check("each row's rated age is its driver's completed age on the day the row starts, and its class is the "
+              "filed class for that age (a driver moves class on the birthday)",
+              bool((ra["rated_driver_age"].to_numpy() == want).all()
+                   and ((ra["rated_driver_age"] >= lo) & (ra["rated_driver_age"] <= hi)).all()),
+              f"{(ra['rated_driver_age'].to_numpy() != want).sum():,} rows whose age is not; "
+              f"{(~((ra['rated_driver_age'] >= lo) & (ra['rated_driver_age'] <= hi))).sum():,} outside their class")
     in_force = drv["policy_id"].isin(pol.loc[pol["policy_status"] == "In Force", "policy_id"])
     known = drv[drv["removed_date"].notna() | in_force]
     last_day = np.where(known["removed_date"].notna(), known["removed_date"], str(valuation.date()))
-    age_then = (pd.to_datetime(last_day) - dt(known["date_of_birth"])).dt.days / 365.25
+    age_then = completed_age(last_day, known["date_of_birth"])
     rep.check("a driver's good-student status is as of their last day insured (by the valuation date), as the rest "
               "of the driver record", not ((known["good_student"] == "Y") & (age_then >= 25)).any())
 
@@ -1363,8 +1469,8 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
     per = risk.drop_duplicates(key)[key + ["policy_id", "coverage_start_date"]]
     d = per.merge(drv[["driver_id", "policy_id", "date_of_birth", "added_date", "removed_date"]], on="policy_id")
     d = d[(d["added_date"] <= d["coverage_start_date"]) & ~(d["removed_date"] <= d["coverage_start_date"])]
-    young = (pd.to_datetime(d["coverage_start_date"]) - pd.to_datetime(d["date_of_birth"])).dt.days / 365.25 < 25
-    d = d[young.to_numpy()].merge(risk[key + ["driver_id"]].drop_duplicates().assign(own=1), on=key + ["driver_id"], how="left")
+    young = completed_age(d["coverage_start_date"], d["date_of_birth"]) < 25
+    d = d[young].merge(risk[key + ["driver_id"]].drop_duplicates().assign(own=1), on=key + ["driver_id"], how="left")
     free = d[d["own"].isna()].groupby(key).size()
     want = pd.Series(pd.MultiIndex.from_frame(per[key]).isin(free.index), index=pd.MultiIndex.from_frame(per[key]))
     rep.check("an occasional youthful operator is charged on one car, and only when a listed driver under 25 has no car "
@@ -1461,6 +1567,22 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
               f"{len(kept):,} owner-retained total losses")
 
 
+def integrity_animal_drivers(rep, clm, risk, pol) -> None:
+    """A collision with an animal happens while someone drives the car: its claim names one of the car's drivers, drawn
+    as for other crashes, not the named insured by default."""
+    x = clm[["claim_id", "policy_id", "exposure_id", "involved_driver_id", "cause_of_loss"]].merge(
+        risk[["exposure_id", "driver_id"]], on="exposure_id").merge(pol[["policy_id", "named_insured_driver_id"]], on="policy_id")
+    other = x[x["driver_id"] != x["named_insured_driver_id"]]          # cars mostly driven by someone else
+    share = lambda cause: (other.loc[other["cause_of_loss"] == cause, "involved_driver_id"]
+                           != other.loc[other["cause_of_loss"] == cause, "named_insured_driver_id"]).mean()
+    n = int((other["cause_of_loss"] == "ANIMAL").sum())
+    rep.check("a collision with an animal names the driver at the wheel, as other crashes do: on cars whose rated driver "
+              "is not the named insured, most animal claims name someone other than the named insured",
+              n == 0 or share("ANIMAL") > 0.5,
+              f"{n:,} such animal claims, {share('ANIMAL'):.0%} naming another driver (not-at-fault crashes {share('NAF'):.0%})"
+              if n else "no animal claims on such cars")
+
+
 def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation) -> None:
     """The general ledger balances and ties to the subledgers it summarizes."""
     j = gl.groupby("journal_number")[["debit", "credit"]].sum()
@@ -1481,8 +1603,15 @@ def integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm,
     on_income = gl[gl["account_number"].isin(income) & year.isin(closed)]
     left = (on_income["debit"] - on_income["credit"]).groupby([year[on_income.index], on_income["company_id"]]).sum()
     moved = gl[closing & (gl["account_number"] == 3000)]
-    rep.check("each year-end closes the year's income statement accounts to surplus, in December",
+    # a year is closed on its 31 December and only once that day is in the extract: a year the valuation date falls in
+    # (in December too) is left open, every year before it closed
+    V = pd.Timestamp(valuation)
+    want = [str(y) for y in range(pd.Timestamp(start).year, V.year + 1) if pd.Timestamp(f"{y}-12-31") <= V]
+    rep.check("each year-end closes the year's income statement accounts to surplus, on 31 December, once for each "
+              "company and only for years ended by the valuation date",
               (left.abs() < 0.005).all() and (gl.loc[closing, "accounting_period"].str[5:] == "12").all()
+              and (gl.loc[closing, "posting_date"].str[5:] == "12-31").all() and closed == want
+              and not gl[closing & (gl["account_number"] == 3000)].duplicated(["company_id", "accounting_period"]).any()
               and close(-(moved["debit"] - moved["credit"]).sum(),
                            -(gl.loc[~opening & ~closing & gl["account_number"].isin(income) & year.isin(closed), "debit"]
                              - gl.loc[~opening & ~closing & gl["account_number"].isin(income) & year.isin(closed), "credit"]).sum()),
@@ -1642,7 +1771,8 @@ def main() -> None:
     rep.check("all drivers are 16 or older when first insured", age.min() >= 16, f"youngest {age.min():.1f}, oldest {age.max():.1f}")
     integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_start, r_end, valuation)
     integrity_claims_and_quotes(rep, term, veh, clm, feat, reserves, quotes)
-    integrity_vehicles(rep, vmy, veh, risk, clm)
+    vt = out / "answer_key" / "insured_vehicle_truth.csv"
+    integrity_vehicles(rep, vmy, veh, risk, clm, pd.read_csv(vt) if vt.exists() else None)
     # a car's use and mileage are what its last period rated by the valuation date was rated on
     by_v = risk[risk["coverage_start_date"] <= str(pd.Timestamp(valuation).date())]
     last = by_v[by_v["coverage_start_date"] == by_v.groupby("insured_vehicle_id")["coverage_start_date"].transform("max")]
@@ -1712,7 +1842,7 @@ def main() -> None:
               and storm["loss_time"].between(storm["start_time"], storm["end_time"]).all(),
               f"{len(storm):,} catastrophe claims")
     integrity_telematics(rep, enrol, tscores, risk, term, pd.Timestamp(valuation), pol, veh, drv)
-    integrity_renewals(rep, offers, term, risk, valuation)
+    integrity_renewals(rep, offers, term, risk, valuation, veh, clm, feat)
     integrity_calendar(rep, term, clm, feat, pay, reserves, inc, drv, ledger, contact, emp, agency, t["producer"], inv)
     integrity_identifiers(rep, pol, term, drv, veh, risk, clm, feat, quotes, vmy)
     integrity_billing(rep, inv, rec, term, ledger, pol, valuation, contact)
@@ -1720,6 +1850,7 @@ def main() -> None:
     integrity_payees(rep, pay, clm, feat, veh, drv)
     integrity_audit_records(rep, t, valuation)
     integrity_audit_v119(rep, t, valuation, out)
+    integrity_animal_drivers(rep, clm, risk, pol)
     integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation)
     filed = plan["filed_discounts"]
     rep.check("the rating plan charges the filed discounts and surcharges, on the coverages they are filed for",

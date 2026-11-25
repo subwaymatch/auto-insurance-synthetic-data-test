@@ -29,11 +29,11 @@ from .simulate import Records
 
 
 
-def _age_on(first_day, ni_age) -> np.ndarray:
-    """The named insured's age on the first day, from their birth day as the population records it (a whole day,
-    population.build), so it agrees with the youngest driver's age and the rated ages."""
-    first_day = np.asarray(first_day, dtype=float)
-    return (first_day - np.floor(first_day - np.asarray(ni_age, dtype=float) * 365.25)) / 365.25
+def _age_on(cal, first_day, ni_age) -> np.ndarray:
+    """The named insured's age on the first day in completed years, from their birth day as the population records
+    it (a whole day, population.build), so it agrees with the youngest driver's age and the rated ages."""
+    first_day = np.asarray(first_day)
+    return cal.age(first_day, np.floor(first_day - np.asarray(ni_age, dtype=float) * 365.25).astype(np.int64))
 
 
 def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
@@ -50,10 +50,10 @@ def build(cfg: C.Config, ref, pop, res) -> pd.DataFrame:
               .reindex(nb.pol).fillna(0).to_numpy() / (pol.term_months.to_numpy() / 12))
     fair = first["fair"].sum().reindex(nb.pol).fillna(0).to_numpy() / (pol.term_months.to_numpy() / 12)
     drv = pop.drv[pop.drv.added_day.to_numpy() <= pop.pol.first_day.to_numpy()[pop.drv.pol.to_numpy()]]
-    young = drv.assign(age=(pop.pol.first_day.to_numpy()[drv.pol.to_numpy()] - drv.dob_day) / 365.25).groupby("pol").age.min()
+    young = drv.assign(age=cal.age(pop.pol.first_day.to_numpy()[drv.pol.to_numpy()], drv.dob_day.to_numpy())).groupby("pol").age.min()
     bound = pd.DataFrame(dict(
         quote_day=nb.offer_day.to_numpy(), eff=nb.s.to_numpy(), pol=nb.pol.to_numpy(), channel=pol.channel.to_numpy(),
-        agency=pol.agency_id.to_numpy(), zi=at_quote("zi"), ni_age=_age_on(pol.first_day.to_numpy(), pol.ni_age.to_numpy()),
+        agency=pol.agency_id.to_numpy(), zi=at_quote("zi"), ni_age=_age_on(cal, pol.first_day.to_numpy(), pol.ni_age.to_numpy()),
         n_drv=drv.groupby("pol").size().reindex(nb.pol).to_numpy(), n_veh=first.size().reindex(nb.pol).to_numpy(),
         young=young.reindex(nb.pol).to_numpy(), prior=pol.prior_insurance.to_numpy(), score=pol.insurance_score.to_numpy(),
         bi_opt=at_quote("bi_opt"), telematics=first["tele_on"].any().reindex(nb.pol).fillna(False).to_numpy().astype(bool),
@@ -141,9 +141,9 @@ def _prospects(cfg: C.Config, ref, plan, n: int, channel_w, R: np.random.Generat
     log_ratio = (market.gap(cal, quote_day) + C.COMPETITOR_ACCURACY * (misprice - level)
                  + R.normal(0, C.COMPETITOR_PRICE_SIGMA, len(first)))
     lost = R.random(len(first)) >= market.bind_p(channel, log_ratio)
-    young = pp.drv.assign(age=(first[d_pol] - pp.drv.dob_day.to_numpy()) / 365.25).groupby("pol").age.min().to_numpy()
+    young = pp.drv.assign(age=cal.age(first[d_pol], pp.drv.dob_day.to_numpy())).groupby("pol").age.min().to_numpy()
     out = pd.DataFrame(dict(
-        quote_day=quote_day, eff=first, pol=-1, channel=channel, agency=p["agency_id"], zi=p["zi"], ni_age=_age_on(first, p["ni_age"]),
+        quote_day=quote_day, eff=first, pol=-1, channel=channel, agency=p["agency_id"], zi=p["zi"], ni_age=_age_on(cal, first, p["ni_age"]),
         n_drv=p["n_drv"], n_veh=p["n_veh"], young=young, prior=p["prior_insurance"], score=p["insurance_score"],
         bi_opt=p["bi_opt"], telematics=opt_in, term_months=p["term_months"], premium=annual, bound=False,
         log_ratio=log_ratio))

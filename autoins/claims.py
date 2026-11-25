@@ -523,6 +523,14 @@ def _legs(f_idx, day, cents, txn, role="", ref=-1) -> pd.DataFrame:
                              role=role, ref=ref))
 
 
+def in_order(pays: pd.DataFrame) -> pd.DataFrame:
+    """Payment legs (fid, day, kind, txn, cents) in the order they happen, feature by feature and day by day: on a
+    day, a void after the payment it cancels and the reissue after the void, whatever their amounts; the rest by
+    amount. The order numbers the payments (develop)."""
+    step = np.select([pays.txn.to_numpy() == "Void", pays.txn.to_numpy() == "Reissue"], [1, 2], 0)
+    return pays.assign(step=step).sort_values(["fid", "day", "kind", "step", "cents"], kind="stable").reset_index(drop=True)
+
+
 def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     """Every loss payment, expense payment and recovery of each feature, through to its final close.
     Adds reopen_day and final_close_day to f. Returns (payments, f). Payments are issued, files reopened and
@@ -667,7 +675,7 @@ def _schedule(f: pd.DataFrame, R: np.random.Generator, cal):
     pays = pd.concat([loss, expense, rec], ignore_index=True)
     pays["fid"] = f.fid.to_numpy()[pays.i.to_numpy()]
     pays["amount"] = pays.cents / 100
-    pays = pays.sort_values(["fid", "day", "kind", "cents"], kind="stable").reset_index(drop=True)
+    pays = in_order(pays)
     pays["seq"] = np.arange(len(pays))
     f = f.assign(paid=P / 100, reopen_day=np.where(reopen, reopen_day, NO_DAY), final_close_day=np.where(reopen, final_close, cd),
                  supp=supp / 100)
