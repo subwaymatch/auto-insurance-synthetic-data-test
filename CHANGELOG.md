@@ -68,10 +68,14 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
 14. **2026-11-24, [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8): A further audit ([PR #16](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/16)).** Subrogation recovers only what has been paid by then, a car passed to
     another driver is rated on their mileage and use, and a crash can kill the insured at the wheel and the
     household's other drivers riding along, who then leave the policy as any death does.
-15. **Unreleased, An audit of v1.1.8.** Medical providers are paid again, revised renewals are billed when they
+15. **2026-11-24, [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9): An audit of v1.1.8 ([PR #17](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/17)).** Medical providers are paid again, revised renewals are billed when they
     are rated, refunds wait for the cash, every endorsement records a change, a car written off re-rates the
     others that day, the first driver is an adult and licensed at inception, a fatal crash has a police report,
     and a crash's subrogation comes back together.
+16. **Unreleased, An audit of v1.1.9.** A car lost in a claim is taken off once the claim is reported (backdated),
+    spare cars pass to drivers without one, divorced spouses are divorced, fatal crashes have police reports,
+    lapsing policies pay no later endorsement bills, nothing is confirmed or chased after a cancellation, new
+    policies are placed on what was known on their quote day, and opening telematics enrollments start with a term.
 
 ### Releases
 
@@ -90,12 +94,61 @@ published files; it is given where the changelog recorded it.
 | [v1.1.6](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.6) | 2026-11-22 | `c28d1cd` | #14 | 43,368 policies to 2026-12-31 | `4a1f9ef22b9bc813` |
 | [v1.1.7](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.7) | 2026-11-22 | `529956c` | #15 | 43,368 policies to 2026-12-31 | `6a360e75d7d87f3f` |
 | [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8) | 2026-11-24 | `635ea6f` | #16 | 43,368 policies to 2026-12-31 | `4a9b0599022f5117` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `4612b99cdbc9e521` |
+| [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9) | 2026-11-24 | `de3495e` | #17 | 43,368 policies to 2026-12-31 | `4612b99cdbc9e521` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `9774ec39a673aeea` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
 
-## Unreleased: an audit of v1.1.8
+## Unreleased: an audit of v1.1.9
+
+An audit of v1.1.9 (default run and seed 101) found ten issues that no check covered; both books passed every
+check. Figures are for the default run after these changes (content hash `9774ec39a673aeea`).
+`docs/review_response.md` ("Audit of v1.1.9") answers each finding.
+
+- **A car lost in a claim is taken off once the company knows.** Its removal, the other cars' re-rating, the
+  endorsement, the cancellation of an emptied policy and their confirmations all came the day after the loss, before
+  the claim was reported (up to 221 days before), and eight cars whose claims would only be reported in 2027 were
+  already off the policy. The simulation now draws the claim's first notice when the loss happens. A car lost in a
+  claim with a physical damage, rental or towing feature is removed, backdated to the day after the loss, once the
+  claim is reported: the re-rated rows' `rating_date` is the report date (so it can follow the row's start), and
+  the endorsement, the cancellation and their letters come no earlier. A car whose claim is not reported by the
+  valuation date stays on the policy, with no further losses. A removal not known before a renewal takes effect
+  does not revise it.
+- **Spare cars.** Ranks are never reused (two cars had shared the last rank and both carried the occasional
+  youthful operator surcharge); a driver left with only a spare car drives it as their main car; and a newly
+  licensed teenager or a new spouse without a car takes over a spare car the household already has. The surcharge
+  now falls on one car, and only when a listed driver under 25 has no car of their own (98 periods had it without
+  one).
+- **People and claims.** A divorcing spouse is divorced (all 646 had stayed married), and a couple killed together
+  leaves no widow. A crash that killed someone has a police report even with no claim of the victim's own, as does
+  a crash whose driver died by the next day; a rental ends when the household's only driver dies, even when the
+  death falls early in the next term. A car its owner kept after a total loss has no losses for the rest of the term,
+  storms included.
+- **Billing and contacts.** A policy cancelled for non-payment pays no bill due after the installment it missed
+  (14 endorsement bills had been paid, five by bank draft). Changes and cancellations are confirmed when they are
+  booked; nothing is confirmed, chased or warned of once a policy is canceled (844 change confirmations had gone out
+  on or after a cancellation); no staff calls on a Saturday holiday.
+- **Placement and telematics.** A new policy is placed with its company on what was known on its quote day (drawn
+  with the population and used by the simulation and the quote table); 30 had been placed on a violation that
+  reached the record after the quote. A policy already renewing when the extract opens is placed on its record as it
+  entered the extract (documented: its record when first written is not retained). A telematics enrollment from
+  before 2022 begins on one of the policy's earlier term effective dates.
+- **Dictionary and website.** Prior-carrier reports, `telematics_enrolled`, the claim table's "totals" and the ZIP
+  code example are corrected; v1.1.9 is dated here.
+- **Checks.** `validate.py` adds ten checks, one for each finding (203 in all); on v1.1.9 eight fail on the default
+  run and nine on seed 101. Two existing checks allow the backdated re-rating: a row may be rated after it starts
+  when it follows a car's backdated removal (rated the day the claim was reported), and its household is judged as of
+  its start. Unit tests cover the cut's wait for the report, the rental's end (in the term and after it) and spare-car promotion.
+- **The default run** (content hash `9774ec39a673aeea`): loss ratios by accident year 83.7%, 80.3%, 65.0%, 60.2% and
+  69.1% for 2022 to 2026, of which catastrophes 0.0%, 4.0%, 2.7%, 0.9% and 5.9%; overall 70.5% (was 70.1% in v1.1.9;
+  {SEED_RANGE} across five seeds); annualized retention 81.2%. 195,405 policy terms, 444,330 exposure rows, $212.2
+  million earned premium, 22,670 claims, 39,879 features, 60,877 claim payments, 103,972 reserve transactions,
+  878,791 bills and 890,425 receipts, 118,697 quotes and 168,956 renewal offers. These changes move later random
+  draws, so every figure moves a little. 203 checks pass on the default run and on seeds 7, 11, 23, 42 and 101
+  (content hashes {SEED_HASHES}){SEED_BANDS}. The test suite has 87 tests (86 pass, and one needs `pyarrow`).
+
+## 2026-11-24, [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9): An audit of v1.1.8 ([PR #17](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/17))
 
 An audit of v1.1.8 (default run and seed 101) found 18 record-level issues that no check covered; both books
 passed every check. Figures are for the default run after these changes (content hash `4612b99cdbc9e521`).

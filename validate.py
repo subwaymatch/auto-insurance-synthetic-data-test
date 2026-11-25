@@ -1341,7 +1341,10 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
         hit, left_on=["policy_id", "coverage_start_date"], right_on=["policy_id", "removed_date"])
     path = (out / "answer_key" / "unreported_claim.csv") if out is not None else None
     unrep = pd.read_csv(path) if path is not None and path.exists() else pd.DataFrame(columns=["insured_vehicle_id", "loss_date", "coverage_code"])
-    u = unrep[unrep["coverage_code"].isin(["COLL", "COMP"])].merge(veh[["insured_vehicle_id", "removed_date"]], on="insured_vehicle_id")
+    # (a car traded or sold the day after a loss its owner has not reported yet left for its own reason)
+    u = unrep[unrep["coverage_code"].isin(["COLL", "COMP"])].merge(
+        veh.loc[veh["removal_reason"].isin(["Total Loss", "Destroyed or Stolen"]) | veh["removal_reason"].isna(),
+                ["insured_vehicle_id", "removed_date"]], on="insured_vehicle_id")
     early_known = u["removed_date"].notna() & (u["removed_date"] == nextday(u["loss_date"])) if len(u) else pd.Series([], dtype=bool)
     rep.check("a car lost in a physical damage claim is taken off, re-rated and booked only once the claim is reported "
               "(backdated), and one whose claim is not yet reported is still on the policy",

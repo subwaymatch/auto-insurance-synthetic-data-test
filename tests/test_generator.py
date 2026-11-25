@@ -1109,6 +1109,21 @@ class KnownRemovalTest(unittest.TestCase):
         self.assertEqual(out.rent_days.tolist(), [5.0, 20.0])
         self.assertEqual(out.paid.tolist(), [150.0, 600.0])
 
+    def test_developed_rental_cut_at_a_later_death(self):
+        dev = claims.Development(None, np.random.default_rng(0), np.random.default_rng(1))
+        dev.feats = [pd.DataFrame(dict(fid=[7, 8], cvg=["RENT", "COLL"], gross=[800.0, 3000.0], paid=[600.0, 2500.0],
+                                       subro=[300.0, 1250.0], rent_days=[20.0, 0.0]))]
+        dev.pays = [pd.DataFrame(dict(fid=[7, 7, 8], kind=["Loss", "Subrogation Recovery", "Loss"],
+                                      amount=[600.0, -300.0, 2500.0]))]
+        dev.rentals = [pd.DataFrame(dict(b=[0], fid=[7], pol=[3], day=[100], days=[20.0]))]
+        dev.stop_rentals(np.array([4, 3]), np.array([105, 110]))   # policy 3's only driver dies 10 days in
+        f, p = dev.feats[0], dev.pays[0]
+        self.assertEqual(f.paid.tolist(), [300.0, 2500.0])
+        self.assertEqual(f.rent_days.tolist(), [10.0, 0.0])
+        self.assertEqual(p.amount.tolist(), [300.0, -150.0, 2500.0])
+        dev.stop_rentals(np.array([3]), np.array([105]))            # done once: the rental is already back
+        self.assertEqual(dev.feats[0].paid.tolist(), [300.0, 2500.0])
+
     def test_spare_car_promoted(self):
         from types import SimpleNamespace
         v = {"active": np.array([True, True, False]), "extra_vehicle": np.array([True, False, False]),

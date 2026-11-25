@@ -459,6 +459,10 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         dies = dies[n_drv_on[dies.pol.to_numpy()] == 1]
         T.death_end = np.full(n, np.iinfo(np.int64).max // 4)
         np.minimum.at(T.death_end, dies.pol.to_numpy(), dies.day.to_numpy())
+        # (and one already developed, from a loss late last term, is cut short too)
+        sim.dev.stop_rentals(dies.pol.to_numpy(), dies.day.to_numpy())
+        if sim.warm is not None:
+            sim.warm.dev.stop_rentals(dies.pol.to_numpy(), dies.day.to_numpy() + sim.warm.off)
         np.minimum.at(nb, upcoming.pol.to_numpy(), upcoming.day.to_numpy())
         v = st.v
         V = np.flatnonzero(v["active"] & live[v["pol"]] & (v["added_day"] <= clock[v["pol"]]))
@@ -576,6 +580,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     salvaged = (v["salvage_day"][V] >= T.s[vp]) | v["lost_unknown"][V]
     for k_ in ctx["rate"]:
         ctx["rate"][k_] = ctx["rate"][k_] * ~salvaged
+    ctx["idle"] = salvaged                              # (nor is it out in a storm's path)
     occ, feat, wrecks, deaths, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
     occ["notice"] = claims.first_notice(cal, occ, R)
     occ, feat, stop_day, how, stop_occ = _stop_at_total_loss(occ, feat, wrecks, len(V))

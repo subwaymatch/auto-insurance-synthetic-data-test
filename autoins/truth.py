@@ -878,6 +878,8 @@ def simulate(c: dict, st: Static, cal: Calendar, rng: np.random.Generator, occ_o
         if not 0 <= d <= cal.valuation_day:
             continue
         p_hit = st.cat_p[i][c["zi"]] * np.array(C.PARKING_WEATHER_FACTOR)[c["park"]] * ((c["s"] <= d) & (d < c["x"]))
+        if "idle" in c:                                  # a car kept on a salvage title after a total loss
+            p_hit = p_hit * ~c["idle"]
         vi = np.flatnonzero(rng.random(c["n"]) < p_hit)
         comp_features(peril, vi, np.full(len(vi), d), cat=i)
 

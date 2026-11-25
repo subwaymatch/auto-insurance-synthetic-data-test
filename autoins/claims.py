@@ -111,6 +111,7 @@ class Development:
         self.cal, self.R, self.R2 = cal, rng, rng_detail
         self.occs, self.feats, self.pays, self.reserves = [], [], [], []
         self.n_feat = 0
+        self.rentals = []           # paid rentals: batch, feature, policy, loss day, days kept (stop_rentals)
 
     def add(self, occ: pd.DataFrame, feat: pd.DataFrame) -> pd.DataFrame:
         """Develop a batch of new claims. Returns occ with report_day (first notice the company has of any
@@ -180,11 +181,57 @@ class Development:
         posted = _chargeable(f, pays) + C.CHARGEABLE_POSTING_DAYS
         occ["chargeable_day"] = occ.occ.map(posted).fillna(NO_DAY).astype(np.int64).to_numpy()
         occ = _claim_detail(occ, f, self.R2, self.cal)
+        rent = np.flatnonzero((cvg == "RENT") & (f.paid.to_numpy() > 0))
+        if len(rent) and "pol" in occ:
+            pol_of = pd.Series(occ.pol.to_numpy(), index=occ.occ.to_numpy())
+            self.rentals.append(pd.DataFrame(dict(b=len(self.feats), fid=f.fid.to_numpy()[rent],
+                                                  pol=pol_of.reindex(f.occ.to_numpy()[rent]).to_numpy(),
+                                                  day=f.day.to_numpy()[rent], days=rent_days[rent])))
         self.reserves.append(_reserve_history(f, pays, self.cal, self.R2))
         self.occs.append(occ)
         self.feats.append(f.drop(columns=["notice", "at_fault"]))
         self.pays.append(pays)
         return occ
+
+    def stop_rentals(self, pol: np.ndarray, death: np.ndarray) -> None:
+        """A rental under way when the household's only driver dies (policy pol, on day death) is paid for the days
+        until the death: the car goes back then. For a death drawn after the rental was developed (one early in the
+        next term); simulate cuts a rental short of a death due in its own term before it is developed. The rental's
+        payment and its share of the other insurer's repayment shrink with it; its reserve history, set before the
+        death, stands (the settlement takes the reserve to nothing either way)."""
+        if not self.rentals or len(pol) == 0:
+            return
+        r = pd.concat(self.rentals, ignore_index=True)
+        end = pd.Series(np.asarray(death), index=np.asarray(pol)).groupby(level=0).min()
+        left = r.pol.map(end).to_numpy(dtype=float) - r.day.to_numpy()
+        hit = (left > 0) & (left < r.days.to_numpy())               # (NaN, no death, compares False)
+        if not hit.any():
+            return
+        r = r[hit].assign(left=left[hit])
+        for b, g in r.groupby("b"):
+            share = pd.Series((g.left / g.days).to_numpy(), index=g.fid.to_numpy())
+            kept = pd.Series(g.left.to_numpy(), index=g.fid.to_numpy())
+            f = self.feats[b]
+            m = f.fid.isin(share.index).to_numpy()
+            s = f.fid[m].map(share).to_numpy()
+            paid = np.round(f.paid.to_numpy()[m] * s, 2)
+            subro = np.round(f.subro.to_numpy()[m] * s, 2)
+            f = f.copy()
+            f.loc[m, "gross"] = f.gross.to_numpy()[m] * s
+            f.loc[m, "paid"], f.loc[m, "subro"] = paid, subro
+            f.loc[m, "rent_days"] = f.fid[m].map(kept).to_numpy()
+            self.feats[b] = f
+            new_paid = pd.Series(paid, index=f.fid.to_numpy()[m])
+            new_subro = pd.Series(subro, index=f.fid.to_numpy()[m])
+            p = self.pays[b].copy()
+            on = p.fid.isin(share.index).to_numpy()
+            loss = on & (p.kind.to_numpy() == "Loss")                 # a rental is one payment, once the car is back
+            p.loc[loss, "amount"] = p.fid[loss].map(new_paid).to_numpy()
+            rec = on & (p.kind.to_numpy() == "Subrogation Recovery")
+            p.loc[rec, "amount"] = -p.fid[rec].map(new_subro).to_numpy()
+            self.pays[b] = p[~(on & (p.amount.to_numpy() == 0))].reset_index(drop=True)
+        done = pd.MultiIndex.from_frame(r[["b", "fid"]])
+        self.rentals = [x[~pd.MultiIndex.from_frame(x[["b", "fid"]]).isin(done)] if len(x) else x for x in self.rentals]
 
     def result(self):
         cat = lambda parts: pd.concat(parts, ignore_index=True)
