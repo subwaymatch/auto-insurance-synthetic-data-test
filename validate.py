@@ -1327,8 +1327,15 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
     hit = hit.groupby(["policy_id", "removed_date"])["report_date"].max().reset_index()
     # (a cancellation for a death or for non-payment that day is not the removal's, and a car lost on a term's last
     # day is simply not renewed: the renewal was rated when it was offered)
-    tx = ledger[(ledger["transaction_type"] == "Endorsement")
-                | ((ledger["transaction_type"] == "Cancellation") & (ledger["change_reason"] == "Insured Request"))].merge(
+    # (a cancellation is the removal's when the policy had no other car left that day)
+    left_cars = veh[["policy_id", "added_date", "removed_date"]].merge(hit[["policy_id", "removed_date"]].rename(
+        columns={"removed_date": "on"}), on="policy_id")
+    left_cars = left_cars[(left_cars["added_date"] <= left_cars["on"]) & ~(left_cars["removed_date"] <= left_cars["on"])]
+    emptied = hit[~pd.MultiIndex.from_frame(hit[["policy_id", "removed_date"]]).isin(
+        pd.MultiIndex.from_frame(left_cars[["policy_id", "on"]]))][["policy_id", "removed_date"]]
+    canc = ledger[(ledger["transaction_type"] == "Cancellation") & (ledger["change_reason"] == "Insured Request")].merge(
+        emptied, left_on=["policy_id", "effective_date"], right_on=["policy_id", "removed_date"])[ledger.columns]
+    tx = pd.concat([ledger[ledger["transaction_type"] == "Endorsement"], canc]).merge(
         hit, left_on=["policy_id", "effective_date"], right_on=["policy_id", "removed_date"])
     rr = risk.loc[risk["endorsement_number"] > 0, ["policy_id", "coverage_start_date", "rating_date"]].merge(
         hit, left_on=["policy_id", "coverage_start_date"], right_on=["policy_id", "removed_date"])
@@ -1377,6 +1384,11 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
     ends = term[term["cancel_reason"] == "Insured Deceased"][["policy_id", "cancel_date"]]
     rent = feat[feat["coverage_code"] == "RENT"].merge(clm[["claim_id", "policy_id", "loss_date", "exposure_id"]], on="claim_id").merge(ends, on="policy_id")
     rent = rent[rent["cancel_date"] >= rent["loss_date"]].merge(risk[["exposure_id", "rental_reimbursement"]], on="exposure_id")
+    # (only where no listed driver was left: a household member who survives may still need the car)
+    on_loss = rent[["claim_id", "policy_id", "loss_date", "cancel_date"]].merge(drv[["policy_id", "added_date", "removed_date"]], on="policy_id")
+    on_loss = on_loss[(on_loss["added_date"] <= on_loss["loss_date"]) & ~(on_loss["removed_date"] < on_loss["loss_date"])]
+    survivor = on_loss[on_loss["removed_date"].isna() | (on_loss["removed_date"] > on_loss["cancel_date"])]["claim_id"].unique()
+    rent = rent[~rent["claim_id"].isin(survivor)]
     loss = pay[pay["payment_type"] == "Loss"].groupby("claim_feature_id")["amount"].sum()
     paid = rent["claim_feature_id"].map(loss).fillna(0)
     days = (pd.to_datetime(rent["cancel_date"]) - pd.to_datetime(rent["loss_date"])).dt.days
