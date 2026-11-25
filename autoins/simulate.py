@@ -571,7 +571,9 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     for k_ in ("AF_MV", "AF_SV"):
         ctx["rate"][k_] = ctx["rate"][k_] * watched
     # a car its owner kept after a total loss earlier in the term is on a salvage certificate: not driven, no losses
-    salvaged = v["salvage_day"][V] >= T.s[vp]
+    # (and a car lost in a claim the company will not hear of by the valuation date is still insured, as far as it
+    # knows, but has no further losses)
+    salvaged = (v["salvage_day"][V] >= T.s[vp]) | v["lost_unknown"][V]
     for k_ in ctx["rate"]:
         ctx["rate"][k_] = ctx["rate"][k_] * ~salvaged
     occ, feat, wrecks, deaths, sim.n_occ = truth.simulate(ctx, st, cal, R, sim.n_occ)
@@ -592,6 +594,10 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
                                                            cal.valuation_day)
     died = _events(died, removed)
     feat = _rentals_until_death(T, vp, occ, feat)
+    # a car lost in a claim not reported by the valuation date stays on the policy: the company does not know
+    unknown = (stop_day >= 0) & (known > cal.valuation_day)
+    v["lost_unknown"][V[unknown]] = True
+    stop_day, how = np.where(unknown, -1, stop_day), np.where(unknown, 0, how)
     gone = stop_day >= 0
     x = np.where(gone, stop_day + 1, b)
     truth.set_window(ctx, cal, a, x)
@@ -1720,7 +1726,7 @@ def _add_vehicles(sim: Sim, pol, day, primary) -> None:
     new["veh"] = len(v["pol"]) + np.arange(len(pol))
     new["added_day"], new["removed_day"], new["active"] = day, -1, True
     new["removal_reason"], new["replaces"], new["salvage_title"] = 0, -1, False
-    new["salvage_day"], new["removal_known"] = -10 ** 9, -1
+    new["salvage_day"], new["removal_known"], new["lost_unknown"] = -10 ** 9, -1, False
     st.add_vehicles(new)
     np.add.at(p["n_veh"], pol, 1)
 
@@ -1867,5 +1873,5 @@ def _draw_replacements(sim: Sim, old: np.ndarray, day: np.ndarray) -> pd.DataFra
     new["veh"] = len(v["pol"]) + np.arange(len(old))
     new["added_day"], new["removed_day"], new["active"] = day, -1, True
     new["removal_reason"], new["replaces"], new["salvage_title"] = 0, old, False
-    new["salvage_day"], new["removal_known"] = -10 ** 9, -1
+    new["salvage_day"], new["removal_known"], new["lost_unknown"] = -10 ** 9, -1, False
     return new

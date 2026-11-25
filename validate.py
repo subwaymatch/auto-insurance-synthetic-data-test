@@ -1325,10 +1325,10 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
         next_=lambda d: nextday(d["loss_date"]))
     hit = gone.merge(c, left_on=["insured_vehicle_id", "removed_date"], right_on=["insured_vehicle_id", "next_"], suffixes=("", "_c"))
     hit = hit.groupby(["policy_id", "removed_date"])["report_date"].max().reset_index()
-    # (a cancellation for a death that day is the death's, and a car lost on a term's last day is simply not renewed:
-    # the renewal was rated when it was offered)
+    # (a cancellation for a death or for non-payment that day is not the removal's, and a car lost on a term's last
+    # day is simply not renewed: the renewal was rated when it was offered)
     tx = ledger[(ledger["transaction_type"] == "Endorsement")
-                | ((ledger["transaction_type"] == "Cancellation") & (ledger["change_reason"] != "Insured Deceased"))].merge(
+                | ((ledger["transaction_type"] == "Cancellation") & (ledger["change_reason"] == "Insured Request"))].merge(
         hit, left_on=["policy_id", "effective_date"], right_on=["policy_id", "removed_date"])
     rr = risk.loc[risk["endorsement_number"] > 0, ["policy_id", "coverage_start_date", "rating_date"]].merge(
         hit, left_on=["policy_id", "coverage_start_date"], right_on=["policy_id", "removed_date"])

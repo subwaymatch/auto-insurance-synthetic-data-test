@@ -440,6 +440,7 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_w=None, shoppers
     veh["salvage_title"] = False       # owner kept it after a total loss
     veh["salvage_day"] = -10 ** 9      # the loss after which they kept it
     veh["removal_known"] = -1          # the day the company learned the car had left
+    veh["lost_unknown"] = False        # lost in a claim the company has not heard of by the valuation date
     veh["active"] = True
     _opening_book_added_days(cfg, cal, pol, drv, veh, tag)
 
