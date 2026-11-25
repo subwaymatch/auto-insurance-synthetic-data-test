@@ -944,7 +944,9 @@ def integrity_lifecycle(rep, risk, term, pol, veh, drv, clm, feat, pay, inc, r_s
     # already on the policy, and its address is the one in force (new business is quoted before its first day)
     later = (risk["endorsement_number"] > 0) | (t["business_type"].reindex(risk["policy_term_id"]).to_numpy() == "Renewal")
     r_ = risk[later]
-    rated = dt(r_["rating_date"]).to_numpy()
+    # (a row re-rated after a car's backdated removal is rated later than it starts, for the household of its own
+    # period: judged as of its start)
+    rated = np.minimum(dt(r_["rating_date"]).to_numpy(), dt(r_["coverage_start_date"]).to_numpy())
     on_v = (dt(v["added_date"]).reindex(r_["insured_vehicle_id"]).to_numpy() <= rated)
     on_d = (dt(drv.set_index("driver_id")["added_date"]).reindex(r_["driver_id"]).to_numpy() <= rated)
     cover = risk[["policy_id", "location_id"]].assign(s=cov_s.to_numpy(), e=cov_e.to_numpy())
