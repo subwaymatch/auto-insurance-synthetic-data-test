@@ -15,8 +15,9 @@ An audit of v1.1.9 (`main` at `de3495e`) rebuilt the default run (content hash `
 (`edd0a9d11cbe5828`); both passed all 193 checks, with the previous round's 18 fixes holding. It reported ten
 findings no check covered. All reproduce (F9 on seed 101 only) and all are **confirmed and fixed**; for F7 the
 opening book's placement is documented rather than reconstructed (below). "After" figures are from the default run
-after this change (content hash `9774ec39a673aeea`) and seed 101 (`{H_101}`). Each finding has a check in `validate.py`; on
-v1.1.9 the new checks fail on the default run (8) and seed 101 (9; the salvage check fails only there).
+after this change (content hash `9774ec39a673aeea`) and seed 101 (`ccf9e0445a89c5c8`). Each finding has a check in
+`validate.py`; on v1.1.9 the new checks fail on the default run (8) and seed 101 (9; the salvage check fails only
+there).
 
 | # | Finding | Before (default; seed 101) | After (default; seed 101) |
 |---|---|---|---|
@@ -89,9 +90,17 @@ their policies; spare cars pass to drivers without one, so fewer cars carry the 
 surcharge; lapsing policies collect less; contacts after cancellations drop; a few new policies change company.
 These change later random draws, so every figure of the default run moves a little: loss ratios by accident year
 83.7%, 80.3%, 65.0%, 60.2% and 69.1% for 2022 to 2026 (were 82.5%, 81.0%, 67.4%, 59.5% and 66.4%), overall 70.5%
-(was 70.1%; {SEED_RANGE} across five seeds), annualized retention 81.2%; 22,670 claims (was 22,725).
-`validate.py` runs 203 checks (was 193), all passing on the default run and on seeds 7, 11, 23, 42 and 101; the test
-suite has 88 tests.
+(was 70.1%; 68.3% to 71.3% across five seeds), annualized retention 81.2%; 22,670 claims (was 22,725).
+`validate.py` runs 203 checks (was 193), all passing on the default run and on seeds 7, 11, 23 and 101. Seed 42 passes
+every integrity check but falls just below one tuning band: its bodily injury frequency is 0.67 paid claims per 100
+car-years against a floor of 0.70. Its injury losses are 0.97 times the answer key's expected ones, so the book that
+seed drew has fewer injury claims, not bad luck; like for like against national it is 0.91, inside its band, and the
+band is not widened ([benchmarks.md](benchmarks.md)). The test suite has 88 tests.
+
+Checking the seeds turned up three more defects of the same kinds, fixed here: a storm could strike a car on a
+salvage title (seed 23; F9), a rental settled from a loss late in a term could run past the death of the household's
+only driver early in the next (seed 42; F4), and when a couple died on the same day the spouse could take the policy
+over as a widow first (seed 23; F3).
 
 ## Audit of v1.1.8 (24 November 2026)
 

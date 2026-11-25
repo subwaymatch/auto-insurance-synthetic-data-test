@@ -143,11 +143,17 @@ check. Figures are for the default run after these changes (content hash `9774ec
   dying together and spare-car promotion.
 - **The default run** (content hash `9774ec39a673aeea`): loss ratios by accident year 83.7%, 80.3%, 65.0%, 60.2% and
   69.1% for 2022 to 2026, of which catastrophes 0.0%, 4.0%, 2.7%, 0.9% and 5.9%; overall 70.5% (was 70.1% in v1.1.9;
-  {SEED_RANGE} across five seeds); annualized retention 81.2%. 195,405 policy terms, 444,330 exposure rows, $212.2
+  68.3% to 71.3% across five seeds); annualized retention 81.2%. 195,405 policy terms, 444,330 exposure rows, $212.2
   million earned premium, 22,670 claims, 39,879 features, 60,877 claim payments, 103,972 reserve transactions,
   878,791 bills and 890,425 receipts, 118,697 quotes and 168,956 renewal offers. These changes move later random
-  draws, so every figure moves a little. 203 checks pass on the default run and on seeds 7, 11, 23, 42 and 101
-  (content hashes {SEED_HASHES}){SEED_BANDS}. The test suite has 88 tests (87 pass, and one needs `pyarrow`).
+  draws, so every figure moves a little. All 203 checks pass on the default run and on seeds 7, 11, 23 and 101, and
+  every integrity check on seed 42 (content hashes `5ff437dce260e4d6`, `93fdb528bf233db7`, `a52b495b7b6dbc05`,
+  `ccf9e0445a89c5c8` and `3a724fa8524920b2`); seed 42's bodily injury frequency, 0.67 paid claims per 100 car-years,
+  is just below its tuning band's floor of 0.70, from the book that seed drew rather than claim luck (its injury
+  losses are 0.97 times the answer key's expected; `docs/benchmarks.md`). Checking the seeds found three more defects,
+  fixed here: a storm could strike a car on a salvage title, a rental settled late in a term could run past the
+  death of the household's only driver early in the next, and a spouse could take the policy over as a widow before
+  dying the same day. The test suite has 88 tests (87 pass, and one needs `pyarrow`).
 
 ## 2026-11-24, [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9): An audit of v1.1.8 ([PR #17](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/17))
 

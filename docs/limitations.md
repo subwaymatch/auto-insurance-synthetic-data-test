@@ -286,13 +286,13 @@ Those synthetic figures are plausible but unverified.
   salvage and subrogation come off collision and comprehensive payments. They are taken off here, because
   insurers report recoveries as negative paid losses and because Verisk's own report on the same data shows
   collision severity before recoveries about a quarter higher, with recoveries of that size (see the
-  README). On that reading collision severity is 0.90 times national in the default run (0.88 to 0.96
+  README). On that reading collision severity is 0.90 times national in the default run (0.89 to 0.94
   across five seeds), frequency 1.31 times, and premiums per insured car 14% below Illinois' for collision,
   7% below for comprehensive and 4% above for liability. If the table is in fact before recoveries,
   physical damage payments here are about a quarter too high against it, and Illinois' premiums could not then be matched
   at industry loss ratios. The sources do not settle it.
 - **Collision claims are frequent and often total losses.** Collision frequency runs 31% above
-  national on the like-for-like comparison in the default run (27% to 34% across five seeds; an urban
+  national on the like-for-like comparison in the default run (26% to 34% across five seeds; an urban
   book), in the upper half of the band `validate.py` allows. About 32% of paid collision claims are total
   losses, and 28% of paid collision and comprehensive claims with glass left out, against 22% to 23% of
   all appraisals nationally (CCC); 80% of total losses are on cars seven or more model years old (CCC:
@@ -303,7 +303,7 @@ Those synthetic figures are plausible but unverified.
 - **Claim luck is real.** A year of this book has about 210 to 290 paid bodily injury claims, and one
   standard deviation of their total is 1.3 to 2.5 loss-ratio points. In the default run each full year
   comes within 7% of its expected loss ratio, without catastrophes (2022: 83.7% against 81.0%; 2025: 59.3%
-  against 63.4%); across five seeds a year's actual runs 0.93 to 1.10 times its expected. Other seeds and
+  against 63.4%); across five seeds a year's actual runs 0.93 to 1.08 times its expected. Other seeds and
   sizes give other years their luck; `validate.py` holds each year's actual, without catastrophes, to 0.85
   to 1.15 times its expected.
 - **The last year is immature.** 2026 is the least developed year: young injury claims are reserved low,
@@ -320,7 +320,7 @@ Those synthetic figures are plausible but unverified.
   at-fault ones most of all, are the likeliest to leave. A car with a paid at-fault claim one calendar year
   has 1.3 times the at-fault claim frequency of other cars the next.
 - **Smaller builds are noisier.** A 10,000-policy build passes every integrity check and its ledger ties,
-  but has about 5,000 claims: loss ratios, small segments and single-year figures move more, some agencies
+  but has about 5,400 claims: loss ratios, small segments and single-year figures move more, some agencies
   have no customers, and `validate.py` reports calibration misses as warnings below 20,000 policies.
 - **Seed and size matter.** The same seed and size give byte-identical files, but a different seed or
   policy count changes every random draw: compare methods across seeds before reading much into one
