@@ -414,7 +414,9 @@ class GeneratorTest(unittest.TestCase):
         self.assertGreater(len(mid), 100)
         reasons = set("; ".join(mid["change_reason"].dropna()).split("; "))
         self.assertTrue({"Address Change", "Vehicle Replaced", "Driver Removed"} <= reasons, reasons)
-        self.assertTrue((mid["rating_date"] == mid["coverage_start_date"]).all())       # re-rated on the day of the change
+        # re-rated on the day of the change, or, after a car's backdated removal, the day its claim was reported
+        self.assertTrue((mid["rating_date"] >= mid["coverage_start_date"]).all())
+        self.assertGreater((mid["rating_date"] == mid["coverage_start_date"]).mean(), 0.9)
         # a vehicle's rows within a term are consecutive: each starts where the previous one ended
         r = risk.sort_values(["insured_vehicle_id", "coverage_start_date"])
         prev = r.groupby(["insured_vehicle_id", "policy_term_id"])["coverage_end_date"].shift()
@@ -1072,6 +1074,55 @@ class RemovalAndEventsTest(unittest.TestCase):
         # a trade of a car still on (yes) or gone (no); a sale from a one-car household (no); a write-off's record
         # (yes); a married named insured's marriage (no); a driver already gone leaving (no); a move (yes)
         self.assertEqual(simulate._feasible(sim, T, ev).tolist(), [True, False, False, True, False, False, True])
+
+
+class KnownRemovalTest(unittest.TestCase):
+    """A car written off is removed (backdated) once the company knows of it: the policy's period is cut, and re-rated
+    from the day it was known; a removal not known by the valuation date is not made. A rental stops when the
+    household's only driver dies; a driver left with only a spare car drives it as their main car."""
+
+    def test_cut_waits_for_knowledge(self):
+        from types import SimpleNamespace
+        T = SimpleNamespace(s=np.zeros(2, dtype=np.int64), x_pol=np.array([180, 180]), rate_from=np.full(2, -10 ** 9))
+        V = np.array([10, 11, 12, 13])               # two two-car policies, a car written off on each
+        vp = np.array([0, 0, 1, 1])
+        b, nb = np.full(4, 100), np.array([100, 100])
+        stop = np.array([39, -1, 49, -1])
+        known = np.array([45, 40, 120, 50])         # policy 0's loss reported on day 45; policy 1's after valuation (99)
+        occ = pd.DataFrame(dict(occ=[1, 2], vrow=[0, 2], day=[39, 49], drv=[5, 6]))
+        feat = pd.DataFrame(dict(occ=[1, 2]))
+        _, _, _, _, b2, ev = simulate._cut_at_removal(T, V, vp, b, nb, np.ones(4, dtype=bool), occ, feat, stop,
+                                                      np.where(stop >= 0, 1, 0), known, 99)
+        self.assertEqual(list(b2), [40, 40, 100, 100])             # policy 1's removal is not yet known: no cut
+        self.assertEqual(ev[["pol", "day"]].values.tolist(), [[0, 40]])
+        self.assertEqual(list(T.rate_from), [45, -10 ** 9])        # re-rated from the report, backdated to day 40
+
+    def test_rental_stops_at_the_only_driver_death(self):
+        from types import SimpleNamespace
+        T = SimpleNamespace(death_end=np.array([15, 10 ** 9]))
+        vp = np.array([0, 1])
+        occ = pd.DataFrame(dict(occ=[1, 2, 3], vrow=[0, 1, 0], day=[10, 10, 15]))
+        feat = pd.DataFrame(dict(occ=[1, 2, 3], cvg=["RENT", "RENT", "RENT"], rent_days=[20.0, 20.0, 5.0],
+                                 gross=[800.0, 800.0, 200.0], paid=[600.0, 600.0, 150.0], subro=[0.0, 0.0, 0.0]))
+        out = simulate._rentals_until_death(T, vp, occ, feat)
+        self.assertEqual(out.occ.tolist(), [1, 2])                 # a rental from the day of the death: none
+        self.assertEqual(out.rent_days.tolist(), [5.0, 20.0])
+        self.assertEqual(out.paid.tolist(), [150.0, 600.0])
+
+    def test_spare_car_promoted(self):
+        from types import SimpleNamespace
+        v = {"active": np.array([True, True, False]), "extra_vehicle": np.array([True, False, False]),
+             "primary_drv": np.array([0, 1, 0]), "rank": np.array([2, 0, 1]), "pol": np.array([0, 0, 0])}
+        seen = {}
+        sim = SimpleNamespace(st=SimpleNamespace(v=v))
+        orig = simulate._redraw_mileage
+        simulate._redraw_mileage = lambda sim_, cars, day: seen.update(cars=list(cars), day=list(day))
+        try:
+            simulate._promote_spares(sim, np.array([30]))
+        finally:
+            simulate._redraw_mileage = orig
+        self.assertFalse(v["extra_vehicle"][0])     # driver 0's main car (2) is gone: car 0 is now their main car
+        self.assertEqual(seen, {"cars": [0], "day": [30]})
 
 
 class BillingCashTest(unittest.TestCase):

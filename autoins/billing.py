@@ -214,7 +214,13 @@ def build(cfg: C.Config, cal, pol: pd.DataFrame, terms: pd.DataFrame, tx: pd.Dat
 
     # the instalment that was never paid, and anything unpaid when a cancellation is processed
     miss = t.missed_installment.to_numpy()[it]
-    never = (reason[it] == "Non-Payment") & (miss >= 0) & (inv.inst.to_numpy() - 1 >= miss) & (inv.kind.to_numpy() != "Endorsement")
+    # (and any endorsement bill due from then on: a household that has stopped paying pays nothing more)
+    nonpay = (reason[it] == "Non-Payment") & (miss >= 0)
+    is_end = inv.kind.to_numpy() == "Endorsement"
+    first_miss = nonpay & ~is_end & (inv.inst.to_numpy() - 1 == miss)
+    missed_due = np.full(nt, 10 ** 9)
+    np.minimum.at(missed_due, it[first_miss], idue[first_miss])
+    never = nonpay & ((~is_end & (inv.inst.to_numpy() - 1 >= miss)) | (is_end & (idue >= missed_due[it])))
     settled = ~(never | (final > pc[it]))
     inv["late_fee"] = np.where(settled, fee2, 0)
     inv["total"] = inv.prem + inv.fee + inv.late_fee

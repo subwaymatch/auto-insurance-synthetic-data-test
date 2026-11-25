@@ -43,8 +43,8 @@ import pandas as pd
 claim = pd.read_parquet("claim.parquet", dtype_backend="pyarrow")
 
 # CSV: read ZIP codes as text and parse the dates you need
-policy = pd.read_csv("policy.csv", dtype={"zip_code": str},
-                     parse_dates=["original_inception_date"])
+location = pd.read_csv("location.csv", dtype={"zip_code": str})
+policy = pd.read_csv("policy.csv", parse_dates=["original_inception_date"])
 
 # SQLite
 import sqlite3

@@ -295,11 +295,13 @@ class Static:
         v.setdefault("tele_since", np.full(len(veh), -10 ** 6))
         return v
 
-    def retire(self, old: np.ndarray, day: np.ndarray, reason: int) -> None:
-        """Take vehicles `old` off their policies from `day` (the first day they are not insured)."""
+    def retire(self, old: np.ndarray, day: np.ndarray, reason: int, known=None) -> None:
+        """Take vehicles `old` off their policies from `day` (the first day they are not insured). `known`: the day
+        the company learned of it, if later (a car written off is removed, backdated, once the claim is reported)."""
         self.v["active"][old] = False
         self.v["removed_day"][old] = day
         self.v["removal_reason"][old] = reason
+        self.v["removal_known"][old] = day if known is None else np.maximum(day, known)
 
     def add_vehicles(self, new: pd.DataFrame) -> None:
         """Append vehicles (new must carry every stored vehicle column). Call set_usage before simulating them."""

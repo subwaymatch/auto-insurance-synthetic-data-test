@@ -114,14 +114,12 @@ class Development:
 
     def add(self, occ: pd.DataFrame, feat: pd.DataFrame) -> pd.DataFrame:
         """Develop a batch of new claims. Returns occ with report_day (first notice the company has of any
-        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or NO_DAY)."""
+        feature) and chargeable_day (the day an at-fault claim's payments reach the surcharge threshold, or NO_DAY).
+        occ.notice, when given, is the first notice (simulate draws it when the loss happens, since a car written
+        off leaves the policy only once the company knows of it)."""
         R = self.R
         occ = occ.copy()
-        lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
-        lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
-        # first notice comes in every day (app, website, call centre), but much of a weekend's or a holiday's
-        # is held over to the next business day
-        notice = self.cal.intake_day(occ.day.to_numpy() + lag.astype(int), R.random(len(occ)))
+        notice = occ.notice.to_numpy().astype(np.int64) if "notice" in occ else first_notice(self.cal, occ, R)
 
         # the car's ownership at the loss (Owned, Financed or Leased) decides whether a lender is paid
         keep = ["occ", "day", "peril", "cat", "at_fault"] + (["ownership"] if "ownership" in occ else [])
@@ -260,6 +258,8 @@ def _claim_detail(occ: pd.DataFrame, f: pd.DataFrame, R: np.random.Generator, ca
     # police report: the police investigate every fatal crash
     injured = occ.occ.isin(f.occ[np.isin(f.cvg.to_numpy(), ["BI", "UM", "MED"]) & (f.gross.to_numpy() > 0)]).to_numpy()
     fatal = occ.occ.isin(f.occ[f.injury_type.to_numpy() == "Fatality"]).to_numpy() if "injury_type" in f else np.zeros(n, dtype=bool)
+    if "fatal_crash" in occ:                  # an insured killed with no claim of their own (no medical payments)
+        fatal = fatal | occ.fatal_crash.fillna(False).to_numpy().astype(bool)
     occ["police_report"] = fatal | (R.random(n) < np.clip(occ.peril.map(POLICE_REPORT_P).fillna(0.1).to_numpy() + 0.30 * injured, 0, 0.98))
     fault = np.select([peril == "AF_MV", peril == "AF_SV", peril == "NAF"],
                       [np.where(R.random(n) < 0.7, 100, R.integers(51, 100, n)), np.full(n, 100),
@@ -432,6 +432,16 @@ def _share_accident_limit(ev: pd.DataFrame, bal: np.ndarray, paid: np.ndarray, f
     both = pd.concat([ev.assign(bal=new_bal, pt=pt), extra], ignore_index=True)
     both = both.sort_values(["fid", "day", "order", "pt"], kind="stable").reset_index(drop=True)
     return both.drop(columns=["bal", "pt"]), both.bal.to_numpy()
+
+
+def first_notice(cal, occ: pd.DataFrame, R: np.random.Generator) -> np.ndarray:
+    """The day the company first hears of each loss: a few days after it by cause, a few much later. First notice
+    comes in every day (app, website, call centre), but much of a weekend's or a holiday's is held over to the next
+    business day. A physical damage coverage is opened on this day (OPEN_LAG), so it is the claim's report day when
+    the claim has one."""
+    lag = np.floor(R.exponential(occ.peril.map(REPORT_LAG_MEAN).to_numpy()))
+    lag += (R.random(len(occ)) < 0.03) * np.floor(R.exponential(45, len(occ)))
+    return cal.intake_day(occ.day.to_numpy() + lag.astype(int), R.random(len(occ)))
 
 
 def _open_lag(cvg: np.ndarray, R: np.random.Generator) -> np.ndarray:

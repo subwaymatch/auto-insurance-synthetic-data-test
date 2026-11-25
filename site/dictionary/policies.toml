@@ -8,7 +8,7 @@ policy_number = "The policy number printed on documents: a seven-digit serial is
 location_id = "The garaging ZIP code at the latest status. A household that moved shows only its latest address; `exposure.location_id` has the address in force on each date."
 agency_id = "The agency that wrote the policy. Direct business points to one of the company's two direct units, `Direct - Online` or `Direct - Contact Center`."
 producer_id = "The licensed agent at the agency who wrote and services the policy, working there by the policy's original inception. Blank for direct business."
-company_id = "The underwriting company the policy is placed with: Lakefront Preferred, Lakefront Mutual (standard) or Prairie Path Casualty (non-standard). Set when the policy is written, from its insurance score, driving record and prior insurance."
+company_id = "The underwriting company the policy is placed with: Lakefront Preferred, Lakefront Mutual (standard) or Prairie Path Casualty (non-standard). Set when the policy is written, from its insurance score, driving record and prior insurance, as known on the quote day (`quote.quote_date`): a violation that reaches the record between the quote and the effective date does not count. For policies already in force on January 1, 2022 the record when first written is not retained, so their company reflects their record as they entered the extract."
 distribution_channel = "How the policy was sold: `Independent Agent`, `Exclusive Agent` or `Direct`."
 original_inception_date = "The date the policy was first written. For policies in force on January 1, 2022 it can be decades earlier; for new business it equals its first term's `effective_date`."
 term_months = "Term length in months: `6` or `12`."
@@ -107,7 +107,7 @@ summary = """One row per letter, email or phone call to a policyholder between J
 contact_id = "Primary key."
 contact_method = "`Email`, `Written Letter` or `Phone Call`. Paperless households (about six in ten) get email, others letters. `Notice of Non-Renewal`, `Notice of Cancellation` and `Cancellation for Non-Payment` always go by letter; some past-due notices and claim contacts are phone calls."
 policy_id = "The policy the contact concerns."
-contact_date = "Date of the contact. Letters and calls go out on business days (calls also on Saturdays), so they can fall a day or more after the event; emails go out any day."
+contact_date = "Date of the contact. Letters and calls go out on business days (calls also on Saturdays, but not on a Saturday holiday), so they can fall a day or more after the event; emails go out any day. A change or a cancellation is confirmed when it is booked (`premium_transaction.processed_date`), and nothing is confirmed, chased or warned of once the policy is canceled."
 purpose = "What the contact was about: `New Business Welcome`, `Policy Change Confirmation`, `Renewal Offer`, `Revised Renewal Offer`, `Notice of Non-Renewal`, `Past Due Notice`, `Notice of Cancellation`, `Returned Payment Notice`, `Cancellation for Non-Payment`, `Cancellation Confirmation`, `Claim Acknowledgment` or `Claim Closure Notice`. A `Notice of Cancellation` warns of cancellation for an unpaid bill and is withdrawn if the customer pays, so it does not mean the policy was canceled; one mailed at least 30 days before an underwriting cancellation gives that notice."
 
 [driver]
@@ -147,19 +147,19 @@ known_date = "Date the insurer learned of the incident: for a violation, when th
 conviction_date = "Date of the court conviction for a violation, a few days to two weeks before `known_date`, on a business day. Blank for accidents."
 incident_type = "`Minor Violation`, `Major Violation` or `At-Fault Accident`."
 description = "What happened. Violations name the offense, such as `Speeding 1-14 mph over` or `Failure to yield` (minor) and `DUI` or `Driving while suspended` (major). Accidents read `At-fault accident (prior carrier)`, `At-fault accident (company claim before the extract)` or `At-fault accident (company claim)`."
-source = "Where the record came from: `Motor Vehicle Record` (violations), `Prior Carrier Report` (accidents dated before the policy was first written), `Company Claim (Before Extract)` (later accidents with no claim row, mostly the company's own claims before 2022) or `Company Claim`."
+source = "Where the record came from: `Motor Vehicle Record` (violations), `Prior Carrier Report` (accidents before the driver joined this policy, reported by the previous insurer: from before the policy was first written, or brought by a spouse or other adult who joined later), `Company Claim (Before Extract)` (later accidents with no claim row, mostly the company's own claims before 2022) or `Company Claim`."
 claim_id = "The company's claim for the accident. Filled only when `source` is `Company Claim`; at-fault claims enter this table only once their property damage, bodily injury and collision payments reach $1,000."
 
 [telematics_enrollment]
 grain = "Enrollment of a policy in the telematics program"
-summary = """One row per enrollment of a policy in Lakefront DriveCheck, the company's voluntary usage-based insurance program; a policy that leaves and rejoins later has more than one row. Enrollment covers every car on the policy and earns a 5% participation discount at once and a score-based discount from the next renewal (see `telematics_score`). Opt-ins whose term had not started by the valuation date, or whose renewal never took effect, are not included."""
+summary = """One row per enrollment of a policy in Lakefront DriveCheck, the company's voluntary usage-based insurance program; a policy that leaves and rejoins later has more than one row. Enrollment covers every car on the policy and earns a 5% participation discount at once and a score-based discount from the next renewal (see `telematics_score`). Opt-ins whose term had not started by the valuation date, or whose renewal never took effect, are not included. Cars on the policy when a term is offered keep their enrollment status through that term: a car added or replaced mid-term is monitored from the next renewal, and a member who leaves mid-term keeps the discount until it."""
 
 [telematics_enrollment.columns]
 enrollment_id = "Primary key."
 policy_id = "The enrolled policy."
 program = "Program name. Always `Lakefront DriveCheck`."
 device_type = "How driving is recorded: `Mobile App`, `Plug-in Device` or `Bluetooth Beacon` (a windshield beacon). The app's share rises over time."
-enrollment_date = "The date the enrollment took effect: the effective date of the new-business or renewal term the customer opted in with, not the day they said yes. Policies already enrolled on January 1, 2022 show an earlier date."
+enrollment_date = "The date the enrollment took effect: the effective date of the new-business or renewal term the customer opted in with, not the day they said yes. Policies already enrolled on January 1, 2022 show an earlier term's effective date (within about three years)."
 participation_discount_pct = "Discount in percent given from enrollment until the policy's first scored renewal. Always `5`."
 end_date = "Date the enrollment ended. Blank if it was still active on the valuation date."
 end_reason = "`Opted Out` (the customer left the program, more often after poor scores), `Policy Ended` (not renewed; `end_date` is the expiration date) or `Policy Canceled` (`end_date` is the cancellation date). Blank while active."

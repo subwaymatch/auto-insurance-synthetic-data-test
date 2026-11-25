@@ -390,7 +390,16 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_w=None, shoppers
     pol["score_z"] = zscore
 
     incidents = _driver_records(cfg, ref, pol, drv, zt, r)
-    fd = pol.first_day.to_numpy()[incidents.pol.to_numpy()]
+    # placement is decided on what the insurer knows when it quotes: a new customer's quote day (drawn here, and
+    # used by the simulation and the quote table: a policy whose first term is simulated, from 2021 on), or, for a
+    # policy already renewing when the extract opens, before its opening term could be offered (its record when
+    # first written is not retained)
+    qr = stream(cfg.seed, "quote day" + tag)
+    quote_w = np.array([C.DAY_WEIGHTS["quote"][c] for c in C.CHANNELS])[pol.channel.to_numpy()]
+    first = pol.first_day.to_numpy()
+    lead = cal.weighted_lead(first, *C.NEW_BUSINESS_QUOTE_LEAD_DAYS, lambda d: day_weight(cal, d, quote_w[:, None, :]), qr.random(n))
+    pol["quote_day"] = np.where(pol.tenure_terms.to_numpy() > 0, first - C.RENEWAL_OFFER_LEAD_DAYS[1], first - lead)
+    fd = pol.quote_day.to_numpy()[incidents.pol.to_numpy()]
     recent = (incidents.day <= fd) & (incidents.day > fd - C.LOOKBACK_DAYS) & (incidents.known_day <= fd)
     pts = np.bincount(incidents.pol[recent], np.where(incidents.kind[recent] == "minor", 1, np.where(incidents.kind[recent] == "major", 4, 3)), n)
     p_lapse = 1 / (1 + np.exp(-(-2.6 - 0.9 * zscore - 0.04 * (ni_age - 40).clip(-22, 0) - S["prior_insurance"] * stab)))
@@ -429,6 +438,8 @@ def build(cfg: C.Config, ref: Reference, tag: str = "", channel_w=None, shoppers
     veh["removal_reason"] = 0          # see simulate.REMOVAL_REASONS
     veh["replaces"] = -1               # the vehicle this one replaced
     veh["salvage_title"] = False       # owner kept it after a total loss
+    veh["salvage_day"] = -10 ** 9      # the loss after which they kept it
+    veh["removal_known"] = -1          # the day the company learned the car had left
     veh["active"] = True
     _opening_book_added_days(cfg, cal, pol, drv, veh, tag)
 
