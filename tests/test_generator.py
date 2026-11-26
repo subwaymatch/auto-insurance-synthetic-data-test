@@ -1241,6 +1241,133 @@ class VoidOrderTest(unittest.TestCase):
         self.assertTrue((got.cents.cumsum() >= 0).all())        # paid to date never negative, replayed in order
 
 
+class RenewalChronologyTest(unittest.TestCase):
+    """What the company knew when it acted on a renewal (audit of v1.1.11): a change revises a pending renewal the day
+    it is known, a write-off reported only after the renewal took effect adjusts it instead, and a cancellation
+    backdated to a write-off does not stop the offer sent before the company knew of it."""
+
+    def test_revision_waits_for_the_report(self):
+        # a two-car policy: a car written off on day 49 (removed from day 50), the renewal effective on day 180
+        removed, expires = np.array([50, 50, 50]), np.array([180, 180, 180])
+        report = np.array([-10 ** 9, 120, 200])          # (an ordinary change: known that day), reported day 120, day 200
+        got = simulate.revision_day(removed, report, expires)
+        self.assertEqual(got.tolist(), [50, 120, -10 ** 9])   # revised that day, on the report, or not at all
+
+    def test_offer_until_a_backdated_cancellation_is_known(self):
+        # a one-car policy: its car written off on day 100, the policy cancelled from day 101; offer day 140, term ends 180
+        offer, cancel = np.array([140]), np.array([101])
+        for report, sent in ((120, False), (150, True), (200, True)):     # before the offer, after it, after expiry
+            self.assertEqual(bool(simulate.offer_due(np.array([False]), cancel, np.array([report]), offer)[0]), sent, report)
+        # a customer's own request, on the books the day it takes effect, stops the offer; one after the offer does not
+        self.assertFalse(simulate.offer_due(np.array([False]), cancel, cancel, offer)[0])
+        self.assertTrue(simulate.offer_due(np.array([False]), np.array([150]), np.array([150]), offer)[0])
+
+
+class WriteOffChronologyTest(unittest.TestCase):
+    """A book (seed 13, 3,000 policies) with a car written off before its renewal and reported only after the renewal
+    took effect, and a policy cancelled from the day after its only car was written off, reported after its renewal
+    offer was due. In the order things happened: the renewal is offered, written, booked and first billed with the lost
+    car; the claim is reported; the renewal is then re-rated back to its first day without the car (an endorsement
+    booked that day, its rows rated that day) and billing reconciles it. The cancelled policy still had its offer."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = tempfile.TemporaryDirectory()
+        out = Path(cls.tmp.name)
+        summary = generate(replace(C.Config(), n_policies=3000, seed=13, out_dir=out))
+        cls.t = validate.rebuild(validate.load(out), summary["start"], summary["valuation"])
+        cls.valuation = summary["valuation"]
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def writeoffs(self):
+        t = self.t
+        wk = validate.writeoff_known(t["insured_vehicle"], t["claim"], t["claim_feature"])
+        return wk.merge(t["insured_vehicle"][["insured_vehicle_id", "policy_id"]], on="insured_vehicle_id")
+
+    def test_renewal_written_with_the_car_then_adjusted(self):
+        t = self.t
+        o = t["renewal_offer"][t["renewal_offer"]["outcome"] == "Renewed"]
+        c = self.writeoffs().merge(o, on="policy_id")
+        c = c[(c["removed_date"] <= c["renewal_effective_date"]) & (c["renewal_effective_date"] < c["known"])]
+        self.assertGreater(len(c), 0)
+        for _, x in c.iterrows():
+            term_id = int(x["renewal_policy_term_id"])
+            term = t["policy_term"].set_index("policy_term_id").loc[term_id]
+            self.assertTrue(pd.isna(x["revised_offer_date"]) or not (x["removed_date"] <= x["revised_offer_date"] < x["known"]))
+            tx = t["premium_transaction"][t["premium_transaction"]["policy_term_id"] == term_id]
+            ren = tx[tx["transaction_type"] == "Renewal"].iloc[0]
+            self.assertLess(ren["processed_date"], x["known"])                  # written before the report ...
+            self.assertAlmostEqual(ren["written_premium"], term["written_premium"], places=2)
+            bill = t["billing_invoice"][t["billing_invoice"]["policy_term_id"] == term_id].sort_values("issue_date").iloc[0]
+            self.assertLess(bill["issue_date"], x["known"])                     # ... and billed at that premium
+            n = 1 if bill["invoice_type"] == "Paid in Full" else int(t["policy"].set_index("policy_id").loc[x["policy_id"], "term_months"])
+            self.assertLessEqual(abs(bill["premium_amount"] * n - term["written_premium"]), 0.01 * n + 0.005)
+            adj = tx[(tx["transaction_type"] == "Endorsement") & (tx["effective_date"] == x["renewal_effective_date"])]
+            self.assertEqual(len(adj), 1)                                       # re-rated back to the start, once known
+            self.assertGreaterEqual(adj["processed_date"].iloc[0], x["known"])
+            rows = t["exposure"][t["exposure"]["policy_term_id"] == term_id]
+            first = rows[rows["endorsement_number"] == 0]
+            self.assertNotIn(x["insured_vehicle_id"], set(rows["insured_vehicle_id"]))    # no exposure after the loss
+            self.assertTrue((first["rating_date"] >= x["known"]).all())
+            self.assertAlmostEqual(adj["written_premium"].iloc[0], first["total_premium"].sum() - term["written_premium"], places=2)
+
+    def test_offer_sent_before_a_backdated_cancellation_was_known(self):
+        t = self.t
+        term = t["policy_term"][t["policy_term"]["cancel_reason"] == "Insured Request"]
+        c = self.writeoffs().merge(term, left_on=["policy_id", "removed_date"], right_on=["policy_id", "cancel_date"])
+        o = t["renewal_offer"].set_index("expiring_policy_term_id")
+        c = c[c["policy_term_id"].isin(o.index)]
+        offer_day = o.loc[c["policy_term_id"], "offer_date"].to_numpy()
+        c = c[(c["cancel_date"].to_numpy() <= offer_day) & (c["known"].to_numpy() > offer_day)]   # backdated past the offer
+        self.assertGreater(len(c), 0)
+        self.assertTrue((o.loc[c["policy_term_id"], "outcome"] == "Canceled Before Renewal").all())
+
+    def test_checks_pass(self):
+        rep, out = validate.Report(), io.StringIO()
+        with contextlib.redirect_stdout(out):
+            validate.integrity_audit_v1111(rep, self.t, np.datetime64(self.valuation))
+        self.assertEqual(rep.failures, 0, out.getvalue())
+
+
+class UnderwritingGroundsTest(unittest.TestCase):
+    """The underwriting review is per driver, and a policy in force five years or more on the notice day is non-renewed
+    only on a ground 215 ILCS 5/143.19.1 lists (simulate.underwriting_grounds)."""
+
+    def review(self, incidents, inception, n_drv=1):
+        from types import SimpleNamespace
+        cal = Calendar(start=np.datetime64("2022-01-01"), valuation_day=1825, horizon=1826)
+        drv = pd.DataFrame(dict(drv=np.arange(n_drv), pol=0, added_day=-5000, removed_day=-1))
+        inc = pd.DataFrame(incidents, columns=["drv", "day", "kind", "known_day", "description"])
+        sim = SimpleNamespace(pop=SimpleNamespace(drv=drv), recs=simulate.Records(inc), ref=SimpleNamespace(cal=cal),
+                              st=SimpleNamespace(p={"zi": np.zeros(1), "inception_day": np.array([inception])}))
+        return simulate.underwriting_grounds(sim, np.array([0]), np.array([1000]), np.array([1040])).iloc[0]
+
+    def test_rules(self):
+        cal = Calendar(start=np.datetime64("2022-01-01"), valuation_day=1825, horizon=1826)
+        notice = cal.start + np.timedelta64(1000, "D")
+        five = int((np.datetime64(f"{notice.astype('M8[Y]').astype(int) + 1970 - 5}-{str(notice)[5:]}") - cal.start).astype(int))
+        acc = lambda d, day: (d, day, "accident", day + 30, "At-fault accident")
+        major = lambda d, day, what: (d, day, "major", day + 40, what)
+        # two drivers with one accident each: no operator has a record, so no flag
+        self.assertFalse(self.review([acc(0, 700), acc(1, 800)], five + 1, n_drv=2).flag)
+        # one driver with two: flagged on a policy a day short of five years, not on its fifth anniversary
+        young = self.review([acc(0, 700), acc(0, 800)], five + 1)
+        self.assertTrue(young.flag)
+        self.assertEqual((young.drv, young.day, young.reason), (0, 800, "Two at-fault accidents in three years"))
+        self.assertFalse(self.review([acc(0, 700), acc(0, 800)], five).flag)
+        # in force five years or more: an accident and a DUI within 36 months is a ground, reckless driving is not
+        dui = self.review([acc(0, 700), major(0, 300, "DUI")], five - 2000)
+        self.assertTrue(dui.flag and "143.19.1(e)(5)" in dui.reason and dui.day == 300)
+        self.assertFalse(self.review([acc(0, 700), major(0, 300, "Reckless driving")], five - 2000).flag)
+        # ... and driving while suspended within the 12 months before the notice
+        susp = self.review([acc(0, 700), major(0, 900, "Driving while suspended")], five - 2000)
+        self.assertTrue(susp.flag and "143.19.1(e)(1)" in susp.reason)
+        self.assertFalse(self.review([acc(0, 700), major(0, 600, "Driving while suspended")], five - 2000).flag)
+
+
 class BillingCashTest(unittest.TestCase):
     """billing._covered: a refund goes out only once the premium received covers it and the refunds before it."""
 
@@ -1317,8 +1444,10 @@ class RenewalTimelineTest(unittest.TestCase):
             tele = np.zeros(len(self.sim.st.v["pol"]))
             tele[cars.veh.to_numpy()] = cars.tele_disc.to_numpy()
             a = lambda c: g[c].to_numpy()
+            # (with the first rows of renewals as written before a write-off was reported, which offers before then saw)
+            every = pd.concat([self.res.rows, self.res.issued_rows], ignore_index=True)
             ev, _ = simulate.evaluate_offers(self.sim, a("pol"), a("exp_term"), a("offer_day"), a("eff"), a("since"), a("tenure"),
-                                             a("ty"), a("ni_age"), self.res.rows if rows is None else rows, tele)
+                                             a("ty"), a("ni_age"), every if rows is None else rows, tele)
             flag = simulate.underwriting_review(self.sim, a("pol"), a("offer_day"), a("eff"))
             out.append(pd.DataFrame({"pol": a("pol"), "exp_term": a("exp_term"), "n_veh": ev["n_veh"], "expiring": ev["expiring"],
                                      "premium": ev["premium"], "p_accept": 1 / (1 + np.exp(-ev["logit"])),
@@ -1356,8 +1485,8 @@ class RenewalTimelineTest(unittest.TestCase):
                 sim.recs.add(d, np.full(len(d), o.min() - 10), np.full(len(d), simulate.KIND["major"]), np.full(len(d), o.max() + 1))
             # later exposure: every car of the expiring term moves to another ZIP the day after the offer, with
             # another driver, and the household's current state is scrambled
-            r = self.res.rows
-            later = r[r.term.isin(off.exp_term)].copy()
+            r = pd.concat([self.res.rows, self.res.issued_rows], ignore_index=True)
+            later = self.res.rows[self.res.rows.term.isin(off.exp_term)].copy()
             later["s"] = off.set_index("exp_term").offer_day.reindex(later.term).to_numpy() + 1
             later["zi"], later["drv"] = (later.zi + 1) % len(sim.ref.zips), later.drv[::-1].to_numpy()
             p["homeowner"][:] = 1 - p["homeowner"]
@@ -1394,6 +1523,9 @@ class RenewalTimelineTest(unittest.TestCase):
         d = pd.DataFrame({"drv": drv.drv.to_numpy()[on], "pol": dp[on]}).drop_duplicates("pol")
         d = d[(rem[d.drv] < 0) | (rem[d.drv] > o[i_of[d.pol].to_numpy()])]
         when = o[i_of[d.pol].to_numpy()]
+        # (a policy in force five years or more is not non-renewed for accidents alone: 215 ILCS 5/143.19.1)
+        mature = sim.ref.cal.age(when, sim.st.p["inception_day"][d.pol.to_numpy()]) >= simulate.MATURE_YEARS
+        self.assertTrue(mature.any() and (~mature).any())
         saved = (list(sim.recs.parts), sim.recs._frame)
         try:
             for known, flagged in ((when + 1, False), (when, True)):
@@ -1402,8 +1534,9 @@ class RenewalTimelineTest(unittest.TestCase):
                 for _ in range(2):     # two at-fault accidents in the year before the renewal
                     sim.recs.add(d.drv, when - 200, np.full(len(d), simulate.KIND["accident"]), known)
                 got = simulate.underwriting_review(sim, pol, o, eff)[i_of[d.pol].to_numpy()]
-                self.assertEqual(bool(got.all()), flagged)
-                self.assertEqual(bool(got.any()), flagged)
+                self.assertEqual(bool(got[~mature].all()), flagged)
+                self.assertEqual(bool(got[~mature].any()), flagged)
+                self.assertFalse(got[mature].any())
         finally:
             sim.recs.parts[:], sim.recs._frame = saved
 

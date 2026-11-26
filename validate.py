@@ -718,8 +718,23 @@ def integrity_renewals(rep, offers, term, risk, valuation, veh=None, clm=None, f
             how="left")["known"].to_numpy()
     held = known_in_force(r, r["offer_date"].to_numpy(), gk)
     later = held & (r["coverage_end_date"] <= r["offer_date"])
-    r = r[held]
+    r_all, r = r, r[held]
     g = r.groupby("renewal_offer_id").agg(n=("total_premium", "size"), prem=("total_premium", "sum")).reindex(o["renewal_offer_id"]).fillna(0)
+    # a term written before a write-off was reported is re-rated back to its start on the report day (its first rows
+    # rated then): an offer made before the report saw it as written, its written premium for its cars and the lost one
+    if veh is not None:
+        tt = term.set_index("policy_term_id")
+        first = r_all[r_all["coverage_start_date"] == tt["effective_date"].reindex(r_all["policy_term_id"]).to_numpy()]
+        redo = first.groupby("renewal_offer_id").agg(n=("total_premium", "size"), rated=("rating_date", "min"),
+                                                       term_id=("policy_term_id", "first"), offer=("offer_date", "first"))
+        redo = redo[(redo["rated"] > tt["rating_date"].reindex(redo["term_id"]).to_numpy()) & (redo["rated"] > redo["offer"])]
+        if len(redo):
+            lost = writeoff_known(veh, clm, feat).merge(veh[["insured_vehicle_id", "policy_id"]], on="insured_vehicle_id")
+            x = redo.join(tt[["policy_id", "effective_date", "written_premium"]], on="term_id").reset_index().merge(lost, on="policy_id")
+            x = x[(x["removed_date"] <= x["effective_date"]) & (x["known"] == x["rated"])]
+            n_lost = x.groupby("renewal_offer_id").size()
+            g.loc[redo.index, "n"] = redo["n"] + n_lost.reindex(redo.index).fillna(0)
+            g.loc[redo.index, "prem"] = tt["written_premium"].reindex(redo["term_id"]).to_numpy()
     rep.check("each offer covers the vehicles in force on its offer date as the company then knew them, at the premium "
               "they were then insured for (a car written off before the offer and reported after it is still on it)",
               (g["n"].to_numpy() == o["vehicles_offered"].to_numpy()).all()
@@ -747,9 +762,27 @@ def integrity_renewals(rep, offers, term, risk, valuation, veh=None, clm=None, f
               t["nonrenewal_reason"].reindex(nr["expiring_policy_term_id"]).tolist() == nr["outcome"].tolist()
               and set(nr["expiring_policy_term_id"]) == set(nr_terms["policy_term_id"]))
     cx = exp["cancel_date"].notna().to_numpy()
-    rep.check("an offer ends 'Canceled Before Renewal' exactly when its expiring term was canceled after the offer date",
+    # (a cancellation from the day after the last car was written off is known only once the claim is reported)
+    seen = exp["cancel_date"].fillna("").to_numpy().astype(object)
+    if veh is not None:
+        # (known when the company knew every car had gone: the latest report of a write-off in the term up to then)
+        wk = writeoff_known(veh, clm, feat).merge(veh[["insured_vehicle_id", "policy_id"]], on="insured_vehicle_id")
+        ec = pd.DataFrame({"i": np.arange(len(exp)), "policy_id": exp["policy_id"].to_numpy(),
+                           "s": exp["effective_date"].to_numpy(), "c": exp["cancel_date"].fillna("").to_numpy(),
+                           "request": (exp["cancel_reason"] == "Insured Request").to_numpy()})
+        ec = ec[ec["request"] & (ec["c"] != "")].merge(wk, on="policy_id")
+        ec = ec[(ec["removed_date"] > ec["s"]) & (ec["removed_date"] <= ec["c"])]
+        kk = np.full(len(exp), "", dtype=object)
+        top = ec.groupby("i")["known"].max()
+        kk[top.index.to_numpy()] = top.to_numpy()
+        kk = kk.astype(str)
+        seen = np.where(kk > seen.astype(str), kk, seen)
+    rep.check("an offer ends 'Canceled Before Renewal' exactly when its expiring term was canceled after the offer date, "
+              "or before it but known only after it (a cancellation backdated to a write-off reported later)",
               ((o["outcome"] == "Canceled Before Renewal").to_numpy() == cx).all()
-              and (exp.loc[cx, "cancel_date"].to_numpy() > o.loc[cx, "offer_date"].to_numpy()).all())
+              and (seen[cx].astype(str) > o.loc[cx, "offer_date"].to_numpy().astype(str)).all(),
+              f"{(cx & (exp['cancel_date'].fillna('').to_numpy() <= o['offer_date'].to_numpy())).sum():,} offers sent after a "
+              "backdated cancellation not yet known")
     pending = o["outcome"] == "Pending"
     company = o["underwriting_decision"] == "Non-Renew"
     rep.check("a renewal is pending only when it takes effect after the valuation date; a company non-renewal is never "
@@ -1567,6 +1600,102 @@ def integrity_audit_v119(rep, t: dict, valuation, out: Path = None) -> None:
               f"{len(kept):,} owner-retained total losses")
 
 
+def integrity_audit_v1111(rep, t: dict, valuation) -> None:
+    """Record-level consistency found by the audit of v1.1.11: a renewal is issued, booked and billed as the company
+    knew the policy, and adjusted when a write-off is reported later; a cancellation backdated to a write-off does not
+    stop the offer sent before it was known; a company non-renewal records its reason, driver and incident, and a
+    policy in force five years or more is non-renewed only on a ground 215 ILCS 5/143.19.1 lists."""
+    term, risk, veh, clm, feat = t["policy_term"], t["exposure"], t["insured_vehicle"], t["claim"], t["claim_feature"]
+    offers, ledger, inv, pol, drv, inc = (t["renewal_offer"], t["premium_transaction"], t["billing_invoice"], t["policy"],
+                                          t["driver"], t["driver_incident"])
+    V = str(np.datetime64(valuation, "D"))
+    day = lambda x: pd.to_datetime(x)
+    shift = lambda x, n: (day(x) + pd.Timedelta(days=n)).dt.strftime("%Y-%m-%d")
+    wk = writeoff_known(veh, clm, feat).merge(veh[["insured_vehicle_id", "policy_id"]], on="insured_vehicle_id")
+    wk = wk[wk["known"] > wk["removed_date"]]
+
+    # renewal chronology: a car written off before a renewal took effect, reported after the renewal was rated
+    ren = offers[offers["outcome"] == "Renewed"][["policy_id", "renewal_policy_term_id", "renewal_effective_date",
+                                                     "revised_offer_date"]].astype({"renewal_policy_term_id": "int64"})
+    r = wk.merge(ren, on="policy_id").merge(term[["policy_term_id", "rating_date", "written_premium"]],
+                                             left_on="renewal_policy_term_id", right_on="policy_term_id")
+    r = r[(r["removed_date"] <= r["renewal_effective_date"]) & (r["known"] > r["rating_date"]) & (r["known"] <= V)]
+    r = r.sort_values("known").groupby("policy_term_id").tail(1)
+    adj = ledger[ledger["transaction_type"] == "Endorsement"].merge(
+        r[["policy_term_id", "renewal_effective_date", "known"]], left_on=["policy_term_id", "effective_date"],
+        right_on=["policy_term_id", "renewal_effective_date"])
+    adj = adj[adj["processed_date"] >= adj["known"]].groupby("policy_term_id")["written_premium"].sum()
+    first_rows = risk[risk["endorsement_number"] == 0].groupby("policy_term_id").agg(
+        prem=("total_premium", "sum"), rated=("rating_date", "min"))
+    rr = r.set_index("policy_term_id").join(first_rows).join(adj.rename("adjust"))
+    booked = ledger[ledger["transaction_type"] == "Renewal"].set_index("policy_term_id")["processed_date"]
+    bills = inv[inv["invoice_type"].isin(["Paid in Full", "Down Payment"])].set_index("policy_term_id")
+    plan = pol.set_index("policy_id")["payment_plan"].reindex(rr["policy_id"]).to_numpy()
+    n_inst = np.where(plan == "Paid in Full", 1, pol.set_index("policy_id")["term_months"].reindex(rr["policy_id"]).to_numpy())
+    first_bill = bills["premium_amount"].reindex(rr.index).to_numpy()
+    issued_ok = np.abs(first_bill * n_inst - rr["written_premium"].to_numpy()) <= 0.01 * n_inst + 0.005
+    rep.check("a renewal rated before a write-off was reported is written, booked and first billed with the lost car, "
+              "and re-rated back to its first day once the claim is reported (an endorsement booked then)",
+              bool((rr["adjust"].notna()).all() and np.allclose(rr["adjust"].fillna(0), rr["prem"] - rr["written_premium"], atol=0.011)
+                   and (booked.reindex(rr.index) < rr["known"]).all() and (rr["rated"] >= rr["known"]).all()
+                   and issued_ok.all()),
+              f"{len(rr):,} renewals adjusted after the report; written ${rr['written_premium'].sum():,.0f}, "
+              f"adjustments ${rr['adjust'].fillna(0).sum():,.0f}")
+    # reported after the offer and by the time the renewal took effect: the renewal is revised no earlier than the report
+    q = wk.merge(offers[offers["outcome"] == "Renewed"][["policy_id", "offer_date", "renewal_effective_date",
+                                                          "renewal_policy_term_id"]], on="policy_id")
+    q = q[(q["removed_date"] <= q["renewal_effective_date"]) & (q["known"] > q["offer_date"]) & (q["known"] <= q["renewal_effective_date"])]
+    rated_on = term.set_index("policy_term_id")["rating_date"].reindex(q["renewal_policy_term_id"].astype("int64")).to_numpy()
+    rep.check("a renewal whose car was written off and reported between the offer and the renewal date is re-rated on or "
+              "after the report, not on the backdated removal", bool((rated_on >= q["known"].to_numpy()).all()),
+              f"{len(q):,} such renewals")
+
+    # a cancellation backdated to a write-off, known only at the claim's report, leaves the offer sent before then
+    last_car = term[term["cancel_reason"] == "Insured Request"][["policy_term_id", "policy_id", "cancel_date", "expiration_date"]]
+    lc = last_car.merge(wk, left_on=["policy_id", "cancel_date"], right_on=["policy_id", "removed_date"])
+    must = lc[(lc["cancel_date"] <= shift(lc["expiration_date"], -45)) & (lc["known"] > shift(lc["expiration_date"], -30))
+              & (shift(lc["expiration_date"], -30) <= V)].drop_duplicates("policy_term_id")
+    got = offers.set_index("expiring_policy_term_id")["outcome"].reindex(must["policy_term_id"])
+    rep.check("a term cancelled from the day after its last car was written off, the claim reported only after the "
+              "renewal offer was due, still had its offer sent, ending 'Canceled Before Renewal'",
+              bool((got == "Canceled Before Renewal").all()), f"{len(must):,} such terms")
+
+    # company non-renewals: a reason, the driver and the incident it rests on; the five-year rule
+    o = offers.copy()
+    nr = o["underwriting_decision"] == "Non-Renew"
+    rep.check("a company non-renewal records its reason, driver and incident, and a renewal none",
+              bool(o.loc[nr, "underwriting_reason"].notna().all() and o.loc[nr, "underwriting_driver_id"].notna().all()
+                   and o.loc[nr, "underwriting_incident_id"].notna().all()
+                   and o.loc[~nr, ["underwriting_driver_id", "underwriting_incident_id"]].isna().all().all()
+                   and o.loc[~nr, "underwriting_reason"].fillna("").eq("").all()),
+              f"{nr.sum():,} company non-renewals: {o.loc[nr, 'underwriting_reason'].str.split(';').str[0].value_counts().to_dict()}")
+    x = o[nr].merge(pol[["policy_id", "original_inception_date"]], on="policy_id").merge(
+        drv[["driver_id", "policy_id", "added_date", "removed_date"]].rename(columns={"policy_id": "drv_policy"}),
+        left_on="underwriting_driver_id", right_on="driver_id", how="left")
+    on_day = ((x["drv_policy"] == x["policy_id"]) & (x["added_date"] <= x["offer_date"])
+              & ~(x["removed_date"] <= x["offer_date"]))
+    i = inc.set_index("incident_id").reindex(x["underwriting_incident_id"].astype("int64"))
+    own = (i["driver_id"].to_numpy() == x["underwriting_driver_id"].to_numpy()) & (i["known_date"].to_numpy() <= x["offer_date"].to_numpy())
+    mature = completed_age(x["offer_date"], x["original_inception_date"]) >= 5
+    # the grounds, from the driver's record known on the notice day
+    rec = x[["renewal_offer_id", "underwriting_driver_id", "offer_date"]].merge(
+        inc[["driver_id", "incident_date", "known_date", "incident_type", "description"]],
+        left_on="underwriting_driver_id", right_on="driver_id")
+    rec = rec[rec["known_date"] <= rec["offer_date"]]
+    within = lambda n: rec["incident_date"] > shift(rec["offer_date"], -n)
+    viol = rec["incident_type"].isin(["Minor Violation", "Major Violation"])
+    conv = rec["description"].isin(["DUI", "Leaving the scene"]) & within(3 * 365)
+    susp = (rec["description"] == "Driving while suspended") & within(365)
+    three = (viol & within(365)).groupby(rec["renewal_offer_id"]).transform("sum") >= 3
+    ground = (conv | susp | three).groupby(rec["renewal_offer_id"]).any().reindex(x["renewal_offer_id"]).fillna(False).to_numpy()
+    cites = x["underwriting_reason"].str.contains("143.19.1", regex=False).to_numpy()
+    rep.check("a company non-renewal rests on a driver on the policy on the notice date and an incident of theirs known "
+              "by then; a policy in force five years or more only on a ground 215 ILCS 5/143.19.1 lists (a DUI or "
+              "leaving-the-scene conviction in 36 months, a suspended license or three moving violations in 12), cited",
+              bool(on_day.all() and own.all() and (ground[mature] & cites[mature]).all() and not cites[~mature].any()),
+              f"{mature.sum():,} of {len(x):,} on policies in force five years or more")
+
+
 def integrity_animal_drivers(rep, clm, risk, pol) -> None:
     """A collision with an animal happens while someone drives the car: its claim names one of the car's drivers, drawn
     as for other crashes, not the named insured by default."""
@@ -1851,6 +1980,7 @@ def main() -> None:
     integrity_audit_records(rep, t, valuation)
     integrity_audit_v119(rep, t, valuation, out)
     integrity_animal_drivers(rep, clm, risk, pol)
+    integrity_audit_v1111(rep, t, valuation)
     integrity_ledger(rep, gl, acct, stmt, ledger, pol, term, inv, rec, pay, clm, feat, reserves, agency, start, valuation)
     filed = plan["filed_discounts"]
     rep.check("the rating plan charges the filed discounts and surcharges, on the coverages they are filed for",
