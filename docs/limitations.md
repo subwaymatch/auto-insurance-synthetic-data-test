@@ -70,24 +70,24 @@ business is accidental; vehicle symbols are this dataset's own scales.
 `docs/real_data_comparison.md` compares the book with a real motor portfolio (Lledó and Pavía, Mendeley
 Data 2024, CC BY 4.0; almost certainly a Spanish insurer, 2015 to 2018). The two markets, currencies and
 products differ, so only shapes are compared, not levels. Where a fair comparison is possible the synthetic
-data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.24 times
-in the synthetic, newly licensed drivers 1.37 and 1.31 times, urban vehicles 1.14 and 1.13 times, and
+data looks realistic: drivers under 25 claim 1.37 times the book average in the real data and 1.26 times
+in the synthetic, newly licensed drivers 1.37 and 1.31 times, urban vehicles 1.14 and 1.14 times, and
 claim costs and premiums spread alike. These differences remain:
 
 1. **Tenure protects less.** Long-standing customers are safer than new ones, but less than in the real book
-   (0.69 times the claim frequency after ten years in the real data, 0.87 in the synthetic, other things
+   (0.69 times the claim frequency after ten years in the real data, 0.85 in the synthetic, other things
    equal). Claims do now cost customers as in the real book: a real contract with a claim is 1.45 times as
-   likely to end as one without, a synthetic one 1.59 times, and 898 of 11,523 synthetic non-renewals are the
+   likely to end as one without, a synthetic one 1.51 times, and 508 of 11,195 synthetic non-renewals are the
    company's decision.
 2. **Payment plan carries less risk.** Real half-yearly payers claim 1.61 times as often as annual payers,
-   other things equal; synthetic installment payers 1.12 times.
+   other things equal; synthetic installment payers 1.09 times.
 3. **The largest claims are smaller.** The costliest 1% of claim-years make up 24% of real claim cost and
-   18% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
+   17% of synthetic. US policy limits explain part of this; the synthetic large-loss tail is not
    checked against US data (no US figure on comparable terms is published; see [benchmarks.md](benchmarks.md)).
 4. **Channel makes less difference.** Real broker business runs 12% above average frequency; synthetic
-   independent-agent business runs 1% above, and 3% above exclusive-agent business with other things equal.
+   independent-agent business runs at the average, and 2% above exclusive-agent business with other things equal.
 5. **Shared factors carry less predictive signal.** A simple model on the factors both books record ranks
-   held-out real claims better (Gini 0.22) than synthetic ones (0.104), because of points 1, 2 and 4 and
+   held-out real claims better (Gini 0.22) than synthetic ones (0.106), because of points 1, 2 and 4 and
    because 30% of synthetic claims are comprehensive (glass, theft, weather), which the driver's
    characteristics barely predict.
 
@@ -132,8 +132,12 @@ Those synthetic figures are plausible but unverified.
   conversion and renewals respond to that gap is assumed.
 - What a claim does to a renewal is assumed and sized to one real portfolio from another market: a claim
   since the last offer lowers the chance of renewing, an at-fault or second claim more. The underwriting
-  rule for company non-renewals (two at-fault accidents, two major violations, or one of each, in three
-  years; half of those flagged) is assumed.
+  rule for company non-renewals (a driver with two at-fault accidents, two major violations, or one of each, in
+  three years; half of those flagged) is assumed. A policy in force five years or more is non-renewed only on a
+  ground 215 ILCS 5/143.19.1 lists that the driver's record shows (a DUI or leaving-the-scene conviction in 36
+  months, a license under suspension or three moving violations in 12); the statute's other route, 60 days'
+  notice without a listed ground, is not modeled, so such policies are renewed, and the record holds no other
+  ground (misrepresentation, fraud, a car unfit to drive, a medical condition).
 - Telematics discounts are not offset in the base rates, so later years run a little above the industry
   loss ratio path.
 - Income, insurance score, payment plan and multi-policy status stay fixed for a policy's life; liability
@@ -143,9 +147,11 @@ Those synthetic figures are plausible but unverified.
   limits) are not offered back as a new quote, so the written premium can differ from `renewal_premium`.
 - An offer is made from the policy as the company knew it that day, so a car written off before the offer but
   reported after it is still offered, and the revision on the report date drops it. When the report comes only
-  after the renewal has taken effect (about eight cars a run), the renewal term is nonetheless rated without the
-  lost car from its start, on its offer date; a real insurer would have issued it with the car and re-rated it
-  back to inception when the claim came in.
+  after the renewal has taken effect, the renewal is written and billed with the car and re-rated back to its first
+  day when the claim comes in; the exposure table then shows only the re-rated term (the term as written is in
+  `policy_term.written_premium`, the first bill and the endorsement that adjusts it). Changes between the loss and
+  a late report (a car added, say) are rated only once the report is in, so an offer made in between does not
+  see them.
 
 **Claims**
 
@@ -301,20 +307,19 @@ Those synthetic figures are plausible but unverified.
   7% below for comprehensive and 4% above for liability. If the table is in fact before recoveries,
   physical damage payments here are about a quarter too high against it, and Illinois' premiums could not then be matched
   at industry loss ratios. The sources do not settle it.
-- **Collision claims are frequent and often total losses.** Collision frequency runs 31% above
-  national on the like-for-like comparison in the default run (27% to 34% across five seeds; an urban
+- **Collision claims are frequent and often total losses.** Collision frequency runs 33% above
+  national on the like-for-like comparison in the default run (29% to 38% across five seeds; an urban
   book), in the upper half of the band `validate.py` allows. About 32% of paid collision claims are total
   losses, and 28% of paid collision and comprehensive claims with glass left out, against 22% to 23% of
   all appraisals nationally (CCC); 80% of total losses are on cars seven or more model years old (CCC:
-  72%), and the average car written off is worth about $10,400 (CCC: $13,400 to $13,700). CCC also counts
+  72%), and the average car written off is worth about $10,500 (CCC: $13,400 to $13,700). CCC also counts
   appraisals that are not paid and third-party ones, which are more often repairable, so part of the gap
   is definition; the rest is the damage model, in which an old car totals more easily than real ones seem
   to (see [benchmarks.md](benchmarks.md)).
-- **Claim luck is real.** A year of this book has about 210 to 270 paid bodily injury claims, and one
-  standard deviation of their total is 1.7 to 3.5 loss-ratio points. In the default run each full year
-  comes within 11% of its expected loss ratio, without catastrophes (2022: 89.9% against 81.1%, on a few large
-  injury claims; 2023: 70.4% against 74.5%); across five seeds a year's actual runs 0.90 to 1.11 times its
-  expected. Other seeds and
+- **Claim luck is real.** A year of this book has about 200 to 280 paid bodily injury claims, and one
+  standard deviation of their total is 1.6 to 2.5 loss-ratio points. In the default run each full year
+  comes within 7% of its expected loss ratio, without catastrophes (2023: 80.0% against 74.4%; 2025: 60.6%
+  against 63.6%); across five seeds a year's actual runs 0.91 to 1.07 times its expected. Other seeds and
   sizes give other years their luck; `validate.py` holds each year's actual, without catastrophes, to 0.85
   to 1.15 times its expected.
 - **The last year is immature.** 2026 is the least developed year: young injury claims are reserved low,
