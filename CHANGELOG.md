@@ -76,11 +76,15 @@ v1.1.0. Figures for stages 1 to 4 are for the default run at the time (seed 2025
     spare cars pass to drivers without one, divorced spouses are divorced, fatal crashes have police reports,
     lapsing policies pay no later endorsement bills, nothing is confirmed or chased after a cancellation, new
     policies are placed on what was known on their quote day, and opening telematics enrollments start with a term.
-17. **Unreleased, An audit of v1.1.10.** Original renewal offers are made from the policy as the company knew it
+17. **2026-11-25, [v1.1.11](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.11): An audit of v1.1.10 ([PR #19](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/19)).** Original renewal offers are made from the policy as the company knew it
     that day (a car written off but not yet reported is still on it), telematics rates are whole events over the
     miles driven, ages are counted in completed years so a driver changes class on the birthday, only the 2011-21
     Kias and Hyundais built without an immobiliser are in the theft wave, a void follows its check, a mid-December
     valuation leaves the year open, and an animal collision names the driver at the wheel.
+18. **Unreleased, An audit of v1.1.11.** A renewal is written and billed as the company knew the policy and adjusted
+    back to its start when a write-off is reported later, a cancellation backdated to a write-off no longer stops the
+    offer sent before it was known, and a company non-renewal rests on one driver's record, with its reason recorded,
+    and on a statutory ground for a policy in force five years or more.
 
 ### Releases
 
@@ -101,12 +105,55 @@ published files; it is given where the changelog recorded it.
 | [v1.1.8](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.8) | 2026-11-24 | `635ea6f` | #16 | 43,368 policies to 2026-12-31 | `4a9b0599022f5117` |
 | [v1.1.9](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.9) | 2026-11-24 | `de3495e` | #17 | 43,368 policies to 2026-12-31 | `4612b99cdbc9e521` |
 | [v1.1.10](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.10) | 2026-11-25 | `7f6f4d1` | #18 | 43,368 policies to 2026-12-31 | `9774ec39a673aeea` |
-| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `f50d197acf7a40b4` |
+| [v1.1.11](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.11) | 2026-11-25 | `04e6659` | #19 | 43,368 policies to 2026-12-31 | `f50d197acf7a40b4` |
+| Unreleased | | | this branch | 43,368 policies to 2026-12-31 | `fd98210cf77e83ca` |
 
 Every release is seed 20250101 from 1 January 2022, and the same seed and options always produce
 byte-identical files with the pinned library versions (`requirements.txt`).
 
-## Unreleased: an audit of v1.1.10
+## Unreleased: an audit of v1.1.11
+
+An audit of v1.1.11 (default run and seed 101; [docs/realism-audit-v1.1.11.md](docs/realism-audit-v1.1.11.md)) found
+three issues about what the insurer knew when it acted; both books passed every check. Figures are for the default run
+after these changes (content hash `fd98210cf77e83ca`). `docs/review_response.md` ("Audit of v1.1.11") answers each
+finding.
+
+- **A renewal as the company knew the policy.** A car written off before a renewal took effect but reported after
+  it had been dropped from the renewal already: the write-off's endorsement revised the renewal on the backdated
+  removal day, and the renewal was rated, booked and billed without the car (36 renewals). A change now revises a
+  pending renewal the day it is known (a write-off on its report), and a renewal rated before the report is written
+  and billed with the lost car and the other cars as they then stood, then re-rated back to its first day when the
+  claim is reported: an endorsement effective on the term's first day, booked on the report, which billing
+  reconciles. The term's rows are rated on the report day (the term as written is in `policy_term.written_premium`,
+  the first bill and that endorsement), and an offer made before the report sees the term as written.
+- **Offers before a backdated cancellation was known.** A policy cancelled from the day after its last car was
+  written off, the claim reported after the renewal offer was due, got no offer (4 terms). The offer is now made
+  when the company did not yet know of the cancellation, and ends `Canceled Before Renewal`; a policy is offered once.
+- **Non-renewals with a reason, on Illinois' five-year rule.** The underwriting review now judges each driver (two
+  drivers with one accident each no longer flag a policy), and a policy in force five years or more is non-renewed
+  only on a ground 215 ILCS 5/143.19.1 lists that the record shows (a DUI or leaving-the-scene conviction in 36
+  months, a suspended license or three moving violations in 12); the 60-day notice route is not modeled.
+  `renewal_offer` adds `underwriting_reason`, `underwriting_driver_id` and `underwriting_incident_id`. Company
+  non-renewals fall from 898 to 508 (4.5% of non-renewals) and annualized retention rises to 81.6%.
+- **Checks.** `validate.py` adds five checks (an adjusted renewal's booking, first bill, adjustment and rows; a
+  renewal revised no earlier than the report; the offer for a cancellation backdated past it; a non-renewal's reason,
+  driver and incident; the five-year rule) and widens one (an offer may end `Canceled Before Renewal` for a
+  cancellation dated before it but known after it): 212 in all. Unit tests cover revision dating, offer eligibility,
+  the review's rules and grounds, and follow one adjusted renewal and one cancelled policy through a small book.
+- **The default run** (content hash `fd98210cf77e83ca`): loss ratios by accident year 82.4%, 83.7%, 67.5%, 61.3% and
+  68.1% for 2022 to 2026, of which catastrophes 0.0%, 3.7%, 2.1%, 0.7% and 6.4%; overall 71.4% (was 71.2% in
+  v1.1.11; 69.3% to 73.4% across five seeds); annualized retention 81.6%. 196,925 policy terms, 447,271 exposure
+  rows, $213.6 million earned premium, 23,104 claims, 40,468 features, 61,409 claim payments, 105,423 reserve
+  transactions, 885,338 bills and 897,096 receipts, 118,808 quotes and 170,260 renewal offers. More policies renew,
+  which moves later random draws, so every figure moves a little; terms with a claim now end the policy 1.54 times
+  as often as terms without (was 1.60; the real portfolio's 1.45). All 212 checks pass on the default run and on
+  seeds 7, 11, 23, 42 and 101 (content hashes `d77950667be36537`, `93088a0d5d4b22f8`, `892d568cd58fb140`,
+  `31af0b44a1c46bb4` and `d7222a17a76d0047`), seed 42's bodily injury frequency included. Checking the seeds turned
+  up a two-car policy cancelled once both cars were gone, the first written off months before its report: the check
+  now takes the cancellation as known at the latest write-off report in the term. The test suite has 99 tests (98
+  pass, and one needs `pyarrow`).
+
+## 2026-11-25, [v1.1.11](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/releases/tag/v1.1.11): An audit of v1.1.10 ([PR #19](https://github.com/subwaymatch/auto-insurance-synthetic-data-test/pull/19))
 
 An audit of v1.1.10 (default run and seed 101; [docs/realism-audit-v1.1.10.md](docs/realism-audit-v1.1.10.md))
 found eight issues that no check covered; both books passed every check. Figures are for the default run after

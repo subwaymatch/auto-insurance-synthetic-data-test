@@ -3,11 +3,76 @@
 An outside reviewer (another AI coding assistant) has reviewed the generator three times, a dataset
 realism audit followed on 20 November 2026, two further realism audits on 22 November 2026, follow-up checks
 of the release that fixed them, an audit of v1.1.7 on 23 November 2026, audits of v1.1.8 on 24 November and
-v1.1.9 on 25 November 2026, and an audit of v1.1.10 the same day. The newest is answered first, then the earlier
-ones in reverse order: the audits of v1.1.9, v1.1.8 and v1.1.7, the follow-up checks, the two audits, the 20
-November audit at commit `03c2634` and the third review at `9fe6062`; the first two follow. Each finding is
-answered: **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this dataset's scope,
-now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+v1.1.9 on 25 November 2026, and audits of v1.1.10 and v1.1.11 the same day. The newest is answered first, then the
+earlier ones in reverse order: the audits of v1.1.10, v1.1.9, v1.1.8 and v1.1.7, the follow-up checks, the two
+audits, the 20 November audit at commit `03c2634` and the third review at `9fe6062`; the first two follow. Each
+finding is answered: **confirmed and fixed**, **already addressed**, **not adopted** (a suggestion outside this
+dataset's scope, now listed in [limitations.md](limitations.md)), or **agreed, already documented**.
+
+## Audit of v1.1.11 (25 November 2026)
+
+An audit of v1.1.11 (`main` at `04e6659`, report in [realism-audit-v1.1.11.md](realism-audit-v1.1.11.md)) rebuilt the
+default run (content hash `f50d197acf7a40b4`, matching the release byte for byte) and seed 101 (`f7c338f8f7c20dce`);
+both passed all 207 checks, and its own joins confirmed the previous round's fixes. It reported three findings about
+what the insurer knew when it acted. All three reproduce exactly and are **confirmed and fixed**. "After" figures are
+from the default run after this change (content hash `fd98210cf77e83ca`) and seed 101 (`d7222a17a76d0047`); both pass
+all 212 checks.
+
+| # | Finding | Before (default; seed 101) | After (default; seed 101) |
+|---|---|---|---|
+| F1 | A renewal rated, booked and first billed without a car written off before it but reported only after it took effect | 36 renewals, 28 of them revised on the backdated removal day; 28 and 24 | None. 45 and 25 renewals are written and billed with the car and re-rated back to their first day when the claim is reported; none is revised before the report |
+| F2 | No renewal offer for a term cancelled from the day after its last car was written off, the claim reported after the offer was due | 4; 5 | 0; 0 (5 and 5 such offers, ending `Canceled Before Renewal`) |
+| F3 | Company non-renewals of policies in force five years or more on short notice, with no recorded reason; household-summed triggers | 178 of 898 (30 resting on two drivers' single accidents); 175 of 855 | 13 of 508 and 12 of 479, each citing a statutory ground; every non-renewal records its reason, driver and incident |
+
+**F1. Renewal chronology.** Confirmed, both causes. The write-off's endorsement, applied at the backdated removal day,
+set the pending renewal's change day to that day, so the renewal was revised before the report; and the renewal term
+was rated from the vehicles still active, which no longer held the lost car. Now a change revises a pending renewal
+on the day it is known (`simulate.revision_day`: a backdated removal on its report, and other changes in between wait
+for it), and not at all if that is after the renewal takes effect. A renewal rated before such a report is issued as
+the company knew the policy (`simulate._issued_before_known`): with the lost car, the other cars' drivers and
+multi-car discount as they then stood, and the renewal's own coverage changes. Its written premium and first bill are
+that premium. On the report the term is re-rated back to its first day without the car: an endorsement effective on
+the term's first day, booked on the report (`Vehicle Removed (Total Loss)`), which billing spreads over the bills
+still to come or refunds; the term's rows are rated on the report day and hold no lost car, so it has no exposure
+after the loss. An offer made before the report sees the term as written. The audit's example now reads: policy
+250999's offer of February 4, 2022, three cars for $1,070.65, is the renewal written and billed that day (paid in
+full); on March 16, the report, an endorsement effective March 15 returns $412.60, and the two remaining cars are
+rated that day ($658.05). The audit's query still lists such terms (32 and 17) for a before-and-after comparison, as
+it expected: each now carries the adjustment. Two checks cover it: an adjusted renewal's booking, first bill,
+adjustment and first rows, and a renewal reported between its offer and its effective date re-rated no earlier than
+the report (235 and 224 of them). A test follows one such renewal and one cancelled policy through a small book.
+
+**F2. Offers before a backdated cancellation was known.** Confirmed. Offer selection used the cancellation's
+effective date; it now uses the later of that date and the day the company learned of it (`simulate.offer_due`; for a
+last-car cancellation, the claim's report). Such a policy is offered its renewal and the offer ends `Canceled Before
+Renewal` once the report arrives; a policy is offered only once. A customer's own cancellation, on the books the day
+it takes effect, still stops the offer, so the two stay distinct (the last-car cancellation keeps the `Insured Request`
+label, and is recognizable by the write-off removed that day). The renewal check now accepts a cancellation dated
+before the offer when it was known only after it (19 and 25 offers), and a new check requires the offer for every
+term the audit's query selects.
+
+**F3. Non-renewal grounds.** Confirmed. The review now judges each driver: one driver with two or more at-fault
+accidents, two or more major violations, or one of each in three years flags the policy (two drivers with one accident
+each no longer do). A policy in force five years or more on the notice day, counted in completed calendar years from
+its first inception, is non-renewed only on a ground 215 ILCS 5/143.19.1 lists that the driver's record shows (the
+grounds as the Illinois Department of Insurance's private passenger auto checklist quotes them, pp. 13-14): a DUI or
+leaving-the-scene conviction in the 36 months before the notice, a license under suspension in the 12 months before it
+(the driver's driving-while-suspended violation), or three or more moving violations in those 12 months. This is the
+narrower implementation the audit allowed: the statute's other route, a notice mailed 60 days ahead without a listed
+ground, is not modeled, and such policies are renewed. `renewal_offer` gains `underwriting_reason`,
+`underwriting_driver_id` and `underwriting_incident_id` (the driver's record, followed for a mature policy by the
+statutory ground it rests on). Company non-renewals fall from 898 to 508 (4.5% of non-renewals, was 7.8%; band 3% to
+15%), and annualized retention rises from 81.3% to 81.6%. Checks require every non-renewal's reason, driver and
+incident, and for a mature policy a cited ground the published record supports; unit tests cover the anniversary,
+two drivers with one accident each, and each ground.
+
+### What changed in the data
+
+Fewer policies are non-renewed, so more renew (196,925 terms, was 195,464), and later random draws move: loss ratios
+by accident year 82.4%, 83.7%, 67.5%, 61.3% and 68.1% for 2022 to 2026 (were 89.9%, 74.5%, 66.4%, 64.6% and 66.9%),
+overall 71.4% (was 71.2%); 23,104 claims (was 22,831); terms with a claim end the policy 1.54 times as often as
+terms without (was 1.60). `validate.py` runs 212 checks (was 207), all passing on the default run and seed 101. The
+test suite has 99 tests.
 
 ## Audit of v1.1.10 (25 November 2026)
 

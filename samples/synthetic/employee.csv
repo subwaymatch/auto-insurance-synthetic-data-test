@@ -1,47 +1,47 @@
 employee_id,employee_number,first_name,last_name,job_title,claim_office_id,hire_date,termination_date,payment_authority,supervisor_employee_id
-19,E10016,Robert,Hayes,Senior Claims Adjuster,6,2006-02-27,2023-05-30,25000,41
-21,E10059,Patricia,Franks,Senior Claims Adjuster,2,2006-07-31,,25000,27
-26,E10099,Nora,Franco,Senior Claims Adjuster,3,2006-10-25,2025-08-08,25000,130
-27,E10146,Theodore,Devlin,Claims Supervisor,2,2007-01-29,,75000,112
-30,E10153,Antonio,Guerrero,Senior Claims Adjuster,3,2007-07-30,,25000,130
-32,E10190,Lori,Clark,Claims Adjuster,3,2007-10-29,,10000,130
-33,E10194,Irene,Magana,SIU Investigator,3,2007-12-06,,0,112
-34,E10237,Sherry,Patterson,Claims Adjuster,3,2008-01-28,2024-12-17,10000,130
-36,E10267,John,Bramley,Senior Claims Adjuster,3,2008-05-02,,25000,130
-38,E10296,Lucio,Perez,Claims Adjuster,2,2008-08-04,2023-03-08,10000,27
-39,E10305,Kevin,Allen,Claims Supervisor,1,2008-09-19,2022-01-06,75000,112
-41,E10337,Connie,Roberts,Claims Supervisor,6,2008-10-06,,75000,112
-43,E10340,Steven,Pigg,Claims Adjuster,2,2009-01-20,,10000,27
-47,E10370,Cheryl,Iddings,Claims Adjuster,6,2009-12-17,2026-04-17,10000,41
-49,E10408,Timothy,Lung,Claims Adjuster,2,2010-03-17,,10000,27
-55,E10451,Monte,King,Senior Claims Adjuster,5,2010-12-28,2026-04-07,25000,111
-59,E10467,David,Brown,Senior Claims Adjuster,1,2011-05-31,,25000,200
-64,E10496,Jodi,Daly,Claims Adjuster,3,2012-02-06,2022-06-07,10000,130
-65,E10521,Shawn,Barrett,Senior Claims Adjuster,4,2012-04-06,,2500,148
-69,E10573,Christine,Trujillo,Claims Adjuster,3,2012-07-09,,10000,130
-77,E10595,Debbie,Barnes,SIU Investigator,3,2013-07-05,,0,112
-93,E10611,Horace,Belgrave,Claims Adjuster,2,2014-09-02,,10000,27
-103,E10639,Carina,Mangat,Claims Adjuster,4,2016-06-02,2024-09-13,2500,148
-111,E10692,Paul,Patel,Claims Supervisor,5,2017-01-06,,75000,112
-112,E10743,Matthew,Johnson,Claims Manager,,2017-01-09,,1000000,
-113,E10796,Sophia,Sinclair,Claims Adjuster,1,2017-02-21,,10000,200
-114,E10850,Frank,Hernandez,Claims Adjuster,1,2017-03-22,2025-05-16,10000,174
-123,E10885,John,Monroy,Claims Adjuster,5,2018-02-15,2026-10-16,10000,111
-130,E10924,John,Patrick,Claims Supervisor,3,2018-08-20,,75000,112
-143,E10933,Guadalupe,Gillilan,Claims Adjuster,3,2019-10-07,,10000,130
-148,E10964,Krista,Ellison,Claims Supervisor,4,2020-06-08,,75000,112
-154,E10984,Luis,Amor,Claims Adjuster,5,2021-01-26,,10000,111
-156,E10993,Jonathan,Hennessey,Senior Claims Adjuster,2,2021-03-18,,25000,27
-165,E11001,Michael,Hoyer,Claims Supervisor,1,2022-02-08,2023-02-09,75000,112
-168,E11005,Reuben,Brooks,Claims Adjuster,3,2022-06-17,,10000,130
-174,E11037,Jessica,Flores,Claims Supervisor,1,2023-03-01,2025-08-06,75000,112
-178,E11090,Matthew,Lemaire,Claims Adjuster,2,2023-03-24,,10000,27
-182,E11096,Davin,Johnson,Senior Claims Adjuster,6,2023-07-03,,25000,41
-192,E11133,Justin,Lemon,Claims Adjuster,4,2024-10-28,,2500,148
-193,E11144,Antonio,Collins,Claims Adjuster,3,2025-01-15,,10000,130
-199,E11172,Andrew,Newton,Claims Adjuster,1,2025-06-16,,10000,200
-200,E11186,Michael,Struble,Claims Supervisor,1,2025-08-21,,75000,112
-201,E11200,Melissa,Ferguson,Senior Claims Adjuster,3,2025-08-29,,25000,130
-207,E11216,Lauren,Collins,Senior Claims Adjuster,5,2026-05-14,,25000,111
-208,E11247,Shana,Dickerson,Claims Adjuster,6,2026-06-01,,10000,41
-211,E11250,Sara,Gonzales,Claims Adjuster,5,2026-11-23,,10000,111
+18,E10016,Robert,Hayes,Claims Supervisor,5,2006-02-27,2023-11-17,75000,115
+20,E10059,Patricia,Franks,Senior Claims Adjuster,2,2006-07-31,,25000,25
+21,E10099,Nora,Franco,Claims Adjuster,6,2006-08-28,,10000,47
+23,E10146,Theodore,Devlin,Senior Claims Adjuster,3,2006-10-25,2025-08-08,25000,71
+25,E10153,Antonio,Guerrero,Claims Supervisor,2,2007-01-29,,75000,115
+29,E10190,Lori,Clark,Senior Claims Adjuster,3,2007-07-30,,25000,71
+32,E10194,Irene,Magana,Claims Adjuster,3,2007-10-29,,10000,71
+36,E10237,Sherry,Patterson,SIU Investigator,3,2007-12-06,,0,115
+38,E10267,John,Bramley,Claims Adjuster,3,2008-01-28,2024-12-17,10000,71
+40,E10296,Lucio,Perez,Senior Claims Adjuster,3,2008-05-02,,25000,71
+42,E10305,Kevin,Allen,Claims Supervisor,4,2008-06-23,,75000,115
+45,E10337,Connie,Roberts,Claims Adjuster,2,2008-08-04,2023-03-08,10000,25
+46,E10340,Steven,Pigg,Claims Supervisor,1,2008-09-19,2022-01-06,75000,115
+47,E10370,Cheryl,Iddings,Claims Supervisor,6,2008-10-06,,75000,115
+48,E10408,Timothy,Lung,Claims Adjuster,2,2009-01-20,,10000,25
+53,E10451,Monte,King,Senior Claims Adjuster,6,2009-12-17,,25000,47
+54,E10467,David,Brown,Claims Adjuster,2,2010-03-17,,10000,25
+62,E10496,Jodi,Daly,Senior Claims Adjuster,1,2011-05-31,,25000,211
+67,E10521,Shawn,Barrett,Claims Adjuster,3,2012-02-06,2022-06-07,10000,71
+71,E10573,Christine,Trujillo,Claims Supervisor,3,2012-04-06,,75000,115
+75,E10595,Debbie,Barnes,Claims Adjuster,3,2012-07-09,,10000,71
+86,E10611,Horace,Belgrave,SIU Investigator,3,2013-07-05,,0,115
+99,E10639,Carina,Mangat,Claims Adjuster,2,2014-09-02,,10000,25
+110,E10692,Paul,Patel,Senior Claims Adjuster,4,2016-06-02,2026-01-16,2500,42
+114,E10743,Matthew,Johnson,Claims Adjuster,5,2017-01-06,,10000,181
+115,E10796,Sophia,Sinclair,Claims Manager,,2017-01-09,,1000000,
+116,E10850,Frank,Hernandez,Claims Adjuster,1,2017-02-21,,10000,211
+117,E10885,John,Monroy,Claims Adjuster,1,2017-03-22,2025-05-16,10000,175
+122,E10924,John,Patrick,Claims Adjuster,5,2018-02-15,2026-10-16,10000,181
+129,E10933,Guadalupe,Gillilan,Claims Adjuster,3,2018-08-20,,10000,71
+142,E10964,Krista,Ellison,Claims Adjuster,3,2019-10-07,,10000,71
+147,E10984,Luis,Amor,Claims Adjuster,4,2020-06-08,2026-03-27,2500,42
+153,E10993,Jonathan,Hennessey,Senior Claims Adjuster,5,2021-01-26,,25000,181
+156,E11001,Michael,Hoyer,Senior Claims Adjuster,2,2021-03-18,,25000,25
+164,E11005,Reuben,Brooks,Claims Supervisor,1,2022-02-08,2023-02-09,75000,115
+169,E11037,Jessica,Flores,Claims Adjuster,3,2022-06-17,,10000,71
+175,E11090,Matthew,Lemaire,Claims Supervisor,1,2023-03-01,2025-08-06,75000,115
+176,E11096,Davin,Johnson,Claims Adjuster,2,2023-03-24,,10000,25
+181,E11133,Justin,Lemon,Claims Supervisor,5,2023-12-21,,75000,115
+200,E11144,Antonio,Collins,Claims Adjuster,3,2025-01-15,,10000,71
+208,E11172,Andrew,Newton,Claims Adjuster,1,2025-06-16,,10000,211
+211,E11186,Michael,Struble,Claims Supervisor,1,2025-08-21,,75000,115
+212,E11200,Melissa,Ferguson,Senior Claims Adjuster,3,2025-08-29,,25000,71
+218,E11216,Lauren,Collins,Senior Claims Adjuster,4,2026-03-04,,2500,42
+219,E11247,Shana,Dickerson,Claims Adjuster,4,2026-04-29,,2500,42
+228,E11250,Sara,Gonzales,Claims Adjuster,5,2026-11-23,,10000,181

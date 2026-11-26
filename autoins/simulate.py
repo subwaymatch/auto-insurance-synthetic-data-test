@@ -80,24 +80,36 @@ class Result:
     offers: pd.DataFrame = None        # every renewal evaluated on its offer day, renewed or not (see _renewals)
     offer_cars: pd.DataFrame = None    # the cars each renewal was offered for, with their telematics discount
     sim: object = None                 # the run's final state (for tests that re-evaluate past decisions)
+    # the first rows of renewals as written before a write-off was reported (_issued_before_known): not published,
+    # superseded on the report day, but what an offer made before then saw
+    issued_rows: pd.DataFrame = None
+
+
+def offense(inc: pd.DataFrame) -> np.ndarray:
+    """Which major violation each incident is (its index in config.MAJOR_VIOLATIONS), or -1."""
+    if "description" not in inc:
+        return np.full(len(inc), -1)
+    return inc.description.map({v: i for i, v in enumerate(C.MAJOR_VIOLATIONS)}).fillna(-1).to_numpy().astype(np.int64)
 
 
 class Records:
-    """Driver incidents (violations and at-fault accidents), each with the day it became known."""
+    """Driver incidents (violations and at-fault accidents), each with the day it became known and, for a major
+    violation, which offense it was (offense)."""
 
     def __init__(self, inc: pd.DataFrame) -> None:
         self.parts: list[tuple] = []
         self._frame = None
-        self.add(inc.drv, inc.day, inc.kind.map(KIND), inc.known_day)
+        self.add(inc.drv, inc.day, inc.kind.map(KIND), inc.known_day, offense(inc))
 
-    def add(self, drv, day, kind, known) -> None:
-        self.parts.append(tuple(np.asarray(a, dtype=np.int64) for a in (drv, day, kind, known)))
+    def add(self, drv, day, kind, known, what=None) -> None:
+        what = np.full(len(np.asarray(drv)), -1) if what is None else what
+        self.parts.append(tuple(np.asarray(a, dtype=np.int64) for a in (drv, day, kind, known, what)))
         self._frame = None
 
     def frame(self) -> pd.DataFrame:
         if self._frame is None:
-            d, t, k_, kn = (np.concatenate(a) for a in zip(*self.parts))
-            self._frame = pd.DataFrame({"drv": d, "t": t, "k": k_, "kn": kn})
+            d, t, k_, kn, w = (np.concatenate(a) for a in zip(*self.parts))
+            self._frame = pd.DataFrame({"drv": d, "t": t, "k": k_, "kn": kn, "w": w})
         return self._frame
 
     @staticmethod
@@ -253,12 +265,21 @@ class Term:
     last_known: np.ndarray = None
     rate_from: np.ndarray = None
     cancel_known: np.ndarray = None
+    # a renewal issued before a write-off was reported (_issued_before_known): its full-term premium as written, and
+    # the day it was adjusted back to its start without the lost car (the claim's report), and why
+    issued: np.ndarray = None
+    adjust_day: np.ndarray = None
+    adjust_reason: np.ndarray = None
+    issued_rows: pd.DataFrame = None
 
     def __post_init__(self):
         n = len(self.s)
         self.last_known = np.full(n, -1) if self.last_known is None else self.last_known
         self.rate_from = np.full(n, -10 ** 9) if self.rate_from is None else self.rate_from
         self.cancel_known = np.full(n, -10 ** 9) if self.cancel_known is None else self.cancel_known
+        self.issued = np.full(n, np.nan) if self.issued is None else self.issued
+        self.adjust_day = np.full(n, -1) if self.adjust_day is None else self.adjust_day
+        self.adjust_reason = np.full(n, "", dtype=object) if self.adjust_reason is None else self.adjust_reason
 
 
 def run(cfg: C.Config, ref, pop) -> Result:
@@ -297,7 +318,8 @@ def run(cfg: C.Config, ref, pop) -> Result:
     quote_w = np.array([C.DAY_WEIGHTS["quote"][c] for c in C.CHANNELS])[p["channel"]]
     active = np.ones(n, dtype=bool)
     last_term, last_offer, last_cancel = np.full(n, -1), np.full(n, OPENING), np.full(n, -1)
-    terms, rows, offers, offer_cars, nonrenew_term, nonrenew_reason = [], [], [], [], [], []
+    cancel_seen = np.full(n, -1)          # the day the company knew of the cancellation (a last-car one: the report)
+    terms, rows, offers, offer_cars, nonrenew_term, nonrenew_reason, issued_rows = [], [], [], [], [], [], []
     prev_rows, ending = None, (np.zeros(0, dtype=int), np.zeros(0, dtype=int))
     n_terms = k = 0
 
@@ -320,7 +342,9 @@ def run(cfg: C.Config, ref, pop) -> Result:
         else:
             # every policy in force on its offer day is offered its renewal, if the offer falls by the valuation
             # date: one cancelled later in the expiring term too, and one whose renewal takes effect after it
-            P = np.flatnonzero((active | ((last_cancel >= 0) & (last_cancel > rate_day))) & (last_term >= 0) & (rate_day <= V_DAY))
+            # (a cancellation backdated to a write-off, known only once the claim is reported, does not stop the
+            # offer the company sends before then: the offer records the cancellation as its outcome)
+            P = np.flatnonzero(offer_due(active, last_cancel, cancel_seen, rate_day) & (last_term >= 0) & (rate_day <= V_DAY))
         if len(P) == 0:
             break
         change = np.zeros(n)
@@ -329,13 +353,14 @@ def run(cfg: C.Config, ref, pop) -> Result:
             _programme_offer(sim, P, k, s_all, rate_day, term_no)
         else:
             P, off, cars = _renewals(sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_term, last_offer,
-                                     last_cancel, prev_rows, change)
+                                     last_cancel, prev_rows, change, cancel_seen)
             offers.append(off)
             offer_cars.append(cars)
             ended = off[off.outcome.isin(["Company Non-Renewal", "Insured Did Not Renew"])]
             nonrenew_term.append(ended.exp_term.to_numpy())
             nonrenew_reason.append(ended.outcome.to_numpy())
             active[off.pol[off.outcome != "Renewed"].to_numpy()] = False
+            last_cancel[off.pol[off.outcome != "Renewed"].to_numpy()] = -1     # (a policy that ends is offered once)
         # a cancelled policy's enrolment ends on its cancellation day, once its renewal offer has been scored
         sim.tele.end(ending[0], ending[1], "Policy Canceled", st)
         if len(P) == 0:
@@ -385,6 +410,8 @@ def run(cfg: C.Config, ref, pop) -> Result:
         missed_inst[P[cancelled & (reason == 2)]] = missed[cancelled & (reason == 2)]
         T = Term(s=s_all, e=e_all, x_pol=x_pol, cancel_day=cancel_day, cancel_reason=cancel_reason, rate_day=rated,
                  tenure=tenure_years, ty=ty, term_of_pol=term_of_pol, last_gone=np.full(n, -1))
+        if k > 0:
+            _issued_before_known(sim, T, P)
         term_rows = _simulate_term(sim, T, P, events)
 
         terms.append(pd.DataFrame(dict(
@@ -393,10 +420,14 @@ def run(cfg: C.Config, ref, pop) -> Result:
             rate_level=cal.rate_level_at(s_all[P]), new_business=term_no[P] == 1, month0=p["first_month"][P] + k * tm[P],
             # the instalment whose non-payment cancelled the term (a term cancelled earlier for another reason,
             # such as its last car going, keeps that reason)
-            missed_installment=np.where(cancel_reason[P] == CANCEL_REASONS.index("Non-Payment"), missed_inst[P], -1))))
+            missed_installment=np.where(cancel_reason[P] == CANCEL_REASONS.index("Non-Payment"), missed_inst[P], -1),
+            issued=T.issued[P], adjust_day=T.adjust_day[P], adjust_reason=T.adjust_reason[P])))
         rows.append(term_rows)
-        prev_rows = term_rows
+        prev_rows = term_rows if T.issued_rows is None else pd.concat([term_rows, T.issued_rows], ignore_index=True)
+        if T.issued_rows is not None:
+            issued_rows.append(T.issued_rows)
         last_offer[P], last_term[P], last_cancel[P] = rate_day[P], term_of_pol[P], cancel_day[P]
+        cancel_seen[P] = np.where(cancel_day[P] >= 0, np.maximum(cancel_day[P], T.cancel_known[P]), -1)
         done = P[cancel_day[P] >= 0]
         ending = (done, cancel_day[done])
         active[done] = False
@@ -430,7 +461,87 @@ def run(cfg: C.Config, ref, pop) -> Result:
     return Result(terms=terms, rows=pd.concat(rows, ignore_index=True), occ=occ, feat=feat, pays=pays, reserves=reserves,
                   plan=plan, static=st, tele={"enrol": enrol, "scores": scores},
                   offers=pd.concat(offers, ignore_index=True) if offers else no_offers,
-                  offer_cars=pd.concat(offer_cars, ignore_index=True) if offer_cars else no_offers, sim=sim)
+                  offer_cars=pd.concat(offer_cars, ignore_index=True) if offer_cars else no_offers, sim=sim,
+                  issued_rows=pd.concat(issued_rows, ignore_index=True) if issued_rows else pd.DataFrame(columns=["term", "pol", "s", "x"]))
+
+
+def revision_day(day, known_from, expires) -> np.ndarray:
+    """The day a change on `day` revises a pending renewal: that day, or, while a write-off removed backdated is not yet
+    known (known_from, the claim's report), the report; none (-10**9) if that is after the renewal takes effect
+    (`expires`, the expiring term's end): the renewal is then adjusted instead (_issued_before_known)."""
+    known = np.where(known_from > day, known_from, day)
+    return np.where(known <= expires, known, -10 ** 9)
+
+
+def offer_due(active, cancelled, cancel_seen, offer_day) -> np.ndarray:
+    """Whether each policy is sent its renewal offer: in force on its offer day as the company knew it. One cancelled
+    after the offer day is offered too, and so is one cancelled before it if the company learned of the cancellation
+    only after (`cancel_seen`: a cancellation backdated to the day after the last car was written off, known once the
+    claim is reported); the offer then ends 'Canceled Before Renewal' (_renewals). A cancellation the company had
+    on its books by the offer day, a customer's request say, stops the offer."""
+    return active | ((cancelled >= 0) & (np.maximum(cancelled, cancel_seen) > offer_day))
+
+
+def _issued_before_known(sim: Sim, T: Term, P: np.ndarray) -> None:
+    """A renewal is issued from the policy as the company knew it on the term's rating day. A car written off before
+    the renewal took effect whose claim is reported only after that day (by the valuation date) was still on the
+    policy as far as the company knew: the renewal is written with it, and with the other cars as they then stood
+    (the drivers assigned to them, their multi-car discount), and billed for that. Once the claim is reported, the
+    term is re-rated back to its start without the lost car: its rows (which hold no lost car, so it has no exposure
+    after the loss) are rated on the report day, and the difference is an endorsement effective on the term's first
+    day, booked then (tables._transactions), which billing reconciles. Sets T.issued (the full-term premium as
+    written), T.adjust_day, T.adjust_reason and T.rate_from for those policies."""
+    st, v, drv = sim.st, sim.st.v, sim.pop.drv
+    n = len(T.s)
+    on = np.zeros(n, dtype=bool)
+    on[P] = True
+    vp = v["pol"]
+    wreck = np.isin(v["removal_reason"], [REMOVAL_REASONS.index("Total Loss"), REMOVAL_REASONS.index("Destroyed or Stolen")])
+    lost = np.flatnonzero(on[vp] & ~v["active"] & wreck & (v["removed_day"] >= 0) & (v["removed_day"] <= T.s[vp])
+                          & (v["removal_known"] > T.rate_day[vp]) & (v["removal_known"] <= sim.ref.cal.valuation_day))
+    if len(lost) == 0:
+        return
+    pols = np.unique(vp[lost])
+    mine = np.zeros(n, dtype=bool)
+    mine[pols] = True
+    kept = np.flatnonzero(mine[vp] & v["active"] & (v["added_day"] <= T.s[vp]))
+    # the policy as issued: the lost cars back on it, their drivers counted as having a car
+    saved = v["active"][lost].copy(), v["removed_day"][lost].copy()
+    assigned = drv.assigned.to_numpy().copy()
+    v["active"][lost], v["removed_day"][lost] = True, -1
+    with_car = assigned.copy()
+    with_car[v["primary_drv"][lost[~v["extra_vehicle"][lost]]]] = True
+    drv["assigned"] = with_car
+    try:
+        V = np.r_[kept, lost]
+        p_ = vp[V]
+        s = T.s[p_]
+        points, _, acc = sim.recs.for_rows(v["primary_drv"][V], s, T.rate_day[p_])
+        prem, cd, _ = _premium(sim, V, s, s, points, acc, T.tenure[p_], T.ty[p_])
+        p = st.p
+        # the term's first rows as written (superseded at once, from its first day, once the report came): what an
+        # offer made before the report saw (evaluate_offers), never published
+        T.issued_rows = pd.DataFrame(dict(
+            term=T.term_of_pol[p_], pol=p_, veh=V, drv=v["primary_drv"][V], s=s, x=s, gone_known=-1, rated_on=T.rate_day[p_],
+            issued=True,
+            zi=v["zi"][V], married=cd["married"], homeowner=cd["homeowner"], multi_car=cd["multi_car"],
+            occasional_youthful=cd["occasional_youthful"], reported_miles=v["reported_miles"][V], use=v["use"][V],
+            bi_opt=p["bi_opt"][p_], um_opt=p["um_opt"][p_], med_opt=p["med_opt"][p_],
+            coll_ded=np.where(v["has_coll"][V], np.array(C.COLL_DEDUCTIBLES)[v["coll_ded_opt"][V]], 0),
+            comp_ded=np.where(v["has_comp"][V], np.array(C.COMP_DEDUCTIBLES)[v["comp_ded_opt"][V]], 0),
+            full_glass=v["full_glass"][V], rent_opt=np.where(v["has_rent"][V], v["rent_opt"][V], -1), has_tow=v["has_tow"][V],
+            **{f"prem_{c}": prem[c] for c in C.COVERAGES}))
+    finally:
+        v["active"][lost], v["removed_day"][lost] = saved
+        drv["assigned"] = assigned
+    T.issued[pols] = np.bincount(p_, sum(prem.values()), n)[pols]
+    known = np.full(n, -1)
+    np.maximum.at(known, vp[lost], v["removal_known"][lost])
+    T.adjust_day[pols] = known[pols]
+    T.rate_from[pols] = np.maximum(T.rate_from[pols], known[pols])
+    why = np.full(n, "", dtype=object)
+    why[vp[lost]] = "Vehicle Removed (" + np.array(REMOVAL_REASONS, dtype=object)[v["removal_reason"][lost]] + ")"
+    T.adjust_reason[pols] = why[pols]
 
 
 # ----------------------------------------------------------------------------------------- one term
@@ -531,7 +642,10 @@ def _simulate_term(sim: Sim, T: Term, P: np.ndarray, events: pd.DataFrame) -> pd
         due = live[pe] & (ev.day.to_numpy() == nb[pe]) & (nb[pe] < T.x_pol[pe])
         labels = _apply_events(sim, T, ev[due])
         changed = np.fromiter(labels.keys(), dtype=int, count=len(labels))
-        sim.last_change[changed] = np.maximum(sim.last_change[changed], nb[changed])
+        # a change revises a pending renewal the day it is known: a write-off's removal, backdated to the day after the
+        # loss, once the claim is reported (and the policy's other changes until then wait for it); one known only
+        # after the renewal takes effect does not revise it (the renewal is adjusted then, run)
+        sim.last_change[changed] = np.maximum(sim.last_change[changed], revision_day(nb[changed], T.rate_from[changed], T.e[changed]))
         ev = ev[~due & (live[pe] | (ev.kind.to_numpy() == ARRIVAL))]
         reason_now[:] = ""
         for pol, lab in labels.items():
@@ -571,7 +685,7 @@ def _simulate_rows(sim: Sim, T: Term, V, a, why, nb, out: list, fresh=None):
     b = nb[vp]
     dr = v["primary_drv"][V]
     # a change is rated with what is known that day (a write-off's removal, backdated, once the company knows of it)
-    asof = np.where(a == T.s[vp], T.rate_day[vp], np.maximum(a, T.rate_from[vp]))
+    asof = np.where(a == T.s[vp], np.maximum(T.rate_day[vp], T.rate_from[vp]), np.maximum(a, T.rate_from[vp]))
     points, _, acc = sim.recs.for_rows(dr, a, asof)
     prem, cd, fair = _premium(sim, V, a, T.s[vp], points, acc, T.tenure[vp], T.ty[vp])
     ctx = truth.context(st, cal, V, a, b)
@@ -1121,21 +1235,78 @@ UW_NONRENEW_P = 0.5     # share of the policies the underwriting review flags th
 CHANNEL_RETENTION = np.array([C.CHANNEL_RETENTION[c] for c in C.CHANNELS])
 
 
-def underwriting_review(sim: Sim, pols: np.ndarray, offer_day: np.ndarray, eff: np.ndarray) -> np.ndarray:
-    """Whether the underwriting review on each policy's offer day flags it for non-renewal: two or more at-fault
-    accidents, two or more major violations, or one of each, among the drivers on the policy that day, dated in
-    the three years before the renewal and known by the offer day. (Arrays aligned with pols.)"""
-    drv = sim.pop.drv
-    dp, rem = drv.pol.to_numpy(), drv.removed_day.to_numpy()
+MATURE_YEARS = 5                # 215 ILCS 5/143.19.1: a policy in force this long is non-renewed only on listed grounds
+SERIOUS = ("DUI", "Leaving the scene")       # convictions in the 36 months before the notice: 143.19.1(e)(5)
+REVIEW_RULES = ["Two at-fault accidents in three years", "Two major violations in three years",
+                "An at-fault accident and a major violation in three years"]
+GROUNDS = ["{} conviction within 36 months (215 ILCS 5/143.19.1(e)(5))",
+           "License suspended within 12 months (215 ILCS 5/143.19.1(e)(1))",
+           "Three moving violations within 12 months (215 ILCS 5/143.19.1(e)(5))"]
+
+
+def underwriting_grounds(sim: Sim, pols: np.ndarray, offer_day: np.ndarray, eff: np.ndarray) -> pd.DataFrame:
+    """The underwriting review on each policy's offer day (when a non-renewal notice would be mailed), driver by driver:
+    a driver on the policy that day with two or more at-fault accidents, two or more major violations, or one of each,
+    dated in the three years before the renewal and known by then, flags the policy. A policy in force five years or
+    more (completed years since it was first written, on the notice day) may be non-renewed only on the grounds 215
+    ILCS 5/143.19.1 lists, so its driver must also have one the record shows: a DUI or leaving-the-scene conviction in
+    the 36 months before the notice, a license under suspension in the 12 months before it (driving while
+    suspended), or three or more moving violations in those 12 months. (The 60-day notice that lets an insurer
+    non-renew such a policy without a listed ground is not modeled: those policies are renewed.) Returns, aligned
+    with pols: flag, the reason, and the driver and incident (day, kind) the reason rests on (-1 where not
+    flagged); for a mature policy, the incident is the one that gives the statutory ground."""
+    drv, cal = sim.pop.drv, sim.ref.cal
+    m = len(pols)
     i_of = np.full(len(sim.st.p["zi"]), -1)
-    i_of[pols] = np.arange(len(pols))
-    j = i_of[dp]
-    mine = j >= 0
-    o = np.where(mine, offer_day[j], -10 ** 9)
-    on = mine & (drv.added_day.to_numpy() <= o) & ((rem < 0) | (rem > o))
-    _, majors, acc = sim.recs.as_of(len(dp), np.where(mine, eff[j], 0), o)
-    acc, majors = np.bincount(j[on], acc[on], len(pols)), np.bincount(j[on], majors[on], len(pols))
-    return (acc >= 2) | (majors >= 2) | ((acc >= 1) & (majors >= 1))
+    i_of[pols] = np.arange(m)
+    dp, rem = drv.pol.to_numpy(), drv.removed_day.to_numpy()
+    j_d = i_of[dp]
+    o_d = np.where(j_d >= 0, offer_day[np.maximum(j_d, 0)], -10 ** 9)
+    on = (j_d >= 0) & (drv.added_day.to_numpy() <= o_d) & ((rem < 0) | (rem > o_d))
+    f = sim.recs.frame()
+    f = f[on[f.drv.to_numpy()]]
+    d, t, k_, kn, w = (f[c].to_numpy() for c in ("drv", "t", "k", "kn", "w"))
+    j = j_d[d]
+    o, e = offer_day[j], eff[j]
+    known = kn <= o
+    in3 = known & (t <= e) & (t > e - C.LOOKBACK_DAYS)
+    nd = len(dp)
+    acc = np.bincount(d[in3 & (k_ == 2)], minlength=nd)
+    maj = np.bincount(d[in3 & (k_ == 1)], minlength=nd)
+    rule = np.select([acc >= 2, maj >= 2, (acc >= 1) & (maj >= 1)], [0, 1, 2], -1)
+    # the statutory grounds, from the notice day back
+    serious = np.isin(w, [C.MAJOR_VIOLATIONS.index(x) for x in SERIOUS])
+    g_conv = known & (k_ == 1) & serious & (t > o - 3 * 365)
+    g_susp = known & (k_ == 1) & (w == C.MAJOR_VIOLATIONS.index("Driving while suspended")) & (t > o - 365)
+    year = known & (k_ <= 1) & (t > o - 365)
+    g_three = year & (np.bincount(d[year], minlength=nd)[d] >= 3)
+    ground = np.select([g_conv, g_susp, g_three], [0, 1, 2], -1)
+    mature = cal.age(offer_day, sim.st.p["inception_day"][pols]) >= MATURE_YEARS
+    # each incident that could carry a driver's reason: on a mature policy one giving a ground, otherwise one the
+    # rule counted; the latest known one wins
+    use = np.where(mature[j], (ground >= 0) & (rule[d] >= 0), in3 & (k_ >= 1) & (rule[d] >= 0))
+    c = pd.DataFrame(dict(i=j[use], drv=d[use], t=t[use], k=k_[use], kn=kn[use], w=w[use], rule=rule[d][use],
+                          ground=ground[use])).sort_values(["i", "kn", "t", "drv"], kind="stable")
+    c = c.groupby("i").tail(1)
+    out = pd.DataFrame(dict(flag=np.zeros(m, dtype=bool), reason=np.full(m, "", dtype=object), drv=np.full(m, -1),
+                            day=np.full(m, -10 ** 9), kind=np.full(m, -1)))
+    if len(c):
+        i = c.i.to_numpy()
+        txt = np.array(REVIEW_RULES, dtype=object)[c.rule.to_numpy()]
+        g = c.ground.to_numpy()
+        names = np.array(C.MAJOR_VIOLATIONS, dtype=object)[np.maximum(c.w.to_numpy(), 0)]
+        cite = np.select([g == 0, g == 1, g == 2], [np.array([GROUNDS[0].format(x) for x in names], dtype=object),
+                                                    GROUNDS[1], GROUNDS[2]], "")
+        txt = np.where(mature[i], txt + "; in force five years or more: " + cite, txt)
+        out.loc[i, "flag"] = True
+        out.loc[i, "reason"] = txt
+        out.loc[i, "drv"], out.loc[i, "day"], out.loc[i, "kind"] = c.drv.to_numpy(), c.t.to_numpy(), c.k.to_numpy()
+    return out
+
+
+def underwriting_review(sim: Sim, pols: np.ndarray, offer_day: np.ndarray, eff: np.ndarray) -> np.ndarray:
+    """Whether the underwriting review flags each policy for non-renewal (underwriting_grounds)."""
+    return underwriting_grounds(sim, pols, offer_day, eff).flag.to_numpy()
 
 
 def known_in_force(r: pd.DataFrame, day: np.ndarray) -> np.ndarray:
@@ -1147,7 +1318,10 @@ def known_in_force(r: pd.DataFrame, day: np.ndarray) -> np.ndarray:
     end was known: the day the term's rows starting where it ends were rated, or, with none, the day its car was known
     to have gone (or its end, for any other row)."""
     term, s, x, rated = r.term.to_numpy(), r.s.to_numpy(), r.x.to_numpy(), r.rated_on.to_numpy()
-    nxt = pd.Series(rated).groupby([term, s]).min()
+    # (a renewal's rows as written, superseded from its first day after a write-off reported late, run no days: the
+    # rows that replace them are their successors, not one another)
+    run = ~r.issued.fillna(False).to_numpy().astype(bool) if "issued" in r else np.ones(len(r), dtype=bool)
+    nxt = pd.Series(rated[run]).groupby([term[run], s[run]]).min()
     succ = nxt.reindex(pd.MultiIndex.from_arrays([term, x])).to_numpy()
     gone = r.gone_known.to_numpy() if "gone_known" in r else np.full(len(r), -1)
     end_known = np.where(~np.isnan(succ), np.nan_to_num(succ), np.where(gone >= 0, gone, x)).astype(np.int64)
@@ -1228,7 +1402,7 @@ def evaluate_offers(sim: Sim, pols, exp_term, offer_day, eff, since, tenure_year
 
 
 def _renewals(sim: Sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_term, last_offer, last_cancel,
-              prev_rows, change):
+              prev_rows, change, cancel_seen=None):
     """The renewal of each policy in P (in force on its offer day, rate_day), decided on the offer day with the policy
     as it stood then and what was known then, in the order an insurer works: the underwriting review (a company
     non-renewal gets a notice, not an offer), the telematics offer, the renewal premium (evaluate_offers), and the
@@ -1241,7 +1415,8 @@ def _renewals(sim: Sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_t
     n, V_DAY = len(s_all), sim.ref.cal.valuation_day
     u_company, u_stay = sim.R_renew.random(n)[P], sim.R_renew.random(n)[P]
     o, eff = rate_day[P], s_all[P]
-    company = underwriting_review(sim, P, o, eff) & (u_company < UW_NONRENEW_P)
+    review = underwriting_grounds(sim, P, o, eff)
+    company = review.flag.to_numpy() & (u_company < UW_NONRENEW_P)
     offered, joined = _programme_offer(sim, P[~company], k, s_all, rate_day, term_no)
     # the named insured's age at the renewal, of the person who was the named insured on the offer day (a surviving
     # spouse who took the policy over by then is a different person; a change after the offer is not yet known)
@@ -1249,7 +1424,10 @@ def _renewals(sim: Sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_t
     ev, cars = evaluate_offers(sim, P, last_term[P], o, eff, last_offer[P], tenure_years[P], ty[P], ni_age, prev_rows,
                                v["tele_disc"])
     p_accept = 1 / (1 + np.exp(-ev["logit"]))
-    cancelled = (last_cancel[P] >= 0) & (last_cancel[P] > o)     # (offer days can fall before the start: negative)
+    # cancelled after the offer, or before it but known only after it (a last-car cancellation backdated to a write-off
+    # reported later): the offer was sent all the same (offer days can fall before the start: negative)
+    seen = last_cancel if cancel_seen is None else np.maximum(last_cancel, cancel_seen)
+    cancelled = (last_cancel[P] >= 0) & (seen[P] > o)
     has_car = np.bincount(v["pol"][v["active"]], minlength=n) > 0
     has_car[v["pol"][sim.pending]] = True
     outcome = np.select([cancelled, company, eff > V_DAY, (u_stay >= p_accept) | ~has_car[P]],
@@ -1273,7 +1451,10 @@ def _renewals(sim: Sim, P, k, s_all, rate_day, tenure_years, ty, term_no, last_t
         company=company, p_accept=p_accept, outcome=outcome, revised_day=revised, term=-1,
         # what the evaluation used, kept so tests can evaluate it again from the history
         k=k, since=last_offer[P], tenure=tenure_years[P], ty=ty[P], ni_age=ni_age, prev_claims=ev["prev_claims"],
-        u_company=u_company, u_stay=u_stay))
+        u_company=u_company, u_stay=u_stay,
+        # why the company did not renew: the review's reason, and the driver and incident it rests on
+        nr_reason=np.where(company, review.reason.to_numpy(), ""), nr_drv=np.where(company, review.drv.to_numpy(), -1),
+        nr_day=np.where(company, review.day.to_numpy(), -10 ** 9), nr_kind=np.where(company, review.kind.to_numpy(), -1)))
     return P[renew], off, cars
 
 
@@ -1690,7 +1871,7 @@ def _new_drivers(sim: Sim, pol, day, role, age, male, licensed, marital) -> np.n
     inc = pd.concat(inc, ignore_index=True)
     inc["pol"] = sim.pop.drv.pol.to_numpy()[inc.drv.to_numpy()]
     sim.pop.incidents = pd.concat([sim.pop.incidents, inc[sim.pop.incidents.columns]], ignore_index=True)
-    sim.recs.add(inc.drv, inc.day, inc.kind.map(KIND), inc.known_day)
+    sim.recs.add(inc.drv, inc.day, inc.kind.map(KIND), inc.known_day, offense(inc))
     return ids
 
 

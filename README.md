@@ -17,7 +17,7 @@ are where they really fell).
 **The insurer.** "Lakefront" is a small regional group: three underwriting companies
 (preferred, standard and non-standard) selling through 120 independent agencies (most of them small),
 14 exclusive agents' offices and direct. The default book writes 43,368 policies over five years (2022
-to 2026), about 22,300 of them in force at the end with some 38,400 cars and $51 million of premium a
+to 2026), about 22,500 of them in force at the end with some 38,800 cars and $51 million of premium a
 year: roughly 1% of the area's household vehicles. Read it as the Chicago-area part of a regional
 carrier, not a national one.
 
@@ -200,28 +200,28 @@ python generate.py --policies 10000 --out classroom
 
 | Build | CSV | Zipped CSV | Parquet | Zipped Parquet | Largest table | Claims |
 |---|---|---|---|---|---|---|
-| Default (43,368 policies) | 404 MB | 95 MB | 96 MB | 70 MB | 892,000 rows | 22,831 |
+| Default (43,368 policies) | 404 MB | 95 MB | 96 MB | 70 MB | 897,000 rows | 23,104 |
 | `--policies 10000` | 94 MB | 23 MB | 25 MB | 19 MB | 204,000 rows | about 5,400 |
 
 ## What the default run produces
 
 | | |
 |---|---|
-| Policies / policy terms | 43,368 / 195,464 (19,747 of the terms were already in force on the start date) |
-| Policies in force at each year end | 19,747 at the start; 20,564 (2022), 19,402 (2023), 19,958 (2024), 21,130 (2025), 22,283 (2026) |
-| Drivers / vehicles | 76,583 / 109,278 (3,839 drivers left a policy; 24,025 vehicles traded in, 5,072 sold, 6,429 destroyed or stolen, 1,166 taken by a leaving driver) |
-| Vehicle models | 792 of the catalog's 1,209 models (56 makes) are insured |
-| Exposure rows / premium transactions | 443,856 (25.2% start at a mid-term change) / 265,557 (60,513 endorsements) |
-| Earned exposure | 174,189 car-years |
-| Earned premium | $211.6 million ($1,215 per car-year, $2,072 per policy-year) |
-| Claims / coverage features / reserve transactions | 22,831 / 39,840 / 104,050 (306 of the claims from accidents in 2021, the warm-up year; 42% of closed liability and medical features and 15% of closed physical damage features paid nothing) |
-| Claim payments | 60,830 rows, 19,338 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
+| Policies / policy terms | 43,368 / 196,925 (19,747 of the terms were already in force on the start date) |
+| Policies in force at each year end | 19,747 at the start; 20,611 (2022), 19,521 (2023), 20,080 (2024), 21,317 (2025), 22,532 (2026) |
+| Drivers / vehicles | 76,627 / 109,514 (3,820 drivers left a policy; 24,136 vehicles traded in, 5,185 sold, 6,504 destroyed or stolen, 1,142 taken by a leaving driver) |
+| Vehicle models | 798 of the catalog's 1,209 models (59 makes) are insured |
+| Exposure rows / premium transactions | 447,271 (25.2% start at a mid-term change) / 267,478 (60,897 endorsements) |
+| Earned exposure | 175,340 car-years |
+| Earned premium | $213.6 million ($1,218 per car-year, $2,078 per policy-year) |
+| Claims / coverage features / reserve transactions | 23,104 / 40,468 / 105,423 (306 of the claims from accidents in 2021, the warm-up year; 42% of closed liability and medical features and 15% of closed physical damage features paid nothing) |
+| Claim payments | 61,409 rows, 19,592 of them checks in one unbroken number sequence; 684 vendors; 46 claims staff |
 | Quotes | 118,808, of which 19.6% bound (22.1% in 2022, 17.6% in 2024, 21.4% in 2026) |
-| Renewal offers | 168,968 (152,096 renewed, 10,625 not renewed by the insured, 898 company non-renewals, 1,595 canceled before the renewal date, 3,754 pending at the valuation date) |
-| Bills / receipts | 880,409 / 892,253 (858,825 bills paid, 11,081 canceled, 3,258 written off, 7,245 open at the valuation date) |
-| Commission | $16.8 million on $239.5 million of written premium (independent agents 11.4%, exclusive agents 8.5%, direct none); 7,875 monthly agency statements |
-| General ledger | 19 accounts; 1,622 monthly journals (4,409 lines) for the three companies |
-| Telematics | 12,450 enrollments and 61,628 driving scores; enrolled cars are 14% of car-years in 2022, rising to 27% in 2026 |
+| Renewal offers | 170,260 (153,557 renewed, 10,687 not renewed by the insured, 508 company non-renewals, 1,658 canceled before the renewal date, 3,850 pending at the valuation date) |
+| Bills / receipts | 885,338 / 897,096 (863,490 bills paid, 11,198 canceled, 3,370 written off, 7,280 open at the valuation date) |
+| Commission | $17.0 million on $241.7 million of written premium (independent agents 11.4%, exclusive agents 8.4%, direct none); 7,880 monthly agency statements |
+| General ledger | 19 accounts; 1,622 monthly journals (4,417 lines) for the three companies |
+| Telematics | 12,386 enrollments and 61,272 driving scores; enrolled cars are 14% of car-years in 2022, rising to 26% in 2026 |
 
 ### Frequency and severity against national figures, like for like
 
@@ -248,23 +248,23 @@ premiums came out a third below Illinois'.
 
 | Coverage | Year | Claims per 100 car-years | National | Average paid | National |
 |---|---|---|---|---|---|
-| Bodily injury (with LAE) | 2022 | 0.45 | 0.70 | $17,508 | $24,681 |
-| | 2023 | 0.88 | 0.78 | $28,704 | $26,178 |
-| | 2024 | 0.91 | 0.80 | $31,059 | $28,278 |
-| Property damage (with LAE) | 2022 | 2.79 | 2.54 | $6,109 | $6,024 |
-| | 2023 | 2.78 | 2.59 | $6,805 | $6,554 |
-| | 2024 | 2.64 | 2.50 | $7,173 | $6,770 |
-| Collision ($500 deductible, net of recoveries) | 2022 | 5.84 | 4.48 | $5,010 | $5,377 |
-| | 2023 | 5.70 | 4.48 | $4,665 | $5,521 |
-| | 2024 | 5.66 | 4.16 | $5,149 | $5,489 |
-| Comprehensive ($500 deductible, no wind or water, net of recoveries) | 2022 | 4.24 | 3.78 | $2,201 | $2,175 |
-| | 2023 | 4.85 | 4.08 | $2,285 | $2,305 |
-| | 2024 | 4.32 | 3.95 | $2,217 | $2,306 |
+| Bodily injury (with LAE) | 2022 | 0.48 | 0.70 | $17,756 | $24,681 |
+| | 2023 | 0.88 | 0.78 | $26,106 | $26,178 |
+| | 2024 | 1.00 | 0.80 | $26,068 | $28,278 |
+| Property damage (with LAE) | 2022 | 2.77 | 2.54 | $6,481 | $6,024 |
+| | 2023 | 2.94 | 2.59 | $7,113 | $6,554 |
+| | 2024 | 2.83 | 2.50 | $7,419 | $6,770 |
+| Collision ($500 deductible, net of recoveries) | 2022 | 5.80 | 4.48 | $5,420 | $5,377 |
+| | 2023 | 5.89 | 4.48 | $4,960 | $5,521 |
+| | 2024 | 5.79 | 4.16 | $4,960 | $5,489 |
+| Comprehensive ($500 deductible, no wind or water, net of recoveries) | 2022 | 4.41 | 3.78 | $2,029 | $2,175 |
+| | 2023 | 5.15 | 4.08 | $2,392 | $2,305 |
+| | 2024 | 4.73 | 3.95 | $2,203 | $2,306 |
 
-Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.13
-times national for bodily injury, 1.08 for property damage, 1.31 for collision and 1.14 for
-comprehensive, and severity 1.10, 1.04, 0.90 and 0.99 times national (bodily injury severity runs 0.95 to
-1.10 across five seeds: a few large claims move it). `validate.py` prints this table
+Over the years held to a band (2022 to 2024; 2023 and 2024 for bodily injury), frequency runs 1.19
+times national for bodily injury, 1.12 for property damage, 1.33 for collision and 1.21 for
+comprehensive, and severity 0.96, 1.09, 0.94 and 0.98 times national (bodily injury severity runs 0.88 to
+1.04 across five seeds: a few large claims move it). `validate.py` prints this table
 for any run and holds frequency to 0.85 to 1.45 times national and severity to 0.85 to 1.15 times.
 
 What still differs, and how to read it:
@@ -289,8 +289,8 @@ What still differs, and how to read it:
 
 Figures for the accidents in the extract on the dataset's own basis (every deductible and cause, loss
 only), which `validate.py` also holds to bands so that the book stays stable from seed to seed: bodily
-injury 0.79 paid claims per 100 car-years at $26,555; property damage 2.66 at $6,955; collision 5.36 at
-$6,439; comprehensive 5.98 at $2,844. These are not comparable with the national table.
+injury 0.79 paid claims per 100 car-years at $25,612; property damage 2.73 at $6,928; collision 5.32 at
+$6,449; comprehensive 6.09 at $2,859. These are not comparable with the national table.
 [docs/benchmarks.md](docs/benchmarks.md) lists every benchmark with its source, year, geography and
 units, says which ones the generator was tuned to and which were held out, and shows how far each figure
 moves across five seeds (`scripts/seed_spread.py`).
@@ -302,11 +302,11 @@ and the share of insured cars carrying collision and comprehensive. Against Illi
 
 | | 2022 | 2023 | 2024 | Illinois 2022 | 2023 | 2024 |
 |---|---|---|---|---|---|---|
-| Liability (bodily injury, property damage, uninsured motorist, medical payments) | $532 | $611 | $701 | $524 | $598 | $649 |
-| Collision, per car carrying it | $316 | $367 | $426 | $384 | $440 | $473 |
-| Comprehensive, per car carrying it | $167 | $196 | $226 | $172 | $219 | $261 |
+| Liability (bodily injury, property damage, uninsured motorist, medical payments) | $533 | $614 | $703 | $524 | $598 | $649 |
+| Collision, per car carrying it | $316 | $368 | $427 | $384 | $440 | $473 |
+| Comprehensive, per car carrying it | $167 | $196 | $225 | $172 | $219 | $261 |
 
-Collision is carried on 83.6% of 2023 car-years and comprehensive on 88.4% (Illinois: 82.6% and 87.5%).
+Collision is carried on 83.3% of 2023 car-years and comprehensive on 88.1% (Illinois: 82.6% and 87.5%).
 Liability runs 4% above the state over the three years, collision 15% below and comprehensive 10% below.
 `validate.py` holds each to a band around the state's figure. The book is the Chicago area and one
 carrier, not the state, so an exact match is not the aim; the point is that a student comparing these
@@ -315,9 +315,9 @@ premiums with public figures finds them in the right place.
 What a car is worth drives the physical damage figures. A car's value is its model year's base price
 run down a depreciation curve and lifted by each year's used-car prices (the Manheim index: half as
 high again as before the pandemic in 2022, a third higher since 2024). The average insured car is worth
-$15,100 in 2022 and $13,700 in 2024; a ten-year-old car about 40% of its base price. Paid collision
-claims average $6,319 ($4,667 for repairs and $9,860 for the 32% that are total losses), with salvage
-returning 11.4% and subrogation 12.9% of what is paid.
+$15,100 in 2022 and $13,600 in 2024; a ten-year-old car about 40% of its base price. Paid collision
+claims average $6,384 ($4,587 for repairs and $10,168 for the 32% that are total losses), with salvage
+returning 11.7% and subrogation 12.5% of what is paid.
 
 ### Loss ratios
 
@@ -327,24 +327,23 @@ calendar year):
 
 | | 2022 | 2023 | 2024 | 2025 | 2026 |
 |---|---|---|---|---|---|
-| This dataset, actual | 89.9% | 74.5% | 66.4% | 64.6% | 66.9% |
-| This dataset, expected (answer key, free of claim luck; excludes catastrophes) | 81.1% | 74.5% | 65.8% | 63.7% | 64.9% |
-| This dataset, catastrophe losses | 0.0% | 4.2% | 2.3% | 0.8% | 6.2% |
+| This dataset, actual | 82.4% | 83.7% | 67.5% | 61.3% | 68.1% |
+| This dataset, expected (answer key, free of claim luck; excludes catastrophes) | 81.1% | 74.4% | 65.7% | 63.6% | 65.0% |
+| This dataset, catastrophe losses | 0.0% | 3.7% | 2.1% | 0.7% | 6.4% |
 | US private passenger auto | 80.2% | 75.4% | 66.1% | 61.5% | 60.4% (Q1) |
 | Illinois private passenger auto | 79.6% | 72.8% | 63.4% | 60.1% | |
 
 The book enters 2022 under-priced, as the industry did after pandemic-era rate cuts, and rate
 increases (+48% cumulative, close to the industry's +12.1% in 2022, +16.5% in 2023, +7.6% in 2024
-and +3.7% in 2025) bring it back. Overall it runs 71.2%, against about 70% for the US and 68% for
+and +3.7% in 2025) bring it back. Overall it runs 71.4%, against about 70% for the US and 68% for
 Illinois over 2022 to 2025. The expected loss ratio plus each year's catastrophe losses is held to the
 industry path by `validate.py`. Catastrophes are the real storms of each year (none in 2022; hail in April
 2023 and two hailstorms in 2026 cost the most), so they vary from year to year as real ones do.
 Telematics discounts take 1.7% off the premium in 2022, rising to 3.4% in 2026, so later years run a
 little above the industry figures. The actual figures move several points a year on large injury claims
-alone (one standard deviation of a year's bodily injury total is 1.7 to 3.5 points of premium).
-In this run each full year came within 11% of its expected, without catastrophes (2022: 89.9% against
-81.1%, on a few large injury claims; 2023: 70.4% against 74.5%); other seeds and sizes give different years
-their luck. `validate.py`
+alone (one standard deviation of a year's bodily injury total is 1.6 to 2.5 points of premium).
+In this run each full year came within 7% of its expected, without catastrophes (2023: 80.0% against
+74.4%; 2025: 60.6% against 63.6%); other seeds and sizes give different years their luck. `validate.py`
 holds each full year's actual loss ratio, without catastrophes, to 0.85 to 1.15 times its expected one.
 The 2026 figure is immature: young injury claims are reserved low and late-reported claims are missing.
 
@@ -371,7 +370,7 @@ the synthetic data looks realistic: young and newly licensed drivers, urban vehi
 carry similar relativities, and claim costs and premiums spread in the same way. Installment payers and newer
 customers run worse in both books, more strongly in the real one, as does independent-agent business with other
 factors held equal, and a
-contract with a claim is more likely to end (1.45 times as likely in the real book, 1.59 in this one). It
+contract with a claim is more likely to end (1.45 times as likely in the real book, 1.51 in this one). It
 also lists what the synthetic data still lacks, most of all the messiness of a real extract. Rerun it on
 any build:
 
@@ -708,10 +707,10 @@ Three things the insurer cannot see drive much of what a case study can find. Al
 - **Agencies differ.** Each agency writes a better or worse book than its rating variables show
   (`agency_truth.book_quality_factor`), and keeps its customers better or worse (`retention_effect`).
   Independent agents place somewhat harder risks; direct customers shop more at renewal. Agencies also
-  differ greatly in size, as a carrier's appointments do: the 120 independent agencies have a median of 46
-  policies in force and the largest has 496; they wrote $22 million in 2026, a mean of $184,000 and a
-  median of $106,000 each, and the largest tenth wrote 36% of it. The 14 exclusive agents' offices average
-  430 policies. An independent agency is named for its owner, its town or a trade name; an exclusive
+  differ greatly in size, as a carrier's appointments do: the 120 independent agencies have a median of 45
+  policies in force and the largest has 488; they wrote $23 million in 2026, a mean of $188,000 and a
+  median of $108,000 each, and the largest tenth wrote 36% of it. The 14 exclusive agents' offices average
+  440 policies. An independent agency is named for its owner, its town or a trade name; an exclusive
   agent's office carries the agent's name, and that person is its first producer.
 
 ### The working calendar
@@ -776,7 +775,7 @@ Three things the insurer cannot see drive much of what a case study can find. Al
   premium takes its commission back. `agency_statement` adds each agency's month up (written premium and
   commission booked in the month, on the accounting date) and gives the day it was paid: the 15th of the
   next month, or the next business day. A month in which return commission exceeds commission earned shows
-  a negative amount, which the agency repays (126 of 7,875 statements; in practice it would usually be set
+  a negative amount, which the agency repays (134 of 7,880 statements; in practice it would usually be set
   against the next statement). December 2026's statements are unpaid at the valuation date.
 
 ### The market: quotes, new business and renewals
@@ -795,16 +794,22 @@ Three things the insurer cannot see drive much of what a case study can find. Al
 - **Conversion and growth.** The share of quotes that bind falls as the gap opens: 22.1% in 2022, 17.6% in
   2024 and 21.4% in 2026, and from 20.5% in the two months before a rate increase of 5% or more to 17.0%
   in the two months after. So quotes rose 20% from 2022 to 2024 while policies written fell 5%, and the
-  book shrank in 2023 (20,564 policies in force at the end of 2022, 19,402 a year later) before growing
-  again to 22,283.
+  book shrank in 2023 (20,611 policies in force at the end of 2022, 19,521 a year later) before growing
+  again to 22,532.
 - **Renewals.** A customer who had a claim since the last offer is likelier to leave, more so if it was
-  at fault or the second: offers are taken up 94.3% of the time with no claim in the expiring term, 86.5%
-  with one and 78.8% with an at-fault one, and a term with a claim is 1.60 times as likely to end the
+  at fault or the second: offers are taken up 94.3% of the time with no claim in the expiring term, 86.8%
+  with one and 78.5% with an at-fault one, and a term with a claim is 1.54 times as likely to end the
   policy as one without (1.45 times in the real portfolio of `real_data/`). Being dearer than the market
   on the offer day also costs a little retention.
-- **Company non-renewals.** The underwriting review flags a policy whose drivers have, in the three years
-  before the renewal and known on the offer day, two or more at-fault accidents, two or more major
-  violations, or one of each; half of those flagged are not renewed (898 of 11,523 non-renewals).
+- **Company non-renewals.** The underwriting review looks at each driver on the policy on the offer day: one
+  with two or more at-fault accidents, two or more major violations, or one of each, dated in the three
+  years before the renewal and known by then, flags the policy, and half of those flagged are not renewed.
+  A policy in force five years or more (completed years since it was first written) is non-renewed only on a
+  ground Illinois allows for such a policy (215 ILCS 5/143.19.1) that the driver's record shows: a DUI or
+  leaving-the-scene conviction in the 36 months before the notice, a license under suspension in the 12
+  months before it, or three or more moving violations in those 12 months. The statute's other route, 60
+  days' notice without a listed ground, is not modeled, so those policies are renewed. `renewal_offer`
+  records each non-renewal's reason, driver and incident (508 of 11,195 non-renewals).
 
 ### The general ledger
 
@@ -837,9 +842,9 @@ every figure can be traced back to rows a student can see.
   left to earn of everything booked by then. Cash moves on the receipt or payment date, a reserve change
   on its transaction date, a write-off on its write-off date.
 - **What ties.** Premiums written and commission expense are the transactions booked in the extract.
-  Written premium less the change in unearned premium is the policy terms' earned premium ($211.6
+  Written premium less the change in unearned premium is the policy terms' earned premium ($213.6
   million, to within a few hundred dollars of rounding). Case reserves are the reserves outstanding on
-  the claim features ($11.9 million and $0.7 million of expense reserves). Commissions payable is the
+  the claim features ($13.5 million and $0.8 million of expense reserves). Commissions payable is the
   unpaid statements. Premiums receivable ($9.5 million) is premium written less premium collected,
   refunded and written off: bills not yet paid, installments not yet billed, less premium paid ahead.
   Fees are income when collected. `validate.py` checks each of these and that every journal balances.
@@ -924,12 +929,17 @@ every figure can be traced back to rows a student can see.
   `renewal_offer` keeps every renewal evaluated, renewed or not. Its snapshot is the expiring term's
   `exposure` rows in force on the offer date as the company knew them that day (rated by then: a car
   written off before the offer but reported after it is still on it, the others at their premium then),
-  and its `expiring_premium` and `renewal_premium` are for those cars for a full term. Later events cannot change the offer or the decision: a household change
-  before the effective date re-rates the renewal (`revised_offer_date`, the renewal term's
-  `rating_date`), and the written premium can also differ from the offer when the customer changes
-  deductibles or limits at renewal. A cancellation before the effective date ends the policy
-  (outcome "Canceled Before Renewal"), and renewals taking effect after the valuation date are
-  "Pending". The answer key's `renewal_offer_truth` gives each offer's true chance of acceptance.
+  and its `expiring_premium` and `renewal_premium` are for those cars for a full term. Later events
+  cannot change the offer or the decision: a household change before the effective date re-rates the
+  renewal on the day it is known (`revised_offer_date`, the renewal term's `rating_date`; a car written off,
+  on the claim's report), and the written premium can also differ from the offer when the customer changes
+  deductibles or limits at renewal. A write-off reported only after the renewal has taken effect does not
+  revise it: the renewal is written and billed with the lost car, as the company knew the policy, and
+  re-rated back to its first day without it when the claim is reported (an endorsement booked then, which
+  billing reconciles; the term's rows show only the re-rated cars). A cancellation before the effective date
+  ends the policy (outcome "Canceled Before Renewal"), even one backdated to before the offer that the
+  company learned of only after it (a policy whose last car was written off, cancelled once the claim was
+  reported), and renewals taking effect after the valuation date are "Pending". The answer key's `renewal_offer_truth` gives each offer's true chance of acceptance.
 - **Order of events on one day.** The data holds dates, not times, so the order within a day is fixed
   by one rule, used by the simulation and by `validate.py` alike: a rating dated D uses every record
   whose `known_date` is D or earlier, and a loss or a payment on D can never have a `known_date` of
@@ -1071,33 +1081,33 @@ Deliberate and emergent findings in the default run:
 
 | Finding | What the data shows |
 |---|---|
-| New business costs more than it is charged | Expected loss ratio 77.1% for new business against 67.4% for renewals, falling with tenure: 71.2% in the first year after, 67.7% at one to three years, 65.5% at six or more. The loyalty discount (2% to 6%) is a fraction of what the risk justifies (12% to 21%) |
-| New policies claim early | 28.0 claims per 100 policy-years in a new policy's first 30 days, against about 25 for the rest of the first year and 21.9 to 23.8 after that |
-| Channels differ | Expected loss ratio 71.3% for independent-agent business, 67.5% direct, 66.9% exclusive agents; renewal rates 93.7%, 91.6% and 95.6% |
-| Some agencies write a worse book | Among the 61 agencies with 500 or more car-years (books of 108 to 1,446 policies), expected loss ratio runs from 60% to 87% (10th to 90th percentile: 63% to 79%); `agency_truth` says which differences are real and which are claim luck. The other 73 agencies are too small to judge on their own results: that is a finding too |
-| A few agencies write most of the premium | The largest tenth of the 120 independent agencies write 36% of their premium; half of them have 46 or fewer policies in force |
-| Billed installment payers run worse | Expected loss ratio 70.6% on the monthly bill plan, 67.1% by bank draft, 70.0% paid in full; renewal rates 90.7%, 93.0% and 95.2%; non-payment cancellations and write-offs concentrate there |
+| New business costs more than it is charged | Expected loss ratio 77.1% for new business against 67.4% for renewals, falling with tenure: 71.3% in the first year after, 67.7% at one to three years, 65.5% at six or more. The loyalty discount (2% to 6%) is a fraction of what the risk justifies (12% to 21%) |
+| New policies claim early | 28.0 claims per 100 policy-years in a new policy's first 30 days, against about 25 for the rest of the first year and 21.7 to 23.6 after that |
+| Channels differ | Expected loss ratio 71.3% for independent-agent business, 67.4% direct, 66.8% exclusive agents; renewal rates 93.7%, 91.5% and 95.6% |
+| Some agencies write a worse book | Among the 62 agencies with 500 or more car-years (books of 108 to 1,446 policies), expected loss ratio runs from 60% to 90% (10th to 90th percentile: 63% to 77%); `agency_truth` says which differences are real and which are claim luck. The other 72 agencies are too small to judge on their own results: that is a finding too |
+| A few agencies write most of the premium | The largest tenth of the 120 independent agencies write 36% of their premium; half of them have 45 or fewer policies in force |
+| Billed installment payers run worse | Expected loss ratio 70.2% on the monthly bill plan, 67.4% by bank draft, 69.8% paid in full; renewal rates 90.6%, 93.1% and 95.2%; non-payment cancellations and write-offs concentrate there |
 | Some discounts are not earned | The good-student discount (10%) is more than twice what the risk justifies and the married discount (5%) has no support once class and record are rated (good students run an expected loss ratio of 84%); the no-prior-insurance surcharge is more than those customers cost; the multi-car discount is more than those households save and the paid-in-full discount less (see "The rating plan") |
 | Rate increases cost new business | Conversion falls from 20.5% in the two months before an increase of 5% or more to 17.0% in the two months after, and recovers as the market's rates catch up; quotes rise 20% from 2022 to 2024 while new policies fall 5% (see "The market") |
 | Shopping is seasonal | March has a third more quotes than December |
-| Claims cost customers | Renewal offers are taken up 94.3% of the time with no claim in the expiring term, 86.5% with a claim and 78.8% with an at-fault claim; 898 renewals were refused by the company for the drivers' records |
-| Young drivers are under-priced | Expected loss ratio 75% to 87% for classes under 25, against 68% for ages 25 to 64 |
-| Mileage is under-used | Expected loss ratio rises from 65% under 5,000 reported miles to 83% at 16,000+ |
-| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for the exposed cars (2011-21 Kias and Hyundais without an immobilizer: `anti_theft_device` with the model year, not make and year alone) peak at 15.1 in 2023, against 1.0 to 1.5 for others; the counts are small, so the year of the peak moves from run to run |
-| Automatic emergency braking is unpriced | Expected loss ratio 66.1% with it, 71.3% without |
-| Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 63.0%, against 70.4% for the rest; selection and the 7% behavior effect can be separated only with the answer key |
-| The telematics discount under-reacts to the score | Expected loss ratio 66% for cars earning 10% or less, 54% for those earning 21% to 30% |
+| Claims cost customers | Renewal offers are taken up 94.3% of the time with no claim in the expiring term, 86.8% with a claim and 78.5% with an at-fault claim; 508 renewals were refused by the company for the drivers' records |
+| Young drivers are under-priced | Expected loss ratio 75% to 86% for classes under 25, against 68% for ages 25 to 64 |
+| Mileage is under-used | Expected loss ratio rises from 65% under 5,000 reported miles to 81% at 16,000+ |
+| Kia/Hyundai theft wave is unpriced | Whole-vehicle thefts per 1,000 comprehensive-covered vehicle-years for the exposed cars (2011-21 Kias and Hyundais without an immobilizer: `anti_theft_device` with the model year, not make and year alone) peak at 14.4 in 2023, against 1.2 to 1.8 for others; the counts are small, so the year of the peak moves from run to run |
+| Automatic emergency braking is unpriced | Expected loss ratio 65.8% with it, 71.4% without |
+| Telematics members are safer than they are charged for | Enrolled cars run an expected loss ratio of 62.8%, against 70.3% for the rest; selection and the 7% behavior effect can be separated only with the answer key |
+| The telematics discount under-reacts to the score | Expected loss ratio 65% for cars earning 10% or less, 53% for those earning 21% to 30% |
 | Telematics mileage exposes under-reporting | Annualized `telematics_score.miles_driven` is above the car's reported `insured_vehicle.annual_mileage` for two cars in three (10% above for the median car) |
-| Rates lagged costs, then caught up | Expected loss ratio falls from 81% (2022) and 75% (2023) to 66% and 64% (2024, 2025), as the industry's did |
-| Case reserves develop | Bodily injury incurred grows by 17% to 37% from 12 to 24 months as early, low reserves are corrected; collision moves 3% or less (scripts/reserve_diagnostics.py follows each year-end's reserves to their outcome) |
+| Rates lagged costs, then caught up | Expected loss ratio falls from 81% (2022) and 74% (2023) to 66% and 64% (2024, 2025), as the industry's did |
+| Case reserves develop | Bodily injury incurred grows by 11% to 23% from 12 to 24 months as early, low reserves are corrected; collision moves 2% or less (scripts/reserve_diagnostics.py follows each year-end's reserves to their outcome) |
 | New business is price-sensitive | Independent-agent quotes priced below the best competitor bind 36% of the time, those above 13% |
-| Insurance score is priced roughly right | Premium per car-year falls by more than half from scores under 600 ($2,258) to 800 and above ($853); expected loss ratio drifts only from 65% to 72%, partly because telematics discounts go mostly to good-score customers |
+| Insurance score is priced roughly right | Premium per car-year falls by more than half from scores under 600 ($2,231) to 800 and above ($854); expected loss ratio drifts only from 65% to 72%, partly because telematics discounts go mostly to good-score customers |
 | The newest year is not fully known | Late-reported claims are missing, open claims carry imperfect reserves, and closed claims can reopen |
 | Price increases cost retention | In `renewal_offer`, offers the insurer was willing to renew are taken up 95% of the time when the premium changes by 5% or less, 89% at a 10% to 20% increase and 75% above 20% |
-| First renewals are the weakest | On six-month terms, 90.7% of first renewals are taken up against 95.2% of later ones |
+| First renewals are the weakest | On six-month terms, 90.6% of first renewals are taken up against 95.2% of later ones |
 | Records reach the insurer late | A violation or chargeable claim shortly before a renewal's rating date is surcharged a term later |
 | Exposure moves | Moves, trade-ins and new drivers change a policy's territory, vehicles and rated drivers mid-term; a vehicle's history spans several exposure rows and sometimes several ZIP codes |
-| Cash follows premium, late | Receivables by age, late payers, returned drafts, refunds and write-offs can all be built from `billing_invoice` and `billing_receipt`: $1.57 million was owed on 7,245 bills at the valuation date, and $0.63 million had been written off |
+| Cash follows premium, late | Receivables by age, late payers, returned drafts, refunds and write-offs can all be built from `billing_invoice` and `billing_receipt`: $1.56 million was owed on 7,280 bills at the valuation date, and $0.66 million had been written off |
 | The books tie to the subledgers | Written and earned premium, unearned premium, receivables, commissions payable, paid losses and case reserves in `gl_journal` can each be rebuilt from the tables behind them, by month and company; calendar-year results differ from accident-year ones for reasons a student can explain |
 | Physical damage follows the used-car market | Vehicle values, and with them total-loss payments, peak in 2022 and fall as used-car prices ease; total losses rise from 28% of paid collision claims in 2022 to 36% in 2026 as repair costs climb and values fall |
 | Payments leave an audit trail | Check sequence, voids, outstanding checks, payments by approver against authority, vendor concentration (the ten busiest body shops take 30% of body-shop payments) and Benford's law can all be tested; the data holds no planted errors or fraud, so every test should come back clean |
@@ -1325,6 +1335,7 @@ vehicle symbols.
 | Claims closed without payment | WSJ analysis of insurer filings with the NAIC, 2025 |
 | Statutes of limitations, owner-retained salvage | 735 ILCS 5/13-202 and 13-205; 625 ILCS 5/3-117.1 |
 | Notice of cancellation for non-payment (at least ten days) | 215 ILCS 5/143.15 |
+| Grounds for non-renewing a policy in force five years or more | 215 ILCS 5/143.19.1, as quoted in the Illinois Department of Insurance's private passenger auto filing checklist (pp. 13-14) |
 | Catastrophes | NOAA National Centers for Environmental Information, Storm Events Database (hail, wind, tornado and flood reports for the seven counties) |
 | Married women who keep their surname | Pew Research Center (2023), by race and ethnicity |
 | Moves, living with parents, marriage and divorce | US Census Bureau ACS 2024 1-year (B07013, B07201, B12001, B12503) and CPS ASEC 2025 (table AD-1) |

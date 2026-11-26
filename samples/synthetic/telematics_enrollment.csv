@@ -1,101 +1,101 @@
 enrollment_id,policy_id,program,device_type,enrollment_date,participation_discount_pct,end_date,end_reason
 1,84640,Lakefront DriveCheck,Mobile App,2018-01-03,5,2023-01-03,Policy Ended
-2,164719,Lakefront DriveCheck,Mobile App,2018-01-03,5,2023-09-18,Opted Out
-3,164864,Lakefront DriveCheck,Plug-in Device,2018-01-07,5,,
-5,121634,Lakefront DriveCheck,Mobile App,2018-01-11,5,,
-6,149769,Lakefront DriveCheck,Mobile App,2018-01-17,5,2026-02-23,Opted Out
-8,165382,Lakefront DriveCheck,Mobile App,2018-01-19,5,2023-01-19,Policy Ended
-9,122033,Lakefront DriveCheck,Mobile App,2018-01-22,5,,
-10,29740,Lakefront DriveCheck,Mobile App,2018-01-25,5,2022-08-20,Opted Out
-12,135791,Lakefront DriveCheck,Mobile App,2018-01-28,5,2025-12-25,Opted Out
-15,182053,Lakefront DriveCheck,Plug-in Device,2018-02-01,5,2023-02-01,Policy Ended
-17,182115,Lakefront DriveCheck,Bluetooth Beacon,2018-02-03,5,2023-10-19,Policy Canceled
+2,164719,Lakefront DriveCheck,Mobile App,2018-01-03,5,2023-03-22,Opted Out
+4,164864,Lakefront DriveCheck,Plug-in Device,2018-01-07,5,2022-05-05,Policy Canceled
+5,121634,Lakefront DriveCheck,Mobile App,2018-01-11,5,2023-10-14,Opted Out
+6,149769,Lakefront DriveCheck,Mobile App,2018-01-17,5,2026-09-08,Opted Out
+7,165382,Lakefront DriveCheck,Mobile App,2018-01-19,5,2023-01-19,Policy Ended
+8,122033,Lakefront DriveCheck,Mobile App,2018-01-22,5,2025-03-14,Opted Out
+11,29740,Lakefront DriveCheck,Mobile App,2018-01-25,5,,
+12,135791,Lakefront DriveCheck,Mobile App,2018-01-28,5,,
+14,182053,Lakefront DriveCheck,Plug-in Device,2018-02-01,5,2023-02-01,Policy Ended
+18,182115,Lakefront DriveCheck,Bluetooth Beacon,2018-02-03,5,2023-09-30,Policy Canceled
 19,166026,Lakefront DriveCheck,Mobile App,2018-02-04,5,2023-02-04,Policy Ended
 20,150613,Lakefront DriveCheck,Plug-in Device,2018-02-06,5,,
-22,166232,Lakefront DriveCheck,Mobile App,2018-02-09,5,,
-24,182463,Lakefront DriveCheck,Plug-in Device,2018-02-10,5,2023-02-10,Policy Ended
-26,150869,Lakefront DriveCheck,Mobile App,2018-02-12,5,,
-27,182584,Lakefront DriveCheck,Mobile App,2018-02-12,5,,
-28,86006,Lakefront DriveCheck,Mobile App,2018-02-16,5,2026-10-13,Policy Canceled
-29,137004,Lakefront DriveCheck,Bluetooth Beacon,2018-02-28,5,,
-31,183429,Lakefront DriveCheck,Mobile App,2018-03-03,5,2023-03-03,Policy Ended
-32,123749,Lakefront DriveCheck,Bluetooth Beacon,2018-03-10,5,2022-03-10,Policy Ended
-33,151986,Lakefront DriveCheck,Plug-in Device,2018-03-10,5,2024-03-10,Policy Ended
-35,123805,Lakefront DriveCheck,Mobile App,2018-03-11,5,2023-06-09,Policy Canceled
-38,65469,Lakefront DriveCheck,Plug-in Device,2018-03-12,5,,
-39,75927,Lakefront DriveCheck,Mobile App,2018-03-19,5,2022-03-19,Policy Ended
-41,111037,Lakefront DriveCheck,Mobile App,2018-03-19,5,2025-06-28,Policy Canceled
-42,124265,Lakefront DriveCheck,Mobile App,2018-03-24,5,,
-44,184598,Lakefront DriveCheck,Plug-in Device,2018-03-28,5,2023-03-28,Policy Ended
-45,38967,Lakefront DriveCheck,Plug-in Device,2018-04-01,5,,
-46,87388,Lakefront DriveCheck,Mobile App,2018-04-01,5,2023-04-01,Policy Ended
-53,184820,Lakefront DriveCheck,Bluetooth Beacon,2018-04-02,5,2024-09-03,Opted Out
-109,1137,Lakefront DriveCheck,Plug-in Device,2018-04-05,5,,
-164,76530,Lakefront DriveCheck,Plug-in Device,2018-04-08,5,2022-06-27,Opted Out
-177,124834,Lakefront DriveCheck,Plug-in Device,2018-04-09,5,2025-03-07,Policy Canceled
-191,185201,Lakefront DriveCheck,Mobile App,2018-04-10,5,,
-202,185223,Lakefront DriveCheck,Plug-in Device,2018-04-10,5,,
-277,153457,Lakefront DriveCheck,Mobile App,2018-04-15,5,2022-05-11,Opted Out
+21,166232,Lakefront DriveCheck,Mobile App,2018-02-09,5,,
+22,182463,Lakefront DriveCheck,Plug-in Device,2018-02-10,5,2023-02-10,Policy Ended
+23,150869,Lakefront DriveCheck,Mobile App,2018-02-12,5,2025-08-08,Opted Out
+24,182584,Lakefront DriveCheck,Mobile App,2018-02-12,5,,
+25,86006,Lakefront DriveCheck,Mobile App,2018-02-16,5,,
+26,137004,Lakefront DriveCheck,Bluetooth Beacon,2018-02-28,5,,
+27,183429,Lakefront DriveCheck,Mobile App,2018-03-03,5,2023-03-03,Policy Ended
+28,123749,Lakefront DriveCheck,Bluetooth Beacon,2018-03-10,5,2022-03-10,Policy Ended
+31,151986,Lakefront DriveCheck,Plug-in Device,2018-03-10,5,,
+33,123805,Lakefront DriveCheck,Mobile App,2018-03-11,5,2023-10-27,Opted Out
+35,65469,Lakefront DriveCheck,Plug-in Device,2018-03-12,5,,
+37,75927,Lakefront DriveCheck,Mobile App,2018-03-19,5,2022-03-19,Policy Ended
+38,111037,Lakefront DriveCheck,Mobile App,2018-03-19,5,2024-07-31,Opted Out
+40,124265,Lakefront DriveCheck,Mobile App,2018-03-24,5,2022-08-08,Opted Out
+43,184598,Lakefront DriveCheck,Plug-in Device,2018-03-28,5,2023-03-28,Policy Ended
+44,38967,Lakefront DriveCheck,Plug-in Device,2018-04-01,5,2026-01-13,Opted Out
+45,87388,Lakefront DriveCheck,Mobile App,2018-04-01,5,2023-04-01,Policy Ended
+57,184820,Lakefront DriveCheck,Bluetooth Beacon,2018-04-02,5,,
+107,1137,Lakefront DriveCheck,Plug-in Device,2018-04-05,5,,
+161,76530,Lakefront DriveCheck,Plug-in Device,2018-04-08,5,2022-06-28,Opted Out
+180,124834,Lakefront DriveCheck,Plug-in Device,2018-04-09,5,,
+190,185201,Lakefront DriveCheck,Mobile App,2018-04-10,5,2026-04-29,Policy Canceled
+199,185223,Lakefront DriveCheck,Plug-in Device,2018-04-10,5,,
+268,153457,Lakefront DriveCheck,Mobile App,2018-04-15,5,,
 456,169533,Lakefront DriveCheck,Mobile App,2018-04-26,5,2023-04-26,Policy Ended
-472,139247,Lakefront DriveCheck,Plug-in Device,2018-04-27,5,2024-10-16,Opted Out
-483,153969,Lakefront DriveCheck,Mobile App,2018-04-27,5,2022-04-29,Opted Out
-501,186081,Lakefront DriveCheck,Plug-in Device,2018-04-28,5,2023-04-09,Opted Out
-557,112531,Lakefront DriveCheck,Plug-in Device,2018-05-01,5,,
-568,186249,Lakefront DriveCheck,Mobile App,2018-05-01,5,2026-11-25,Policy Canceled
-624,88452,Lakefront DriveCheck,Plug-in Device,2018-05-04,5,,
-704,186606,Lakefront DriveCheck,Mobile App,2018-05-09,5,,
-783,126176,Lakefront DriveCheck,Mobile App,2018-05-13,5,2023-01-17,Opted Out
-806,100461,Lakefront DriveCheck,Plug-in Device,2018-05-14,5,2024-05-14,Policy Ended
-856,187001,Lakefront DriveCheck,Plug-in Device,2018-05-17,5,2023-05-17,Policy Ended
-870,170450,Lakefront DriveCheck,Plug-in Device,2018-05-18,5,2024-05-18,Policy Ended
-933,113249,Lakefront DriveCheck,Bluetooth Beacon,2018-05-22,5,,
-981,155177,Lakefront DriveCheck,Plug-in Device,2018-05-25,5,,
-1043,126796,Lakefront DriveCheck,Mobile App,2018-05-29,5,2023-01-14,Opted Out
-1054,140562,Lakefront DriveCheck,Mobile App,2018-05-29,5,2023-01-11,Opted Out
-1242,140956,Lakefront DriveCheck,Bluetooth Beacon,2018-06-09,5,2026-03-31,Policy Canceled
-1257,155851,Lakefront DriveCheck,Mobile App,2018-06-10,5,2023-06-10,Policy Ended
-1269,188077,Lakefront DriveCheck,Plug-in Device,2018-06-10,5,,
-1402,89801,Lakefront DriveCheck,Mobile App,2018-06-18,5,2024-06-18,Policy Ended
-1424,127533,Lakefront DriveCheck,Mobile App,2018-06-19,5,,
-1490,156382,Lakefront DriveCheck,Mobile App,2018-06-23,5,,
-1657,121307,Lakefront DriveCheck,Plug-in Device,2018-07-03,5,2023-05-15,Opted Out
-1662,172445,Lakefront DriveCheck,Plug-in Device,2018-07-03,5,,
-1681,108430,Lakefront DriveCheck,Mobile App,2018-07-04,5,2024-09-09,Policy Canceled
-1701,189224,Lakefront DriveCheck,Mobile App,2018-07-05,5,,
-1719,121450,Lakefront DriveCheck,Mobile App,2018-07-06,5,2026-03-02,Opted Out
-1728,164825,Lakefront DriveCheck,Mobile App,2018-07-06,5,2022-02-17,Opted Out
-1785,12927,Lakefront DriveCheck,Plug-in Device,2018-07-09,5,2023-03-24,Opted Out
-1793,180961,Lakefront DriveCheck,Mobile App,2018-07-09,5,,
-1820,37213,Lakefront DriveCheck,Plug-in Device,2018-07-11,5,2023-05-07,Opted Out
-1830,181077,Lakefront DriveCheck,Mobile App,2018-07-11,5,2022-07-11,Policy Ended
-1850,172849,Lakefront DriveCheck,Mobile App,2018-07-12,5,2023-12-07,Policy Canceled
-1860,25829,Lakefront DriveCheck,Plug-in Device,2018-07-13,5,,
-1895,121745,Lakefront DriveCheck,Mobile App,2018-07-15,5,,
-1920,63926,Lakefront DriveCheck,Mobile App,2018-07-16,5,2024-02-25,Policy Canceled
-1936,68903,Lakefront DriveCheck,Mobile App,2018-07-17,5,,
-1947,173097,Lakefront DriveCheck,Mobile App,2018-07-17,5,2022-01-09,Policy Canceled
-1956,189832,Lakefront DriveCheck,Bluetooth Beacon,2018-07-17,5,2022-03-26,Opted Out
-1996,19163,Lakefront DriveCheck,Mobile App,2018-07-20,5,,
-2003,189954,Lakefront DriveCheck,Mobile App,2018-07-20,5,,
-2056,142711,Lakefront DriveCheck,Plug-in Device,2018-07-23,5,2025-05-17,Opted Out
-2077,79655,Lakefront DriveCheck,Mobile App,2018-07-24,5,2025-08-19,Opted Out
-2122,115561,Lakefront DriveCheck,Mobile App,2018-07-26,5,,
-2138,181772,Lakefront DriveCheck,Mobile App,2018-07-26,5,,
-2177,33600,Lakefront DriveCheck,Mobile App,2018-07-29,5,,
-2231,19383,Lakefront DriveCheck,Mobile App,2018-08-01,5,2026-03-18,Opted Out
-2235,79910,Lakefront DriveCheck,Mobile App,2018-08-01,5,2024-02-01,Policy Ended
-2239,97006,Lakefront DriveCheck,Mobile App,2018-08-01,5,2022-03-02,Opted Out
-2241,143067,Lakefront DriveCheck,Plug-in Device,2018-08-01,5,,
-2247,150361,Lakefront DriveCheck,Plug-in Device,2018-08-01,5,,
-2256,122432,Lakefront DriveCheck,Mobile App,2018-08-02,5,2024-09-14,Opted Out
-2268,182107,Lakefront DriveCheck,Plug-in Device,2018-08-02,5,2023-04-10,Opted Out
-2286,158096,Lakefront DriveCheck,Mobile App,2018-08-03,5,,
-2323,91283,Lakefront DriveCheck,Plug-in Device,2018-08-05,5,2022-11-28,Policy Canceled
-2340,50473,Lakefront DriveCheck,Plug-in Device,2018-08-06,5,2026-06-16,Opted Out
-2354,150640,Lakefront DriveCheck,Plug-in Device,2018-08-07,5,2024-08-07,Policy Ended
-2372,116050,Lakefront DriveCheck,Bluetooth Beacon,2018-08-08,5,,
-2382,103374,Lakefront DriveCheck,Plug-in Device,2018-08-09,5,,
-2390,174129,Lakefront DriveCheck,Bluetooth Beacon,2018-08-09,5,,
-2414,182470,Lakefront DriveCheck,Bluetooth Beacon,2018-08-10,5,2026-01-06,Opted Out
-2455,166409,Lakefront DriveCheck,Bluetooth Beacon,2018-08-13,5,2023-08-13,Policy Ended
-2463,182629,Lakefront DriveCheck,Bluetooth Beacon,2018-08-13,5,,
+469,139247,Lakefront DriveCheck,Plug-in Device,2018-04-27,5,,
+482,153969,Lakefront DriveCheck,Mobile App,2018-04-27,5,,
+506,186081,Lakefront DriveCheck,Plug-in Device,2018-04-28,5,2025-04-28,Policy Ended
+551,112531,Lakefront DriveCheck,Plug-in Device,2018-05-01,5,2025-02-25,Opted Out
+558,186249,Lakefront DriveCheck,Mobile App,2018-05-01,5,,
+615,88452,Lakefront DriveCheck,Plug-in Device,2018-05-04,5,,
+704,186606,Lakefront DriveCheck,Mobile App,2018-05-09,5,2022-05-07,Opted Out
+774,126176,Lakefront DriveCheck,Mobile App,2018-05-13,5,2025-11-11,Opted Out
+790,100461,Lakefront DriveCheck,Plug-in Device,2018-05-14,5,2024-05-14,Policy Ended
+839,187001,Lakefront DriveCheck,Plug-in Device,2018-05-17,5,2023-05-17,Policy Ended
+857,170450,Lakefront DriveCheck,Plug-in Device,2018-05-18,5,2024-05-18,Policy Ended
+922,113249,Lakefront DriveCheck,Bluetooth Beacon,2018-05-22,5,,
+981,155177,Lakefront DriveCheck,Plug-in Device,2018-05-25,5,2024-10-15,Opted Out
+1047,126796,Lakefront DriveCheck,Mobile App,2018-05-29,5,2024-12-26,Opted Out
+1051,140562,Lakefront DriveCheck,Mobile App,2018-05-29,5,,
+1251,140956,Lakefront DriveCheck,Bluetooth Beacon,2018-06-09,5,,
+1268,155851,Lakefront DriveCheck,Mobile App,2018-06-10,5,2023-06-10,Policy Ended
+1275,188077,Lakefront DriveCheck,Plug-in Device,2018-06-10,5,2023-06-05,Opted Out
+1407,89801,Lakefront DriveCheck,Mobile App,2018-06-18,5,2023-03-22,Opted Out
+1431,127533,Lakefront DriveCheck,Mobile App,2018-06-19,5,2022-09-10,Opted Out
+1489,156382,Lakefront DriveCheck,Mobile App,2018-06-23,5,2024-10-14,Opted Out
+1664,121307,Lakefront DriveCheck,Plug-in Device,2018-07-03,5,2025-04-25,Policy Canceled
+1672,172445,Lakefront DriveCheck,Plug-in Device,2018-07-03,5,2023-08-07,Opted Out
+1684,108430,Lakefront DriveCheck,Mobile App,2018-07-04,5,,
+1702,189224,Lakefront DriveCheck,Mobile App,2018-07-05,5,,
+1717,121450,Lakefront DriveCheck,Mobile App,2018-07-06,5,2022-11-12,Opted Out
+1726,164825,Lakefront DriveCheck,Mobile App,2018-07-06,5,2022-10-19,Opted Out
+1775,12927,Lakefront DriveCheck,Plug-in Device,2018-07-09,5,2023-12-02,Opted Out
+1782,180961,Lakefront DriveCheck,Mobile App,2018-07-09,5,2023-08-13,Opted Out
+1815,37213,Lakefront DriveCheck,Plug-in Device,2018-07-11,5,,
+1826,181077,Lakefront DriveCheck,Mobile App,2018-07-11,5,2022-07-11,Policy Ended
+1843,172849,Lakefront DriveCheck,Mobile App,2018-07-12,5,,
+1857,25829,Lakefront DriveCheck,Plug-in Device,2018-07-13,5,2026-02-22,Opted Out
+1894,121745,Lakefront DriveCheck,Mobile App,2018-07-15,5,2022-03-06,Opted Out
+1915,63926,Lakefront DriveCheck,Mobile App,2018-07-16,5,,
+1927,68903,Lakefront DriveCheck,Mobile App,2018-07-17,5,,
+1933,173097,Lakefront DriveCheck,Mobile App,2018-07-17,5,2022-01-09,Policy Canceled
+1941,189832,Lakefront DriveCheck,Bluetooth Beacon,2018-07-17,5,2022-03-26,Opted Out
+1983,19163,Lakefront DriveCheck,Mobile App,2018-07-20,5,,
+1993,189954,Lakefront DriveCheck,Mobile App,2018-07-20,5,2023-07-20,Policy Ended
+2052,142711,Lakefront DriveCheck,Plug-in Device,2018-07-23,5,2023-04-18,Opted Out
+2076,79655,Lakefront DriveCheck,Mobile App,2018-07-24,5,,
+2107,115561,Lakefront DriveCheck,Mobile App,2018-07-26,5,,
+2112,181772,Lakefront DriveCheck,Mobile App,2018-07-26,5,,
+2160,33600,Lakefront DriveCheck,Mobile App,2018-07-29,5,2024-06-21,Opted Out
+2205,19383,Lakefront DriveCheck,Mobile App,2018-08-01,5,,
+2212,79910,Lakefront DriveCheck,Mobile App,2018-08-01,5,2024-02-01,Policy Ended
+2218,97006,Lakefront DriveCheck,Mobile App,2018-08-01,5,2022-09-09,Opted Out
+2222,143067,Lakefront DriveCheck,Plug-in Device,2018-08-01,5,2025-03-31,Policy Canceled
+2228,150361,Lakefront DriveCheck,Plug-in Device,2018-08-01,5,2025-02-07,Opted Out
+2238,122432,Lakefront DriveCheck,Mobile App,2018-08-02,5,,
+2246,182107,Lakefront DriveCheck,Plug-in Device,2018-08-02,5,2022-05-11,Policy Canceled
+2255,158096,Lakefront DriveCheck,Mobile App,2018-08-03,5,,
+2295,91283,Lakefront DriveCheck,Plug-in Device,2018-08-05,5,2024-11-24,Opted Out
+2314,50473,Lakefront DriveCheck,Plug-in Device,2018-08-06,5,,
+2329,150640,Lakefront DriveCheck,Plug-in Device,2018-08-07,5,2024-08-07,Policy Ended
+2360,116050,Lakefront DriveCheck,Bluetooth Beacon,2018-08-08,5,2022-11-29,Opted Out
+2373,103374,Lakefront DriveCheck,Plug-in Device,2018-08-09,5,2024-01-10,Opted Out
+2384,174129,Lakefront DriveCheck,Bluetooth Beacon,2018-08-09,5,,
+2399,182470,Lakefront DriveCheck,Bluetooth Beacon,2018-08-10,5,,
+2451,166409,Lakefront DriveCheck,Bluetooth Beacon,2018-08-13,5,2023-06-10,Policy Canceled
+2460,182629,Lakefront DriveCheck,Bluetooth Beacon,2018-08-13,5,,

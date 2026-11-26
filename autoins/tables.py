@@ -114,6 +114,12 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
                                   earned=("earned_premium", "sum"), before=("before", "sum"), vehicles=("at_start", "sum"))
     terms = terms.join(tg, on="term")
     terms[list(tg.columns)] = terms[list(tg.columns)].fillna(0)
+    # a renewal issued before a write-off was reported was written with the lost car (simulate._issued_before_known):
+    # its written premium is the premium as issued, and the re-rating back to its start an endorsement (_transactions)
+    terms["written_rows"] = terms.written
+    if "issued" in terms:
+        issued = terms.issued.notna().to_numpy()
+        terms.loc[issued, "written"] = terms.issued[issued]
     # A household that stops paying is cancelled for non-payment a few weeks after the instalment it does not pay
     # (simulate._missed_installment chooses it when the term begins). If nothing was left on that instalment (a
     # car written off and not yet replaced, say), no bill was sent and there was nothing to miss: the household,
@@ -392,7 +398,7 @@ def build(cfg: C.Config, ref, pop, res, dev) -> tuple[dict, dict]:
 
     T.update(_telematics_tables(res.tele, terms, V, D, polno))
     of = res.offers.sort_values(["offer_day", "pol"], kind="stable").reset_index(drop=True)
-    T["renewal_offer"], K["renewal_offer_truth"] = _renewal_offers(of, D, polno)
+    T["renewal_offer"], K["renewal_offer_truth"] = _renewal_offers(of, D, polno, T["driver_incident"])
     known_veh = veh.assign(removal_reason=reason_v)
     T["premium_transaction"], ledger = _transactions(cfg, cal, pol, ag, terms, rows, known_veh, D, polno)
     inv, rec, notices = billing.build(cfg, cal, pol, terms, ledger)
@@ -518,18 +524,31 @@ def _telematics_tables(tele: dict, terms: pd.DataFrame, V: int, D, polno) -> dic
     return out
 
 
-def _renewal_offers(of: pd.DataFrame, D, polno) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _renewal_offers(of: pd.DataFrame, D, polno, incidents: pd.DataFrame = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Every renewal the insurer evaluated, renewed or not: the offer as made on its offer date, from the policy as it
-    stood that day (the expiring term's exposure rows in force on it), the underwriting decision, a revision after a
-    later household change, and how it ended. The answer key holds the customer's true chance of accepting it."""
+    stood that day (the expiring term's exposure rows in force on it), the underwriting decision with the reason for a
+    non-renewal (and the driver and the `driver_incident` it rests on), a revision after a later household change, and
+    how it ended. The answer key holds the customer's true chance of accepting it."""
     opt = lambda day: np.where(day >= 0, D(np.clip(day, 0, None)), "")
     oid = np.arange(1, len(of) + 1)
+    nr = of.nr_drv.to_numpy() >= 0 if "nr_drv" in of else np.zeros(len(of), dtype=bool)
+    incident = pd.array([pd.NA] * len(of), dtype="Int64")
+    if nr.any() and incidents is not None:
+        kinds = np.array(["Minor Violation", "Major Violation", "At-Fault Accident"])
+        want = pd.DataFrame({"i": np.flatnonzero(nr), "driver_id": of.nr_drv.to_numpy()[nr] + 1,
+                             "incident_date": D(of.nr_day.to_numpy()[nr]), "incident_type": kinds[of.nr_kind.to_numpy()[nr]]})
+        first = incidents.groupby(["driver_id", "incident_date", "incident_type"]).incident_id.min().reset_index()
+        hit = want.merge(first, on=["driver_id", "incident_date", "incident_type"], how="left")
+        incident[hit.i.to_numpy()] = hit.incident_id.astype("Int64").to_numpy()
     table = pd.DataFrame({
         "renewal_offer_id": oid, "policy_id": polno(of.pol), "expiring_policy_term_id": of.exp_term + 1,
         "offer_date": D(of.offer_day), "renewal_effective_date": D(of.eff), "vehicles_offered": of.n_veh,
         "expiring_premium": of.expiring.round(2), "renewal_premium": of.premium.round(2),
         "telematics_opt_in": of.tele_opt,
         "underwriting_decision": np.where(of.company, "Non-Renew", "Renew"),
+        "underwriting_reason": of.nr_reason if "nr_reason" in of else "",
+        "underwriting_driver_id": pd.array(np.where(nr, of.nr_drv.to_numpy() + 1 if "nr_drv" in of else 0, pd.NA), dtype="Int64"),
+        "underwriting_incident_id": incident,
         "revised_offer_date": opt(of.revised_day.to_numpy()), "outcome": of.outcome,
         "renewal_policy_term_id": pd.array(np.where(of.term >= 0, of.term + 1, pd.NA), dtype="Int64")})
     truth_ = pd.DataFrame({"renewal_offer_id": oid,
@@ -588,11 +607,16 @@ def _transactions(cfg, cal, policies, agencies, terms, rows, veh, D, polno) -> t
     # knew it had gone (a car written off: the claim's first notice; the removal itself is backdated)
     rated = rows.rated_on.to_numpy() if "rated_on" in rows else a
     gone_known = rows.gone_known.to_numpy() if "gone_known" in rows else x
+    # a renewal issued with a car written off before it took effect but reported after: re-rated back to its first day
+    # without the car once the claim is reported (the written premium is the premium as issued)
+    adj = terms[terms.issued.notna()] if "issued" in terms else terms.iloc[:0]
     endorse = pd.concat([
         pd.DataFrame({"term": rows.term[starts], "day": a[starts], "amount": (tp * (e - a) / span)[starts],
                       "reason": rows.reason[starts].fillna(""), "known": rated[starts]}),
         pd.DataFrame({"term": rows.term[ends], "day": x[ends], "amount": -(tp * (e - x) / span)[ends], "reason": removal[ends],
-                      "known": np.where(kind == END_GONE, gone_known, x)[ends]})])
+                      "known": np.where(kind == END_GONE, gone_known, x)[ends]}),
+        pd.DataFrame({"term": adj.term, "day": adj.s, "amount": adj.written_rows - adj.issued,
+                      "reason": adj.adjust_reason, "known": adj.adjust_day})])
     def reasons(r):
         """The day's changes, once each; a car removed after a loss is named by why (the other cars' re-rating
         the same day, recorded as a removal, adds nothing)."""
